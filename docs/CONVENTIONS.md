@@ -46,6 +46,6 @@ Read with `docs/SPEC.md` (what to build) and `docs/DEV.md` (commands). These are
 - View the PNGs with the Read tool and iterate until the screen looks like a top-tier iOS app in both light and dark.
 
 ## Process
-- `pnpm verify` (typecheck, lint, test, iOS bundle) must pass. Add unit tests for any new pure logic.
+- `pnpm verify` (typecheck, lint, test, iOS bundle) must pass. Add unit tests for any new pure logic. After adding a route file, run `pnpm typegen` to regenerate typed routes (only `expo start` regenerates them).
 - Agents never commit; the orchestrator commits.
 - When agents run in parallel, each stays inside the files it was assigned. Shared files (`src/data/actions.ts`, `src/data/hooks/index.ts`, `symbolFallbacks.ts`, `scripts/screenshot-routes.json`) get small additive `Edit`s only, never a full rewrite.

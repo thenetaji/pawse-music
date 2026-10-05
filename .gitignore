@@ -48,3 +48,6 @@ example
 # tooling output
 .screenshots*/
 .export-*/
+
+# Skia web wasm (copied by scripts/screenshots.mjs)
+public/canvaskit.wasm
