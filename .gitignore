@@ -44,3 +44,7 @@ example
 
 # reference repos (GPL-3.0, read-only inspiration, never copy code)
 .reference/
+
+# tooling output
+.screenshots/
+.export-*/
