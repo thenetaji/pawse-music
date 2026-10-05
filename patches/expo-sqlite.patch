@@ -1,0 +1,22 @@
+diff --git a/web/WorkerChannel.ts b/web/WorkerChannel.ts
+index 7fba380845e3338b7d8d253013fbf73896070cde..655cecf813ee51f80ce4d4786628b4dda3e34880 100644
+--- a/web/WorkerChannel.ts
++++ b/web/WorkerChannel.ts
+@@ -40,7 +40,7 @@ export function sendWorkerResult({
+     const resultJson = error != null ? serialize({ error }) : serialize({ result });
+     const resultBytes = new TextEncoder().encode(resultJson);
+     const length = resultBytes.length;
+-    resultArray.set(new Uint32Array([length]), 0);
++    resultArray.set(new Uint8Array(new Uint32Array([length]).buffer), 0);
+     resultArray.set(resultBytes, 4);
+     Atomics.store(lock, 0, RESOLVED);
+   } else {
+@@ -123,7 +123,7 @@ export function invokeWorkerSync<T extends SQLiteWorkerMessageType & keyof Resul
+     ++i;
+ 
+     if (useAtomicsPause) {
+-      if (i > 1_000_000) {
++      if (i > 1_000_000_000) {
+         throw new Error('Sync operation timeout');
+       }
+       // @ts-expect-error: Remove this when TypeScript supports Atomics.pause

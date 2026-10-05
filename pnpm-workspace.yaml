@@ -1,0 +1,2 @@
+patchedDependencies:
+  expo-sqlite: patches/expo-sqlite.patch
