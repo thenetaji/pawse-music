@@ -21,7 +21,7 @@ Read with `docs/SPEC.md` (what to build) and `docs/DEV.md` (commands). These are
 - **Classes**:
   - surfaces: `bg-bg`, `bg-surface`, `bg-elevated`, `bg-fill`, `bg-accent`, `bg-accent-soft`
   - text: `text-foreground`, `text-secondary`, `text-tertiary`, `text-accent`, `text-income`, `text-expense`, `text-warning`
-  - category colours: `bg-cat-<key>`
+  - category colours: `bg-cat-<key>` (chart data), `bg-cat-<key>-ink` (tile fills); `text-accent` is now `text-accent-text` (brass link colour)
   - alpha colours: `withAlpha(hex, a)` with `useTokens()`
   - hairlines: `StyleSheet.hairlineWidth` with the `separator` token
 - **Raw values** (Skia, Reanimated, native props): `useTokens()` from `@/theme/use-tokens`.
