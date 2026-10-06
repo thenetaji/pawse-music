@@ -81,6 +81,7 @@
     "bundle:web": "expo export --platform web --output-dir .export-web",
     "doctor": "pnpm dlx expo-doctor",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm bundle:ios",
+    "e2e": "node scripts/e2e.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "db:generate": "drizzle-kit generate",
     "typegen": "CI=1 timeout 75 expo start --port 8097 >/dev/null 2>&1 || true"

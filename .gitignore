@@ -51,3 +51,5 @@ example
 
 # Skia web wasm (copied by scripts/screenshots.mjs)
 public/canvaskit.wasm
+.review/
+.e2e/
