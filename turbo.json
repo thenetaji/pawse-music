@@ -1,0 +1,11 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "envMode": "loose",
+  "agentGuidance": false,
+  "tasks": {
+    "typecheck": { "outputs": [] },
+    "lint": { "outputs": [] },
+    "test": { "cache": false },
+    "bundle:ios": { "cache": false }
+  }
+}
