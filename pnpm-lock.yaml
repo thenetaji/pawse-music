@@ -88,9 +88,15 @@ importers:
       '@studio/dates':
         specifier: workspace:*
         version: link:../../packages/dates
+      '@studio/icons':
+        specifier: workspace:*
+        version: link:../../packages/icons
       '@studio/money':
         specifier: workspace:*
         version: link:../../packages/money
+      '@studio/motion':
+        specifier: workspace:*
+        version: link:../../packages/motion
       '@studio/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -282,7 +288,54 @@ importers:
         specifier: workspace:*
         version: link:../config
 
+  packages/icons:
+    dependencies:
+      '@expo/vector-icons':
+        specifier: '*'
+        version: 15.1.1(expo-font@57.0.4)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      expo-symbols:
+        specifier: '*'
+        version: 57.0.3(expo-font@57.0.4)(expo@57.0.26)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      react:
+        specifier: '*'
+        version: 19.2.3
+      react-native:
+        specifier: '*'
+        version: 0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3)
+      react-native-svg:
+        specifier: '*'
+        version: 15.15.4(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      zustand:
+        specifier: '*'
+        version: 5.0.15(@types/react@19.2.18)(react@19.2.3)
+    devDependencies:
+      '@studio/config':
+        specifier: workspace:*
+        version: link:../config
+
   packages/money:
+    devDependencies:
+      '@studio/config':
+        specifier: workspace:*
+        version: link:../config
+
+  packages/motion:
+    dependencies:
+      '@studio/theme':
+        specifier: workspace:*
+        version: link:../theme
+      expo-router:
+        specifier: '*'
+        version: 57.0.24(91296f42993750131f67cdacabbcac44)
+      react:
+        specifier: '*'
+        version: 19.2.3
+      react-native:
+        specifier: '*'
+        version: 0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3)
+      react-native-reanimated:
+        specifier: '*'
+        version: 4.5.1(react-native-worklets@0.10.1(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
     devDependencies:
       '@studio/config':
         specifier: workspace:*
