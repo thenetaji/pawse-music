@@ -39,8 +39,8 @@ yarn-error.*
 example
 
 # generated native folders
-/ios
-/android
+/apps/*/ios
+/apps/*/android
 
 # reference repos (GPL-3.0, read-only inspiration, never copy code)
 .reference/

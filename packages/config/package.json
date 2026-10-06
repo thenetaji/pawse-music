@@ -9,7 +9,8 @@
     "./babel": "./babel.js",
     "./metro": "./metro.js",
     "./eslint": "./eslint.js",
-    "./jest": "./jest.js"
+    "./jest": "./jest.js",
+    "./plugins/with-scene-lifecycle": "./plugins/with-scene-lifecycle.js"
   },
   "peerDependencies": {
     "babel-plugin-inline-import": "*",
