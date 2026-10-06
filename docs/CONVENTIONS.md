@@ -7,7 +7,7 @@ Read with `docs/DEV.md` (commands and layout) and, for Finance, `apps/finance/do
 - **An app** (`apps/<name>`, own code via the `@/` alias) holds everything about its product. For Finance: transactions, accounts, budgets, categories, the schema and repos, screens and features.
 - If unsure, keep it in the app; extract later.
 - **Boundaries**: package code never uses `@/` and never imports app code. Inside a package use relative imports; across packages use `@studio/<pkg>`. Direction only: config, then dates and money, then theme, then icons and motion, then ui and charts, then data. No cycles.
-- Entry points are the package `index.ts` (plus `@studio/charts/lib`, `@studio/data/{provider,files,sync}`); do not deep-import into `src/`. Export new public modules from the index.
+- Entry points are the package `index.ts` (plus `@studio/charts/{lib,components}`, `@studio/data/{provider,files,sync}`); do not deep-import into `src/`. Export new public modules from the index.
 - Classes used in a package are generated through the `@source` line in the app's `global.css`; theme CSS variables stay in the app.
 - Per-app theming: `configureTheme({ accentPreset | accent })` from `@studio/theme`. Category palette keys (`categoryKeys`) are stable because stored data refers to them.
 - Tests live next to the code they test, in the package or app that owns it. `pnpm test` runs all of them.
