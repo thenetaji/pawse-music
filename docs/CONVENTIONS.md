@@ -37,6 +37,17 @@ Read with `docs/SPEC.md` (what to build) and `docs/DEV.md` (commands). These are
 - **Lists**: `FlashList` (@shopify/flash-list v2) for anything unbounded.
 - **Copy**: SPEC §5.10. Terse, sentence case, no instructional text, no emoji, no exclamation marks.
 
+## Header and toolbar controls
+- **Text buttons** are plain text on no background. Primary (Done, Save, Edit): `<Button variant="barPrimary">`, `text` colour, semibold. Secondary (Cancel, Reset, Close, Manage): `variant="barSecondary"`, `text-secondary`. Brass is reserved for filled primary buttons and data highlights, never header text. `plainText` is for in-content links only.
+- **Icon buttons** use `HeaderButton` (neutral circle).
+- **Month control** (`MonthPill`) is `text`-coloured headline text with a small chevron and no pill, like an iOS title menu.
+- **Native header items** go through `barLeft(el)` / `barRight(el)` from `@/components/app/header-button` (`unstable_headerLeftItems` / `RightItems` with `hidesSharedBackground: true`), never `headerLeft` / `headerRight`: iOS 26 draws a shared Liquid Glass capsule behind bar items otherwise.
+
+## Sheets and motion
+- A scrolling `formSheet` route has the scroll view as its only root: react-native-screens forces the first descendant scroll view to the sheet's full frame, so a toolbar View above it or a footer below blanks content on detent changes. Use `SheetScroll` (`@/components/app/sheet-scroll`, toolbar as a sticky header) or a bare `ScrollView`; put actions inside the scroll content. Footers are Android-only (`unstable_sheetFooter`).
+- Every navigator, screen and sheet `contentStyle` is `colors.bg`.
+- Entrances play once per app session per screen (`claimEntrance` in `@/motion/session`, used by `Stagger`). Never animate on focus (`useIsFocused`): NativeTabs keeps screens mounted, so a focus fade flashes content.
+
 ## Web QA
 - Web exists only for screenshots. Native-only pieces get `.web.tsx` fallbacks; never degrade native to suit web.
 - `pnpm screenshots` writes `.screenshots/<name>-<light|dark>.png` for each route in `scripts/screenshot-routes.json`.
