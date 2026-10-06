@@ -85,6 +85,12 @@ importers:
       '@shopify/react-native-skia':
         specifier: 2.6.2
         version: 2.6.2(react-native-reanimated@4.5.1(react-native-worklets@0.10.1(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      '@studio/dates':
+        specifier: workspace:*
+        version: link:../../packages/dates
+      '@studio/money':
+        specifier: workspace:*
+        version: link:../../packages/money
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -266,6 +272,18 @@ importers:
       uniwind:
         specifier: '*'
         version: 1.12.2(@expo/metro-config@57.0.12(expo@57.0.26)(typescript@6.0.3))(metro-cache@0.84.6)(metro-transform-worker@0.84.6)(metro@0.84.6)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(tailwindcss@4.3.3)
+
+  packages/dates:
+    devDependencies:
+      '@studio/config':
+        specifier: workspace:*
+        version: link:../config
+
+  packages/money:
+    devDependencies:
+      '@studio/config':
+        specifier: workspace:*
+        version: link:../config
 
 packages:
 
