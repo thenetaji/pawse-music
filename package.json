@@ -12,7 +12,7 @@
     "e2e": "node tooling/qa/e2e.mjs",
     "screenshots": "node tooling/qa/screenshots.mjs",
     "typegen": "node tooling/qa/typegen.mjs",
-    "icons": "node scripts/build-icons.mjs"
+    "icons": "node packages/icons/scripts/build-icons.mjs --tab-icons apps/finance --tabs home,activity,insights,budgets"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
