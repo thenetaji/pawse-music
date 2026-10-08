@@ -8,6 +8,9 @@ import {
 import { router } from "expo-router";
 import { useState } from "react";
 
+import { View } from "react-native";
+
+import { CatState } from "../components/ui";
 import { useLibrary } from "../data/library";
 import {
   shareLyric,
@@ -39,6 +42,19 @@ export default function NowPlaying() {
     () => lyricsService.lyrics(current!),
   );
 
+  if (!current)
+    return (
+      <View
+        style={{ flex: 1, backgroundColor: "#000", justifyContent: "center" }}
+      >
+        <CatState
+          kind="empty"
+          message="Nothing is playing. Pick a song and the cat starts dancing."
+          action="Close"
+          onAction={() => router.back()}
+        />
+      </View>
+    );
   return (
     <NowPlayingView
       track={current}

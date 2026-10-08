@@ -491,7 +491,8 @@ const styles = StyleSheet.create({
   artArea: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 22,
     minHeight: 200,
   },
   artShadow: {

@@ -17,17 +17,20 @@ const decode = (s: string) => {
 };
 
 export default function MoodPage() {
-  const { params, title } = useLocalSearchParams<{
-    params: string;
+  const { id, title, color } = useLocalSearchParams<{
+    id: string;
     title?: string;
+    color?: string;
   }>();
-  const p = decode(params);
+  const p = decode(id);
   const page = useResource<ShelfT[]>(`mood:${p}`, () => yt.moodPage(p));
   return (
     <Screen
       back
       title={title ? decode(title) : "Mood"}
-      background={<TopGlow height={320} />}
+      background={
+        <TopGlow height={360} colors={color ? [color, color] : undefined} />
+      }
     >
       {page.data ? (
         page.data.map((s, i) => <Shelf key={`${s.title}${i}`} shelf={s} />)

@@ -104,7 +104,11 @@ export default function ArtistPage() {
               {a.name}
             </Text>
             {a.subscribers ? (
-              <Text style={styles.subs}>{a.subscribers}</Text>
+              <Text style={styles.subs}>
+                {/subscriber|listener|view/i.test(a.subscribers)
+                  ? a.subscribers
+                  : `${a.subscribers} subscribers`}
+              </Text>
             ) : null}
             <View style={styles.actions}>
               {a.radioPlaylistId ? (

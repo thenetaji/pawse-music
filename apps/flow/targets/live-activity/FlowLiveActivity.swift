@@ -48,7 +48,8 @@ struct FlowLiveActivity: Widget {
       } minimal: {
         CatRing(state: context.state, size: 24)
       }
-      .contentMargins(.horizontal, 8, for: .compact)
+      .contentMargins(.horizontal, 8, for: .compactLeading)
+      .contentMargins(.horizontal, 8, for: .compactTrailing)
       .contentMargins(.horizontal, 18, for: .expanded)
       .contentMargins(.bottom, 14, for: .expanded)
       .keylineTint(FlowTheme.accent)

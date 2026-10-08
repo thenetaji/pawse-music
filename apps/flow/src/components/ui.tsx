@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { type ReactNode, useEffect } from "react";
 import {
   type GestureResponderEvent,
+  type StyleProp,
   Pressable,
   type PressableProps,
   RefreshControl,
@@ -27,7 +28,8 @@ import { type CatColor, Cat, type CatMood } from "../features/cat/cat";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
 
-// Pressable that springs down and gives a light tap.
+// Pressable that springs down and gives a light tap. One element, so layout styles (flex, padding) apply directly.
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function PressScale({
   children,
   style,
@@ -35,8 +37,8 @@ export function PressScale({
   scaleTo = 0.96,
   quiet,
   ...rest
-}: PressableProps & {
-  style?: ViewStyle | ViewStyle[];
+}: Omit<PressableProps, "style"> & {
+  style?: StyleProp<ViewStyle>;
   scaleTo?: number;
   quiet?: boolean;
   children: ReactNode;
@@ -44,7 +46,7 @@ export function PressScale({
   const s = useSharedValue(1);
   const a = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
   return (
-    <Pressable
+    <AnimatedPressable
       {...rest}
       onPressIn={() =>
         s.set(withSpring(scaleTo, { damping: 16, stiffness: 420 }))
@@ -54,9 +56,10 @@ export function PressScale({
         if (!quiet) haptic.tick();
         onPress?.(e);
       }}
+      style={[style, a]}
     >
-      <Animated.View style={[style, a]}>{children}</Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressable>
   );
 }
 

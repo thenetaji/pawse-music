@@ -121,9 +121,15 @@ export default function LibraryPage() {
         />
       ))}
       {!playlists.length && !ytPlaylists.length ? (
-        <Text style={styles.hint}>
-          Make one from any song’s menu, or import one from Settings.
-        </Text>
+        <PressScale
+          onPress={() => {
+            const id = useLibrary.getState().createPlaylist("New playlist");
+            go(`/playlist/${id}`);
+          }}
+          style={styles.newPl}
+        >
+          <Text style={styles.newPlText}>+ New playlist</Text>
+        </PressScale>
       ) : null}
 
       {albums.length ? (
@@ -228,7 +234,7 @@ const styles = StyleSheet.create({
   tiles: {
     flexDirection: "row",
     gap: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     marginTop: 18,
   },
   big: {
@@ -254,7 +260,7 @@ const styles = StyleSheet.create({
   stats: {
     flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginTop: 10,
     padding: 16,
     borderRadius: 22,
@@ -276,6 +282,18 @@ const styles = StyleSheet.create({
   },
   statsSub: { color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 1 },
   statsArt: { flexDirection: "row", paddingRight: 6 },
+  newPl: {
+    marginHorizontal: 20,
+    marginTop: 4,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  newPlText: { color: "#fff", fontSize: 15, fontWeight: "700" },
   hint: {
     color: "rgba(255,255,255,0.45)",
     fontSize: 15,

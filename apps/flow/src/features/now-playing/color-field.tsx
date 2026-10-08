@@ -37,9 +37,9 @@ export function ColorField({
       <LinearGradient
         colors={[
           "rgba(0,0,0,0.04)",
-          "rgba(0,0,0,0.16)",
-          "rgba(0,0,0,0.7)",
-          "#000",
+          "rgba(0,0,0,0.14)",
+          "rgba(0,0,0,0.5)",
+          "rgba(0,0,0,0.78)",
         ]}
         locations={[0, 0.45, 0.82, 1]}
         style={StyleSheet.absoluteFill}

@@ -27,7 +27,11 @@ export function TopGlow({
   );
 }
 
-function withAlpha(rgb: string, a: number) {
-  const m = rgb.match(/\d+/g);
-  return m ? `rgba(${m[0]},${m[1]},${m[2]},${a})` : rgb;
+function withAlpha(c: string, a: number) {
+  if (c.startsWith("#") && c.length === 7) {
+    const n = Number.parseInt(c.slice(1), 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  const m = c.match(/\d+/g);
+  return m ? `rgba(${m[0]},${m[1]},${m[2]},${a})` : c;
 }

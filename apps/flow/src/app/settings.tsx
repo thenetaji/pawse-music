@@ -404,6 +404,7 @@ function Toggle({
           onChange?.(v);
         }}
         trackColor={{ true: accent, false: "rgba(255,255,255,0.2)" }}
+        thumbColor="#fff"
       />
     </View>
   );

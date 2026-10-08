@@ -293,6 +293,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   nameInput: {
+    paddingHorizontal: 20,
     marginTop: 26,
     alignSelf: "stretch",
     height: 56,

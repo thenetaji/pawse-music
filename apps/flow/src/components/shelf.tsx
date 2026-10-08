@@ -105,7 +105,13 @@ function Cards({ items }: { items: CatalogItem[] }) {
       keyExtractor={(i, n) => `${i.type}${i.id}${n}`}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
-      renderItem={({ item }) => <Card item={item} siblings={items} />}
+      renderItem={({ item }) => (
+        <Card
+          item={item}
+          siblings={items}
+          size={item.type === "artist" ? 110 : undefined}
+        />
+      )}
     />
   );
 }

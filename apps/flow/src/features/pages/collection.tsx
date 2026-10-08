@@ -84,7 +84,10 @@ export function Collection({
     opacity: interpolate(y.value, [0, 240], [1, 0.3], "clamp"),
   }));
   const barStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(y.value, [220, 300], [0, 1], "clamp"),
+    opacity: interpolate(y.value, [300, 360], [0, 1], "clamp"),
+  }));
+  const titleStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(y.value, [230, 300], [1, 0], "clamp"),
   }));
 
   const play = (i: number, shuffle = false) => {
@@ -109,7 +112,7 @@ export function Collection({
         ListHeaderComponent={
           <View>
             <TopGlow
-              height={560}
+              height={720}
               colors={[palette.colors[0], palette.colors[2]]}
             />
             <View style={[styles.hero, { paddingTop: insets.top + 50 }]}>
@@ -131,9 +134,12 @@ export function Collection({
                   selectionColor={palette.accent}
                 />
               ) : (
-                <Text style={styles.title} numberOfLines={2}>
+                <Animated.Text
+                  style={[styles.title, titleStyle]}
+                  numberOfLines={2}
+                >
                   {title}
-                </Text>
+                </Animated.Text>
               )}
               {subtitle ? (
                 <Text
@@ -144,58 +150,62 @@ export function Collection({
                 </Text>
               ) : null}
               {meta ? <Text style={styles.meta}>{meta}</Text> : null}
-              <View style={styles.actions}>
-                <IconBtn
-                  label={allDown ? "Downloaded" : "Download"}
-                  onPress={() => {
-                    haptic.medium();
-                    downloadMany(tracks);
-                  }}
-                >
-                  <DownloadGlyph done={allDown} />
-                </IconBtn>
-                <PressScale
-                  disabled={!tracks.length}
-                  onPress={() => play(0)}
-                  style={[styles.btn, styles.primary]}
-                >
-                  <PlayGlyph size={18} color="#000" />
-                  <Text style={[styles.btnText, { color: "#000" }]}>Play</Text>
-                </PressScale>
-                <PressScale
-                  disabled={!tracks.length}
-                  onPress={() =>
-                    play(Math.floor(Math.random() * tracks.length), true)
-                  }
-                  style={styles.btn}
-                >
-                  <ShuffleGlyph />
-                  <Text style={styles.btnText}>Shuffle</Text>
-                </PressScale>
-                {editableId ? (
+              {tracks.length ? (
+                <View style={styles.actions}>
                   <IconBtn
-                    label={editing ? "Done" : "Edit"}
-                    onPress={() => setEditing((e) => !e)}
-                  >
-                    <Text style={styles.editText}>
-                      {editing ? "Done" : "Edit"}
-                    </Text>
-                  </IconBtn>
-                ) : onSave ? (
-                  <IconBtn
-                    label="Save"
+                    label={allDown ? "Downloaded" : "Download"}
                     onPress={() => {
-                      haptic.success();
-                      onSave();
+                      haptic.medium();
+                      downloadMany(tracks);
                     }}
                   >
-                    <HeartOutline
-                      filled={!!saved}
-                      color={saved ? palette.accent : "#fff"}
-                    />
+                    <DownloadGlyph done={allDown} />
                   </IconBtn>
-                ) : null}
-              </View>
+                  <PressScale
+                    disabled={!tracks.length}
+                    onPress={() => play(0)}
+                    style={[styles.btn, styles.primary]}
+                  >
+                    <PlayGlyph size={18} color="#000" />
+                    <Text style={[styles.btnText, { color: "#000" }]}>
+                      Play
+                    </Text>
+                  </PressScale>
+                  <PressScale
+                    disabled={!tracks.length}
+                    onPress={() =>
+                      play(Math.floor(Math.random() * tracks.length), true)
+                    }
+                    style={styles.btn}
+                  >
+                    <ShuffleGlyph />
+                    <Text style={styles.btnText}>Shuffle</Text>
+                  </PressScale>
+                  {editableId ? (
+                    <IconBtn
+                      label={editing ? "Done" : "Edit"}
+                      onPress={() => setEditing((e) => !e)}
+                    >
+                      <Text style={styles.editText}>
+                        {editing ? "Done" : "Edit"}
+                      </Text>
+                    </IconBtn>
+                  ) : onSave ? (
+                    <IconBtn
+                      label="Save"
+                      onPress={() => {
+                        haptic.success();
+                        onSave();
+                      }}
+                    >
+                      <HeartOutline
+                        filled={!!saved}
+                        color={saved ? palette.accent : "#fff"}
+                      />
+                    </IconBtn>
+                  ) : null}
+                </View>
+              ) : null}
             </View>
           </View>
         }

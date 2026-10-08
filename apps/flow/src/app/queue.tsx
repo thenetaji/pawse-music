@@ -18,7 +18,8 @@ import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { ShuffleGlyph } from "../features/pages/collection";
-import { useAccent } from "../features/now-playing/now-palette";
+import { ColorField } from "../features/now-playing/color-field";
+import { useAccent, useNowPalette } from "../features/now-playing/now-palette";
 
 const SLEEP = [15, 30, 45, 60, 90];
 
@@ -26,6 +27,7 @@ export default function Queue() {
   const { queue, index, shuffle, repeat, sleepAt, status, source } =
     usePlayerState();
   const accent = useAccent();
+  const palette = useNowPalette((s) => s.palette);
   const color = useSetting<CatColor>("catColor", "orange");
   const current = queue[index];
   const upNext = queue.slice(index + 1);
@@ -46,6 +48,9 @@ export default function Queue() {
 
   return (
     <View style={styles.root}>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <ColorField palette={palette} playing={false} />
+      </View>
       {current ? (
         <View style={styles.now}>
           <Artwork thumbnails={current.thumbnails} size={64} radius={10} />
@@ -298,7 +303,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 7,
-    backgroundColor: "#0E0E12",
+    backgroundColor: "transparent",
   },
   rowActive: {
     backgroundColor: "#1E1E26",

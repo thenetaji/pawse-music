@@ -1,6 +1,8 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { Platform, StyleSheet, View } from "react-native";
 
+import { usePlayerSelect } from "@studio/player";
+
 import { useOnline } from "../../data/downloads";
 import { MiniPlayer } from "../../features/now-playing/mini-player";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
@@ -9,6 +11,7 @@ import { useAccent } from "../../features/now-playing/now-palette";
 
 export default function TabsLayout() {
   const accent = useAccent();
+  const hasTrack = usePlayerSelect((s) => !!s.current);
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <NativeTabs
@@ -52,7 +55,7 @@ export default function TabsLayout() {
         </NativeTabs.Trigger>
       </NativeTabs>
       <OfflineBanner />
-      {Platform.OS !== "ios" ? (
+      {Platform.OS !== "ios" && hasTrack ? (
         <View style={styles.floating} pointerEvents="box-none">
           <View style={styles.floatingCard}>
             <MiniPlayer />

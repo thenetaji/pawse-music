@@ -40,43 +40,45 @@ export default function DownloadsPage() {
           {!online ? " · Offline" : ""}
         </Text>
       </View>
-      <View style={styles.actions}>
-        <PressScale
-          onPress={() =>
-            done.length &&
-            void player.play(
-              done.map((d) => d.track),
-              0,
-              { source: { type: "library", title: "Downloads" } },
-            )
-          }
-          style={[styles.btn, { backgroundColor: "#fff" }]}
-        >
-          <Text style={[styles.btnText, { color: "#000" }]}>Play all</Text>
-        </PressScale>
-        {failed ? (
-          <PressScale onPress={retryDownloads} style={styles.btn}>
-            <Text style={styles.btnText}>Retry {failed}</Text>
-          </PressScale>
-        ) : (
+      {list.length ? (
+        <View style={styles.actions}>
           <PressScale
             onPress={() =>
-              showSheet({
-                actions: [
-                  {
-                    label: "Delete all downloads",
-                    destructive: true,
-                    onPress: removeAllDownloads,
-                  },
-                ],
-              })
+              done.length &&
+              void player.play(
+                done.map((d) => d.track),
+                0,
+                { source: { type: "library", title: "Downloads" } },
+              )
             }
-            style={styles.btn}
+            style={[styles.btn, { backgroundColor: "#fff" }]}
           >
-            <Text style={styles.btnText}>Delete all</Text>
+            <Text style={[styles.btnText, { color: "#000" }]}>Play all</Text>
           </PressScale>
-        )}
-      </View>
+          {failed ? (
+            <PressScale onPress={retryDownloads} style={styles.btn}>
+              <Text style={styles.btnText}>Retry {failed}</Text>
+            </PressScale>
+          ) : (
+            <PressScale
+              onPress={() =>
+                showSheet({
+                  actions: [
+                    {
+                      label: "Delete all downloads",
+                      destructive: true,
+                      onPress: removeAllDownloads,
+                    },
+                  ],
+                })
+              }
+              style={styles.btn}
+            >
+              <Text style={styles.btnText}>Delete all</Text>
+            </PressScale>
+          )}
+        </View>
+      ) : null}
       <FlatList
         data={list}
         keyExtractor={(d) => d.id}

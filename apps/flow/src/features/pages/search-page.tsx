@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path } from "react-native-svg";
 
 import { Artwork } from "../../components/artwork";
+import { MoodTile } from "../../components/mood-tile";
 import { useBottomSpace, useTabRoot } from "../../components/page";
 import { openItem, Shelf } from "../../components/shelf";
 import { TrackRow } from "../../components/track-row";
@@ -157,6 +158,7 @@ export default function SearchPage() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.filterRow}
             contentContainerStyle={styles.filters}
           >
             {FILTERS.map((f) => (
@@ -286,21 +288,12 @@ function EmptySearch({
             entering={FadeInDown.duration(320).delay(i * 30)}
             style={styles.cell}
           >
-            <PressScale
-              onPress={() =>
-                go(
-                  `/mood/${encodeURIComponent(m.params)}?title=${encodeURIComponent(m.title)}`,
-                )
-              }
-              style={[
-                styles.tile,
-                { backgroundColor: m.color ?? PALETTE[i % PALETTE.length] },
-              ]}
-            >
-              <Text style={styles.tileText} numberOfLines={2}>
-                {m.title}
-              </Text>
-            </PressScale>
+            <MoodTile
+              title={m.title}
+              params={m.params}
+              color={m.color}
+              index={i}
+            />
           </Animated.View>
         ))}
       </View>
@@ -491,15 +484,19 @@ const styles = StyleSheet.create({
   },
   clearText: { color: "#000", fontSize: 15, fontWeight: "800", marginTop: -1 },
   cancel: { fontSize: 17, fontWeight: "500" },
-  filters: { gap: 8, marginTop: 12, paddingHorizontal: 4 },
+  filterRow: { marginTop: 12, marginHorizontal: -16 },
+  filters: { gap: 8, paddingHorizontal: 20 },
   sugg: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingHorizontal: 20,
     height: 50,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 47,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   pressed: { backgroundColor: "rgba(255,255,255,0.06)" },
   suggText: { flex: 1, color: "#fff", fontSize: 17 },

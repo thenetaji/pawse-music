@@ -89,14 +89,14 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - [x] 22. Island cameo: the mouse peeks in for a couple of frames and the cat's eyes follow it.
 
 ### Android (approved)
-- [ ] 23. Get the APK build green (react-native-cookies jcenter is already patched).
+- [x] 23. Get the APK build green (react-native-cookies jcenter is already patched).
 - [x] 24. A cat pill around the camera cutout:
   - opt-in, with the "Display over other apps" permission;
   - placed and sized from the DisplayCutout API, falling back to top centre;
   - the cat is fully animated here;
   - a one-time battery/autostart tip on Xiaomi, Oppo, Vivo and Realme.
 - [x] 25. A home-screen widget with the cat, the song and controls (if time allows).
-- [ ] 26. Confirm minSdk and the supported ABIs. Consider per-ABI APKs to shrink the download.
+- [x] 26. Confirm minSdk and the supported ABIs. Consider per-ABI APKs to shrink the download.
 
 ### Screens (new, useful, premium)
 - [x] 28. Onboarding on first launch:
@@ -205,7 +205,7 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
   - licences.
 
 ### Review before shipping
-- [ ] 59. Fresh-context review after the build work: a code review (Opus reviewer) of the diff for bugs, and a design review of screenshots of every screen against "premium". Fix the findings, then re-verify (typecheck, lint, tests, web screenshots, iOS CI build).
+- [x] 59. Fresh-context review after the build work: a code review (Opus reviewer) of the diff for bugs, and a design review of screenshots of every screen against "premium". Fix the findings, then re-verify (typecheck, lint, tests, web screenshots, iOS CI build).
 
 ### Release
 - [ ] 27. After item 59: tag flow-v0.1.x, watch the iOS and Android jobs, fix failures, then send the summary.

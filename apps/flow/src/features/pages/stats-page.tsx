@@ -12,6 +12,8 @@ import { listeningStats, useLibrary } from "../../data/library";
 import { useSetting } from "../../lib/settings";
 import { Cat, type CatColor } from "../cat/cat";
 import { useAccent, useNowPalette } from "../now-playing/now-palette";
+import { useArtworkPalette } from "../now-playing/use-artwork-palette";
+import { bestThumbnail } from "@studio/music-core";
 import { BackButton } from "./collection";
 
 const RANGES = [
@@ -24,7 +26,7 @@ const RANGES = [
 export default function StatsPage() {
   const insets = useSafeAreaInsets();
   const accent = useAccent();
-  const palette = useNowPalette((s) => s.palette);
+  const nowPalette = useNowPalette((s) => s.palette);
   const color = useSetting<CatColor>("catColor", "orange");
   const name = useSetting("catName", "Mochi");
   const history = useLibrary((s) => s.history);
@@ -37,6 +39,13 @@ export default function StatsPage() {
     now,
     10,
   );
+  const topArt = useArtworkPalette(
+    stats.topSongs[0]
+      ? bestThumbnail(stats.topSongs[0].track.thumbnails, 120)
+      : undefined,
+  );
+  const palette = stats.topSongs.length ? topArt : nowPalette;
+  const has = stats.plays > 0;
 
   const share = async () => {
     try {
@@ -106,11 +115,13 @@ export default function StatsPage() {
             </View>
           ))}
         </View>
-        <PressScale onPress={share} style={styles.share}>
-          <Text style={styles.shareText}>Share card</Text>
-        </PressScale>
+        {has ? (
+          <PressScale onPress={share} style={styles.share}>
+            <Text style={styles.shareText}>Share card</Text>
+          </PressScale>
+        ) : null}
 
-        <Text style={styles.section}>Top songs</Text>
+        {has ? <Text style={styles.section}>Top songs</Text> : null}
         {stats.topSongs.map((s, i) => (
           <Animated.View key={s.track.id} entering={FadeInDown.delay(i * 30)}>
             <PressScale
@@ -142,7 +153,7 @@ export default function StatsPage() {
             </PressScale>
           </Animated.View>
         ))}
-        <Text style={styles.section}>Top artists</Text>
+        {has ? <Text style={styles.section}>Top artists</Text> : null}
         {stats.topArtists.map((a, i) => (
           <View key={a.artist.name} style={styles.row}>
             <Text style={[styles.rank, i < 3 && { color: accent }]}>

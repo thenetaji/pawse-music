@@ -2,6 +2,7 @@ import type { Shelf as ShelfT } from "@studio/music-core";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
+import { MoodTile } from "../../components/mood-tile";
 import { useTabRoot } from "../../components/page";
 import { Shelf } from "../../components/shelf";
 import {
@@ -43,24 +44,12 @@ export default function ExplorePage() {
               entering={FadeInDown.duration(360).delay(Math.min(i, 10) * 35)}
               style={styles.cell}
             >
-              <PressScale
-                onPress={() =>
-                  go(
-                    `/mood/${encodeURIComponent(m.params)}?title=${encodeURIComponent(m.title)}`,
-                  )
-                }
-                style={[styles.tile, { backgroundColor: tint(m.color, i) }]}
-              >
-                <View
-                  style={[
-                    styles.stripe,
-                    { backgroundColor: "rgba(255,255,255,0.22)" },
-                  ]}
-                />
-                <Text style={styles.tileText} numberOfLines={2}>
-                  {m.title}
-                </Text>
-              </PressScale>
+              <MoodTile
+                title={m.title}
+                params={m.params}
+                color={m.color}
+                index={i}
+              />
             </Animated.View>
           ))}
         </View>
