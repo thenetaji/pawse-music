@@ -1,0 +1,25 @@
+{
+  "name": "Studio",
+  "identifier": "com.thenetaji.studio",
+  "subtitle": "Apps by thenetaji",
+  "apps": [
+    {
+      "name": "Flow",
+      "bundleIdentifier": "com.thenetaji.flow",
+      "developerName": "thenetaji",
+      "localizedDescription": "Flow",
+      "iconURL": "https://raw.githubusercontent.com/thenetaji/studio/main/apps/flow/assets/images/icon.png",
+      "versions": [
+        {
+          "version": "0.1.2",
+          "buildVersion": "102",
+          "date": "2026-10-08",
+          "downloadURL": "https://github.com/thenetaji/studio/releases/download/flow-v0.1.2/Flow-0.1.2.ipa",
+          "size": 19905013,
+          "minOSVersion": "16.4"
+        }
+      ]
+    }
+  ],
+  "news": []
+}
