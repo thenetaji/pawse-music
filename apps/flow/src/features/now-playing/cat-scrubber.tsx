@@ -2,7 +2,6 @@ import { useState } from "react";
 import { type LayoutChangeEvent, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -33,17 +32,18 @@ export function CatScrubber({ position, duration, mood, cups, onSeek }: Props) {
   const toSec = (px: number) =>
     width > 0 ? Math.min(1, Math.max(0, px / width)) * duration : 0;
   const pan = Gesture.Pan()
+    .runOnJS(true)
     .minDistance(0)
     .hitSlop({ top: 24, bottom: 16 })
     .onBegin((e) => {
-      lift.value = withSpring(1, { damping: 14, stiffness: 260 });
-      runOnJS(setDrag)(toSec(e.x));
+      lift.set(withSpring(1, { damping: 14, stiffness: 260 }));
+      setDrag(toSec(e.x));
     })
-    .onUpdate((e) => runOnJS(setDrag)(toSec(e.x)))
+    .onUpdate((e) => setDrag(toSec(e.x)))
     .onFinalize((e) => {
-      lift.value = withSpring(0, { damping: 12, stiffness: 220 });
-      runOnJS(onSeek)(toSec(e.x));
-      runOnJS(setDrag)(null);
+      lift.set(withSpring(0, { damping: 12, stiffness: 220 }));
+      onSeek(toSec(e.x));
+      setDrag(null);
     });
 
   const catStyle = useAnimatedStyle(() => ({
