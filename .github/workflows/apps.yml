@@ -135,6 +135,7 @@ jobs:
             -archivePath build/App.xcarchive \
             archive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            REACT_NATIVE_PATH="$GITHUB_WORKSPACE/node_modules/react-native" \
             > build/xcodebuild.log 2>&1; then
             echo "::group::Errors"; grep -nE "error:|fatal error|\*\* ARCHIVE FAILED" build/xcodebuild.log | head -n 60; echo "::endgroup::"
             tail -n 80 build/xcodebuild.log
