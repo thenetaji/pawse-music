@@ -30,7 +30,12 @@ export type Settings = {
   cookies: string | null;
   accountName: string | null;
   // Playback
+  /** Streaming quality on Wi-Fi (and when the network type is unknown). */
   quality: AudioQuality;
+  /** Streaming quality on mobile data. */
+  qualityCellular: AudioQuality;
+  /** On mobile data: smaller artwork, no caching, no prefetch beyond the next song. */
+  dataSaver: boolean;
   radioContinue: boolean;
   resume: boolean;
   /** Read when the player starts; a change applies on the next launch. */
@@ -42,6 +47,8 @@ export type Settings = {
   wifiOnly: boolean;
   autoDownloadLiked: boolean;
   cacheLimitMb: number;
+  /** Keep songs you finish on the phone (up to cacheLimitMb) so they play offline. */
+  autoCache: boolean;
   // Lyrics
   lyricsLine: boolean;
   lyricsSize: "s" | "m" | "l";
@@ -83,6 +90,8 @@ export const DEFAULT_SETTINGS: Settings = {
   cookies: null,
   accountName: null,
   quality: "high",
+  qualityCellular: "saver",
+  dataSaver: false,
   radioContinue: true,
   resume: true,
   pauseOnDisconnect: true,
@@ -91,6 +100,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wifiOnly: false,
   autoDownloadLiked: false,
   cacheLimitMb: 500,
+  autoCache: true,
   lyricsLine: true,
   lyricsSize: "m",
   accentMode: "artwork",

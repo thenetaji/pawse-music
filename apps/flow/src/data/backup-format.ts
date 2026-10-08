@@ -114,6 +114,7 @@ function toSettings(v: unknown): Partial<Settings> {
     if (k in out && !allowed.includes(out[k] as Settings[K])) delete out[k];
   };
   pick("quality", ["high", "normal", "saver"]);
+  pick("qualityCellular", ["high", "normal", "saver"]);
   pick("downloadQuality", ["high", "normal", "saver"]);
   pick("lyricsSize", ["s", "m", "l"]);
   pick("accentMode", ["artwork", "fixed"]);
