@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// CI helpers for .github/workflows/apps.yml. Usage: node tooling/ci/apps.mjs <meta|stamp|sign-android|sidestore> [...]
+// CI helpers for .github/workflows/apps.yml. Usage: node tooling/ci/apps.mjs <meta|stamp|sign-android|codesign-ios|sidestore> [...]
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -106,6 +107,130 @@ function signAndroid(gradleFile) {
   console.log(`Release signing configured in ${gradleFile}`);
 }
 
+const run = (cmd, args, opts = {}) => {
+  const r = spawnSync(cmd, args, { encoding: "utf8", ...opts });
+  if (r.status !== 0 && !opts.soft)
+    fail(`${cmd} ${args.join(" ")} failed: ${r.stderr || r.stdout || ""}`);
+  return r;
+};
+
+function walk(dir, skip, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (skip.has(e.name)) continue;
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) walk(p, skip, out);
+    else out.push(p);
+  }
+  return out;
+}
+
+// Writes a copy of an entitlements plist with build-setting variables resolved (ad-hoc has no team prefix).
+function resolveEntitlements(file, bundleDir, tag) {
+  let src = fs.readFileSync(file, "utf8");
+  if (src.includes("$(")) {
+    const id = run(
+      "plutil",
+      [
+        "-extract",
+        "CFBundleIdentifier",
+        "raw",
+        "-o",
+        "-",
+        path.join(bundleDir, "Info.plist"),
+      ],
+      { soft: true },
+    ).stdout?.trim();
+    src = src.replace(
+      /\$\((?:AppIdentifierPrefix|TeamIdentifierPrefix)\)/g,
+      "",
+    );
+    if (id)
+      src = src.replace(
+        /\$\((?:PRODUCT_BUNDLE_IDENTIFIER|CFBundleIdentifier)\)/g,
+        id,
+      );
+    if (src.includes("$(")) {
+      console.log(`::warning::Dropping unresolved variables in ${file}`);
+      src = src
+        .split("\n")
+        .filter((l) => !l.includes("$("))
+        .join("\n");
+    }
+  }
+  const out = path.join(env.RUNNER_TEMP || "/tmp", `${tag}.entitlements`);
+  fs.writeFileSync(out, src);
+  run("plutil", ["-lint", out]);
+  return out;
+}
+
+// Ad-hoc signs the archived .app inside-out (frameworks, extensions, app) so SideStore can read the App Group.
+function codesignIos() {
+  const appsDir = "build/App.xcarchive/Products/Applications";
+  const apps = fs.existsSync(appsDir)
+    ? fs.readdirSync(appsDir).filter((n) => n.endsWith(".app"))
+    : [];
+  if (!apps.length) fail("No .app in the archive");
+  const app = path.join(appsDir, apps[0]);
+  const sign = (target, ent) => {
+    const args = ["--force", "--sign", "-", "--timestamp=none"];
+    if (ent) args.push("--entitlements", ent);
+    console.log(`codesign ${args.join(" ")} ${target}`);
+    run("codesign", [...args, target]);
+  };
+  const signFrameworks = (bundle) => {
+    const dir = path.join(bundle, "Frameworks");
+    if (!fs.existsSync(dir)) return;
+    for (const n of fs.readdirSync(dir)) sign(path.join(dir, n));
+  };
+  const skip = new Set(["Pods", "build", "node_modules"]);
+  const mainEnt = path.join(
+    "ios",
+    env.APP_NAME,
+    `${env.APP_NAME}.entitlements`,
+  );
+  const others = walk("ios", skip).filter(
+    (f) => f.endsWith(".entitlements") && f !== mainEnt,
+  );
+
+  signFrameworks(app);
+  const plugDir = path.join(app, "PlugIns");
+  const appexes = fs.existsSync(plugDir)
+    ? fs.readdirSync(plugDir).filter((n) => n.endsWith(".appex"))
+    : [];
+  for (const n of appexes) {
+    const appex = path.join(plugDir, n);
+    const name = n.slice(0, -".appex".length);
+    const found =
+      others.find((f) => f.split(path.sep).includes(name)) ??
+      others.find((f) => f.toLowerCase().includes(name.toLowerCase())) ??
+      (others.length === 1 && appexes.length === 1 ? others[0] : undefined);
+    signFrameworks(appex);
+    if (found) sign(appex, resolveEntitlements(found, appex, name));
+    else {
+      console.log(`::warning::No entitlements file for ${n}; signing without`);
+      sign(appex);
+    }
+  }
+  if (fs.existsSync(mainEnt))
+    sign(app, resolveEntitlements(mainEnt, app, "app"));
+  else {
+    console.log(
+      `::warning::${mainEnt} is missing; signing the app without entitlements`,
+    );
+    sign(app);
+  }
+
+  for (const t of [app, ...appexes.map((n) => path.join(plugDir, n))]) {
+    console.log(`::group::Entitlements of ${t}`);
+    const r = run("codesign", ["-d", "--entitlements", ":-", t], {
+      soft: true,
+    });
+    console.log(r.stdout, r.stderr);
+    console.log("::endgroup::");
+  }
+}
+
 // Adds this release to the AltStore/SideStore source (newest version first).
 function sidestore(ipaPath) {
   const file = path.join(root, "sources", "sidestore.json");
@@ -153,5 +278,6 @@ const [cmd, arg] = process.argv.slice(2);
 if (cmd === "meta") meta();
 else if (cmd === "stamp") stamp();
 else if (cmd === "sign-android") signAndroid(arg);
+else if (cmd === "codesign-ios") codesignIos();
 else if (cmd === "sidestore") sidestore(arg);
 else fail(`Unknown command ${cmd}`);

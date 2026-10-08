@@ -73,6 +73,12 @@ describe("format choice (real VISIONOS response)", () => {
     ).toBeUndefined();
   });
 
+  it("takes itag 139 on data saver", () => {
+    expect(
+      pickAudioFormat(player.streamingData.adaptiveFormats, "saver")?.itag,
+    ).toBe(139);
+  });
+
   it("derives loudness relative to the target", () => {
     expect(loudnessOf(player.playerConfig.audioConfig)).toBeCloseTo(0.99, 2);
     expect(loudnessOf({ loudnessDb: -2.5 })).toBe(-2.5);

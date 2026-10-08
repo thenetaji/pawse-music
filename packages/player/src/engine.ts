@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from "react";
 import { AppState } from "react-native";
 
+import { POS_KEY, QUEUE_KEY } from "./keys";
 import * as Q from "./queue";
 import { emitPlayerEvent, usePlayerStore, type StoreState } from "./store";
 import type {
@@ -34,8 +35,7 @@ const TICK_MS = 5_000;
 const SAVE_MS = 1_000;
 const POS_EVERY_SEC = 15;
 const MAX_SKIPS = 5;
-export const QUEUE_KEY = "player.queue.v1";
-export const POS_KEY = "player.position.v1";
+export { POS_KEY, QUEUE_KEY };
 const PLACEHOLDER = "https://flow.invalid/pending/";
 const NATIVE_REPEAT: Record<RepeatMode, NativeRepeat> = {
   off: NativeRepeat.Off,
@@ -280,8 +280,10 @@ function need(): SetupOptions {
 async function refill(): Promise<void> {
   const s = get();
   const catalog = opts?.catalog;
+  const auto =
+    !s.radio && s.repeat === "off" && (opts?.radioContinue?.() ?? false);
   if (
-    !s.radio ||
+    !(s.radio || auto) ||
     !catalog ||
     radio.busy ||
     radio.done ||
@@ -477,7 +479,7 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
   if (setupPromise) return setupPromise;
   TrackPlayer.setupPlayer({
     contentType: "music",
-    handleAudioBecomingNoisy: true,
+    handleAudioBecomingNoisy: o.pauseOnDisconnect ?? true,
     android: { wakeMode: "network" },
   });
   TrackPlayer.setCommands({
@@ -714,8 +716,9 @@ export const player: Player = {
       set({ sleepAt: "endOfTrack" });
     } else {
       const seconds = Math.max(1, Math.round(value * 60));
+      const fade = Math.max(0, opts?.sleepFadeSec?.() ?? 10);
       TrackPlayer.sleepAfterTime(seconds, {
-        fadeOutSeconds: Math.min(10, seconds),
+        fadeOutSeconds: Math.min(fade, seconds),
       });
       set({ sleepAt: Date.now() + seconds * 1000 });
     }

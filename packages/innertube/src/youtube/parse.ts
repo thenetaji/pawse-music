@@ -343,7 +343,7 @@ export function parseSectionList(contents: unknown, d?: ItemDefaults): Shelf[] {
   return out;
 }
 
-const tab0 = (j: unknown) =>
+export const tab0 = (j: unknown) =>
   dig(
     j,
     "contents",
@@ -358,8 +358,13 @@ const twoCol = (j: unknown) =>
   dig(j, "contents", "twoColumnBrowseResultsRenderer");
 
 export function parseHome(json: unknown): HomeFeed {
+  const appended = arr(dig(json, "onResponseReceivedActions")).flatMap((x) =>
+    arr(dig(x, "appendContinuationItemsAction", "continuationItems")),
+  );
   const sl =
-    tab0(json) ?? dig(json, "continuationContents", "sectionListContinuation");
+    tab0(json) ??
+    dig(json, "continuationContents", "sectionListContinuation") ??
+    (appended.length ? { contents: appended } : undefined);
   const chips = arr(dig(sl, "header", "chipCloudRenderer", "chips"))
     .map((c) => {
       const chip = dig(c, "chipCloudChipRenderer");

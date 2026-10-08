@@ -132,6 +132,11 @@ jobs:
           path: apps/${{ env.APP }}/build/xcodebuild.log
           if-no-files-found: ignore
 
+      # Ad-hoc signing (inside-out) lets SideStore read the App Group entitlements before it re-signs.
+      - name: Ad-hoc codesign
+        working-directory: apps/${{ env.APP }}
+        run: node ../../tooling/ci/apps.mjs codesign-ios
+
       - name: Package IPA
         working-directory: apps/${{ env.APP }}
         run: |
@@ -167,6 +172,7 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # RN 0.86's Gradle plugin pins jvmToolchain(17) and AGP 8.12 / Gradle 9.3 need 17+, so stay on 17.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -188,6 +194,31 @@ jobs:
         working-directory: apps/${{ env.APP }}
         run: pnpm exec expo prebuild -p android --clean --no-install
 
+      # RN 0.86 pins NDK 27.1 and build-tools 36; the runner image may lack them, so install them up front.
+      - name: Install Android SDK packages
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | sudo env "JAVA_HOME=$JAVA_HOME" "$SDKM" --licenses > /dev/null || true
+          sudo env "JAVA_HOME=$JAVA_HOME" "$SDKM" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1" \
+            || echo "::warning::sdkmanager failed; AGP will try to download the missing packages itself."
+
+      # Fit a 2-core runner: the generated 2 GB heap is too small, and only arm64 is needed for sideloading.
+      - name: Tune Gradle
+        working-directory: apps/${{ env.APP }}/android
+        run: |
+          cat >> gradle.properties <<'EOF'
+
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError
+          kotlin.compiler.execution.strategy=in-process
+          reactNativeArchitectures=arm64-v8a
+          EOF
+          # Lint-vital only re-checks the app and can run out of memory on a large module graph.
+          cat > "$RUNNER_TEMP/ci.init.gradle" <<'EOF'
+          allprojects {
+            tasks.configureEach { t -> if (t.name.startsWith("lintVital")) t.enabled = false }
+          }
+          EOF
+
       # Without the keystore secrets the APK stays debug-signed and cannot update a release-signed install.
       - name: Release signing
         env:
@@ -207,7 +238,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2 --stacktrace -I "$RUNNER_TEMP/ci.init.gradle"
 
       - name: Rename APK
         working-directory: apps/${{ env.APP }}
@@ -224,7 +255,8 @@ jobs:
 
   release:
     needs: [meta, ios, android]
-    if: needs.meta.outputs.release == 'true'
+    # Publishes whatever built: a failed or skipped platform must not block the other one.
+    if: always() && needs.meta.outputs.release == 'true' && (needs.ios.result == 'success' || needs.android.result == 'success')
     runs-on: ubuntu-latest
     env:
       APP: ${{ needs.meta.outputs.app }}
@@ -247,10 +279,12 @@ jobs:
         with:
           name: ${{ env.APP_NAME }} ${{ env.VERSION }}
           files: |
-            dist/${{ env.APP_NAME }}-${{ env.VERSION }}.ipa
-            dist/${{ env.APP_NAME }}-${{ env.VERSION }}.apk
+            dist/*.ipa
+            dist/*.apk
+          fail_on_unmatched_files: false
 
       - name: Update the SideStore source
+        if: hashFiles('dist/*.ipa') != ''
         run: |
           node tooling/ci/apps.mjs sidestore "dist/${APP_NAME}-${VERSION}.ipa"
           git config user.name "github-actions[bot]"

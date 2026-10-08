@@ -21,6 +21,7 @@ export {
   type AdaptiveFormat,
   type ResolveAttempt,
 } from "./youtube/stream";
+export * from "./youtube/explore";
 export * from "./youtube/parse";
 export { sapisidAuthorization } from "./youtube/auth";
 export {

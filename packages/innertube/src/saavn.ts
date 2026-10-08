@@ -1,5 +1,6 @@
 import {
   type ResolvedStream,
+  type ResolveOptions,
   StreamError,
   type Track,
 } from "@studio/music-core";
@@ -215,6 +216,7 @@ export class JioSaavn {
 
   async resolve(
     track: Pick<Track, "id" | "source" | "title" | "artists" | "durationSec">,
+    options: ResolveOptions = {},
   ): Promise<ResolvedStream> {
     let song: SaavnSong | undefined;
     if (track.source === "saavn") {
@@ -229,10 +231,12 @@ export class JioSaavn {
         "no_audio",
         `No confident JioSaavn match for "${track.title}"`,
       );
+    const q = options.quality ?? "high";
+    const kbps = q === "saver" ? 96 : q === "normal" || !song.is320 ? 160 : 320;
     return {
-      url: song.mediaUrl,
+      url: song.mediaUrl.replace(/_(320|160)\./, `_${kbps}.`),
       mimeType: "audio/mp4",
-      bitrate: song.is320 ? 320_000 : 160_000,
+      bitrate: kbps * 1000,
       expiresAt: Date.now() + TTL_MS,
       via: "saavn",
     };

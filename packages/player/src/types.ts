@@ -10,6 +10,12 @@ export interface SetupOptions {
   catalog?: Pick<Catalog, "upNext">;
   storage?: KeyValueStore;
   onPlayed?: (track: Track, playedSec: number) => void;
+  /** Pause when headphones disconnect; read once at setup (native option). */
+  pauseOnDisconnect?: boolean;
+  /** When true, any queue keeps going with radio from its last track once it runs low. */
+  radioContinue?: () => boolean;
+  /** Seconds the sleep timer fades the volume over before it stops (default 10). */
+  sleepFadeSec?: () => number;
 }
 
 export type RepeatMode = "off" | "all" | "one";

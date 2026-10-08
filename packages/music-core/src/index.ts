@@ -82,6 +82,21 @@ export interface HomeFeed {
   continuation?: string;
 }
 
+/** A mood or genre tile. `params` is the opaque token for Catalog moodPage. */
+export interface MoodTile {
+  title: string;
+  params: string;
+  /** "#rrggbb" accent. */
+  color?: string;
+  /** Group title such as "Moods & moments" or "Genres". */
+  section?: string;
+}
+
+export interface ExploreFeed {
+  shelves: Shelf[];
+  moods: MoodTile[];
+}
+
 export interface AlbumDetail extends AlbumSummary {
   description?: string;
   tracks: Track[];
@@ -207,10 +222,20 @@ export class StreamError extends Error {
   }
 }
 
+/** 'high' = best AAC (YouTube 140, Saavn 320), 'normal' = 140 / Saavn 160, 'saver' = 139 / Saavn 96. */
+export type AudioQuality = "high" | "normal" | "saver";
+
+export interface ResolveOptions {
+  quality?: AudioQuality;
+  /** Skip local downloads (used by the downloader itself). */
+  remoteOnly?: boolean;
+}
+
 /** Turns a Track into a playable URL. Implementations try their own fallbacks. */
 export interface StreamResolver {
   resolve(
     track: Pick<Track, "id" | "source" | "title" | "artists" | "durationSec">,
+    options?: ResolveOptions,
   ): Promise<ResolvedStream>;
 }
 
