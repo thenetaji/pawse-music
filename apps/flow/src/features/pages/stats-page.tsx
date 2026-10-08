@@ -1,3 +1,4 @@
+import { getSetting } from "../../lib/settings";
 import { player } from "@studio/player";
 import { useRef, useState } from "react";
 import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
@@ -118,7 +119,7 @@ export default function StatsPage() {
                   stats.topSongs.map((x) => x.track),
                   i,
                   {
-                    radio: true,
+                    radio: getSetting("radioContinue", true),
                     source: { type: "library", title: "Your top songs" },
                   },
                 )

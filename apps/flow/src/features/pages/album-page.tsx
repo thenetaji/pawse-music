@@ -56,16 +56,14 @@ export default function AlbumPage() {
       numbered
       saved={saved}
       onSave={() =>
-        useLibrary
-          .getState()
-          .toggleSaveAlbum({
-            id: a.id,
-            title: a.title,
-            artists: a.artists,
-            year: a.year,
-            kind: a.kind,
-            thumbnails: a.thumbnails,
-          })
+        useLibrary.getState().toggleSaveAlbum({
+          id: a.id,
+          title: a.title,
+          artists: a.artists,
+          year: a.year,
+          kind: a.kind,
+          thumbnails: a.thumbnails,
+        })
       }
     />
   );

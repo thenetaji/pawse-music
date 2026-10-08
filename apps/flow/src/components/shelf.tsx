@@ -1,3 +1,4 @@
+import { getSetting } from "../lib/settings";
 import {
   artistLine,
   type CatalogItem,
@@ -29,7 +30,7 @@ export function openItem(item: CatalogItem, siblings?: CatalogItem[]) {
   if (tracks.length <= 1)
     return void player.playRadio({ videoId: item.id, title: item.title });
   void player.play(tracks as Track[], at, {
-    radio: true,
+    radio: getSetting("radioContinue", true),
     source: { type: "other" },
   });
 }

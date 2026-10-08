@@ -32,7 +32,8 @@ export default function LibraryPage() {
   const downloads = useDownloads();
   const name = useSetting("catName", "Mochi");
   const [now] = useState(() => Date.now());
-  const week = listeningStats(history, now - 7 * 86400_000, now);
+  // Open-ended so plays made while this tab stays mounted still count.
+  const week = listeningStats(history, now - 7 * 86400_000, Infinity);
   const empty =
     !liked.length && !playlists.length && !albums.length && !history.length;
 

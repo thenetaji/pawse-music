@@ -1,3 +1,4 @@
+import { getSetting } from "../../lib/settings";
 import { bestThumbnail, type Thumbnail, type Track } from "@studio/music-core";
 import { player, type QueueSource } from "@studio/player";
 import { router } from "expo-router";
@@ -89,7 +90,10 @@ export function Collection({
   const play = (i: number, shuffle = false) => {
     haptic.light();
     player.setShuffle(shuffle);
-    void player.play(tracks, i, { source, radio: true });
+    void player.play(tracks, i, {
+      source,
+      radio: getSetting("radioContinue", true),
+    });
   };
 
   return (

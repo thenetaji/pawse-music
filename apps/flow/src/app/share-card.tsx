@@ -2,7 +2,15 @@ import { artistLine, bestThumbnail } from "@studio/music-core";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useRef } from "react";
-import { Pressable, Share, StyleSheet, Text, View } from "react-native";
+import * as Sharing from "expo-sharing";
+import {
+  Platform,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
@@ -28,6 +36,11 @@ export default function ShareCard() {
     haptic.light();
     try {
       const uri = await captureRef(card, { format: "png", quality: 1 });
+      // Android's Share ignores `url`, so the image goes through expo-sharing there.
+      if (Platform.OS === "android") {
+        await Sharing.shareAsync(uri, { mimeType: "image/png" });
+        return;
+      }
       await Share.share({
         url: uri,
         message: `${track.title} · ${artistLine(track.artists)}\nhttps://music.youtube.com/watch?v=${track.id}`,

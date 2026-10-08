@@ -1,3 +1,4 @@
+import { getSetting } from "../../lib/settings";
 import type { HomeFeed, Shelf as ShelfT, Track } from "@studio/music-core";
 import { player } from "@studio/player";
 import { useState } from "react";
@@ -129,7 +130,7 @@ function JumpBackIn() {
             key={t.id}
             onPress={() =>
               void player.play(recent, i, {
-                radio: true,
+                radio: getSetting("radioContinue", true),
                 source: { type: "library", title: "Recently played" },
               })
             }

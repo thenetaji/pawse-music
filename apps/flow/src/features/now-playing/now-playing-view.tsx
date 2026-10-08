@@ -428,7 +428,9 @@ function useCatMood(
 ): CatMood {
   const [flash, setFlash] = useState<CatMood | null>(null);
   const prev = useRef({ liked, id: track?.id, status });
-  const history = useLibrary((s) => s.history);
+  // The flash timer outlives later dep changes (loading -> playing right after a skip would otherwise strand it).
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => {
     const was = prev.current;
     let next: CatMood | null = null;
@@ -437,13 +439,17 @@ function useCatMood(
       const artist = track?.artists[0]?.name;
       const known =
         !!artist &&
-        history.slice(1).some((h) => h.track.artists[0]?.name === artist);
+        useLibrary
+          .getState()
+          .history.slice(1)
+          .some((h) => h.track.artists[0]?.name === artist);
       next = artist && !known ? "excited" : "curious";
     } else if (status === "playing" && was.status === "paused") next = "yawn";
     prev.current = { liked, id: track?.id, status };
     if (!next) return;
     setFlash(next);
-    const t = setTimeout(
+    clearTimeout(timer.current);
+    timer.current = setTimeout(
       () => setFlash(null),
       next === "happy" || next === "excited"
         ? 1600
@@ -451,8 +457,7 @@ function useCatMood(
           ? 1400
           : 900,
     );
-    return () => clearTimeout(t);
-  }, [liked, track, status, history]);
+  }, [liked, track, status]);
   if (flash) return flash;
   if (status === "playing") return "groove";
   if (status === "paused" || status === "idle") return "sleep";

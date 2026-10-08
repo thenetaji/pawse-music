@@ -1,7 +1,7 @@
 import type { ArtistSummary, Track } from "@studio/music-core";
 import { AppState } from "react-native";
 
-import { yt } from "./clients";
+import { yt, ytAccount } from "./clients";
 import { onLike, useLibrary } from "./library";
 import { listeningStats, parsePlaylistId } from "./library-model";
 import { kv } from "./storage";
@@ -16,11 +16,12 @@ const signedIn = () => !!useLibrary.getState().settings.cookies;
 async function allTracks(
   id: string,
 ): Promise<{ title: string; tracks: Track[] }> {
-  const first = id === "LM" ? await yt.likedSongs() : await yt.playlist(id);
+  const first =
+    id === "LM" ? await ytAccount.likedSongs() : await ytAccount.playlist(id);
   const tracks = [...first.tracks];
   let cont = first.continuation;
   for (let i = 0; cont && i < MAX_PAGES; i++) {
-    const page = await yt.playlistMore(cont);
+    const page = await ytAccount.playlistMore(cont);
     tracks.push(...page.tracks);
     cont = page.continuation;
   }

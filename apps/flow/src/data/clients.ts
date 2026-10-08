@@ -82,6 +82,9 @@ export const yt: YouTubeMusic = new Proxy(raw, {
   },
 });
 
+/** Unfiltered client for account reads (sync, import), so the explicit filter never drops likes or playlist songs. */
+export const ytAccount = raw;
+
 export const saavn = new JioSaavn({ fetch: appFetch });
 export const lyricsService = new LyricsService({ fetch: appFetch });
 

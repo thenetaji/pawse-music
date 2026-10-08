@@ -54,7 +54,9 @@ export default function Onboarding() {
   const finish = () => {
     setSetting("onboarded", true);
     haptic.success();
-    router.replace("/");
+    // Pushed over (tabs); replacing with "/" would stack a second copy of the tabs.
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
   };
   const next = () => {
     haptic.light();

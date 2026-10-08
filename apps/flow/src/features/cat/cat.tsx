@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from "react";
+import { AppState } from "react-native";
 import Svg, {
   Circle,
   Defs,
@@ -337,12 +338,20 @@ export function Cat({
   );
 }
 
+// Ticks only while the app is in the foreground, so a mounted cat costs nothing during background audio.
 function useFrame(periodMs: number) {
   const [frame, setFrame] = useState(0);
+  const [awake, setAwake] = useState(AppState.currentState === "active");
   useEffect(() => {
-    if (!periodMs) return;
+    const sub = AppState.addEventListener("change", (st) =>
+      setAwake(st === "active"),
+    );
+    return () => sub.remove();
+  }, []);
+  useEffect(() => {
+    if (!periodMs || !awake) return;
     const t = setInterval(() => setFrame((f) => f + 1), periodMs);
     return () => clearInterval(t);
-  }, [periodMs]);
+  }, [periodMs, awake]);
   return frame;
 }

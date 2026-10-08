@@ -2,6 +2,7 @@ import { player } from "@studio/player";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -170,7 +171,7 @@ export default function Settings() {
             ["normal", "Normal"],
           ]}
         />
-        <Toggle k="wifiOnly" label="Download on Wi-Fi only" def />
+        <Toggle k="wifiOnly" label="Download on Wi-Fi only" def={false} />
         <Toggle
           k="autoDownloadLiked"
           label="Download songs I like"
@@ -179,12 +180,12 @@ export default function Settings() {
         <Pick
           k="cacheLimitMb"
           label="Cache size"
-          def={512}
+          def={500}
           options={[
-            [256, "256 MB"],
-            [512, "512 MB"],
-            [1024, "1 GB"],
-            [4096, "4 GB"],
+            [250, "250 MB"],
+            [500, "500 MB"],
+            [1000, "1 GB"],
+            [4000, "4 GB"],
           ]}
         />
         <Link
@@ -327,13 +328,25 @@ export default function Settings() {
         <Link
           label="Export library"
           onPress={() =>
-            void import("../data/backup").then((m) => m.exportLibrary())
+            void import("../data/backup")
+              .then((m) => m.exportLibrary())
+              .catch((e: Error) => Alert.alert("Export failed", e.message))
           }
         />
         <Link
           label="Import library"
           onPress={() =>
-            void import("../data/backup").then((m) => m.importLibrary())
+            void import("../data/backup")
+              .then((m) => m.importLibrary())
+              .then(
+                (r) =>
+                  r &&
+                  Alert.alert(
+                    "Library imported",
+                    `${r.liked} likes, ${r.playlists} playlists, ${r.plays} plays`,
+                  ),
+              )
+              .catch((e: Error) => Alert.alert("Import failed", e.message))
           }
         />
       </Section>

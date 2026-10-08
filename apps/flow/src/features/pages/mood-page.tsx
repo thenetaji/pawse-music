@@ -7,17 +7,26 @@ import { yt } from "../../lib/engine";
 import { useResource } from "../../lib/use-resource";
 import { TopGlow } from "./top-glow";
 
+// The router already decodes params; decoding again throws on a bare "%" (e.g. "100% Hits").
+const decode = (s: string) => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
+
 export default function MoodPage() {
   const { params, title } = useLocalSearchParams<{
     params: string;
     title?: string;
   }>();
-  const p = decodeURIComponent(params);
+  const p = decode(params);
   const page = useResource<ShelfT[]>(`mood:${p}`, () => yt.moodPage(p));
   return (
     <Screen
       back
-      title={title ? decodeURIComponent(title) : "Mood"}
+      title={title ? decode(title) : "Mood"}
       background={<TopGlow height={320} />}
     >
       {page.data ? (

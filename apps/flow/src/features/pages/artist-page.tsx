@@ -138,14 +138,12 @@ export default function ArtistPage() {
               <PressScale
                 onPress={() => {
                   haptic.success();
-                  useLibrary
-                    .getState()
-                    .toggleFollowArtist({
-                      id: a.id,
-                      name: a.name,
-                      subtitle: a.subscribers,
-                      thumbnails: a.thumbnails,
-                    });
+                  useLibrary.getState().toggleFollowArtist({
+                    id: a.id,
+                    name: a.name,
+                    subtitle: a.subscribers,
+                    thumbnails: a.thumbnails,
+                  });
                 }}
                 style={[styles.follow, following && styles.following]}
               >

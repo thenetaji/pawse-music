@@ -30,7 +30,11 @@ type Props = {
 };
 
 // Gesture and episode bookkeeping lives outside React (one scrubber is on screen at a time).
-const shared: { lastTick: number; purr?: ReturnType<typeof setInterval>; lastEp: number } = { lastTick: -1, lastEp: 0 };
+const shared: {
+  lastTick: number;
+  purr?: ReturnType<typeof setInterval>;
+  lastEp: number;
+} = { lastTick: -1, lastEp: 0 };
 function newTick(tick: number) {
   if (tick === shared.lastTick) return false;
   shared.lastTick = tick;
@@ -151,6 +155,8 @@ export function CatScrubber({
     });
 
   const gesture = Gesture.Race(pan, Gesture.Exclusive(hold, doubleTap, tap));
+  // Closing the player mid-hold must not leave the purr haptic running.
+  useEffect(() => stopPurr, []);
 
   // Episodes: now and then on a new song (or a prank while paused), never back to back.
   useEffect(() => {
