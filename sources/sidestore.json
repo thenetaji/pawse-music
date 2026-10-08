@@ -11,6 +11,14 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/studio/main/apps/flow/assets/images/icon.png",
       "versions": [
         {
+          "version": "0.1.8",
+          "buildVersion": "108",
+          "date": "2026-10-08",
+          "downloadURL": "https://github.com/thenetaji/studio/releases/download/flow-v0.1.8/Flow-0.1.8.ipa",
+          "size": 19925499,
+          "minOSVersion": "16.4"
+        },
+        {
           "version": "0.1.7",
           "buildVersion": "107",
           "date": "2026-10-08",
