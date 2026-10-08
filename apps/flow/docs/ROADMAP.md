@@ -98,8 +98,117 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - [ ] 25. A home-screen widget with the cat, the song and controls (if time allows).
 - [ ] 26. Confirm minSdk and the supported ABIs. Consider per-ABI APKs to shrink the download.
 
+### Screens (new, useful, premium)
+- [ ] 28. Onboarding on first launch:
+  - meet and name the cat;
+  - pick languages and a few favourite artists (seeds the feed);
+  - optional sign-in.
+- [ ] 29. Home:
+  - "Jump back in" from history;
+  - Quick picks;
+  - daily mixes from your top artists;
+  - mood chips;
+  - a time-of-day greeting with the cat ("Mochi is napping");
+  - infinite shelves.
+- [ ] 30. Explore:
+  - colourful moods and genres grid;
+  - new releases;
+  - charts by country (India and global);
+  - a mood/genre page and a charts page.
+- [ ] 31. Search:
+  - recent searches with artwork;
+  - trending;
+  - result tabs;
+  - a top-result hero card.
+- [ ] 32. Library hub: Liked, Downloads, Playlists, Albums, Artists, History and Stats, with sort and filter.
+- [ ] 33. History screen grouped by day, with "remove from history".
+- [ ] 34. Stats ("Your week"): top songs, artists and minutes, a cat summary card, share as image.
+- [ ] 35. Downloads manager: progress, storage used, delete, download-all.
+- [ ] 36. Artist:
+  - stretchy parallax header;
+  - top songs, albums, singles, videos, similar artists;
+  - follow (subscribe when signed in).
+- [ ] 37. Album and playlist:
+  - cover-colour header;
+  - edit mode for your own playlists (rename, reorder, remove);
+  - download the whole list.
+- [ ] 38. Full-screen immersive lyrics; share a lyric card as an image.
+- [ ] 39. Share a song as a card image (art, title, cat) or as a link.
+- [ ] 40. Sleep timer sheet: the cat curls up as time runs down; the music fades out at the end.
+
+### Premium details everywhere
+- [ ] 41. Tab bar:
+  - hides on scroll down and returns on scroll up (iOS 26 minimize; custom on Android);
+  - mini player accessory with swipe to skip.
+- [ ] 42. Large titles that collapse into a blurred header on scroll; stretchy headers on pull.
+- [ ] 43. Shared-element feel: the mini player art grows into the full player art; cards zoom into their pages.
+- [ ] 44. Native context menus with previews on long-press (songs, albums, playlists).
+- [ ] 45. Haptics on every meaningful touch; springy press states; reduce-motion respected.
+- [ ] 46. Cat personality in every state:
+  - pull to refresh: the cat bats a yarn ball;
+  - loading: a paw-print skeleton;
+  - offline: the cat asleep in a box;
+  - error: the cat knocked something over;
+  - empty library: the cat waiting.
+- [ ] 47. Smooth image loading (blur-up placeholders); no layout jumps.
+
+### Settings (full list)
+- [ ] 48. Account:
+  - sign in/out and the account name;
+  - sync likes to YouTube;
+  - send plays to history;
+  - import your YouTube Music library.
+- [ ] 49. Playback:
+  - audio quality (high, normal, data saver);
+  - prefer JioSaavn 320 kbps;
+  - same loudness for every song;
+  - keep playing radio when the queue ends;
+  - resume where you left off;
+  - preload the next song;
+  - pause when headphones disconnect;
+  - sleep timer fade-out.
+- [ ] 50. Downloads and storage:
+  - download quality;
+  - Wi-Fi only;
+  - auto-download liked songs;
+  - storage used;
+  - cache size limit;
+  - clear cache;
+  - clear downloads.
+- [ ] 51. Lyrics:
+  - show the live lyric line on now playing;
+  - source order;
+  - text size;
+  - romanised lyrics for Hindi (later).
+- [ ] 52. Appearance:
+  - accent from artwork or a fixed colour;
+  - AMOLED pure black;
+  - now-playing background (colour field, blur, black);
+  - alternative app icons;
+  - reduce motion.
+- [ ] 53. Cat:
+  - name;
+  - the cat on the progress wire;
+  - the cat in the island;
+  - episode frequency (off, rare, often);
+  - meow sounds;
+  - cat colour (orange, black, white, grey).
+- [ ] 54. Content: feed language and region, explicit filter.
+- [ ] 55. Privacy: pause history, clear search history, clear play history.
+- [ ] 56. Backup: export and import your library (likes, playlists, history) as a file.
+- [ ] 57. Android: the island pill on/off, position offset, battery tip.
+- [ ] 58. About:
+  - version and build;
+  - check for updates (GitHub Release / SideStore source);
+  - report a bug (opens a GitHub issue);
+  - source code;
+  - licences.
+
+### Review before shipping
+- [ ] 59. Fresh-context review after the build work: a code review (Opus reviewer) of the diff for bugs, and a design review of screenshots of every screen against "premium". Fix the findings, then re-verify (typecheck, lint, tests, web screenshots, iOS CI build).
+
 ### Release
-- [ ] 27. Tag flow-v0.1.x, watch the iOS and Android jobs, fix failures, then send the summary.
+- [ ] 27. After item 59: tag flow-v0.1.x, watch the iOS and Android jobs, fix failures, then send the summary.
 
 ## Later
 - Lyrics in the Dynamic Island and the Live Activity. Left out of v1 on purpose.
@@ -111,5 +220,3 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - CarPlay. It needs the entitlement, so a paid Apple account.
 - Permanent Android signing key as a GitHub secret. Until then APKs are debug-signed, and a release-signed update will not install over them.
 
-## Notes
-- Not for the App Store or Google Play: YouTube's terms, Apple's guidelines 5.2.2/5.2.3, the private JioSaavn API, and the @rntp/player licence (personal use only) all rule it out. Distribute by sideloading (the SideStore source) and by APK.
