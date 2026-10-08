@@ -1,0 +1,66 @@
+import { useEffect, useEffectEvent, useSyncExternalStore } from "react";
+
+type Entry<T> = { data?: T; error?: Error; loading: boolean; at: number };
+const IDLE: Entry<never> = { loading: false, at: 0 };
+
+// A keyed async cache outside React; components subscribe with useSyncExternalStore.
+export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
+  const entries = new Map<string, Entry<T>>();
+  const listeners = new Set<() => void>();
+  const emit = () => listeners.forEach((l) => l());
+  const subscribe = (l: () => void) => (
+    listeners.add(l), () => void listeners.delete(l)
+  );
+
+  function load(key: string, loader: () => Promise<T>, force = false) {
+    const e = entries.get(key);
+    if (
+      e?.loading ||
+      (!force &&
+        e &&
+        !e.error &&
+        e.data !== undefined &&
+        Date.now() - e.at < ttlMs)
+    )
+      return;
+    entries.set(key, { data: e?.data, loading: true, at: e?.at ?? 0 });
+    emit();
+    loader().then(
+      (data) => (
+        entries.set(key, { data, loading: false, at: Date.now() }), emit()
+      ),
+      (error: Error) => (
+        entries.set(key, {
+          data: e?.data,
+          error,
+          loading: false,
+          at: Date.now(),
+        }),
+        emit()
+      ),
+    );
+  }
+
+  function use(key: string | null, loader: () => Promise<T>) {
+    const entry = useSyncExternalStore(
+      subscribe,
+      () => (key ? (entries.get(key) ?? IDLE) : IDLE),
+      () => IDLE,
+    ) as Entry<T>;
+    const run = useEffectEvent((k: string, force: boolean) =>
+      load(k, loader, force),
+    );
+    useEffect(() => {
+      if (key) run(key, false);
+    }, [key]);
+    return {
+      data: entry.data,
+      error: entry.error,
+      loading:
+        !!key && (entry.loading || (entry.data === undefined && !entry.error)),
+      reload: () => key && load(key, loader, true),
+    };
+  }
+
+  return { use, load, peek: (key: string) => entries.get(key)?.data };
+}

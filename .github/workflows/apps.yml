@@ -1,0 +1,262 @@
+name: Apps
+
+# Builds an app for sideloading: an unsigned IPA (SideStore) and a release-signed APK.
+# Tag `<app>-v1.2.3` builds both platforms, publishes a GitHub Release and updates sources/sidestore.json.
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: App folder under apps/
+        type: choice
+        options: [finance, flow]
+        default: finance
+      platforms:
+        description: Platforms to build
+        type: choice
+        options: [ios, android, both]
+        default: both
+  push:
+    tags: ['finance-v*', 'flow-v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apps-${{ github.ref }}-${{ inputs.app }}
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.meta.outputs.app }}
+      name: ${{ steps.meta.outputs.name }}
+      version: ${{ steps.meta.outputs.version }}
+      version_code: ${{ steps.meta.outputs.version_code }}
+      skia: ${{ steps.meta.outputs.skia }}
+      ios: ${{ steps.meta.outputs.ios }}
+      android: ${{ steps.meta.outputs.android }}
+      release: ${{ steps.meta.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        env:
+          INPUT_APP: ${{ inputs.app }}
+          INPUT_PLATFORMS: ${{ inputs.platforms }}
+        run: node tooling/ci/apps.mjs meta
+
+  ios:
+    needs: meta
+    if: needs.meta.outputs.ios == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      APP: ${{ needs.meta.outputs.app }}
+      APP_NAME: ${{ needs.meta.outputs.name }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      VERSION_CODE: ${{ needs.meta.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Expo SDK 57's ExpoModulesJSI headers use Xcode 27's Swift/C++ interop annotations; Xcode 26 rejects them.
+      - name: Select Xcode 27+
+        run: |
+          echo "Installed:"; ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_2[7-9]*.app 2>/dev/null | sort -V | tail -n 1)
+          if [ -z "$XCODE" ]; then echo "No Xcode 27+ on this runner"; exit 1; fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+          swift --version
+
+      # Uses the version pinned in the root package.json's packageManager field.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # pnpm skips dependency postinstall scripts, so copy Skia's prebuilt binaries explicitly.
+      - name: Install Skia prebuilt libraries
+        if: needs.meta.outputs.skia == 'true'
+        working-directory: apps/${{ env.APP }}
+        run: pnpm exec install-skia
+
+      - name: Stamp version
+        run: node tooling/ci/apps.mjs stamp
+
+      - name: Generate the native iOS project
+        working-directory: apps/${{ env.APP }}
+        run: pnpm exec expo prebuild -p ios --clean --no-install
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: apps/${{ env.APP }}/ios/Pods
+          key: pods-${{ env.APP }}-${{ runner.os }}-${{ hashFiles(format('apps/{0}/ios/Podfile.lock', env.APP)) }}
+          restore-keys: pods-${{ env.APP }}-${{ runner.os }}-
+
+      - name: Install pods
+        working-directory: apps/${{ env.APP }}
+        run: cd ios && pod install
+
+      - name: Archive (unsigned)
+        working-directory: apps/${{ env.APP }}
+        run: |
+          set -o pipefail
+          mkdir -p build
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -n 1)
+          if ! xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$APP_NAME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/App.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            > build/xcodebuild.log 2>&1; then
+            echo "::group::Errors"; grep -nE "error:|fatal error|\*\* ARCHIVE FAILED" build/xcodebuild.log | head -n 60; echo "::endgroup::"
+            tail -n 80 build/xcodebuild.log
+            exit 1
+          fi
+          tail -n 20 build/xcodebuild.log
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: apps/${{ env.APP }}/build/xcodebuild.log
+          if-no-files-found: ignore
+
+      - name: Package IPA
+        working-directory: apps/${{ env.APP }}
+        run: |
+          APP_BUNDLE=$(ls -d build/App.xcarchive/Products/Applications/*.app | head -n 1)
+          mkdir -p build/ipa/Payload
+          cp -R "$APP_BUNDLE" build/ipa/Payload/
+          (cd build/ipa && zip -qry "../${APP_NAME}-${VERSION}.ipa" Payload)
+          ls -lh "build/${APP_NAME}-${VERSION}.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipa
+          path: apps/${{ env.APP }}/build/${{ env.APP_NAME }}-${{ env.VERSION }}.ipa
+          if-no-files-found: error
+
+  android:
+    needs: meta
+    if: needs.meta.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP: ${{ needs.meta.outputs.app }}
+      APP_NAME: ${{ needs.meta.outputs.name }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      VERSION_CODE: ${{ needs.meta.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Skia prebuilt libraries
+        if: needs.meta.outputs.skia == 'true'
+        working-directory: apps/${{ env.APP }}
+        run: pnpm exec install-skia
+
+      - name: Stamp version
+        run: node tooling/ci/apps.mjs stamp
+
+      - name: Generate the native Android project
+        working-directory: apps/${{ env.APP }}
+        run: pnpm exec expo prebuild -p android --clean --no-install
+
+      # Without the keystore secrets the APK stays debug-signed and cannot update a release-signed install.
+      - name: Release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; building a debug-signed APK."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          node tooling/ci/apps.mjs sign-android "apps/$APP/android/app/build.gradle"
+
+      - name: Build APK
+        working-directory: apps/${{ env.APP }}/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        working-directory: apps/${{ env.APP }}
+        run: |
+          mkdir -p build
+          cp android/app/build/outputs/apk/release/app-release.apk "build/${APP_NAME}-${VERSION}.apk"
+          ls -lh "build/${APP_NAME}-${VERSION}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: apps/${{ env.APP }}/build/${{ env.APP_NAME }}-${{ env.VERSION }}.apk
+          if-no-files-found: error
+
+  release:
+    needs: [meta, ios, android]
+    if: needs.meta.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    env:
+      APP: ${{ needs.meta.outputs.app }}
+      APP_NAME: ${{ needs.meta.outputs.name }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      VERSION_CODE: ${{ needs.meta.outputs.version_code }}
+      TAG: ${{ github.ref_name }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.APP_NAME }} ${{ env.VERSION }}
+          files: |
+            dist/${{ env.APP_NAME }}-${{ env.VERSION }}.ipa
+            dist/${{ env.APP_NAME }}-${{ env.VERSION }}.apk
+
+      - name: Update the SideStore source
+        run: |
+          node tooling/ci/apps.mjs sidestore "dist/${APP_NAME}-${VERSION}.ipa"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sources/sidestore.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(sources): ${APP_NAME} ${VERSION} in the SideStore source"
+          for i in 1 2 3; do git pull --rebase origin "$DEFAULT_BRANCH" && git push origin "HEAD:$DEFAULT_BRANCH" && exit 0; sleep 5; done
+          exit 1
