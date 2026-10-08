@@ -9,6 +9,10 @@ import { router } from "expo-router";
 import { useState } from "react";
 
 import { useLibrary } from "../data/library";
+import {
+  shareLyric,
+  showTrackActions,
+} from "../features/library/track-actions";
 import { NowPlayingView } from "../features/now-playing/now-playing-view";
 import { lyricsService } from "../lib/engine";
 import { useResource } from "../lib/use-resource";
@@ -60,6 +64,8 @@ export default function NowPlaying() {
       onLyrics={() => setMode((m) => (m === "lyrics" ? "art" : "lyrics"))}
       onQueue={() => router.push("/queue")}
       onClose={() => router.back()}
+      onMore={() => current && showTrackActions(current, { fromPlayer: true })}
+      onShareLyric={(line) => current && shareLyric(current, line)}
     />
   );
 }

@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { setActiveTab } from "../lib/nav";
 
-export function useTabRoot(tab: "home" | "search" | "library") {
+export function useTabRoot(tab: "home" | "explore" | "search" | "library") {
   useFocusEffect(useCallback(() => setActiveTab(tab), [tab]));
 }
 

@@ -1,5 +1,5 @@
 import { BlurView } from "expo-blur";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   FadeIn,
   FadeOut,
@@ -48,24 +48,28 @@ export function ActionSheetHost() {
           {sheet.header ? (
             <View style={styles.header}>{sheet.header}</View>
           ) : null}
-          {sheet.actions.map((a, i) => (
-            <Pressable
-              key={a.label}
-              onPress={() => {
-                if (!a.keepOpen) hideSheet();
-                a.onPress();
-              }}
-              style={({ pressed }) => [
-                styles.row,
-                i > 0 && styles.sep,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.label, a.destructive && styles.destructive]}>
-                {a.label}
-              </Text>
-            </Pressable>
-          ))}
+          <ScrollView style={{ maxHeight: 440 }} bounces={false}>
+            {sheet.actions.map((a, i) => (
+              <Pressable
+                key={a.label}
+                onPress={() => {
+                  if (!a.keepOpen) hideSheet();
+                  a.onPress();
+                }}
+                style={({ pressed }) => [
+                  styles.row,
+                  i > 0 && styles.sep,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[styles.label, a.destructive && styles.destructive]}
+                >
+                  {a.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </BlurView>
         <Pressable
           onPress={hideSheet}

@@ -5,9 +5,9 @@ import {
   type Track,
 } from "@studio/music-core";
 import { Image } from "expo-image";
-import { Artwork } from "../../components/artwork";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -20,11 +20,15 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import type { CatMood } from "../cat/cat";
+import { Artwork } from "../../components/artwork";
+import { useLibrary } from "../../data/library";
+import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
+import { useSetting } from "../../lib/settings";
+import type { CatMood } from "../cat/cat";
+import { AirPlay } from "./airplay";
 import { CatScrubber } from "./cat-scrubber";
 import { ColorField } from "./color-field";
-import { AirPlay } from "./airplay";
 import {
   ChevronDown,
   HeartGlyph,
@@ -65,6 +69,8 @@ export type NowPlayingProps = {
   onLyrics?: () => void;
   onQueue?: () => void;
   onClose?: () => void;
+  onMore?: () => void;
+  onShareLyric?: (line: string) => void;
 };
 
 const SPRING = { damping: 13, stiffness: 140, mass: 0.9 };
@@ -76,15 +82,50 @@ export function NowPlayingView(p: NowPlayingProps) {
   const palette = useArtworkPalette(
     p.track ? bestThumbnail(p.track.thumbnails, 120) : undefined,
   );
+  const background = useSetting<"field" | "blur" | "black">(
+    "npBackground",
+    "field",
+  );
+  const showLine = useSetting("lyricsLine", true);
   const playing = p.status === "playing" || p.status === "buffering";
-  const mood = useCatMood(p.status, p.liked, p.track?.id);
+  const mood = useCatMood(p.status, p.liked, p.track);
+  const lyricsMode = p.mode === "lyrics";
 
   const scale = useSharedValue(playing ? 1 : 0.84);
   useEffect(() => {
     scale.set(withSpring(playing ? 1 : 0.84, SPRING));
   }, [playing, scale]);
+
+  // Swipe the artwork sideways to skip; it follows the finger and springs back.
+  const swipeX = useSharedValue(0);
+  const swipe = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetX([-12, 12])
+    .failOffsetY([-14, 14])
+    .onUpdate((e) => swipeX.set(e.translationX))
+    .onEnd((e) => {
+      const go = Math.abs(e.translationX) > 90 || Math.abs(e.velocityX) > 700;
+      if (go) {
+        haptic.medium();
+        const dir = e.translationX < 0 ? -1 : 1;
+        swipeX.set(
+          withSequence(
+            withTiming(dir * 420, { duration: 160 }),
+            withTiming(-dir * 420, { duration: 0 }),
+            withSpring(0, SPRING),
+          ),
+        );
+        if (dir < 0) p.onNext();
+        else p.onPrev();
+      } else swipeX.set(withSpring(0, SPRING));
+    });
   const artStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [
+      { translateX: swipeX.value },
+      { rotate: `${swipeX.value / 40}deg` },
+      { scale: scale.value },
+    ],
+    opacity: 1 - Math.min(0.5, Math.abs(swipeX.value) / 600),
   }));
 
   const heart = useSharedValue(1);
@@ -92,6 +133,7 @@ export function NowPlayingView(p: NowPlayingProps) {
     transform: [{ scale: heart.value }],
   }));
   const like = () => {
+    haptic.success();
     heart.set(
       withSequence(
         withTiming(0.7, { duration: 90 }),
@@ -103,9 +145,8 @@ export function NowPlayingView(p: NowPlayingProps) {
 
   const lines = p.lyrics?.synced ? p.lyrics.lines : [];
   const li = activeLine(lines, p.position * 1000);
-  const singing = li >= 0 ? lines[li].text : "";
+  const singing = showLine && li >= 0 ? lines[li].text : "";
 
-  const lyricsMode = p.mode === "lyrics";
   const likeButton = (
     <Pressable
       hitSlop={10}
@@ -125,7 +166,25 @@ export function NowPlayingView(p: NowPlayingProps) {
 
   return (
     <View style={styles.root}>
-      <ColorField palette={palette} playing={playing} />
+      {background === "field" ? (
+        <ColorField palette={palette} playing={playing} />
+      ) : null}
+      {background === "blur" && art ? (
+        <View style={StyleSheet.absoluteFill}>
+          <Image
+            source={art}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            blurRadius={60}
+          />
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: "rgba(0,0,0,0.45)" },
+            ]}
+          />
+        </View>
+      ) : null}
 
       <View
         style={[
@@ -141,13 +200,13 @@ export function NowPlayingView(p: NowPlayingProps) {
             <Text style={styles.contextLabel} numberOfLines={1}>
               {p.context?.label ?? "Now playing"}
             </Text>
-            {!!p.context?.title && (
+            {p.context?.title ? (
               <Text style={styles.contextTitle} numberOfLines={1}>
                 {p.context.title}
               </Text>
-            )}
+            ) : null}
           </View>
-          <Pressable hitSlop={12} style={styles.headerBtn}>
+          <Pressable hitSlop={12} onPress={p.onMore} style={styles.headerBtn}>
             <MoreGlyph color="rgba(255,255,255,0.8)" />
           </Pressable>
         </View>
@@ -177,63 +236,71 @@ export function NowPlayingView(p: NowPlayingProps) {
                 loading={!!p.lyricsLoading}
                 position={p.position}
                 onSeek={p.onSeek}
+                onShare={p.onShareLyric}
               />
             </View>
           </Animated.View>
         ) : (
           <>
-            <View
-              style={styles.artArea}
-              onLayout={(e) =>
-                setArea({
-                  w: e.nativeEvent.layout.width,
-                  h: e.nativeEvent.layout.height,
-                })
-              }
-            >
-              <Animated.View
-                style={[
-                  styles.artShadow,
-                  { width: artSize, height: artSize },
-                  artStyle,
-                ]}
+            <GestureDetector gesture={swipe}>
+              <View
+                style={styles.artArea}
+                onLayout={(e) =>
+                  setArea({
+                    w: e.nativeEvent.layout.width,
+                    h: e.nativeEvent.layout.height,
+                  })
+                }
               >
-                {art ? (
-                  <Image
-                    source={art}
-                    style={[styles.art, { width: artSize, height: artSize }]}
-                    contentFit="cover"
-                    transition={350}
-                    recyclingKey={p.track?.id}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.art,
-                      {
-                        width: artSize,
-                        height: artSize,
-                        backgroundColor: "rgba(255,255,255,0.08)",
-                      },
-                    ]}
-                  />
-                )}
-              </Animated.View>
-            </View>
+                <Animated.View
+                  style={[
+                    styles.artShadow,
+                    { width: artSize, height: artSize },
+                    artStyle,
+                  ]}
+                >
+                  {art ? (
+                    <Image
+                      source={art}
+                      style={[styles.art, { width: artSize, height: artSize }]}
+                      contentFit="cover"
+                      transition={350}
+                      recyclingKey={p.track?.id}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.art,
+                        {
+                          width: artSize,
+                          height: artSize,
+                          backgroundColor: "rgba(255,255,255,0.08)",
+                        },
+                      ]}
+                    />
+                  )}
+                </Animated.View>
+              </View>
+            </GestureDetector>
 
             <View style={styles.meta}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Animated.Text
                   key={`t${p.track?.id}`}
-                  entering={FadeIn.duration(300)}
+                  entering={FadeInDown.duration(320)}
                   style={styles.title}
                   numberOfLines={1}
                 >
                   {p.track?.title ?? " "}
                 </Animated.Text>
-                <Text style={styles.artist} numberOfLines={1}>
+                <Animated.Text
+                  key={`a${p.track?.id}`}
+                  entering={FadeInDown.duration(380).delay(40)}
+                  style={styles.artist}
+                  numberOfLines={1}
+                >
                   {p.track ? artistLine(p.track.artists) : " "}
-                </Text>
+                </Animated.Text>
               </View>
               {likeButton}
             </View>
@@ -259,17 +326,42 @@ export function NowPlayingView(p: NowPlayingProps) {
           duration={p.duration}
           mood={mood}
           cups={[palette.accent, palette.accentDeep]}
+          playing={playing}
+          trackId={p.track?.id}
           onSeek={p.onSeek}
+          onLike={() => !p.liked && like()}
         />
 
         <View style={styles.transport}>
-          <Btn onPress={p.onPrev}>
+          <Btn
+            onPress={() => {
+              haptic.light();
+              p.onPrev();
+            }}
+          >
             <PrevGlyph size={42} />
           </Btn>
-          <Btn onPress={p.onToggle} big>
-            {playing ? <PauseGlyph size={52} /> : <PlayGlyph size={52} />}
+          <Btn
+            onPress={() => {
+              haptic.medium();
+              p.onToggle();
+            }}
+            big
+          >
+            {p.status === "loading" ? (
+              <Loader />
+            ) : playing ? (
+              <PauseGlyph size={52} />
+            ) : (
+              <PlayGlyph size={52} />
+            )}
           </Btn>
-          <Btn onPress={p.onNext}>
+          <Btn
+            onPress={() => {
+              haptic.light();
+              p.onNext();
+            }}
+          >
             <NextGlyph size={42} />
           </Btn>
         </View>
@@ -292,6 +384,17 @@ export function NowPlayingView(p: NowPlayingProps) {
       </View>
     </View>
   );
+}
+
+function Loader() {
+  const spin = useSharedValue(0);
+  useEffect(() => {
+    spin.set(withTiming(360 * 50, { duration: 40000 }));
+  }, [spin]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${spin.value}deg` }],
+  }));
+  return <Animated.View style={[styles.loader, style]} />;
 }
 
 function Btn({
@@ -317,27 +420,39 @@ function Btn({
   );
 }
 
-// Groove while playing, sleep when paused, a happy hop on like, a curious glance on track change.
+// Groove while playing, sleep when paused, yawn on resume, a hop on like, excited for a new artist.
 function useCatMood(
   status: NowPlayingStatus,
   liked: boolean,
-  trackId?: string,
+  track?: Track,
 ): CatMood {
   const [flash, setFlash] = useState<CatMood | null>(null);
-  const prevLiked = useRef(liked);
-  const prevTrack = useRef(trackId);
+  const prev = useRef({ liked, id: track?.id, status });
+  const history = useLibrary((s) => s.history);
   useEffect(() => {
+    const was = prev.current;
     let next: CatMood | null = null;
-    if (liked && !prevLiked.current && prevTrack.current === trackId)
-      next = "happy";
-    else if (trackId !== prevTrack.current) next = "curious";
-    prevLiked.current = liked;
-    prevTrack.current = trackId;
+    if (liked && !was.liked && was.id === track?.id) next = "happy";
+    else if (track?.id !== was.id) {
+      const artist = track?.artists[0]?.name;
+      const known =
+        !!artist &&
+        history.slice(1).some((h) => h.track.artists[0]?.name === artist);
+      next = artist && !known ? "excited" : "curious";
+    } else if (status === "playing" && was.status === "paused") next = "yawn";
+    prev.current = { liked, id: track?.id, status };
     if (!next) return;
     setFlash(next);
-    const t = setTimeout(() => setFlash(null), next === "happy" ? 1500 : 900);
+    const t = setTimeout(
+      () => setFlash(null),
+      next === "happy" || next === "excited"
+        ? 1600
+        : next === "yawn"
+          ? 1400
+          : 900,
+    );
     return () => clearTimeout(t);
-  }, [liked, trackId]);
+  }, [liked, track, status, history]);
   if (flash) return flash;
   if (status === "playing") return "groove";
   if (status === "paused" || status === "idle") return "sleep";
@@ -431,6 +546,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   btnBig: { width: 88, height: 88, borderRadius: 44 },
+  loader: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.25)",
+    borderTopColor: "#fff",
+  },
   bottom: {
     flexDirection: "row",
     justifyContent: "space-around",

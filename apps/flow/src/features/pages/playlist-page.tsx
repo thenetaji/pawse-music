@@ -1,13 +1,14 @@
 import type { PlaylistDetail, Track } from "@studio/music-core";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
+import { StyleSheet, Text } from "react-native";
 
-import { ErrorState, Loading } from "../../components/page";
+import { CatState, PressScale, SkeletonRows } from "../../components/ui";
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
 import { useResource } from "../../lib/use-resource";
 import { Shell } from "./album-page";
-import { Collection } from "./collection";
+import { Collection, confirmDelete } from "./collection";
 
 export default function PlaylistPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,12 +31,14 @@ function RemotePlaylist({ id }: { id: string }) {
     return (
       <Shell>
         {pl.error ? (
-          <ErrorState
-            message="Couldn't open this playlist"
-            onRetry={pl.reload}
+          <CatState
+            kind="error"
+            message="Couldn't open this playlist."
+            action="Try again"
+            onAction={pl.reload}
           />
         ) : (
-          <Loading />
+          <SkeletonRows />
         )}
       </Shell>
     );
@@ -62,6 +65,7 @@ function RemotePlaylist({ id }: { id: string }) {
       tracks={tracks}
       source={{ type: "playlist", id: p.id, title: p.title }}
       onEndReached={loadMore}
+      footer={loadingMore ? <SkeletonRows count={3} /> : null}
     />
   );
 }
@@ -79,6 +83,44 @@ function LocalPlaylist({ id }: { id: string }) {
       thumbnails={tracks[0]?.thumbnails ?? []}
       tracks={tracks}
       source={{ type: "library", id, title }}
+      editableId={local ? id : undefined}
+      footer={
+        tracks.length === 0 ? (
+          <CatState
+            kind="empty"
+            message={
+              id === "liked"
+                ? "Double-tap the cat on any song to like it."
+                : "Add songs from any song's menu."
+            }
+          />
+        ) : local ? (
+          <PressScale
+            onPress={() =>
+              confirmDelete(
+                title,
+                () => (useLibrary.getState().deletePlaylist(id), router.back()),
+              )
+            }
+            style={styles.delete}
+          >
+            <Text style={styles.deleteText}>Delete playlist</Text>
+          </PressScale>
+        ) : null
+      }
     />
   );
 }
+
+const styles = StyleSheet.create({
+  delete: {
+    alignSelf: "center",
+    marginTop: 26,
+    paddingHorizontal: 20,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    backgroundColor: "rgba(255,79,109,0.14)",
+  },
+  deleteText: { color: "#FF4F6D", fontSize: 15, fontWeight: "700" },
+});

@@ -13,6 +13,9 @@ struct FlowActivityStateRecord: Record {
   @Field var start: Double = 0
   @Field var end: Double = 0
   @Field var progress: Double = 0
+  @Field var color: String = "orange"
+  @Field var mouse: Int = 0
+  @Field var name: String? = nil
 
   var contentState: FlowActivityAttributes.ContentState {
     FlowActivityAttributes.ContentState(
@@ -24,7 +27,10 @@ struct FlowActivityStateRecord: Record {
       frame: frame,
       start: Date(timeIntervalSince1970: start / 1000),
       end: Date(timeIntervalSince1970: max(start, end) / 1000),
-      progress: min(max(progress, 0), 1)
+      progress: min(max(progress, 0), 1),
+      color: color,
+      mouse: min(max(mouse, 0), 2),
+      name: name
     )
   }
 }

@@ -1,8 +1,9 @@
-import { artistLine, type AlbumDetail } from "@studio/music-core";
+import { type AlbumDetail, artistLine } from "@studio/music-core";
 import { useLocalSearchParams } from "expo-router";
 import { View } from "react-native";
 
-import { ErrorState, Loading } from "../../components/page";
+import { CatState, SkeletonRows } from "../../components/ui";
+import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
 import { useResource } from "../../lib/use-resource";
 import { BackButton, Collection } from "./collection";
@@ -10,17 +11,20 @@ import { BackButton, Collection } from "./collection";
 export default function AlbumPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const album = useResource<AlbumDetail>(`album:${id}`, () => yt.album(id));
+  const saved = useLibrary((s) => s.savedAlbums.some((a) => a.id === id));
   const a = album.data;
   if (!a)
     return (
       <Shell>
         {album.error ? (
-          <ErrorState
-            message="Couldn't open this album"
-            onRetry={album.reload}
+          <CatState
+            kind="error"
+            message="Couldn't open this album."
+            action="Try again"
+            onAction={album.reload}
           />
         ) : (
-          <Loading />
+          <SkeletonRows />
         )}
       </Shell>
     );
@@ -50,13 +54,26 @@ export default function AlbumPage() {
       }))}
       source={{ type: "album", id: a.id, title: a.title }}
       numbered
+      saved={saved}
+      onSave={() =>
+        useLibrary
+          .getState()
+          .toggleSaveAlbum({
+            id: a.id,
+            title: a.title,
+            artists: a.artists,
+            year: a.year,
+            kind: a.kind,
+            thumbnails: a.thumbnails,
+          })
+      }
     />
   );
 }
 
 export function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
+    <View style={{ flex: 1, backgroundColor: "#000", paddingTop: 100 }}>
       {children}
       <BackButton />
     </View>

@@ -1,16 +1,29 @@
 import { artistLine, type Track } from "@studio/music-core";
-import { go } from "../../lib/nav";
-import { player } from "@studio/player";
+import { emitPlayerEvent, player } from "@studio/player";
+import { router } from "expo-router";
 import { Share, StyleSheet, Text, View } from "react-native";
 
 import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
+import { download, isDownloaded, removeDownload } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { haptic } from "../../lib/haptics";
+import { go } from "../../lib/nav";
+import { useShareCard } from "../../lib/share-card-store";
 
-export function showTrackActions(track: Track) {
+export function showTrackActions(
+  track: Track,
+  opts?: { fromPlayer?: boolean },
+) {
   const lib = useLibrary.getState();
   const liked = lib.isLiked(track.id);
+  const saved = isDownloaded(track.id);
   const artist = track.artists.find((a) => a.id);
+  const leave = (fn: () => void) => () => {
+    if (opts?.fromPlayer) router.back();
+    setTimeout(fn, opts?.fromPlayer ? 250 : 0);
+  };
+  haptic.light();
   showSheet({
     header: (
       <View style={s.head}>
@@ -26,8 +39,12 @@ export function showTrackActions(track: Track) {
       </View>
     ),
     actions: [
-      { label: "Play next", onPress: () => player.addNext(track) },
-      { label: "Add to queue", onPress: () => player.addToQueue(track) },
+      ...(opts?.fromPlayer
+        ? []
+        : [
+            { label: "Play next", onPress: () => player.addNext(track) },
+            { label: "Add to queue", onPress: () => player.addToQueue(track) },
+          ]),
       {
         label: "Start radio",
         onPress: () =>
@@ -35,7 +52,14 @@ export function showTrackActions(track: Track) {
       },
       {
         label: liked ? "Remove from liked" : "Like",
-        onPress: () => useLibrary.getState().toggleLike(track),
+        onPress: () => {
+          if (useLibrary.getState().toggleLike(track))
+            emitPlayerEvent("liked", track);
+        },
+      },
+      {
+        label: saved ? "Remove download" : "Download",
+        onPress: () => (saved ? removeDownload(track.id) : download(track)),
       },
       {
         label: "Add to playlist",
@@ -46,15 +70,27 @@ export function showTrackActions(track: Track) {
         ? [
             {
               label: "Go to album",
-              onPress: () => go(`/album/${track.album!.id}`),
+              onPress: leave(() => go(`/album/${track.album!.id}`)),
             },
           ]
         : []),
       ...(artist?.id
-        ? [{ label: "Go to artist", onPress: () => go(`/artist/${artist.id}`) }]
+        ? [
+            {
+              label: "Go to artist",
+              onPress: leave(() => go(`/artist/${artist.id}`)),
+            },
+          ]
         : []),
       {
-        label: "Share",
+        label: "Share card",
+        onPress: () => {
+          useShareCard.setState({ track, lyric: undefined });
+          router.push("/share-card");
+        },
+      },
+      {
+        label: "Share link",
         onPress: () =>
           void Share.share({
             message: `https://music.youtube.com/watch?v=${track.id}`,
@@ -62,6 +98,12 @@ export function showTrackActions(track: Track) {
       },
     ],
   });
+}
+
+export function shareLyric(track: Track, lyric: string) {
+  haptic.medium();
+  useShareCard.setState({ track, lyric });
+  router.push("/share-card");
 }
 
 function showPlaylistPicker(track: Track) {

@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 
 export type ActivityMood = "groove" | "sleep" | "happy" | "curious";
 export type ActivityAction = "toggle" | "next";
+export type ActivityCatColor = "orange" | "black" | "white" | "grey";
 
 export interface ActivityState {
   title: string;
@@ -18,6 +19,12 @@ export interface ActivityState {
   end: number;
   /** 0...1, shown while paused. */
   progress: number;
+  /** Picks the cat-<color>-* frames. */
+  color: ActivityCatColor;
+  /** Mouse cameo frame: 0 none, 1 peeking, 2 head out. */
+  mouse: 0 | 1 | 2;
+  /** The cat's name for VoiceOver; null uses "The cat". */
+  name: string | null;
 }
 
 type Events = { onAction(event: { action: ActivityAction }): void };

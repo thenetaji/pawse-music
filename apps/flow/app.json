@@ -57,7 +57,8 @@
       "expo-sqlite",
       "@studio/config/plugins/with-scene-lifecycle",
       "expo-web-browser",
-      "@bacons/apple-targets"
+      "@bacons/apple-targets",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

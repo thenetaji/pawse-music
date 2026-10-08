@@ -3,6 +3,8 @@ import { usePlayerState } from "@studio/player";
 import { useEffect } from "react";
 import { create } from "zustand";
 
+import { useSetting } from "../../lib/settings";
+
 import { FALLBACK_PALETTE, type Palette } from "./palette";
 import { useArtworkPalette } from "./use-artwork-palette";
 
@@ -22,5 +24,8 @@ export function NowPaletteSync() {
 
 /** Brightened accent, readable on black. */
 export function useAccent() {
-  return useNowPalette((s) => s.palette.accent);
+  const fromArt = useNowPalette((s) => s.palette.accent);
+  const mode = useSetting<"artwork" | "fixed">("accentMode", "artwork");
+  const fixed = useSetting("accentColor", "#8B7CFF");
+  return mode === "fixed" ? fixed : fromArt;
 }
