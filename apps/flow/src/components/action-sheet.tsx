@@ -9,10 +9,11 @@ import {
   View,
 } from "react-native";
 import Animated, {
+  Easing,
   FadeIn,
+  FadeInDown,
   FadeOut,
-  SlideInDown,
-  SlideOutDown,
+  FadeOutDown,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FullWindowOverlay } from "react-native-screens";
@@ -33,6 +34,10 @@ export const hideSheet = () => useSheet.setState({ sheet: null });
 // iOS presents modals in their own controller, above sibling views; a window overlay keeps the sheet on top.
 const Overlay = Platform.OS === "ios" ? FullWindowOverlay : Fragment;
 
+// A short rise and fade: quick to read, no bounce, cheap to draw.
+const ENTER = FadeInDown.duration(200).easing(Easing.out(Easing.cubic));
+const EXIT = FadeOutDown.duration(130);
+
 // One app-wide action sheet: frosted glass panel over a dimmed screen.
 export function ActionSheetHost() {
   const sheet = useSheet((s) => s.sheet);
@@ -42,19 +47,19 @@ export function ActionSheetHost() {
     <Overlay>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         <Animated.View
-          entering={FadeIn.duration(180)}
-          exiting={FadeOut.duration(180)}
+          entering={FadeIn.duration(140)}
+          exiting={FadeOut.duration(120)}
           style={[StyleSheet.absoluteFill, styles.dim]}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={hideSheet} />
         </Animated.View>
         <Animated.View
-          entering={SlideInDown.springify().damping(18).stiffness(180)}
-          exiting={SlideOutDown.duration(200)}
+          entering={ENTER}
+          exiting={EXIT}
           style={[styles.wrap, { paddingBottom: insets.bottom + 8 }]}
         >
           <BlurView
-            intensity={60}
+            intensity={40}
             tint="systemThickMaterialDark"
             style={styles.panel}
           >

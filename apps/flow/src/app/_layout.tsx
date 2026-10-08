@@ -17,6 +17,8 @@ import { startEngine } from "../lib/engine";
 import { getSetting, useSetting } from "../lib/settings";
 import { checkOnLaunch } from "../lib/updates";
 
+export { ErrorScreen as ErrorBoundary } from "../components/error-screen";
+
 const modal = {
   presentation: "modal" as const,
   contentStyle: { backgroundColor: "#000" },
