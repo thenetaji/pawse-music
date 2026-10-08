@@ -60,16 +60,7 @@ export default function RootLayout() {
               name="now-playing"
               options={{ ...modal, gestureEnabled: true }}
             />
-            <Stack.Screen
-              name="queue"
-              options={{
-                presentation: "formSheet",
-                sheetAllowedDetents: [0.75, 1],
-                sheetGrabberVisible: true,
-                sheetCornerRadius: 30,
-                contentStyle: { backgroundColor: "#0E0E12" },
-              }}
-            />
+            <Stack.Screen name="queue" options={modal} />
             <Stack.Screen name="settings" options={modal} />
             <Stack.Screen name="about" options={modal} />
             <Stack.Screen name="sign-in" options={modal} />

@@ -63,25 +63,21 @@ export default function HomePage() {
       mood: number;
     }>;
     if (cont)
-      next = yt
-        .homeMore(cont)
-        .then((r) => ({
-          shelves: r.shelves,
-          continuation: r.continuation,
-          mood: extra.mood,
-        }));
+      next = yt.homeMore(cont).then((r) => ({
+        shelves: r.shelves,
+        continuation: r.continuation,
+        mood: extra.mood,
+      }));
     else if (extra.mood < list.length) {
       const m = list[extra.mood];
-      next = yt
-        .moodPage(m.params)
-        .then((sh) => ({
-          shelves: sh
-            .slice(0, 3)
-            .map((x, i) =>
-              i === 0 ? { ...x, title: `${m.title} · ${x.title}` } : x,
-            ),
-          mood: extra.mood + 1,
-        }));
+      next = yt.moodPage(m.params).then((sh) => ({
+        shelves: sh
+          .slice(0, 3)
+          .map((x, i) =>
+            i === 0 ? { ...x, title: `${m.title} · ${x.title}` } : x,
+          ),
+        mood: extra.mood + 1,
+      }));
     } else return;
     setLoadingMore(true);
     next

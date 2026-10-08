@@ -58,7 +58,15 @@
       "@studio/config/plugins/with-scene-lifecycle",
       "expo-web-browser",
       "@bacons/apple-targets",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "ccacheEnabled": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

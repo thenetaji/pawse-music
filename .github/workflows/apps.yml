@@ -98,6 +98,24 @@ jobs:
           key: pods-${{ env.APP }}-${{ runner.os }}-${{ hashFiles(format('apps/{0}/ios/Podfile.lock', env.APP)) }}
           restore-keys: pods-${{ env.APP }}-${{ runner.os }}-
 
+      # Compiler cache: native code that didn't change is reused instead of rebuilt.
+      - name: Set up ccache
+        run: |
+          command -v ccache >/dev/null || brew install ccache
+          echo "CCACHE_DIR=$HOME/Library/Caches/ccache" >> "$GITHUB_ENV"
+          echo "CCACHE_SLOPPINESS=clang_index_store,file_stat_matches,include_file_ctime,include_file_mtime,ivfsoverlay,pch_defines,modules,system_headers,time_macros" >> "$GITHUB_ENV"
+          echo "CCACHE_FILECLONE=true" >> "$GITHUB_ENV"
+          echo "CCACHE_DEPEND=true" >> "$GITHUB_ENV"
+          echo "CCACHE_INODECACHE=true" >> "$GITHUB_ENV"
+          echo "CCACHE_MAXSIZE=3G" >> "$GITHUB_ENV"
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ccache
+          key: ccache-ios-${{ env.APP }}-${{ github.sha }}
+          restore-keys: ccache-ios-${{ env.APP }}-
+
       - name: Install pods
         working-directory: apps/${{ env.APP }}
         run: cd ios && pod install

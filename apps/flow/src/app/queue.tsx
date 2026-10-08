@@ -10,6 +10,8 @@ import ReorderableList, {
   useReorderableDrag,
 } from "react-native-reorderable-list";
 
+import { router } from "expo-router";
+
 import { showSheet } from "../components/action-sheet";
 import { Artwork } from "../components/artwork";
 import { EqBars } from "../components/eq-bars";
@@ -50,6 +52,15 @@ export default function Queue() {
     <View style={styles.root}>
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <ColorField palette={palette} playing={false} />
+      </View>
+      <View style={styles.head}>
+        <View style={styles.grabber} />
+        <View style={styles.headRow}>
+          <Text style={styles.headTitle}>Queue</Text>
+          <Pressable hitSlop={10} onPress={() => router.back()}>
+            <Text style={styles.done}>Done</Text>
+          </Pressable>
+        </View>
       </View>
       {current ? (
         <View style={styles.now}>
@@ -237,13 +248,30 @@ function Toggle({
 }
 
 const styles = StyleSheet.create({
+  head: { paddingHorizontal: 20, paddingTop: 12 },
+  grabber: {
+    alignSelf: "center",
+    width: 38,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    marginBottom: 10,
+  },
+  headRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  headTitle: { color: "#fff", fontSize: 20, fontWeight: "800" },
+  done: { color: "#fff", fontSize: 17, fontWeight: "600" },
   root: { flex: 1, backgroundColor: "#0E0E12" },
   now: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
     paddingHorizontal: 20,
-    paddingTop: 26,
+    paddingTop: 8,
     paddingBottom: 6,
   },
   kicker: {
