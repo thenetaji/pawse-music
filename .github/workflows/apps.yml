@@ -301,6 +301,23 @@ jobs:
             dist/*.apk
           fail_on_unmatched_files: false
 
+      # A fixed download link that always points at the newest build: <app>-latest / Flow.ipa, Flow.apk.
+      - name: Stable copies
+        run: |
+          for f in dist/*.ipa dist/*.apk; do [ -e "$f" ] || continue; cp "$f" "dist/${APP_NAME}.${f##*.}"; done
+          ls dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.APP }}-latest
+          name: ${{ env.APP_NAME }} (latest)
+          body: Always the newest ${{ env.APP_NAME }} build (currently ${{ env.VERSION }}). Versioned releases are listed separately.
+          make_latest: false
+          files: |
+            dist/${{ env.APP_NAME }}.ipa
+            dist/${{ env.APP_NAME }}.apk
+          fail_on_unmatched_files: false
+
       - name: Update the SideStore source
         if: hashFiles('dist/*.ipa') != ''
         run: |
