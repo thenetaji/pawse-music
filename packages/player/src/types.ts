@@ -16,6 +16,8 @@ export interface SetupOptions {
   radioContinue?: () => boolean;
   /** Seconds the sleep timer fades the volume over before it stops (default 10). */
   sleepFadeSec?: () => number;
+  /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */
+  onDiagnostic?: (kind: string, detail?: string) => void;
 }
 
 export type RepeatMode = "off" | "all" | "one";

@@ -1,6 +1,5 @@
 import { artistLine } from "@studio/music-core";
 import { player, usePlayerState, useProgress } from "@studio/player";
-import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -11,9 +10,9 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-
 import { Artwork } from "../../components/artwork";
 import { haptic } from "../../lib/haptics";
+import { push } from "../../lib/nav";
 import { NextGlyph, PauseGlyph, PlayGlyph } from "./icons";
 import { useAccent } from "./now-palette";
 
@@ -63,7 +62,7 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
       <Pressable
         onPress={() => {
           haptic.light();
-          router.push("/now-playing");
+          push("/now-playing");
         }}
         onPressIn={() =>
           press.set(withSpring(0.97, { damping: 15, stiffness: 400 }))

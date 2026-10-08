@@ -1,8 +1,8 @@
 import { artistLine, bestThumbnail } from "@studio/music-core";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useRef } from "react";
 import * as Sharing from "expo-sharing";
+import { useRef } from "react";
 import {
   Platform,
   Pressable,
@@ -16,11 +16,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 
 import { PressScale } from "../components/ui";
+import { Cat, type CatColor } from "../features/cat/cat";
+import { useArtworkPalette } from "../features/now-playing/use-artwork-palette";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
 import { useShareCard } from "../lib/share-card-store";
-import { Cat, type CatColor } from "../features/cat/cat";
-import { useArtworkPalette } from "../features/now-playing/use-artwork-palette";
 
 // A shareable card: artwork-coloured, the cat in the corner, optional lyric.
 export default function ShareCard() {
@@ -60,7 +60,7 @@ export default function ShareCard() {
         </Pressable>
       </View>
       <View style={styles.center}>
-        <Animated.View entering={ZoomIn.springify().damping(14)}>
+        <Animated.View entering={ZoomIn.duration(240)}>
           <View
             ref={card}
             collapsable={false}

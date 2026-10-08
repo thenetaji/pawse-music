@@ -64,9 +64,20 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
     };
   }
 
+  // Shows saved data straight away; it counts as stale, so the first use still refreshes it.
+  const seed = (key: string, data: T) => {
+    if (!entries.has(key)) entries.set(key, { data, loading: false, at: 0 });
+  };
+
   const clear = () => {
     entries.clear();
     emit();
   };
-  return { use, load, clear, peek: (key: string) => entries.get(key)?.data };
+  return {
+    use,
+    load,
+    clear,
+    seed,
+    peek: (key: string) => entries.get(key)?.data,
+  };
 }

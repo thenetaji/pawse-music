@@ -5,8 +5,15 @@ import {
   type Track,
 } from "@studio/music-core";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
@@ -77,8 +84,9 @@ const SPRING = { damping: 13, stiffness: 140, mass: 0.9 };
 
 export function NowPlayingView(p: NowPlayingProps) {
   const insets = useSafeAreaInsets();
-  const [area, setArea] = useState({ w: 0, h: 0 });
+  const win = useWindowDimensions();
   const art = p.track ? bestThumbnail(p.track.thumbnails, 1080) : undefined;
+  const hero = useHeroArt(p.track?.id, art);
   const palette = useArtworkPalette(
     p.track ? bestThumbnail(p.track.thumbnails, 120) : undefined,
   );
@@ -91,10 +99,11 @@ export function NowPlayingView(p: NowPlayingProps) {
   const mood = useCatMood(p.status, p.liked, p.track);
   const lyricsMode = p.mode === "lyrics";
 
-  const scale = useSharedValue(playing ? 1 : 0.84);
+  // Paused: the artwork dims and settles back a touch.
+  const live = useSharedValue(playing ? 1 : 0);
   useEffect(() => {
-    scale.set(withSpring(playing ? 1 : 0.84, SPRING));
-  }, [playing, scale]);
+    live.set(withTiming(playing ? 1 : 0, { duration: 420 }));
+  }, [playing, live]);
 
   // Swipe the artwork sideways to skip; it follows the finger and springs back.
   const swipeX = useSharedValue(0);
@@ -120,12 +129,10 @@ export function NowPlayingView(p: NowPlayingProps) {
       } else swipeX.set(withSpring(0, SPRING));
     });
   const artStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: swipeX.value },
-      { rotate: `${swipeX.value / 40}deg` },
-      { scale: scale.value },
-    ],
-    opacity: 1 - Math.min(0.5, Math.abs(swipeX.value) / 600),
+    transform: [{ translateX: swipeX.value }, { scale: 1 + live.value * 0.03 }],
+    opacity:
+      (0.62 + live.value * 0.38) *
+      (1 - Math.min(0.6, Math.abs(swipeX.value) / 500)),
   }));
 
   const heart = useSharedValue(1);
@@ -162,14 +169,57 @@ export function NowPlayingView(p: NowPlayingProps) {
       </Animated.View>
     </Pressable>
   );
-  const artSize = Math.max(0, Math.min(area.w, area.h - 40, 420));
+  // Full-bleed artwork: edge to edge at the top, fading into a deep tint of its own colour.
+  // Grows past square on tall screens to meet the title, cropping at most a sliver of each side.
+  const [artBottom, setArtBottom] = useState(0);
+  const heroH = Math.round(
+    Math.min(win.width * 1.2, Math.max(win.width, artBottom + 40)),
+  );
+  const base = deepen(palette.colors[0]);
+  const tint = background === "black" ? "#000000" : base;
 
   return (
     <View style={styles.root}>
-      {background === "field" ? (
+      {!lyricsMode ? (
+        <Animated.View
+          entering={FadeIn.duration(260)}
+          style={[StyleSheet.absoluteFill, { backgroundColor: tint }]}
+          pointerEvents="none"
+        >
+          <View style={{ height: heroH, overflow: "hidden" }}>
+            <Animated.View style={[StyleSheet.absoluteFill, artStyle]}>
+              {hero.uri ? (
+                <Image
+                  source={hero.uri}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={350}
+                  recyclingKey={p.track?.id}
+                  onError={hero.next}
+                  // YouTube answers a missing HD frame with a 120×90 grey placeholder.
+                  onLoad={(e) => e.source.width <= 120 && hero.next()}
+                />
+              ) : null}
+            </Animated.View>
+            <LinearGradient
+              colors={[`${tint}00`, `${tint}c0`, tint]}
+              locations={[0, 0.6, 0.9]}
+              style={[styles.fade, { bottom: 0, height: heroH * 0.5 }]}
+            />
+          </View>
+          <LinearGradient
+            colors={["rgba(0,0,0,0.42)", "rgba(0,0,0,0)"]}
+            style={[styles.scrim, { height: insets.top + 90 }]}
+          />
+          <LinearGradient
+            colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.45)"]}
+            style={[styles.fade, { top: heroH, bottom: 0 }]}
+          />
+        </Animated.View>
+      ) : background === "field" ? (
         <ColorField palette={palette} playing={playing} />
       ) : null}
-      {background === "blur" && art ? (
+      {lyricsMode && background === "blur" && art ? (
         <View style={StyleSheet.absoluteFill}>
           <Image
             source={art}
@@ -246,41 +296,11 @@ export function NowPlayingView(p: NowPlayingProps) {
               <View
                 style={styles.artArea}
                 onLayout={(e) =>
-                  setArea({
-                    w: e.nativeEvent.layout.width,
-                    h: e.nativeEvent.layout.height,
-                  })
+                  setArtBottom(
+                    e.nativeEvent.layout.y + e.nativeEvent.layout.height,
+                  )
                 }
-              >
-                <Animated.View
-                  style={[
-                    styles.artShadow,
-                    { width: artSize, height: artSize },
-                    artStyle,
-                  ]}
-                >
-                  {art ? (
-                    <Image
-                      source={art}
-                      style={[styles.art, { width: artSize, height: artSize }]}
-                      contentFit="cover"
-                      transition={350}
-                      recyclingKey={p.track?.id}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.art,
-                        {
-                          width: artSize,
-                          height: artSize,
-                          backgroundColor: "rgba(255,255,255,0.08)",
-                        },
-                      ]}
-                    />
-                  )}
-                </Animated.View>
-              </View>
+              />
             </GestureDetector>
 
             <View style={styles.meta}>
@@ -386,6 +406,47 @@ export function NowPlayingView(p: NowPlayingProps) {
   );
 }
 
+// YouTube video stills come letterboxed at 4:3; the 16:9 HD frames don't, so try those first.
+function heroCandidates(url?: string): string[] {
+  if (!url) return [];
+  const id = url.match(/ytimg\.com\/vi(?:_webp)?\/([\w-]{11})\//)?.[1];
+  if (!id) return [url];
+  return [
+    `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+    `https://i.ytimg.com/vi/${id}/hq720.jpg`,
+    url,
+  ];
+}
+
+function useHeroArt(trackId: string | undefined, url?: string) {
+  const [miss, setMiss] = useState({ key: "", n: 0 });
+  const list = heroCandidates(url);
+  const n = miss.key === trackId ? miss.n : 0;
+  return {
+    uri: list[n],
+    next: () => setMiss({ key: trackId ?? "", n: n + 1 }),
+  };
+}
+
+// The artwork's main colour pulled down to a deep tint the controls sit on.
+function deepen(color: string): string {
+  let rgb: number[];
+  if (color.startsWith("#") && color.length === 7) {
+    const v = Number.parseInt(color.slice(1), 16);
+    rgb = [v >> 16, (v >> 8) & 255, v & 255];
+  } else rgb = (color.match(/\d+(\.\d+)?/g) ?? []).slice(0, 3).map(Number);
+  if (rgb.length < 3) return "#111114";
+  const k = 58 / Math.max(58, ...rgb);
+  const hex = rgb
+    .map((c) =>
+      Math.round(c * k)
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("");
+  return `#${hex}`;
+}
+
 function Loader() {
   const spin = useSharedValue(0);
   useEffect(() => {
@@ -488,22 +549,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 1,
   },
-  artArea: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "flex-end",
-    paddingBottom: 22,
-    minHeight: 200,
-  },
-  artShadow: {
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    shadowOffset: { width: 0, height: 22 },
-    elevation: 18,
-  },
-  art: { borderRadius: 16 },
+  artArea: { flex: 1, minHeight: 160 },
+  scrim: { position: "absolute", left: 0, right: 0, top: 0 },
+  fade: { position: "absolute", left: 0, right: 0 },
   meta: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
   title: {
     color: "#fff",

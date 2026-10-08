@@ -20,8 +20,9 @@ import {
 } from "@studio/music-core";
 
 import {
-  type FetchLike,
   defaultFetch,
+  type FetchLike,
+  fetchWithRetry,
   fetchWithTimeout,
   parseCookies,
   query,
@@ -74,6 +75,8 @@ export interface YouTubeMusicOptions {
   verifyStream?: boolean;
   /** Skip the range check when it takes longer than this (default 400 ms). */
   verifyBudgetMs?: number;
+  /** Called once per catalog/account request that fails after retries. */
+  onRequestError?: (endpoint: string, error: unknown) => void;
 }
 
 export const ORIGIN = "https://music.youtube.com";
@@ -90,7 +93,15 @@ export const SEARCH_PARAMS: Record<Exclude<SearchFilter, "all">, string> = {
   playlists: "EgWKAQIoAWoKEAkQBRAKEAMQBA==",
 };
 
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 12_000;
+// Reads safe to send twice; writes (like/like) and playback reporting are never retried.
+const IDEMPOTENT = new Set([
+  "browse",
+  "search",
+  "next",
+  "music/get_search_suggestions",
+  "account/account_menu",
+]);
 const BOOTSTRAP_RETRY_MS = 5 * 60_000;
 
 interface WebConfig {
@@ -151,6 +162,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   private readonly clients: ClientsConfig;
   private readonly verify: boolean;
   private readonly verifyBudgetMs: number;
+  private readonly onRequestError?: YouTubeMusicOptions["onRequestError"];
   private web?: WebConfig;
   private webPending?: Promise<WebConfig>;
   private webFailedAt = 0;
@@ -165,6 +177,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     this.visitorData = options.visitorData;
     this.verify = options.verifyStream ?? true;
     this.verifyBudgetMs = options.verifyBudgetMs ?? 400;
+    this.onRequestError = options.onRequestError;
     const url =
       options.clientsConfigUrl === undefined
         ? DEFAULT_CLIENTS_CONFIG_URL
@@ -222,7 +235,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
 
   private async bootstrap(): Promise<WebConfig> {
     try {
-      const res = await fetchWithTimeout(
+      const res = await fetchWithRetry(
         this.f,
         `${ORIGIN}/`,
         {
@@ -310,23 +323,30 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
       ...(await this.webHeaders(cfg, cookie)),
       "Content-Type": "application/json",
     };
-    const res = await fetchWithTimeout(
-      this.f,
-      `${ORIGIN}/youtubei/v1/${endpoint}?prettyPrint=false`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ context: this.context(cfg), ...body }),
-        credentials: "omit",
-      },
-      TIMEOUT_MS,
-    );
-    if (!res.ok)
-      throw new InnerTubeError(
-        res.status,
-        `InnerTube ${endpoint} HTTP ${res.status}`,
+    let json: any;
+    try {
+      const res = await fetchWithRetry(
+        this.f,
+        `${ORIGIN}/youtubei/v1/${endpoint}?prettyPrint=false`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ context: this.context(cfg), ...body }),
+          credentials: "omit",
+        },
+        TIMEOUT_MS,
+        IDEMPOTENT.has(endpoint) ? 1 : 0,
       );
-    const json = await res.json();
+      if (!res.ok)
+        throw new InnerTubeError(
+          res.status,
+          `InnerTube ${endpoint} HTTP ${res.status}`,
+        );
+      json = await res.json();
+    } catch (e) {
+      this.onRequestError?.(endpoint, e);
+      throw e;
+    }
     const vd = json?.responseContext?.visitorData;
     if (!this.visitorData && typeof vd === "string") this.visitorData = vd;
     return json;

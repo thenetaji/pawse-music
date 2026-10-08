@@ -11,7 +11,7 @@ import type {
   StreamResolver,
   Track,
 } from "@studio/music-core";
-
+import { logEvent } from "../lib/diagnostics";
 import { appFetch } from "../lib/net";
 import { useLibrary } from "./library";
 
@@ -25,6 +25,8 @@ const raw = new YouTubeMusic({
   hl: settings().language,
   gl: gl(settings().region),
   cookies: () => settings().cookies,
+  onRequestError: (endpoint, e) =>
+    logEvent("request-failed", `${endpoint}: ${(e as Error)?.message ?? e}`),
 });
 useLibrary.subscribe((s) =>
   raw.setLocale(s.settings.language, gl(s.settings.region)),

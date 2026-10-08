@@ -1,5 +1,5 @@
 import type { Track } from "@studio/music-core";
-import { router } from "expo-router";
+
 import { useState } from "react";
 import { FlatList, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -15,7 +15,7 @@ import {
 } from "../../components/ui";
 import { useDownloads } from "../../data/downloads";
 import { listeningStats, useLibrary } from "../../data/library";
-import { go } from "../../lib/nav";
+import { go, push } from "../../lib/nav";
 import { useSetting } from "../../lib/settings";
 import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
@@ -42,10 +42,7 @@ export default function LibraryPage() {
       title="Library"
       background={<TopGlow height={340} />}
       right={
-        <PressScale
-          onPress={() => router.push("/settings")}
-          style={styles.gear}
-        >
+        <PressScale onPress={() => push("/settings")} style={styles.gear}>
           <Text style={styles.gearText}>Settings</Text>
         </PressScale>
       }
@@ -59,7 +56,7 @@ export default function LibraryPage() {
           <Text style={styles.bigSub}>{liked.length} songs</Text>
         </PressScale>
         <PressScale
-          onPress={() => router.push("/downloads")}
+          onPress={() => push("/downloads")}
           style={[styles.big, styles.dark]}
         >
           <Text style={[styles.bigTitle, { color: "#fff" }]}>Downloads</Text>

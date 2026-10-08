@@ -101,7 +101,7 @@ export default function SearchPage() {
           </Animated.Text>
         ) : null}
         <Animated.View
-          layout={LinearTransition.springify().damping(18)}
+          layout={LinearTransition.duration(220)}
           style={styles.fieldRow}
         >
           <Pressable

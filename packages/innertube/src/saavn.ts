@@ -8,8 +8,8 @@ import {
 import { base64Decode, utf8Decode, utf8Encode } from "./util/bytes";
 import { desEcb, unpadPkcs5 } from "./util/des";
 import {
-  type FetchLike,
   defaultFetch,
+  type FetchLike,
   fetchWithTimeout,
   query,
 } from "./util/http";
@@ -238,6 +238,7 @@ export class JioSaavn {
       mimeType: "audio/mp4",
       bitrate: kbps * 1000,
       expiresAt: Date.now() + TTL_MS,
+      durationSec: song.durationSec,
       via: "saavn",
     };
   }

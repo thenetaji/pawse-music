@@ -6,6 +6,7 @@ import { resolver, yt } from "../data/clients";
 import "../data/downloads";
 import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
+import { logEvent } from "./diagnostics";
 import { clearResources } from "./use-resource";
 
 export { lyricsService, saavn, yt } from "../data/clients";
@@ -38,6 +39,7 @@ export function startEngine() {
     pauseOnDisconnect: settings().pauseOnDisconnect,
     radioContinue: () => settings().radioContinue,
     sleepFadeSec: () => settings().sleepFade,
+    onDiagnostic: logEvent,
     onPlayed: (track: Track, playedSec: number) => {
       const lib = useLibrary.getState();
       if (lib.settings.pauseHistory) return;

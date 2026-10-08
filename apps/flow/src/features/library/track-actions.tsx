@@ -8,7 +8,7 @@ import { Artwork } from "../../components/artwork";
 import { download, isDownloaded, removeDownload } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
-import { go } from "../../lib/nav";
+import { go, push } from "../../lib/nav";
 import { useShareCard } from "../../lib/share-card-store";
 
 export function showTrackActions(
@@ -86,7 +86,7 @@ export function showTrackActions(
         label: "Share card",
         onPress: () => {
           useShareCard.setState({ track, lyric: undefined });
-          router.push("/share-card");
+          push("/share-card");
         },
       },
       {
@@ -103,7 +103,7 @@ export function showTrackActions(
 export function shareLyric(track: Track, lyric: string) {
   haptic.medium();
   useShareCard.setState({ track, lyric });
-  router.push("/share-card");
+  push("/share-card");
 }
 
 function showPlaylistPicker(track: Track) {

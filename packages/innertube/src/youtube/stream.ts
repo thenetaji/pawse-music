@@ -13,6 +13,7 @@ export interface AdaptiveFormat {
   mimeType?: string;
   bitrate?: number;
   contentLength?: string;
+  approxDurationMs?: string;
   signatureCipher?: string;
   cipher?: string;
 }
@@ -175,6 +176,7 @@ async function tryClient(
   }
   const ttl = Number(sd?.expiresInSeconds);
   const length = Number(format.contentLength);
+  const ms = Number(format.approxDurationMs);
   return {
     url: format.url,
     mimeType: format.mimeType ?? "audio/mp4",
@@ -183,6 +185,7 @@ async function tryClient(
     expiresAt: Date.now() + (ttl > 0 ? ttl : DEFAULT_TTL_SEC) * 1000,
     headers: { "User-Agent": c.userAgent },
     loudnessDb: loudnessOf(data?.playerConfig?.audioConfig),
+    durationSec: ms > 0 ? ms / 1000 : undefined,
     via: `youtube:${c.name}`,
   };
 }

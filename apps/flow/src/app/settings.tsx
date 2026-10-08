@@ -1,4 +1,5 @@
 import { player } from "@studio/player";
+import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
@@ -17,12 +18,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FlowIsland } from "../../modules/flow-island-android";
 import { showSheet } from "../components/action-sheet";
 import { PressScale } from "../components/ui";
-
 import { useLibrary } from "../data/library";
+import { signOut } from "../features/account/sign-out";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { useAccent } from "../features/now-playing/now-palette";
+import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
+import { push } from "../lib/nav";
 import { setSetting, useSetting } from "../lib/settings";
 import {
   checkForUpdate,
@@ -106,23 +109,15 @@ export default function Settings() {
             <Toggle k="reportPlays" label="Send plays to YouTube history" def />
             <Link
               label="Import my YouTube Music library"
-              onPress={() => router.push("/import")}
+              onPress={() => push("/import")}
             />
-            <Link
-              label="Sign out"
-              danger
-              onPress={() =>
-                useLibrary
-                  .getState()
-                  .setSettings({ cookies: null, accountName: null })
-              }
-            />
+            <Link label="Sign out" danger onPress={() => void signOut()} />
           </>
         ) : (
           <Link
             label="Sign in for your feed and likes"
             tint={accent}
-            onPress={() => router.push("/sign-in")}
+            onPress={() => push("/sign-in")}
           />
         )}
       </Section>
@@ -196,10 +191,7 @@ export default function Settings() {
             [4000, "4 GB"],
           ]}
         />
-        <Link
-          label="Manage downloads"
-          onPress={() => router.push("/downloads")}
-        />
+        <Link label="Manage downloads" onPress={() => push("/downloads")} />
       </Section>
 
       <Section title="Lyrics">
@@ -360,13 +352,14 @@ export default function Settings() {
       </Section>
 
       <Section title="About">
-        <Link label="About Flow" onPress={() => router.push("/about")} />
+        <Link label="About Flow" onPress={() => push("/about")} />
         {Platform.OS !== "web" ? <UpdateRow tint={accent} /> : null}
+        <DiagnosticsRow />
         <Link
           label="Show onboarding again"
           onPress={() => {
             setSetting("onboarded", false);
-            router.push("/onboarding");
+            push("/onboarding");
           }}
         />
       </Section>
@@ -424,13 +417,43 @@ function UpdateRow({ tint }: { tint: string }) {
   );
 }
 
+// Copies the playback log so a bug report says what actually happened.
+function DiagnosticsRow() {
+  const count = useLogCount();
+  return (
+    <Pressable
+      onPress={() =>
+        showSheet({
+          actions: [
+            {
+              label: "Copy diagnostics",
+              onPress: () =>
+                void Clipboard.setStringAsync(getLogText()).then(() =>
+                  Alert.alert(
+                    "Copied",
+                    "Paste it in a message to the developer.",
+                  ),
+                ),
+            },
+            { label: "Clear", destructive: true, onPress: clearLog },
+          ],
+        })
+      }
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      <Text style={styles.label}>Diagnostics</Text>
+      <Text style={styles.value}>{count} events ›</Text>
+    </Pressable>
+  );
+}
+
 // Asks YouTube who is signed in, so a rejected session is visible instead of silently doing nothing.
 function AccountRow({ fallback }: { fallback: string | null }) {
   const me = useResource("account:me", () => yt.accountInfo());
   if (me.loading) return <Info label="Signed in" value="Checking…" />;
   if (!me.data)
     return (
-      <Pressable onPress={() => router.push("/sign-in")} style={styles.row}>
+      <Pressable onPress={() => push("/sign-in")} style={styles.row}>
         <Text style={[styles.label, { color: "#FF9F43", flex: 1 }]}>
           YouTube didn’t accept this sign-in. Tap to sign in again.
         </Text>

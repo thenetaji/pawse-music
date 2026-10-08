@@ -1,11 +1,9 @@
 import type { HomeFeed, Shelf as ShelfT, Track } from "@studio/music-core";
 import { player } from "@studio/player";
-import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Circle, Path } from "react-native-svg";
-
 import { Artwork } from "../../components/artwork";
 import { useTabRoot } from "../../components/page";
 import { Shelf } from "../../components/shelf";
@@ -20,6 +18,7 @@ import {
 import type { DailyMix } from "../../data/account";
 import { dailyMixes, useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
+import { push } from "../../lib/nav";
 import { getSetting, useSetting } from "../../lib/settings";
 import { useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
@@ -33,8 +32,16 @@ export default function HomePage() {
   const accent = useAccent();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
   const [chip, setChip] = useState<string | undefined>();
-  const home = useResource<HomeFeed>(`home:${chip ?? ""}`, () => yt.home(chip));
-  const moods = useResource<Mood[]>("explore:moods", () => yt.moodsAndGenres());
+  const home = useResource<HomeFeed>(
+    `home:${chip ?? ""}`,
+    () => yt.home(chip),
+    { keep: true },
+  );
+  const moods = useResource<Mood[]>(
+    "explore:moods",
+    () => yt.moodsAndGenres(),
+    { keep: true },
+  );
   const key = chip ?? "";
   // Extra pages: YouTube's own continuations first, then one mood page at a time, so the feed never ends.
   const [more, setMore] = useState<{
@@ -104,7 +111,7 @@ export default function HomePage() {
         <View style={styles.headRight}>
           <HomeCat />
           <PressScale
-            onPress={() => router.push("/settings")}
+            onPress={() => push("/settings")}
             style={styles.gear}
             accessibilityLabel="Settings"
           >
@@ -182,7 +189,7 @@ function SignInCard({ accent }: { accent: string }) {
   const name = useSetting("catName", "Mochi");
   return (
     <PressScale
-      onPress={() => router.push("/sign-in")}
+      onPress={() => push("/sign-in")}
       style={[styles.signIn, { borderColor: accent }]}
     >
       <Cat mood="curious" size={54} color={color} />

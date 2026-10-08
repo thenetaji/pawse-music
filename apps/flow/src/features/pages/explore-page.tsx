@@ -22,10 +22,20 @@ type Tile = { title: string; params: string; color?: string };
 export default function ExplorePage() {
   useTabRoot("explore");
   const region = useSetting("region", "IN");
-  const moods = useResource<Tile[]>("explore:moods", () => yt.moodsAndGenres());
-  const releases = useResource<ShelfT[]>("explore:new", () => yt.newReleases());
-  const charts = useResource<ShelfT[]>(`explore:charts:${region}`, () =>
-    yt.charts(region),
+  const moods = useResource<Tile[]>(
+    "explore:moods",
+    () => yt.moodsAndGenres(),
+    { keep: true },
+  );
+  const releases = useResource<ShelfT[]>(
+    "explore:new",
+    () => yt.newReleases(),
+    { keep: true },
+  );
+  const charts = useResource<ShelfT[]>(
+    `explore:charts:${region}`,
+    () => yt.charts(region),
+    { keep: true },
   );
   const [all, setAll] = useState(false);
   // Below the charts, one mood after another keeps the page going.

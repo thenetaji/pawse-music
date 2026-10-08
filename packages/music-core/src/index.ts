@@ -203,6 +203,8 @@ export interface ResolvedStream {
   expiresAt: number;
   headers?: Record<string, string>;
   loudnessDb?: number;
+  /** Real length of this audio, when the source says; players can misread it. */
+  durationSec?: number;
   /** Which client or source produced it, for diagnostics. */
   via: string;
 }

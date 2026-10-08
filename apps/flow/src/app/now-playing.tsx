@@ -7,9 +7,7 @@ import {
 } from "@studio/player";
 import { router } from "expo-router";
 import { useState } from "react";
-
 import { View } from "react-native";
-
 import { CatState } from "../components/ui";
 import { useLibrary } from "../data/library";
 import {
@@ -18,6 +16,7 @@ import {
 } from "../features/library/track-actions";
 import { NowPlayingView } from "../features/now-playing/now-playing-view";
 import { lyricsService } from "../lib/engine";
+import { push } from "../lib/nav";
 import { useResource } from "../lib/use-resource";
 
 const LABEL = {
@@ -78,7 +77,7 @@ export default function NowPlaying() {
           emitPlayerEvent("liked", current);
       }}
       onLyrics={() => setMode((m) => (m === "lyrics" ? "art" : "lyrics"))}
-      onQueue={() => router.push("/queue")}
+      onQueue={() => push("/queue")}
       onClose={() => router.back()}
       onMore={() => current && showTrackActions(current, { fromPlayer: true })}
       onShareLyric={(line) => current && shareLyric(current, line)}
