@@ -211,7 +211,12 @@ export default function SearchPage() {
           accent={accent}
         />
       ) : results.data ? (
-        <Results data={results.data} filter={filter} bottom={bottom} />
+        <Results
+          data={results.data}
+          filter={filter}
+          bottom={bottom}
+          onFilter={setFilter}
+        />
       ) : results.error ? (
         <CatState
           kind="error"
@@ -301,44 +306,107 @@ function EmptySearch({
   );
 }
 
+const FILTER_BY_TITLE: Record<string, SearchFilter> = {
+  songs: "songs",
+  videos: "videos",
+  albums: "albums",
+  artists: "artists",
+  playlists: "playlists",
+  "community playlists": "playlists",
+  "featured playlists": "playlists",
+};
+
 function Results({
   data,
   filter,
   bottom,
+  onFilter,
 }: {
   data: SearchResults;
   filter: SearchFilter;
   bottom: number;
+  onFilter: (f: SearchFilter) => void;
 }) {
-  if (filter !== "all" && data.items) {
-    const items = data.items;
-    if (!items.length)
-      return <CatState kind="empty" message="No matches. Try other words." />;
-    return (
-      <FlatList
-        data={items}
-        keyExtractor={(i, n) => `${i.id}${n}`}
-        contentContainerStyle={{ paddingBottom: bottom, paddingTop: 6 }}
-        renderItem={({ item }) =>
-          item.type === "track" ? (
-            <TrackRow
-              track={item as Track}
-              onPress={() => openItem(item, items)}
-            />
-          ) : (
-            <ItemRow item={item} />
-          )
-        }
-      />
-    );
-  }
+  if (filter !== "all" && data.items)
+    return <FilteredResults data={data} bottom={bottom} />;
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: bottom }}>
       {data.top ? <TopResult item={data.top} /> : null}
-      {data.shelves.map((s, i) => (
-        <Shelf key={`${s.title}${i}`} shelf={s} />
-      ))}
+      {data.shelves.map((s, i) => {
+        const f = FILTER_BY_TITLE[s.title.toLowerCase()];
+        return (
+          <Shelf
+            key={`${s.title}${i}`}
+            shelf={s}
+            onMore={f ? () => onFilter(f) : undefined}
+          />
+        );
+      })}
     </ScrollView>
+  );
+}
+
+// One filter tab: pages in more results as you reach the bottom.
+function FilteredResults({
+  data,
+  bottom,
+}: {
+  data: SearchResults;
+  bottom: number;
+}) {
+  const [more, setMore] = useState<{
+    items: CatalogItem[];
+    continuation?: string;
+    from: SearchResults;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const extra = more?.from === data ? more : null;
+  const items = [...(data.items ?? []), ...(extra?.items ?? [])];
+  const cont = extra ? extra.continuation : data.continuation;
+  const loadMore = () => {
+    if (!cont || loading) return;
+    setLoading(true);
+    yt.searchMore(cont)
+      .then((r) =>
+        setMore({
+          from: data,
+          items: [
+            ...(extra?.items ?? []),
+            ...(r.items ?? r.shelves.flatMap((x) => x.items)),
+          ],
+          continuation: r.continuation,
+        }),
+      )
+      .catch(() =>
+        setMore({
+          from: data,
+          items: extra?.items ?? [],
+          continuation: undefined,
+        }),
+      )
+      .finally(() => setLoading(false));
+  };
+  if (!items.length)
+    return <CatState kind="empty" message="No matches. Try other words." />;
+  return (
+    <FlatList
+      data={items}
+      keyExtractor={(i, n) => `${i.id}${n}`}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.8}
+      contentContainerStyle={{ paddingBottom: bottom, paddingTop: 6 }}
+      ListFooterComponent={loading ? <SkeletonRows count={3} /> : null}
+      renderItem={({ item }) =>
+        item.type === "track" ? (
+          <TrackRow
+            track={item as Track}
+            onPress={() => openItem(item, items)}
+          />
+        ) : (
+          <ItemRow item={item} />
+        )
+      }
+    />
   );
 }
 

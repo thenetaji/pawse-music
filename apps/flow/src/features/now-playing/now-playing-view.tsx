@@ -162,7 +162,7 @@ export function NowPlayingView(p: NowPlayingProps) {
       </Animated.View>
     </Pressable>
   );
-  const artSize = Math.max(0, Math.min(area.w, area.h - 12, 420));
+  const artSize = Math.max(0, Math.min(area.w, area.h - 40, 420));
 
   return (
     <View style={styles.root}>

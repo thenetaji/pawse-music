@@ -1,4 +1,9 @@
+import type { Shelf, Thumbnail } from "@studio/music-core";
 import { StyleSheet, Text, View } from "react-native";
+
+import { yt } from "../lib/engine";
+import { useResource } from "../lib/use-resource";
+import { Artwork } from "./artwork";
 
 import { go } from "../lib/nav";
 import { PressScale } from "./ui";
@@ -73,6 +78,14 @@ export function MoodTile({
   index: number;
 }) {
   const c = tileColor(color, index);
+  // Shares the mood page's cache key, so opening the tile is instant.
+  const page = useResource<Shelf[]>(`mood:${params}`, () =>
+    yt.moodPage(params),
+  );
+  const covers: Thumbnail[][] = [];
+  for (const sh of page.data ?? [])
+    for (const it of sh.items)
+      if (covers.length < 2 && it.thumbnails.length) covers.push(it.thumbnails);
   return (
     <PressScale
       onPress={() =>
@@ -82,7 +95,26 @@ export function MoodTile({
       }
       style={[styles.tile, { backgroundColor: c }]}
     >
-      <View style={styles.corner} />
+      {covers.length ? (
+        <View style={styles.covers} pointerEvents="none">
+          {covers[1] ? (
+            <Artwork
+              thumbnails={covers[1]}
+              size={54}
+              radius={8}
+              style={styles.coverBack}
+            />
+          ) : null}
+          <Artwork
+            thumbnails={covers[0]}
+            size={62}
+            radius={8}
+            style={styles.coverFront}
+          />
+        </View>
+      ) : (
+        <View style={styles.corner} />
+      )}
       <Text style={styles.text} numberOfLines={2}>
         {title}
       </Text>
@@ -108,5 +140,28 @@ const styles = StyleSheet.create({
     transform: [{ rotate: "24deg" }],
     backgroundColor: "rgba(255,255,255,0.2)",
   },
-  text: { color: "#fff", fontSize: 16, fontWeight: "800", letterSpacing: -0.2 },
+  covers: { position: "absolute", right: -6, top: 6, width: 90, height: 80 },
+  coverBack: {
+    position: "absolute",
+    right: 34,
+    top: 14,
+    transform: [{ rotate: "-14deg" }],
+    opacity: 0.85,
+  },
+  coverFront: {
+    position: "absolute",
+    right: 4,
+    top: 4,
+    transform: [{ rotate: "16deg" }],
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+  },
+  text: {
+    maxWidth: "62%",
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
 });

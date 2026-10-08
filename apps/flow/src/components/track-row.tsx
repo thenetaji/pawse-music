@@ -21,6 +21,8 @@ type Props = {
   index?: number;
   showArt?: boolean;
   subtitle?: string;
+  /** Off inside horizontal carousels, where a sideways swipe should scroll. */
+  swipeable?: boolean;
 };
 
 // Swipe right to play next, left to add to the queue; long-press for everything else.
@@ -30,6 +32,7 @@ export const TrackRow = memo(function TrackRow({
   index,
   showArt = true,
   subtitle,
+  swipeable = true,
 }: Props) {
   const current = usePlayerSelect((s) => s.current?.id === track.id);
   const playing = usePlayerSelect((s) => s.status === "playing");
@@ -39,6 +42,65 @@ export const TrackRow = memo(function TrackRow({
   const sub =
     subtitle ??
     [artistLine(track.artists), track.album?.title].filter(Boolean).join(" · ");
+  const content = (
+    <Pressable
+      onPress={() => {
+        haptic.tick();
+        onPress();
+      }}
+      onLongPress={() => showTrackActions(track)}
+      delayLongPress={300}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      {showArt ? (
+        <View>
+          <Artwork thumbnails={track.thumbnails} size={50} radius={7} />
+          {current ? (
+            <View style={styles.overlay}>
+              <EqBars color="#fff" playing={playing} />
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.num}>
+          {current ? (
+            <EqBars color={accent} playing={playing} />
+          ) : (
+            <Text style={styles.numText}>{index}</Text>
+          )}
+        </View>
+      )}
+      <View style={styles.text}>
+        <Text
+          style={[styles.title, current && { color: accent }]}
+          numberOfLines={1}
+        >
+          {track.explicit ? <Text style={styles.e}>E </Text> : null}
+          {track.title}
+        </Text>
+        <View style={styles.subRow}>
+          {dl.state === "done" ? (
+            <DownloadedDot color={accent} />
+          ) : dl.state === "downloading" ? (
+            <Text style={[styles.pct, { color: accent }]}>
+              {Math.round(dl.progress * 100)}%
+            </Text>
+          ) : null}
+          <Text style={styles.sub} numberOfLines={1}>
+            {sub}
+          </Text>
+        </View>
+      </View>
+      <Pressable
+        hitSlop={12}
+        onPress={() => showTrackActions(track)}
+        style={styles.more}
+      >
+        <MoreGlyph size={18} color="rgba(255,255,255,0.5)" />
+      </Pressable>
+    </Pressable>
+  );
+  if (!swipeable) return content;
   return (
     <ReanimatedSwipeable
       ref={swipe}
@@ -66,62 +128,7 @@ export const TrackRow = memo(function TrackRow({
         setTimeout(() => swipe.current?.close(), 180);
       }}
     >
-      <Pressable
-        onPress={() => {
-          haptic.tick();
-          onPress();
-        }}
-        onLongPress={() => showTrackActions(track)}
-        delayLongPress={300}
-        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-      >
-        {showArt ? (
-          <View>
-            <Artwork thumbnails={track.thumbnails} size={50} radius={7} />
-            {current ? (
-              <View style={styles.overlay}>
-                <EqBars color="#fff" playing={playing} />
-              </View>
-            ) : null}
-          </View>
-        ) : (
-          <View style={styles.num}>
-            {current ? (
-              <EqBars color={accent} playing={playing} />
-            ) : (
-              <Text style={styles.numText}>{index}</Text>
-            )}
-          </View>
-        )}
-        <View style={styles.text}>
-          <Text
-            style={[styles.title, current && { color: accent }]}
-            numberOfLines={1}
-          >
-            {track.explicit ? <Text style={styles.e}>E </Text> : null}
-            {track.title}
-          </Text>
-          <View style={styles.subRow}>
-            {dl.state === "done" ? (
-              <DownloadedDot color={accent} />
-            ) : dl.state === "downloading" ? (
-              <Text style={[styles.pct, { color: accent }]}>
-                {Math.round(dl.progress * 100)}%
-              </Text>
-            ) : null}
-            <Text style={styles.sub} numberOfLines={1}>
-              {sub}
-            </Text>
-          </View>
-        </View>
-        <Pressable
-          hitSlop={12}
-          onPress={() => showTrackActions(track)}
-          style={styles.more}
-        >
-          <MoreGlyph size={18} color="rgba(255,255,255,0.5)" />
-        </Pressable>
-      </Pressable>
+      {content}
     </ReanimatedSwipeable>
   );
 });

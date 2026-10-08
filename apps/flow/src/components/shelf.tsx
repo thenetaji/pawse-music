@@ -7,7 +7,14 @@ import {
 } from "@studio/music-core";
 import { go } from "../lib/nav";
 import { player } from "@studio/player";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Dimensions,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { showTrackActions } from "../features/library/track-actions";
 import { Artwork } from "./artwork";
@@ -88,6 +95,7 @@ function TrackGrid({ items }: { items: CatalogItem[] }) {
               key={t.id}
               track={t as Track}
               onPress={() => openItem(t, items)}
+              swipeable={false}
             />
           ))}
         </View>
@@ -95,7 +103,8 @@ function TrackGrid({ items }: { items: CatalogItem[] }) {
     />
   );
 }
-const PAGE_W = 340;
+// One page per screen width, with the next page peeking in.
+const PAGE_W = Dimensions.get("window").width - 44;
 
 function Cards({ items }: { items: CatalogItem[] }) {
   return (

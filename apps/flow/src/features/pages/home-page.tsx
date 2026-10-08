@@ -1,9 +1,10 @@
-import { getSetting } from "../../lib/settings";
 import type { HomeFeed, Shelf as ShelfT, Track } from "@studio/music-core";
 import { player } from "@studio/player";
+import { router } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import { Artwork } from "../../components/artwork";
 import { useTabRoot } from "../../components/page";
@@ -19,40 +20,80 @@ import {
 import type { DailyMix } from "../../data/account";
 import { dailyMixes, useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
-import { useSetting } from "../../lib/settings";
+import { getSetting, useSetting } from "../../lib/settings";
 import { useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
 import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
 
+type Mood = { title: string; params: string };
+
 export default function HomePage() {
   useTabRoot("home");
   const accent = useAccent();
+  const signedIn = useLibrary((s) => !!s.settings.cookies);
   const [chip, setChip] = useState<string | undefined>();
   const home = useResource<HomeFeed>(`home:${chip ?? ""}`, () => yt.home(chip));
+  const moods = useResource<Mood[]>("explore:moods", () => yt.moodsAndGenres());
+  const key = chip ?? "";
+  // Extra pages: YouTube's own continuations first, then one mood page at a time, so the feed never ends.
   const [more, setMore] = useState<{
+    key: string;
     shelves: ShelfT[];
     continuation?: string;
-    key: string;
-  } | null>(null);
+    mood: number;
+  }>({ key, shelves: [], mood: 0 });
   const [loadingMore, setLoadingMore] = useState(false);
-  const key = chip ?? "";
-  const extra = more?.key === key ? more : null;
-  const shelves = [...(home.data?.shelves ?? []), ...(extra?.shelves ?? [])];
-  const cont = extra ? extra.continuation : home.data?.continuation;
+  const extra =
+    more.key === key
+      ? more
+      : { key, shelves: [], continuation: undefined, mood: 0 };
+  const cont =
+    extra.shelves.length || extra.mood
+      ? extra.continuation
+      : home.data?.continuation;
+  const shelves = [...(home.data?.shelves ?? []), ...extra.shelves];
 
   const loadMore = () => {
-    if (!cont || loadingMore) return;
-    setLoadingMore(true);
-    yt.homeMore(cont)
-      .then((r) =>
-        setMore((m) => ({
-          key,
-          shelves: [...(m?.key === key ? m.shelves : []), ...r.shelves],
+    if (loadingMore || !home.data) return;
+    const list = moods.data ?? [];
+    let next: Promise<{
+      shelves: ShelfT[];
+      continuation?: string;
+      mood: number;
+    }>;
+    if (cont)
+      next = yt
+        .homeMore(cont)
+        .then((r) => ({
+          shelves: r.shelves,
           continuation: r.continuation,
-        })),
+          mood: extra.mood,
+        }));
+    else if (extra.mood < list.length) {
+      const m = list[extra.mood];
+      next = yt
+        .moodPage(m.params)
+        .then((sh) => ({
+          shelves: sh
+            .slice(0, 3)
+            .map((x, i) =>
+              i === 0 ? { ...x, title: `${m.title} · ${x.title}` } : x,
+            ),
+          mood: extra.mood + 1,
+        }));
+    } else return;
+    setLoadingMore(true);
+    next
+      .then((r) =>
+        setMore({
+          key,
+          shelves: [...extra.shelves, ...r.shelves],
+          continuation: r.continuation,
+          mood: r.mood,
+        }),
       )
-      .catch(() => {})
+      .catch(() => setMore({ ...extra, key, mood: extra.mood + 1 }))
       .finally(() => setLoadingMore(false));
   };
 
@@ -63,9 +104,21 @@ export default function HomePage() {
       onRefresh={home.reload}
       refreshing={false}
       onEndReached={loadMore}
-      right={<HomeCat />}
+      right={
+        <View style={styles.headRight}>
+          <HomeCat />
+          <PressScale
+            onPress={() => router.push("/settings")}
+            style={styles.gear}
+            accessibilityLabel="Settings"
+          >
+            <GearGlyph />
+          </PressScale>
+        </View>
+      }
     >
       <CatLine />
+      {!signedIn ? <SignInCard accent={accent} /> : null}
       {home.data?.chips.length ? (
         <ScrollView
           horizontal
@@ -89,7 +142,7 @@ export default function HomePage() {
         shelves.map((s, i) => (
           <Animated.View
             key={`${s.title}${i}`}
-            entering={FadeInDown.duration(420).delay(Math.min(i, 6) * 60)}
+            entering={FadeInDown.duration(420).delay(Math.min(i % 8, 6) * 60)}
           >
             <Shelf shelf={s} />
           </Animated.View>
@@ -104,8 +157,47 @@ export default function HomePage() {
       ) : (
         <SkeletonShelves />
       )}
-      {loadingMore ? <SkeletonShelves count={1} /> : null}
+      {home.data ? (
+        <EndSpinner loading={loadingMore} onPress={loadMore} />
+      ) : null}
     </Screen>
+  );
+}
+
+// Keeps loading at the bottom; also tappable in case a scroll event was missed.
+function EndSpinner({
+  loading,
+  onPress,
+}: {
+  loading: boolean;
+  onPress: () => void;
+}) {
+  return loading ? (
+    <SkeletonShelves count={1} />
+  ) : (
+    <Pressable onPress={onPress} style={styles.more}>
+      <Text style={styles.moreText}>More music</Text>
+    </Pressable>
+  );
+}
+
+function SignInCard({ accent }: { accent: string }) {
+  const color = useSetting<CatColor>("catColor", "orange");
+  const name = useSetting("catName", "Mochi");
+  return (
+    <PressScale
+      onPress={() => router.push("/sign-in")}
+      style={[styles.signIn, { borderColor: accent }]}
+    >
+      <Cat mood="curious" size={54} color={color} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.signTitle}>Make it yours</Text>
+        <Text style={styles.signSub}>
+          Sign in to YouTube Music so {name} learns your taste.
+        </Text>
+      </View>
+      <Text style={[styles.signGo, { color: accent }]}>Sign in</Text>
+    </PressScale>
   );
 }
 
@@ -193,10 +285,28 @@ function HomeCat() {
   return (
     <Cat
       mood={h >= 23 || h < 6 ? "sleep" : "groove"}
-      size={44}
+      size={40}
       color={color}
       beatMs={900}
     />
+  );
+}
+
+function GearGlyph() {
+  return (
+    <Svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#fff"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Circle cx="12" cy="12" r="3" />
+      <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </Svg>
   );
 }
 
@@ -228,6 +338,15 @@ function greeting() {
 }
 
 const styles = StyleSheet.create({
+  headRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+  gear: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
   chips: { paddingHorizontal: 20, gap: 8, marginTop: 14 },
   catLine: {
     color: "rgba(255,255,255,0.6)",
@@ -235,10 +354,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 2,
   },
+  signIn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  signTitle: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  signSub: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  signGo: { fontSize: 15, fontWeight: "800" },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     gap: 8,
   },
   tile: {
@@ -251,6 +389,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     paddingRight: 8,
   },
+  tileText: { flex: 1, color: "#fff", fontSize: 13, fontWeight: "600" },
   mix: { width: 152 },
   mixBand: {
     position: "absolute",
@@ -265,5 +404,14 @@ const styles = StyleSheet.create({
   },
   mixNo: { color: "#000", fontSize: 14, fontWeight: "900" },
   mixName: { color: "#fff", fontSize: 14, fontWeight: "600", marginTop: 8 },
-  tileText: { flex: 1, color: "#fff", fontSize: 13, fontWeight: "600" },
+  more: {
+    alignSelf: "center",
+    marginTop: 26,
+    paddingHorizontal: 18,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  moreText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 });
