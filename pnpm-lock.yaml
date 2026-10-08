@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  '@react-native-cookies/cookies':
+    hash: ec064f4a202698a202758abc5b5d8deafb70ffb31585c78608d257295d731b9a
+    path: patches/@react-native-cookies__cookies.patch
   expo-sqlite:
     hash: e55ce022042be5a2be9b91483e86c5cfbe00e34617064c47e73087c46465ae90
     path: patches/expo-sqlite.patch
@@ -274,7 +277,7 @@ importers:
         version: 15.1.1(expo-font@57.0.4)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
       '@react-native-cookies/cookies':
         specifier: ^6.2.1
-        version: 6.2.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))
+        version: 6.2.1(patch_hash=ec064f4a202698a202758abc5b5d8deafb70ffb31585c78608d257295d731b9a)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))
       '@react-native-segmented-control/segmented-control':
         specifier: 2.5.7
         version: 2.5.7(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
@@ -9166,7 +9169,7 @@ snapshots:
     optionalDependencies:
       expo: 57.0.26(b662e50159c5ddf9e8ab291887e686f5)
 
-  '@react-native-cookies/cookies@6.2.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))':
+  '@react-native-cookies/cookies@6.2.1(patch_hash=ec064f4a202698a202758abc5b5d8deafb70ffb31585c78608d257295d731b9a)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))':
     dependencies:
       invariant: 2.2.4
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3)
