@@ -208,7 +208,7 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - [x] 59. Fresh-context review after the build work: a code review (Opus reviewer) of the diff for bugs, and a design review of screenshots of every screen against "premium". Fix the findings, then re-verify (typecheck, lint, tests, web screenshots, iOS CI build).
 
 ### Release
-- [ ] 27. After item 59: tag flow-v0.1.x, watch the iOS and Android jobs, fix failures, then send the summary.
+- [x] 27. After item 59: tag flow-v0.1.x, watch the iOS and Android jobs, fix failures, then send the summary.
 
 ## Later
 - Lyrics in the Dynamic Island and the Live Activity. Left out of v1 on purpose.
