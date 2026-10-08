@@ -18,7 +18,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { showSheet } from "../components/action-sheet";
 import { PressScale } from "../components/ui";
+import { Image } from "expo-image";
+
 import { useLibrary } from "../data/library";
+import { yt } from "../lib/engine";
+import { useResource } from "../lib/use-resource";
 import { haptic } from "../lib/haptics";
 import { setSetting, useSetting } from "../lib/settings";
 import { Cat, type CatColor } from "../features/cat/cat";
@@ -93,7 +97,7 @@ export default function Settings() {
       <Section title="YouTube Music">
         {signedIn ? (
           <>
-            <Info label="Signed in" value={accountName ?? "YouTube Music"} />
+            <AccountRow fallback={accountName} />
             <Toggle k="syncLikes" label="Sync likes to YouTube" def />
             <Toggle k="reportPlays" label="Send plays to YouTube history" def />
             <Link
@@ -362,6 +366,36 @@ export default function Settings() {
         />
       </Section>
     </ScrollView>
+  );
+}
+
+// Asks YouTube who is signed in, so a rejected session is visible instead of silently doing nothing.
+function AccountRow({ fallback }: { fallback: string | null }) {
+  const me = useResource("account:me", () => yt.accountInfo());
+  if (me.loading) return <Info label="Signed in" value="Checking…" />;
+  if (!me.data)
+    return (
+      <Pressable onPress={() => router.push("/sign-in")} style={styles.row}>
+        <Text style={[styles.label, { color: "#FF9F43", flex: 1 }]}>
+          YouTube didn’t accept this sign-in. Tap to sign in again.
+        </Text>
+      </Pressable>
+    );
+  return (
+    <View style={[styles.row, { gap: 12, justifyContent: "flex-start" }]}>
+      {me.data.photo ? (
+        <Image
+          source={me.data.photo}
+          style={{ width: 32, height: 32, borderRadius: 16 }}
+        />
+      ) : null}
+      <View style={{ flex: 1 }}>
+        <Text style={styles.label}>{me.data.name ?? fallback}</Text>
+        {me.data.handle ? (
+          <Text style={[styles.value, { fontSize: 13 }]}>{me.data.handle}</Text>
+        ) : null}
+      </View>
+    </View>
   );
 }
 

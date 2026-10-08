@@ -11,3 +11,6 @@ export function useResource<T>(key: string | null, load: () => Promise<T>) {
     reload: () => void;
   };
 }
+
+/** Drops every cached page, e.g. after signing in or out. */
+export const clearResources = () => cache.clear();

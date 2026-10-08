@@ -6,6 +6,7 @@ import { resolver, yt } from "../data/clients";
 import "../data/downloads";
 import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
+import { clearResources } from "./use-resource";
 
 export { lyricsService, saavn, yt } from "../data/clients";
 
@@ -19,6 +20,14 @@ const playerStorage = {
       : kv.get(k),
   set: (k: string, v: string) => kv.set(k, v),
 };
+
+// Signing in or out changes every catalog answer, so cached pages are dropped.
+let lastCookies = useLibrary.getState().settings.cookies;
+useLibrary.subscribe((st) => {
+  if (st.settings.cookies === lastCookies) return;
+  lastCookies = st.settings.cookies;
+  clearResources();
+});
 
 let started: Promise<void> | null = null;
 export function startEngine() {

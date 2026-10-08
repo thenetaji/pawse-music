@@ -512,6 +512,31 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     await this.call(ep, { target: { videoId } });
   }
 
+  /** Who YouTube thinks is signed in; null when the session isn't accepted. */
+  async accountInfo(): Promise<{
+    name: string;
+    handle?: string;
+    photo?: string;
+  } | null> {
+    if (!(await this.cookie())) return null;
+    const json = await this.call("account/account_menu", {});
+    const header =
+      json?.actions?.[0]?.openPopupAction?.popup?.multiPageMenuRenderer?.header
+        ?.activeAccountHeaderRenderer;
+    const name =
+      header?.accountName?.runs?.[0]?.text ?? header?.accountName?.simpleText;
+    if (!name) return null;
+    const thumbs = header?.accountPhoto?.thumbnails;
+    return {
+      name,
+      handle: header?.channelHandle?.runs?.[0]?.text,
+      photo:
+        Array.isArray(thumbs) && thumbs.length
+          ? thumbs[thumbs.length - 1].url
+          : undefined,
+    };
+  }
+
   async likedSongs(): Promise<PlaylistDetail> {
     await this.requireCookie();
     return this.playlist("LM");

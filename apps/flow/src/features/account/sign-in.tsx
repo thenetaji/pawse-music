@@ -8,6 +8,7 @@ import { WebView, type WebViewNavigation } from "react-native-webview";
 
 import { PressScale } from "../../components/ui";
 import { syncYouTubeLibrary, useLibrary } from "../../data/library";
+import { yt } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
 import { useSetting } from "../../lib/settings";
 import { Cat, type CatColor } from "../cat/cat";
@@ -48,6 +49,12 @@ export default function SignIn() {
     haptic.success();
     setStep("done");
     syncYouTubeLibrary().catch(() => {});
+    yt.accountInfo()
+      .then(
+        (me) =>
+          me && useLibrary.getState().setSettings({ accountName: me.name }),
+      )
+      .catch(() => {});
   };
 
   return (

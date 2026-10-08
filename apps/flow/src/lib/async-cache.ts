@@ -50,9 +50,11 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
     const run = useEffectEvent((k: string, force: boolean) =>
       load(k, loader, force),
     );
+    // Also reloads after clear(): the entry drops back to IDLE.
+    const missing = entry === IDLE;
     useEffect(() => {
       if (key) run(key, false);
-    }, [key]);
+    }, [key, missing]);
     return {
       data: entry.data,
       error: entry.error,
@@ -62,5 +64,9 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
     };
   }
 
-  return { use, load, peek: (key: string) => entries.get(key)?.data };
+  const clear = () => {
+    entries.clear();
+    emit();
+  };
+  return { use, load, clear, peek: (key: string) => entries.get(key)?.data };
 }
