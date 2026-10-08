@@ -14,7 +14,7 @@ Read with `docs/DEV.md` (commands and layout) and, for Finance, `apps/finance/do
 
 ## Environment
 - pnpm only; there is no npm/npx (`pnpm exec`, `pnpm dlx`).
-- Expo Go only: a native dependency must appear in `node_modules/expo/bundledNativeModules.json` and be added with `pnpm exec expo install`. Pure-JS libraries are fine.
+- Add native dependencies with `pnpm exec expo install`. Native modules outside Expo Go are fine; the app then ships through the iOS workflow (see `docs/DEV.md`).
 - The React Compiler is on. Never name a binding `Symbol`, because the compiler emits `Symbol.for`. Lint enforces `react-hooks/set-state-in-effect`.
 
 ## Data
