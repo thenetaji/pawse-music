@@ -361,7 +361,7 @@ export default function Settings() {
 
       <Section title="About">
         <Link label="About Flow" onPress={() => router.push("/about")} />
-        {Platform.OS === "android" ? <UpdateRow tint={accent} /> : null}
+        {Platform.OS !== "web" ? <UpdateRow tint={accent} /> : null}
         <Link
           label="Show onboarding again"
           onPress={() => {
@@ -374,7 +374,7 @@ export default function Settings() {
   );
 }
 
-// Android installs straight from GitHub Releases; iOS updates through SideStore.
+// Checks GitHub Releases; Android installs the APK itself, iOS hands the IPA to SideStore.
 function UpdateRow({ tint }: { tint: string }) {
   const st = useUpdate();
   const busy = st.kind === "checking" || st.kind === "downloading";

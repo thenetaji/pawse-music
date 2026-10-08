@@ -1,7 +1,7 @@
 import * as Application from "expo-application";
 import { File, Paths } from "expo-file-system";
 import { startActivityAsync } from "expo-intent-launcher";
-import { Alert, Platform } from "react-native";
+import { Alert, Linking, Platform } from "react-native";
 import { create } from "zustand";
 
 import { getSetting, setSetting } from "./settings";
@@ -10,7 +10,10 @@ const RELEASES =
   "https://api.github.com/repos/thenetaji/studio/releases?per_page=30";
 const DAY = 24 * 60 * 60 * 1000;
 
-export type Update = { version: string; apk: string; notes: string };
+export type Update = { version: string; file: string; notes: string };
+
+const EXT = Platform.OS === "ios" ? ".ipa" : ".apk";
+const supported = Platform.OS === "android" || Platform.OS === "ios";
 type State =
   | { kind: "idle" }
   | { kind: "checking" }
@@ -41,9 +44,9 @@ type Release = {
   assets: { name: string; browser_download_url: string }[];
 };
 
-// Newest flow-v* release on GitHub that ships an APK, if it is newer than this build.
+// Newest flow-v* release on GitHub that ships this platform's build, if it is newer than this one.
 export async function checkForUpdate(): Promise<Update | null> {
-  if (Platform.OS !== "android") return null;
+  if (!supported) return null;
   set({ kind: "checking" });
   try {
     const res = await fetch(RELEASES, {
@@ -57,15 +60,15 @@ export async function checkForUpdate(): Promise<Update | null> {
       )
       .map((r) => ({ r, v: r.tag_name.slice(6) }))
       .sort((a, b) => (newer(a.v, b.v) ? -1 : 1))[0];
-    const apk = rel?.r.assets.find((a) => a.name.endsWith(".apk"));
+    const asset = rel?.r.assets.find((a) => a.name.endsWith(EXT));
     setSetting("updateCheckedAt", Date.now());
-    if (!rel || !apk || !newer(rel.v, currentVersion())) {
+    if (!rel || !asset || !newer(rel.v, currentVersion())) {
       set({ kind: "current" });
       return null;
     }
     const update = {
       version: rel.v,
-      apk: apk.browser_download_url,
+      file: asset.browser_download_url,
       notes: rel.r.body ?? "",
     };
     set({ kind: "available", update });
@@ -76,12 +79,22 @@ export async function checkForUpdate(): Promise<Update | null> {
   }
 }
 
-// Downloads the APK and hands it to Android's installer (same signing key, so it installs over).
+// iOS: SideStore installs the IPA from its deep link. Android: download the APK and hand it to the installer.
 export async function installUpdate(update: Update) {
+  if (Platform.OS === "ios") {
+    const link = `sidestore://install?url=${encodeURIComponent(update.file)}`;
+    await Linking.openURL(link).catch(() =>
+      Alert.alert(
+        "SideStore not found",
+        "Open SideStore and update Flow from My Apps.",
+      ),
+    );
+    return;
+  }
   set({ kind: "downloading", update, progress: 0 });
   try {
     const file = new File(Paths.cache, `Flow-${update.version}.apk`);
-    await File.downloadFileAsync(update.apk, file, {
+    await File.downloadFileAsync(update.file, file, {
       idempotent: true,
       onProgress: ({ bytesWritten, totalBytes }) =>
         totalBytes > 0 &&
@@ -103,13 +116,17 @@ export async function installUpdate(update: Update) {
   }
 }
 
-// Once a day on launch: if a newer APK is out, offer it.
+// Once a day on launch: if a newer build is out, offer it.
 export async function checkOnLaunch() {
-  if (Platform.OS !== "android") return;
+  if (!supported) return;
   if (Date.now() - getSetting("updateCheckedAt", 0) < DAY) return;
   const u = await checkForUpdate();
   if (!u || getSetting("updateSkipped", "") === u.version) return;
-  Alert.alert(`Flow ${u.version} is out`, "Download and install it now?", [
+  const how =
+    Platform.OS === "ios"
+      ? "Install it now through SideStore?"
+      : "Download and install it now?";
+  Alert.alert(`Flow ${u.version} is out`, how, [
     {
       text: "Skip this version",
       style: "cancel",
