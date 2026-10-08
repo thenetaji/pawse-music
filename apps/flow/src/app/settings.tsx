@@ -1,4 +1,5 @@
 import { player } from "@studio/player";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 import {
@@ -12,21 +13,24 @@ import {
   TextInput,
   View,
 } from "react-native";
-
-import { FlowIsland } from "../../modules/flow-island-android";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
+import { FlowIsland } from "../../modules/flow-island-android";
 import { showSheet } from "../components/action-sheet";
 import { PressScale } from "../components/ui";
-import { Image } from "expo-image";
 
 import { useLibrary } from "../data/library";
-import { yt } from "../lib/engine";
-import { useResource } from "../lib/use-resource";
-import { haptic } from "../lib/haptics";
-import { setSetting, useSetting } from "../lib/settings";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { useAccent } from "../features/now-playing/now-palette";
+import { yt } from "../lib/engine";
+import { haptic } from "../lib/haptics";
+import { setSetting, useSetting } from "../lib/settings";
+import {
+  checkForUpdate,
+  currentVersion,
+  installUpdate,
+  useUpdate,
+} from "../lib/updates";
+import { useResource } from "../lib/use-resource";
 
 const CAT_COLORS: { id: CatColor; fur: string }[] = [
   { id: "orange", fur: "#F49A3C" },
@@ -357,6 +361,7 @@ export default function Settings() {
 
       <Section title="About">
         <Link label="About Flow" onPress={() => router.push("/about")} />
+        {Platform.OS === "android" ? <UpdateRow tint={accent} /> : null}
         <Link
           label="Show onboarding again"
           onPress={() => {
@@ -366,6 +371,56 @@ export default function Settings() {
         />
       </Section>
     </ScrollView>
+  );
+}
+
+// Android installs straight from GitHub Releases; iOS updates through SideStore.
+function UpdateRow({ tint }: { tint: string }) {
+  const st = useUpdate();
+  const busy = st.kind === "checking" || st.kind === "downloading";
+  const label =
+    st.kind === "available"
+      ? `Update to ${st.update.version}`
+      : st.kind === "downloading"
+        ? `Downloading ${st.update.version}…`
+        : "Check for updates";
+  const value =
+    st.kind === "checking"
+      ? "Checking…"
+      : st.kind === "current"
+        ? "Up to date"
+        : st.kind === "downloading"
+          ? `${Math.round(st.progress * 100)}%`
+          : st.kind === "error"
+            ? "Couldn’t check"
+            : currentVersion();
+  return (
+    <Pressable
+      disabled={busy}
+      onPress={() =>
+        st.kind === "available"
+          ? void installUpdate(st.update)
+          : void checkForUpdate()
+      }
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      {st.kind === "downloading" ? (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              width: `${st.progress * 100}%`,
+              backgroundColor: tint,
+              opacity: 0.2,
+            },
+          ]}
+        />
+      ) : null}
+      <Text style={[styles.label, st.kind === "available" && { color: tint }]}>
+        {label}
+      </Text>
+      <Text style={styles.value}>{value}</Text>
+    </Pressable>
   );
 }
 

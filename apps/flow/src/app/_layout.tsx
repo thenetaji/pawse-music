@@ -15,6 +15,7 @@ import { startIslandController } from "../features/island/island";
 import { NowPaletteSync } from "../features/now-playing/now-palette";
 import { startEngine } from "../lib/engine";
 import { getSetting, useSetting } from "../lib/settings";
+import { checkOnLaunch } from "../lib/updates";
 
 const modal = {
   presentation: "modal" as const,
@@ -31,6 +32,7 @@ export default function RootLayout() {
     const onboard = () => {
       if (!getSetting("onboarded", false))
         setTimeout(() => router.push("/onboarding"), 50);
+      else void checkOnLaunch();
     };
     if (useLibrary.persist.hasHydrated()) onboard();
     const unsub = useLibrary.persist.onFinishHydration(onboard);
