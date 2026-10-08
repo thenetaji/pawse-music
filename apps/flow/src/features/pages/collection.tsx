@@ -28,6 +28,7 @@ import { downloadMany, useDownloads } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { PlayGlyph } from "../now-playing/icons";
+import { readable } from "../now-playing/now-palette";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
 import { TopGlow } from "./top-glow";
 
@@ -143,7 +144,7 @@ export function Collection({
               )}
               {subtitle ? (
                 <Text
-                  style={[styles.subtitle, { color: palette.accent }]}
+                  style={[styles.subtitle, { color: readable(palette.accent) }]}
                   numberOfLines={1}
                 >
                   {subtitle}
@@ -200,7 +201,7 @@ export function Collection({
                     >
                       <HeartOutline
                         filled={!!saved}
-                        color={saved ? palette.accent : "#fff"}
+                        color={saved ? readable(palette.accent) : "#fff"}
                       />
                     </IconBtn>
                   ) : null}
