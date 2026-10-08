@@ -4,6 +4,7 @@
   "packageManager": "pnpm@10.12.1",
   "scripts": {
     "dev:finance": "pnpm --filter finance exec expo start",
+    "dev:flow": "pnpm --filter flow exec expo start",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -12,9 +13,15 @@
     "e2e": "node tooling/qa/e2e.mjs",
     "screenshots": "node tooling/qa/screenshots.mjs",
     "typegen": "node tooling/qa/typegen.mjs",
-    "icons": "node packages/icons/scripts/build-icons.mjs --tab-icons apps/finance --tabs home,activity,insights,budgets"
+    "icons": "node packages/icons/scripts/build-icons.mjs --tab-icons apps/finance --tabs home,activity,insights,budgets",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "commitlint": "commitlint --edit"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.2",
     "@types/react-test-renderer": "^19.1.0",
