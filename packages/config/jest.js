@@ -4,13 +4,14 @@
  */
 function createJestConfig(options = {}) {
   // Workspace packages are symlinked into node_modules, which jest-expo does not transform by default.
-  const transformIgnorePatterns = require('jest-expo/jest-preset').transformIgnorePatterns.map((pattern) =>
-    pattern.replace('(.pnpm|', '(.pnpm|@studio|uniwind|'),
-  );
+  const transformIgnorePatterns =
+    require("jest-expo/jest-preset").transformIgnorePatterns.map((pattern) =>
+      pattern.replace("(.pnpm|", "(.pnpm|@studio|uniwind|"),
+    );
   return {
-    preset: 'jest-expo',
+    preset: "jest-expo",
     transformIgnorePatterns,
-    testPathIgnorePatterns: ['/node_modules/', '/.reference/', '/dist/'],
+    testPathIgnorePatterns: ["/node_modules/", "/.reference/", "/dist/"],
     ...options,
   };
 }

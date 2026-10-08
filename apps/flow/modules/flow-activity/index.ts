@@ -1,9 +1,9 @@
 // JS side of the FlowActivity Expo module. Every call is a safe no-op when the native module isn't linked.
-import { NativeModule, requireOptionalNativeModule } from 'expo';
-import { Platform } from 'react-native';
+import { NativeModule, requireOptionalNativeModule } from "expo";
+import { Platform } from "react-native";
 
-export type ActivityMood = 'groove' | 'sleep' | 'happy' | 'curious';
-export type ActivityAction = 'toggle' | 'next';
+export type ActivityMood = "groove" | "sleep" | "happy" | "curious";
+export type ActivityAction = "toggle" | "next";
 
 export interface ActivityState {
   title: string;
@@ -30,7 +30,10 @@ declare class FlowActivityNative extends NativeModule<Events> {
   setArtwork(url: string): Promise<string | null>;
 }
 
-const native = Platform.OS === 'ios' ? requireOptionalNativeModule<FlowActivityNative>('FlowActivity') : null;
+const native =
+  Platform.OS === "ios"
+    ? requireOptionalNativeModule<FlowActivityNative>("FlowActivity")
+    : null;
 
 export const FlowActivity = {
   /** The native module is linked (an iOS dev or release build, not Expo Go or web). */
@@ -45,11 +48,15 @@ export const FlowActivity = {
   },
 
   start(state: ActivityState): Promise<boolean> {
-    return native ? native.start(state).catch(() => false) : Promise.resolve(false);
+    return native
+      ? native.start(state).catch(() => false)
+      : Promise.resolve(false);
   },
 
   update(state: ActivityState): Promise<void> {
-    return native ? native.update(state).catch(() => undefined) : Promise.resolve();
+    return native
+      ? native.update(state).catch(() => undefined)
+      : Promise.resolve();
   },
 
   end(): Promise<void> {
@@ -57,12 +64,14 @@ export const FlowActivity = {
   },
 
   setArtwork(url: string): Promise<string | null> {
-    return native ? native.setArtwork(url).catch(() => null) : Promise.resolve(null);
+    return native
+      ? native.setArtwork(url).catch(() => null)
+      : Promise.resolve(null);
   },
 
   /** Play/pause and next taps from the island; returns an unsubscribe. */
   onAction(cb: (action: ActivityAction) => void): () => void {
-    const sub = native?.addListener('onAction', (e) => cb(e.action));
+    const sub = native?.addListener("onAction", (e) => cb(e.action));
     return () => sub?.remove();
   },
 };
