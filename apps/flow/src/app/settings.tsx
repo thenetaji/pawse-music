@@ -353,6 +353,13 @@ export default function Settings() {
 
       <Section title="About">
         <Link label="About Flow" onPress={() => router.push("/about")} />
+        <Link
+          label="Show onboarding again"
+          onPress={() => {
+            setSetting("onboarded", false);
+            router.push("/onboarding");
+          }}
+        />
       </Section>
     </ScrollView>
   );

@@ -71,10 +71,13 @@ let playing = false;
 let nativeState: PlaybackState = PlaybackState.Idle;
 let ticker: ReturnType<typeof setInterval> | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let stallTimer: ReturnType<typeof setTimeout> | undefined;
+const STALL_MS = 8000;
 
+// Floor at about -9 dB: estimated loudness can overshoot, and a near-silent song reads as "no audio".
 export function normalizeVolume(loudnessDb?: number): number {
   return loudnessDb && loudnessDb > 0
-    ? Q.clamp(10 ** (-loudnessDb / 20), 0, 1)
+    ? Q.clamp(10 ** (-loudnessDb / 20), 0.35, 1)
     : 1;
 }
 
@@ -508,6 +511,20 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
   TrackPlayer.addEventListener(Event.PlaybackStateChanged, ({ state }) => {
     nativeState = state;
     syncStatus();
+    // A stream stuck buffering gets a fresh URL and resumes where it was.
+    clearTimeout(stallTimer);
+    if (state === PlaybackState.Buffering && wantPlay)
+      stallTimer = setTimeout(() => {
+        if (nativeState === PlaybackState.Buffering && wantPlay)
+          void onError({
+            code: "stalled",
+            message: "Playback stalled",
+          } as unknown as PlaybackErrorEvent);
+      }, STALL_MS);
+  });
+  // Going to the background mid-song: re-assert playback so iOS keeps the audio session active.
+  AppState.addEventListener("change", (st) => {
+    if (st === "background" && wantPlay && nativeLoaded) TrackPlayer.play();
   });
   TrackPlayer.addEventListener(Event.IsPlayingChanged, ({ playing: on }) => {
     playing = on;
