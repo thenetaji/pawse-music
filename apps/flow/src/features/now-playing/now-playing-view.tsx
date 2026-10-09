@@ -6,6 +6,7 @@ import {
 } from "@studio/music-core";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
   Pressable,
@@ -24,8 +25,10 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
+  ZoomIn,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 import { Artwork } from "../../components/artwork";
 import { useDataSaverActive } from "../../data/downloads";
@@ -112,6 +115,12 @@ export function NowPlayingView(p: NowPlayingProps) {
 
   // Swipe the artwork sideways to skip; it follows the finger and springs back.
   const swipeX = useSharedValue(0);
+  // Tap the artwork (or its expand button) to see it full screen; tap anywhere to close.
+  const [full, setFull] = useState(false);
+  const openFull = () => {
+    haptic.light();
+    setFull(true);
+  };
   const swipe = Gesture.Pan()
     .runOnJS(true)
     .activeOffsetX([-12, 12])
@@ -133,6 +142,14 @@ export function NowPlayingView(p: NowPlayingProps) {
         else p.onPrev();
       } else swipeX.set(withSpring(0, SPRING));
     });
+  const tap = Gesture.Tap()
+    .runOnJS(true)
+    .maxDuration(300)
+    .onEnd((_e, ok) => {
+      if (ok && art) openFull();
+    });
+  // A sideways drag skips; a plain tap opens the artwork.
+  const artGesture = Gesture.Exclusive(swipe, tap);
   const artStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: swipeX.value }, { scale: 1 + live.value * 0.03 }],
     opacity:
@@ -297,7 +314,7 @@ export function NowPlayingView(p: NowPlayingProps) {
           </Animated.View>
         ) : (
           <>
-            <GestureDetector gesture={swipe}>
+            <GestureDetector gesture={artGesture}>
               <View
                 style={styles.artArea}
                 onLayout={(e) =>
@@ -305,7 +322,18 @@ export function NowPlayingView(p: NowPlayingProps) {
                     e.nativeEvent.layout.y + e.nativeEvent.layout.height,
                   )
                 }
-              />
+              >
+                {art ? (
+                  <Pressable
+                    hitSlop={10}
+                    onPress={openFull}
+                    style={styles.expand}
+                    accessibilityLabel="Show artwork full screen"
+                  >
+                    <ExpandGlyph />
+                  </Pressable>
+                ) : null}
+              </View>
             </GestureDetector>
 
             <View style={styles.meta}>
@@ -407,7 +435,59 @@ export function NowPlayingView(p: NowPlayingProps) {
           </Pressable>
         </View>
       </View>
+
+      {full && art ? (
+        <Animated.View
+          entering={FadeIn.duration(220)}
+          exiting={FadeOut.duration(180)}
+          style={StyleSheet.absoluteFill}
+        >
+          <StatusBar hidden animated />
+          <Pressable
+            style={styles.full}
+            onPress={() => setFull(false)}
+            accessibilityLabel="Close artwork"
+          >
+            <Image
+              source={art}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              blurRadius={50}
+            />
+            <View style={[StyleSheet.absoluteFill, styles.fullDim]} />
+            <Animated.View entering={ZoomIn.duration(260)}>
+              <Image
+                source={hero.uri ?? art}
+                style={{ width: win.width, height: win.width }}
+                contentFit="contain"
+                transition={200}
+              />
+            </Animated.View>
+            <Text style={styles.fullTitle} numberOfLines={2}>
+              {p.track?.title}
+            </Text>
+            <Text style={styles.fullArtist} numberOfLines={1}>
+              {p.track ? artistLine(p.track.artists) : ""}
+            </Text>
+          </Pressable>
+        </Animated.View>
+      ) : null}
     </View>
+  );
+}
+
+function ExpandGlyph() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24">
+      <Path
+        d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"
+        stroke="#fff"
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
   );
 }
 
@@ -628,6 +708,38 @@ const styles = StyleSheet.create({
   },
   bottomOn: { backgroundColor: "rgba(255,255,255,0.16)" },
   lyricsArea: { flex: 1, marginTop: 6 },
+  expand: {
+    position: "absolute",
+    right: 0,
+    bottom: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  full: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000",
+  },
+  fullDim: { backgroundColor: "rgba(0,0,0,0.45)" },
+  fullTitle: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+    marginTop: 26,
+    paddingHorizontal: 28,
+  },
+  fullArtist: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 16,
+    marginTop: 4,
+    paddingHorizontal: 28,
+  },
   compact: {
     flexDirection: "row",
     alignItems: "center",

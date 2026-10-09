@@ -5,6 +5,7 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 ## [Unreleased]
 
 ### Added
+- Tap the Now Playing artwork, or its expand button, to see the whole cover full screen; tap again to close.
 - Word-by-word synced lyrics for many more songs from Lyrics+ (Apple Music lyrics), with Unison as a community fallback matched by the exact YouTube video. Hindi songs from Lyrics+ use romanised (Hinglish) text.
 
 ### Changed
