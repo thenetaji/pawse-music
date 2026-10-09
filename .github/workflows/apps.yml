@@ -17,13 +17,22 @@ on:
         default: both
   push:
     tags: ['finance-v*', 'flow-v*']
+    # Builds on main (no release) save the shared caches; tag builds can only read caches from main.
+    branches: [main]
+    paths:
+      - 'apps/flow/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'tooling/ci/**'
+      - '.github/workflows/apps.yml'
 
 permissions:
   contents: write
 
 concurrency:
   group: apps-${{ github.ref }}-${{ inputs.app }}
-  cancel-in-progress: false
+  # A newer push to main supersedes a running cache build; releases always finish.
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 jobs:
   meta:
@@ -95,7 +104,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: apps/${{ env.APP }}/ios/Pods
-          key: pods-${{ env.APP }}-${{ runner.os }}-${{ hashFiles(format('apps/{0}/ios/Podfile.lock', env.APP)) }}
+          # Podfile.lock doesn't exist before pod install, so key on what decides the pods.
+          key: pods-${{ env.APP }}-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', format('apps/{0}/package.json', env.APP)) }}
           restore-keys: pods-${{ env.APP }}-${{ runner.os }}-
 
       # Compiler cache: native code that didn't change is reused instead of rebuilt.
@@ -108,6 +118,7 @@ jobs:
           echo "CCACHE_DEPEND=true" >> "$GITHUB_ENV"
           echo "CCACHE_INODECACHE=true" >> "$GITHUB_ENV"
           echo "CCACHE_MAXSIZE=3G" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/Library/Caches/ccache"
 
       - name: Cache ccache
         uses: actions/cache@v4
@@ -118,7 +129,7 @@ jobs:
 
       - name: Install pods
         working-directory: apps/${{ env.APP }}
-        run: cd ios && pod install
+        run: cd ios && pod install && ccache -z
 
       - name: Archive (unsigned)
         working-directory: apps/${{ env.APP }}
@@ -142,6 +153,10 @@ jobs:
             exit 1
           fi
           tail -n 20 build/xcodebuild.log
+
+      - name: Compiler cache stats
+        if: always()
+        run: ccache -s -v || true
 
       - name: Upload build log on failure
         if: failure()
@@ -221,7 +236,7 @@ jobs:
           sudo env "JAVA_HOME=$JAVA_HOME" "$SDKM" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" "cmake;3.22.1" \
             || echo "::warning::sdkmanager failed; AGP will try to download the missing packages itself."
 
-      # Fit a 2-core runner: the generated 2 GB heap is too small, and only arm64 is needed for sideloading.
+      # Public-repo Linux runners have 4 cores: a bigger heap, parallel work and the Gradle build cache; arm64 only for sideloading.
       - name: Tune Gradle
         working-directory: apps/${{ env.APP }}/android
         run: |
@@ -229,6 +244,8 @@ jobs:
 
           org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError
           kotlin.compiler.execution.strategy=in-process
+          org.gradle.caching=true
+          org.gradle.parallel=true
           reactNativeArchitectures=arm64-v8a
           EOF
           # Lint-vital only re-checks the app and can run out of memory on a large module graph.
@@ -257,7 +274,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease --no-daemon --max-workers=2 --stacktrace -I "$RUNNER_TEMP/ci.init.gradle"
+        run: ./gradlew assembleRelease --no-daemon --max-workers=4 --stacktrace -I "$RUNNER_TEMP/ci.init.gradle"
 
       - name: Rename APK
         working-directory: apps/${{ env.APP }}

@@ -24,7 +24,9 @@ function output(values) {
 // Tag `<app>-v1.2.3` builds both platforms and releases; manual runs take the inputs.
 function meta() {
   const tag = env.GITHUB_REF_TYPE === "tag" ? env.GITHUB_REF_NAME : "";
-  let app = env.INPUT_APP;
+  // Pushes to main build Flow (no release) to warm the shared caches.
+  let app =
+    env.INPUT_APP || (env.GITHUB_REF === "refs/heads/main" ? "flow" : "");
   let platforms = env.INPUT_PLATFORMS || "both";
   let version;
   let versionCode;
