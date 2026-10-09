@@ -18,6 +18,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - "Hide explicit songs" now also covers Jump back in, On repeat and the other rows built from your history.
 - "Top songs ›", "Albums ›" and other "›" links open the full list (artist top songs, discography, singles and more).
 - Pulling down on an artist page no longer slides the photo over the songs.
+- History shows each song once per day with its play count, instead of a row for every play. Swiping a row shows a Remove button instead of deleting straight away.
 
 ## [0.4.0] - 2026-10-09
 
