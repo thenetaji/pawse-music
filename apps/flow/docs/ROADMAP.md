@@ -210,6 +210,21 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 ### Release
 - [x] 27. After item 59: tag flow-v0.1.x, watch the iOS and Android jobs, fix failures, then send the summary.
 
+## v0.2.0 (approved 2026-10-08)
+- [x] 60. Full-bleed Now Playing artwork; HD frames for music videos.
+- [x] 61. Real song length (iOS misreads YouTube audio length); end songs on time.
+- [x] 62. Robustness: request timeouts and one retry, saved Home/Explore copies, double-tap guard, crash retry screen, diagnostics log.
+- [x] 63. Sign out clears the Google session; session kept in Keychain / Keystore.
+- [x] 64. Lower ban risk: library sync at most every few hours, only from Library.
+- [x] 65. For you on Home, built on the phone (works signed out); onboarding suggests popular artists.
+- [x] 66. New Library: tiles, Made for you smart playlists, search, filters, sorting.
+- [x] 67. Songs kept for offline (auto cache with a space limit, least played evicted first).
+- [x] 68. Quality per network (Wi-Fi / mobile data) and Data saver (smaller images).
+- [x] 69. Downloads and offline options moved from Settings to Library → Downloads.
+- [x] 70. Import: YouTube Music account copy, Google Takeout, Apple Music data, iTunes/Music export, CSV, with match review.
+- [x] 71. Cat-and-mouse episode in the compact Dynamic Island.
+- [x] 72. Release notes from CHANGELOG.md; update prompt shows highlights.
+
 ## Later
 - Lyrics in the Dynamic Island and the Live Activity. Left out of v1 on purpose.
 - Video mode (music videos), with a careful lock-screen handoff (react-native-video takes over Now Playing; see RNTP #2679).
@@ -218,5 +233,4 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - yt-dlp fallback on the VPS for when on-device stream clients fail (YouTube bot-checks datacenter IPs).
 - Local files.
 - CarPlay. It needs the entitlement, so a paid Apple account.
-- Permanent Android signing key as a GitHub secret. Until then APKs are debug-signed, and a release-signed update will not install over them.
 

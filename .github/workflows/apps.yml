@@ -294,9 +294,27 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # Release notes come from the app's CHANGELOG.md at the tagged commit (Keep a Changelog format).
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          path: tagged
+          sparse-checkout: apps/${{ env.APP }}/CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
+      - name: Release notes
+        run: |
+          f="tagged/apps/${APP}/CHANGELOG.md"
+          if [ -f "$f" ]; then
+            awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## / {exit} on {print}' "$f" > notes.md
+          fi
+          [ -s notes.md ] || echo "${APP_NAME} ${VERSION}." > notes.md
+          cat notes.md
+
       - uses: softprops/action-gh-release@v2
         with:
           name: ${{ env.APP_NAME }} ${{ env.VERSION }}
+          body_path: notes.md
           files: |
             dist/*.ipa
             dist/*.apk
