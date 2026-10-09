@@ -30,6 +30,7 @@ declare class FlowIslandNative extends NativeModule<Events> {
   update(state: PillState): Promise<void>;
   hide(): Promise<void>;
   openBatterySettings(): Promise<boolean>;
+  squareArtwork(urls: string[], px: number): Promise<string | null>;
 }
 
 const native =
@@ -112,6 +113,13 @@ export const FlowIsland = {
   needsBatteryTip(): boolean {
     const m = FlowIsland.manufacturer();
     return AGGRESSIVE.some((v) => m.includes(v));
+  },
+
+  /** Square, bar-free JPEG from the first usable url, as a file URI; null when none loads. */
+  squareArtwork(urls: string[], px: number): Promise<string | null> {
+    return native
+      ? native.squareArtwork(urls, px).catch(() => null)
+      : Promise.resolve(null);
   },
 
   /** Play/pause and next taps from the widget; returns an unsubscribe. */

@@ -10,7 +10,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { Artwork } from "../../components/artwork";
+import { TrackArt } from "../../components/artwork";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { NextGlyph, PauseGlyph, PlayGlyph } from "./icons";
@@ -74,8 +74,8 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
       >
         <Animated.View style={[styles.row, inline && styles.inline, style]}>
           <Animated.View key={current.id} entering={FadeIn.duration(250)}>
-            <Artwork
-              thumbnails={current.thumbnails}
+            <TrackArt
+              track={current}
               size={inline ? 26 : 36}
               radius={inline ? 6 : 8}
             />

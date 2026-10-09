@@ -3,6 +3,7 @@ export {
   getProgress,
   normalizeVolume,
   player,
+  refreshArtwork,
   setPrefetchAhead,
   setupPlayer,
   useProgress,

@@ -30,12 +30,12 @@ export type Settings = {
   cookies: string | null;
   accountName: string | null;
   // Playback
-  /** Streaming quality on Wi-Fi (and when the network type is unknown). */
-  quality: AudioQuality;
-  /** Streaming quality on mobile data. */
-  qualityCellular: AudioQuality;
-  /** On mobile data: smaller artwork, no caching, no prefetch beyond the next song. */
-  dataSaver: boolean;
+  /** Streaming quality on Wi-Fi (and when the network type is unknown); "auto" follows the connection. */
+  quality: AudioQuality | "auto";
+  /** Streaming quality on mobile data; Low there also turns on data saving. */
+  qualityCellular: AudioQuality | "auto";
+  /** Set once older quality settings have been moved to Automatic. */
+  qualityV2: boolean;
   radioContinue: boolean;
   resume: boolean;
   /** Read when the player starts; a change applies on the next launch. */
@@ -89,9 +89,9 @@ export const DEFAULT_SETTINGS: Settings = {
   syncLikes: true,
   cookies: null,
   accountName: null,
-  quality: "high",
-  qualityCellular: "saver",
-  dataSaver: false,
+  quality: "auto",
+  qualityCellular: "auto",
+  qualityV2: true,
   radioContinue: true,
   resume: true,
   pauseOnDisconnect: true,
@@ -302,4 +302,22 @@ export function parsePlaylistId(input: string): string | undefined {
   const m = bare.match(PLAYLIST_ID);
   if (m) return m[2];
   return /^[\w-]{12,}$/.test(bare) ? bare.replace(/^VL/, "") : undefined;
+}
+
+// Older builds had High/Normal/Low per network plus a data saver switch: move to Automatic once,
+// keeping an explicit Low (or the old switch) on mobile data.
+export function migrateQuality(
+  s: Settings,
+  saved?: Partial<Settings>,
+): Settings {
+  if (!saved || saved.qualityV2) return s;
+  const old = saved as Partial<Settings> & { dataSaver?: boolean };
+  const { dataSaver: _, ...rest } = s as Settings & { dataSaver?: boolean };
+  return {
+    ...rest,
+    quality: old.quality === "saver" ? "saver" : "auto",
+    downloadQuality: s.downloadQuality === "saver" ? "saver" : "high",
+    qualityCellular: old.dataSaver ? "saver" : "auto",
+    qualityV2: true,
+  };
 }

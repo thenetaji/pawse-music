@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
+    "@react-native-community/netinfo": "12.0.1",
     "@react-native-cookies/cookies": "^6.2.1",
     "@react-native-segmented-control/segmented-control": "2.5.7",
     "@rn-primitives/slot": "^1.5.2",

@@ -154,7 +154,13 @@ export interface LyricLine {
 }
 
 export interface Lyrics {
-  source: "lrclib" | "kugou" | "betterlyrics" | "youtube";
+  source:
+    | "youlyplus"
+    | "betterlyrics"
+    | "lrclib"
+    | "unison"
+    | "kugou"
+    | "youtube";
   synced: boolean;
   lines: LyricLine[];
   /** Plain text when unsynced. */

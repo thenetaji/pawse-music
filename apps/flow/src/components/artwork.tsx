@@ -1,4 +1,4 @@
-import { bestThumbnail, type Thumbnail } from "@studio/music-core";
+import { bestThumbnail, type Thumbnail, type Track } from "@studio/music-core";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useState } from "react";
@@ -6,6 +6,7 @@ import { View, type ViewStyle } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useDataSaverActive } from "../data/downloads";
+import { useSongArt } from "../lib/song-art";
 
 const FALLBACK: [string, string][] = [
   ["#5B3BD6", "#FF5A7A"],
@@ -89,4 +90,12 @@ export function Artwork({
       )}
     </View>
   );
+}
+
+// The playing song's art: a music video's still is swapped for its song cover when one matches.
+export function TrackArt({
+  track,
+  ...rest
+}: { track: Track } & Omit<Parameters<typeof Artwork>[0], "thumbnails">) {
+  return <Artwork thumbnails={useSongArt(track)} {...rest} />;
 }

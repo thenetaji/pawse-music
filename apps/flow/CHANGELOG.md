@@ -2,6 +2,25 @@
 
 All notable changes to Flow. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `flow-vX.Y.Z` tag builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [0.3.0] - 2026-10-09
+
+### Added
+- Tap the Now Playing artwork, or its expand button, to show it edge to edge across the whole screen; tap again to close.
+- The mouse visits much more often: on the progress bar it now drops by every 40–75 s ("Now and then") or 20–40 s ("Often"), lives at the far end of the wire from the cat, and has two new tricks (peeking in, and teasing the cat into a lunge). In the Dynamic Island it shows up on most songs and comes back in long ones.
+- Word-by-word synced lyrics for many more songs from Lyrics+ (Apple Music lyrics), with Unison as a community fallback matched by the exact YouTube video. Hindi songs from Lyrics+ use romanised (Hinglish) text.
+
+### Changed
+- Music videos show their song's square album cover when a confident match exists (no more "725M views" thumbnails), on Now Playing, the mini player, the queue, the lock screen and the islands. Other artwork the system shows is cropped square without black bars.
+- Flow's lock-screen card is a slim one-line companion to iOS's own player, and turns into "napping" instead of freezing if Flow was closed.
+- Queue swipes commit only past about 40% of the row, with a tick at the commit point and a way back by dragging back; removing a song offers Undo.
+- Streaming quality is now one choice per network, Wi-Fi and mobile data: **Automatic** (new default), High or Low. Automatic plays High on Wi-Fi, 5G and 4G, and Low on slower connections or when songs keep stalling. The separate Data saver switch is gone: Low on mobile data saves data everywhere (smaller artwork, nothing kept offline, only the next song prepared). Earlier choices carry over.
+- Download quality is High or Low (Normal was identical to High for YouTube).
+
+### Fixed
+- Lyrics from the wrong song: every lyrics source must now match the song's title and artist, titles are cleaned before searching ("(From …)", "(Official Video)", "ft. …"), and credit lines no longer appear as sung lines.
+- Music videos whose length differs from the song show lyrics as plain text instead of timed lines that drift.
+- Each tab always opens on its own home screen.
+
 ## [0.2.0] - 2026-10-09
 
 ### Added
@@ -50,6 +69,7 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 - Signing in takes effect immediately and is verified in Settings.
 - Background audio safeguards; Settings → About → Show onboarding again.
 
+[0.3.0]: https://github.com/thenetaji/studio/releases/tag/flow-v0.3.0
 [0.2.0]: https://github.com/thenetaji/studio/releases/tag/flow-v0.2.0
 [0.1.10]: https://github.com/thenetaji/studio/releases/tag/flow-v0.1.10
 [0.1.9]: https://github.com/thenetaji/studio/releases/tag/flow-v0.1.9

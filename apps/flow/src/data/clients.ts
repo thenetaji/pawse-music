@@ -12,7 +12,8 @@ import type {
   Track,
 } from "@studio/music-core";
 import { logEvent } from "../lib/diagnostics";
-import { appFetch, networkKind } from "../lib/net";
+import { appFetch } from "../lib/net";
+import { effectiveQuality } from "../lib/quality";
 import { useLibrary } from "./library";
 
 const settings = () => useLibrary.getState().settings;
@@ -101,10 +102,7 @@ const base = {
   saavn,
   local: (id: string) => localLookup?.(id),
   // Streaming quality follows the network; downloads pass their own.
-  quality: () =>
-    networkKind() === "cellular"
-      ? settings().qualityCellular
-      : settings().quality,
+  quality: () => effectiveQuality(),
 };
 const resolvers = {
   youtube: createResolver(base),

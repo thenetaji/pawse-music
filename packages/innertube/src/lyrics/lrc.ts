@@ -85,3 +85,18 @@ export const plainLines = (text: string): LyricLine[] =>
     .map((t) => t.trim())
     .filter(Boolean)
     .map((t) => ({ startMs: 0, endMs: 0, text: t }));
+
+/** LRC → plain text: time and word tags dropped, metadata lines ([ar:], [offset:]) removed. */
+export const unsync = (lrc: string | undefined): string =>
+  (lrc ?? "")
+    .split(/\r?\n/)
+    .filter((l) => !/^\s*\[[a-z]+:[^\]]*\]\s*$/i.test(l))
+    .map((l) =>
+      l
+        .replace(TAG, "")
+        .replace(new RegExp(WORD.source, "g"), "")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean)
+    .join("\n");

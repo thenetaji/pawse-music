@@ -75,6 +75,8 @@ function load(
 
 export function setPrefetchAhead(_n?: number): void {}
 
+export function refreshArtwork(_trackId: string): void {}
+
 export function setupPlayer(_opts: SetupOptions): Promise<void> {
   return Promise.resolve();
 }

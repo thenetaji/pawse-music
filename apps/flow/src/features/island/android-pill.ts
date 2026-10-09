@@ -15,6 +15,7 @@ import {
   type PillState,
 } from "../../../modules/flow-island-android";
 import { useLibrary } from "../../data/library";
+import { onArtworkReady, readyArtwork } from "../../lib/artwork";
 import { getSetting } from "../../lib/settings";
 
 const HAPPY_MS = 1500;
@@ -78,7 +79,8 @@ export function startAndroidPill(): () => void {
       trackId: track.id,
       title: track.title,
       artist: artistLine(track.artists),
-      artworkUrl: bestThumbnail(track.thumbnails, ART_PX) ?? null,
+      artworkUrl:
+        readyArtwork(track) ?? bestThumbnail(track.thumbnails, ART_PX) ?? null,
       mood: flash?.mood ?? (playing ? "groove" : "sleep"),
       isPlaying: playing,
       offsetX: prefs.offsetX,
@@ -145,6 +147,10 @@ export function startAndroidPill(): () => void {
   const unsubAction = FlowIsland.onAction((action) =>
     action === "next" ? player.next() : player.toggle(),
   );
+  const unsubArt = onArtworkReady((id) => {
+    const s = usePlayerStore.getState();
+    if (s.tracks[s.index]?.id === id) sync();
+  });
   // Back from Settings: the overlay permission may have just been granted.
   const appState = AppState.addEventListener("change", (st) => {
     if (st === "active") sync();
@@ -158,6 +164,7 @@ export function startAndroidPill(): () => void {
     unsubLiked();
     unsubSkipped();
     unsubAction();
+    unsubArt();
     appState.remove();
     if (flash) clearTimeout(flash.timer);
     stopController = null;

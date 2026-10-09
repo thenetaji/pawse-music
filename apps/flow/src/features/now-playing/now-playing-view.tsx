@@ -6,6 +6,7 @@ import {
 } from "@studio/music-core";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
 import {
   Pressable,
@@ -24,8 +25,10 @@ import Animated, {
   withSequence,
   withSpring,
   withTiming,
+  ZoomIn,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 import { Artwork } from "../../components/artwork";
 import { useDataSaverActive } from "../../data/downloads";
@@ -33,6 +36,7 @@ import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
 import { useSetting } from "../../lib/settings";
+import { useSongArt } from "../../lib/song-art";
 import type { CatMood } from "../cat/cat";
 import { AirPlay } from "./airplay";
 import { CatScrubber } from "./cat-scrubber";
@@ -87,12 +91,12 @@ export function NowPlayingView(p: NowPlayingProps) {
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
   const saver = useDataSaverActive();
-  const art = p.track
-    ? bestThumbnail(p.track.thumbnails, saver ? 544 : 1080)
-    : undefined;
+  // Music videos show their song's album cover when one matches, like YouTube Music.
+  const thumbs = useSongArt(p.track);
+  const art = p.track ? bestThumbnail(thumbs, saver ? 544 : 1080) : undefined;
   const hero = useHeroArt(p.track?.id, art, saver);
   const palette = useArtworkPalette(
-    p.track ? bestThumbnail(p.track.thumbnails, 120) : undefined,
+    p.track ? bestThumbnail(thumbs, 120) : undefined,
   );
   const background = useSetting<"field" | "blur" | "black">(
     "npBackground",
@@ -111,6 +115,12 @@ export function NowPlayingView(p: NowPlayingProps) {
 
   // Swipe the artwork sideways to skip; it follows the finger and springs back.
   const swipeX = useSharedValue(0);
+  // Tap the artwork (or its expand button) to see it full screen; tap anywhere to close.
+  const [full, setFull] = useState(false);
+  const openFull = () => {
+    haptic.light();
+    setFull(true);
+  };
   const swipe = Gesture.Pan()
     .runOnJS(true)
     .activeOffsetX([-12, 12])
@@ -132,6 +142,14 @@ export function NowPlayingView(p: NowPlayingProps) {
         else p.onPrev();
       } else swipeX.set(withSpring(0, SPRING));
     });
+  const tap = Gesture.Tap()
+    .runOnJS(true)
+    .maxDuration(300)
+    .onEnd((_e, ok) => {
+      if (ok && art) openFull();
+    });
+  // A sideways drag skips; a plain tap opens the artwork.
+  const artGesture = Gesture.Exclusive(swipe, tap);
   const artStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: swipeX.value }, { scale: 1 + live.value * 0.03 }],
     opacity:
@@ -272,7 +290,7 @@ export function NowPlayingView(p: NowPlayingProps) {
           >
             <View style={styles.compact}>
               {p.track ? (
-                <Artwork thumbnails={p.track.thumbnails} size={56} radius={8} />
+                <Artwork thumbnails={thumbs} size={56} radius={8} />
               ) : null}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.compactTitle} numberOfLines={1}>
@@ -296,7 +314,7 @@ export function NowPlayingView(p: NowPlayingProps) {
           </Animated.View>
         ) : (
           <>
-            <GestureDetector gesture={swipe}>
+            <GestureDetector gesture={artGesture}>
               <View
                 style={styles.artArea}
                 onLayout={(e) =>
@@ -304,7 +322,18 @@ export function NowPlayingView(p: NowPlayingProps) {
                     e.nativeEvent.layout.y + e.nativeEvent.layout.height,
                   )
                 }
-              />
+              >
+                {art ? (
+                  <Pressable
+                    hitSlop={10}
+                    onPress={openFull}
+                    style={styles.expand}
+                    accessibilityLabel="Show artwork full screen"
+                  >
+                    <ExpandGlyph />
+                  </Pressable>
+                ) : null}
+              </View>
             </GestureDetector>
 
             <View style={styles.meta}>
@@ -406,7 +435,60 @@ export function NowPlayingView(p: NowPlayingProps) {
           </Pressable>
         </View>
       </View>
+
+      {full && art ? (
+        <Animated.View
+          entering={FadeIn.duration(220)}
+          exiting={FadeOut.duration(180)}
+          style={StyleSheet.absoluteFill}
+        >
+          <StatusBar hidden animated />
+          <Pressable
+            style={styles.full}
+            onPress={() => setFull(false)}
+            accessibilityLabel="Close artwork"
+          >
+            <Animated.View
+              entering={ZoomIn.duration(280)}
+              style={StyleSheet.absoluteFill}
+            >
+              <Image
+                source={hero.uri ?? art}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                transition={200}
+              />
+            </Animated.View>
+            <LinearGradient
+              colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.75)"]}
+              style={[styles.fullFade, { paddingBottom: insets.bottom + 28 }]}
+            >
+              <Text style={styles.fullTitle} numberOfLines={2}>
+                {p.track?.title}
+              </Text>
+              <Text style={styles.fullArtist} numberOfLines={1}>
+                {p.track ? artistLine(p.track.artists) : ""}
+              </Text>
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
+      ) : null}
     </View>
+  );
+}
+
+function ExpandGlyph() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24">
+      <Path
+        d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"
+        stroke="#fff"
+        strokeWidth={2.2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
   );
 }
 
@@ -627,6 +709,32 @@ const styles = StyleSheet.create({
   },
   bottomOn: { backgroundColor: "rgba(255,255,255,0.16)" },
   lyricsArea: { flex: 1, marginTop: 6 },
+  expand: {
+    position: "absolute",
+    right: 0,
+    bottom: 10,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  full: { flex: 1, backgroundColor: "#000" },
+  fullFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 120,
+    paddingHorizontal: 28,
+  },
+  fullTitle: { color: "#fff", fontSize: 26, fontWeight: "800" },
+  fullArtist: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 17,
+    marginTop: 4,
+  },
   compact: {
     flexDirection: "row",
     alignItems: "center",

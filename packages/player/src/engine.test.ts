@@ -1,7 +1,13 @@
 import TrackPlayer from "@rntp/player";
 import type { ResolvedStream, Track } from "@studio/music-core";
 
-import { __resetForTests, player, POS_KEY, setupPlayer } from "./engine";
+import {
+  __resetForTests,
+  POS_KEY,
+  player,
+  refreshArtwork,
+  setupPlayer,
+} from "./engine";
 import { initialState, usePlayerStore } from "./store";
 import type { KeyValueStore } from "./types";
 
@@ -36,6 +42,7 @@ jest.mock("@rntp/player", () => {
       native.queue.splice(a, b - a),
     ),
     moveMediaItem: jest.fn(),
+    updateMetadata: jest.fn(),
     replaceMediaItem: jest.fn(
       (i: number, item: MockItem) => (native.queue[i] = item),
     ),
@@ -289,4 +296,23 @@ test("the queue, index, position, shuffle and repeat survive a restart and resto
     "c",
     "d",
   ]);
+});
+
+test("artwork() feeds the native items and refreshArtwork updates only that track's metadata", async () => {
+  const art = new Map<string, string>();
+  await setupPlayer({ resolver: { resolve }, artwork: (t) => art.get(t.id) });
+  art.set("a", "file:///a.jpg");
+  await player.play(tracks("a", "b", "c", "b"));
+  await flush();
+  const items = tp.setMediaItems.mock.calls[0][0] as { artworkUrl?: string }[];
+  expect(items[0].artworkUrl).toBe("file:///a.jpg");
+  expect(items[1].artworkUrl).toBeUndefined();
+  art.set("b", "file:///b.jpg");
+  tp.replaceMediaItem.mockClear();
+  refreshArtwork("b");
+  expect(tp.updateMetadata.mock.calls).toEqual([
+    [1, { artworkUrl: "file:///b.jpg" }],
+    [3, { artworkUrl: "file:///b.jpg" }],
+  ]);
+  expect(tp.replaceMediaItem).not.toHaveBeenCalled();
 });

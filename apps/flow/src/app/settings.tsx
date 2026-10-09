@@ -32,6 +32,7 @@ import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
 import { push } from "../lib/nav";
+import { useAutoQuality } from "../lib/quality";
 import { setSetting, useSetting } from "../lib/settings";
 import {
   checkForUpdate,
@@ -46,11 +47,6 @@ const CAT_COLORS: { id: CatColor; fur: string }[] = [
   { id: "black", fur: "#2E2E36" },
   { id: "white", fur: "#F1EEE9" },
   { id: "grey", fur: "#9AA0AD" },
-];
-const QUALITY: ["high" | "normal" | "saver", string][] = [
-  ["high", "High"],
-  ["normal", "Normal"],
-  ["saver", "Data saver"],
 ];
 const ACCENTS = [
   "#8B7CFF",
@@ -138,19 +134,12 @@ export default function Settings() {
       </Foot>
 
       <Section title="Playback">
-        <Pick
-          k="quality"
-          label="Quality on Wi-Fi"
-          def="high"
-          options={QUALITY}
-        />
-        <Pick
+        <QualityRow k="quality" label="Wi-Fi streaming" network="wifi" />
+        <QualityRow
           k="qualityCellular"
-          label="Quality on mobile data"
-          def="saver"
-          options={QUALITY}
+          label="Mobile data streaming"
+          network="cellular"
         />
-        <Toggle k="dataSaver" label="Data saver on mobile data" def={false} />
         <Toggle k="preferSaavn" label="Prefer JioSaavn 320 kbps" def={false} />
         <Toggle
           k="normalize"
@@ -179,9 +168,10 @@ export default function Settings() {
       </Section>
 
       <Foot>
-        Data saver loads smaller artwork, keeps no songs for offline and
-        prepares only the next song while you’re on mobile data. Downloads and
-        offline songs live in Library.
+        Automatic plays High on Wi-Fi, 5G and 4G, and Low on slower connections
+        or when songs keep stalling. Low on mobile data also loads smaller
+        artwork, keeps no songs offline and prepares only the next song.
+        Downloads and offline songs live in Library.
       </Foot>
 
       <Section title="Lyrics">
@@ -403,6 +393,48 @@ function UpdateRow({ tint }: { tint: string }) {
         {label}
       </Text>
       <Text style={styles.value}>{value}</Text>
+    </Pressable>
+  );
+}
+
+const QUALITY_LABEL = { auto: "Automatic", high: "High", saver: "Low" };
+
+// Automatic shows what it is choosing on that network right now.
+function QualityRow({
+  k,
+  label,
+  network,
+}: {
+  k: "quality" | "qualityCellular";
+  label: string;
+  network: "wifi" | "cellular";
+}) {
+  const raw = useSetting<string>(k, "auto");
+  const value = raw === "saver" || raw === "high" ? raw : "auto";
+  const now = useAutoQuality()[network];
+  const shown =
+    value === "auto"
+      ? `Automatic · ${now === "saver" ? "Low" : "High"}`
+      : QUALITY_LABEL[value];
+  const options: ["auto" | "high" | "saver", string][] = [
+    ["auto", "Automatic (recommended)"],
+    ["high", "High"],
+    ["saver", "Low · saves data"],
+  ];
+  return (
+    <Pressable
+      onPress={() =>
+        showSheet({
+          actions: options.map(([v, l]) => ({
+            label: v === value ? `✓  ${l}` : l,
+            onPress: () => setSetting(k, v),
+          })),
+        })
+      }
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      <Text style={[styles.label, { flex: 1 }]}>{label}</Text>
+      <Text style={styles.value}>{shown} ›</Text>
     </Pressable>
   );
 }
