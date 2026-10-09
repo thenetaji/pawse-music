@@ -22,26 +22,31 @@ const PLAYER_URL =
   "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
 const DEFAULT_TTL_SEC = 300;
 const PLAYER_TIMEOUT_MS = 8000;
+const viaOf = (c: StreamClient) => `youtube:${c.name}`;
 
-const isDirectAac = (f: AdaptiveFormat): boolean =>
-  !!f.url &&
-  !f.signatureCipher &&
-  !f.cipher &&
-  /^audio\/mp4\b/i.test(f.mimeType ?? "") &&
-  /mp4a/i.test(f.mimeType ?? "");
+const isDirect = (f: AdaptiveFormat): boolean =>
+  !!f.url && !f.signatureCipher && !f.cipher;
+const isAac = (f: AdaptiveFormat): boolean =>
+  /^audio\/mp4\b/i.test(f.mimeType ?? "") && /mp4a/i.test(f.mimeType ?? "");
+const isOpus = (f: AdaptiveFormat): boolean =>
+  /^audio\/webm\b/i.test(f.mimeType ?? "") && /opus/i.test(f.mimeType ?? "");
 
-/** AVPlayer cannot play WebM/Opus: direct-url AAC only, highest bitrate first, 140 on ties; 'saver' prefers 139. */
+/** Direct-url AAC, highest bitrate first, 140 on ties; 'saver' prefers 139. AVPlayer cannot play WebM/Opus, so `opus` (ExoPlayer) only fills in when no AAC is offered. */
 export function pickAudioFormat(
   formats: AdaptiveFormat[] | undefined,
   quality: AudioQuality = "high",
+  opus = false,
 ): AdaptiveFormat | undefined {
-  const usable = (formats ?? []).filter(isDirectAac);
+  const direct = (formats ?? []).filter(isDirect);
+  let usable = direct.filter(isAac);
+  if (!usable.length && opus) usable = direct.filter(isOpus);
   if (quality === "saver") {
-    const low = usable.find((f) => f.itag === 139);
+    const low = usable.find((f) => f.itag === 139 || f.itag === 249);
     if (low) return low;
     return usable.sort((a, b) => (a.bitrate ?? 0) - (b.bitrate ?? 0))[0];
   }
-  const rank = (f: AdaptiveFormat) => (f.itag === 140 ? 1 : 0);
+  const rank = (f: AdaptiveFormat) =>
+    f.itag === 140 || f.itag === 251 ? 1 : 0;
   return usable.sort(
     (a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0) || rank(b) - rank(a),
   )[0];
@@ -95,6 +100,12 @@ export interface ResolveOptions {
   verify: boolean;
   verifyBudgetMs: number;
   quality?: AudioQuality;
+  /** Accept WebM/Opus when no AAC is offered (ExoPlayer can play it, AVPlayer cannot). */
+  opus?: boolean;
+  /** `youtube:<client>` ids never to return (they failed for this track). */
+  exclude?: string[];
+  /** `youtube:<client>` ids to try last (they failed on this device). */
+  avoid?: string[];
 }
 
 export interface ResolveAttempt {
@@ -164,18 +175,26 @@ async function tryClient(
   const bad = playabilityError(data?.playabilityStatus);
   if (bad) throw bad;
   const sd = data?.streamingData;
-  const format = pickAudioFormat(sd?.adaptiveFormats, o.quality);
+  const format = pickAudioFormat(sd?.adaptiveFormats, o.quality, o.opus);
   if (!format?.url)
-    throw new StreamError("no_audio", "no AAC format with a direct url");
+    throw new StreamError(
+      "no_audio",
+      `no ${o.opus ? "AAC or Opus" : "AAC"} format with a direct url`,
+    );
+  const length = Number(format.contentLength);
   if (
     o.verify &&
-    (await probe(o.fetch, format.url, c.userAgent, o.verifyBudgetMs)) ===
-      "forbidden"
+    (await probe(
+      o.fetch,
+      format.url,
+      c.userAgent,
+      o.verifyBudgetMs,
+      length > 0 ? length : undefined,
+    )) === "forbidden"
   ) {
     throw new StreamError("blocked", "media url answered 403");
   }
   const ttl = Number(sd?.expiresInSeconds);
-  const length = Number(format.contentLength);
   const ms = Number(format.approxDurationMs);
   return {
     url: format.url,
@@ -186,23 +205,28 @@ async function tryClient(
     headers: { "User-Agent": c.userAgent },
     loudnessDb: loudnessOf(data?.playerConfig?.audioConfig),
     durationSec: ms > 0 ? ms / 1000 : undefined,
-    via: `youtube:${c.name}`,
+    via: viaOf(c),
   };
 }
 
-/** 'ok' on 2xx, 'forbidden' on 403, 'unknown' when it timed out or failed otherwise. */
+/** Reads the last two bytes: some URLs serve the first megabyte, then answer 403. 'ok' on 2xx, 'forbidden' on 403, 'unknown' otherwise. */
 export async function probe(
   f: FetchLike,
   url: string,
   userAgent: string,
   budgetMs: number,
+  contentLength?: number,
 ): Promise<"ok" | "forbidden" | "unknown"> {
+  const range =
+    contentLength && contentLength > 2
+      ? `bytes=${contentLength - 2}-${contentLength - 1}`
+      : "bytes=0-1";
   try {
     const res = await fetchWithTimeout(
       f,
       url,
       {
-        headers: { Range: "bytes=0-1", "User-Agent": userAgent },
+        headers: { Range: range, "User-Agent": userAgent },
         credentials: "omit",
       },
       budgetMs,
@@ -222,14 +246,33 @@ const SEVERITY: Record<StreamError["code"], number> = {
   network: 1,
 };
 
+/** Client order for one resolve: `exclude` dropped, `avoid` moved to the end. */
+export function orderClients(
+  clients: StreamClient[],
+  exclude: string[] = [],
+  avoid: string[] = [],
+): StreamClient[] {
+  const left = clients.filter((c) => !exclude.includes(viaOf(c)));
+  return [
+    ...left.filter((c) => !avoid.includes(viaOf(c))),
+    ...left.filter((c) => avoid.includes(viaOf(c))),
+  ];
+}
+
 /** Tries each client in order; stops early on a definite 'unplayable'. */
 export async function resolveYouTubeStream(
   videoId: string,
   o: ResolveOptions,
   attempts: ResolveAttempt[] = [],
 ): Promise<ResolvedStream> {
+  const clients = orderClients(o.clients, o.exclude, o.avoid);
+  if (o.clients.length && !clients.length)
+    throw new StreamError(
+      "blocked",
+      "every stream client already failed for this track",
+    );
   let worst: StreamError | undefined;
-  for (const c of o.clients) {
+  for (const c of clients) {
     const t0 = Date.now();
     try {
       const stream = await tryClient(videoId, c, o);

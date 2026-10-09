@@ -5,3 +5,4 @@ packages:
 patchedDependencies:
   expo-sqlite: patches/expo-sqlite.patch
   '@react-native-cookies/cookies': patches/@react-native-cookies__cookies.patch
+  '@rntp/player@5.12.1': patches/@rntp__player@5.12.1.patch

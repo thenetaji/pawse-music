@@ -11,6 +11,7 @@ import type {
   StreamResolver,
   Track,
 } from "@studio/music-core";
+import { Platform } from "react-native";
 import { logEvent } from "../lib/diagnostics";
 import { appFetch } from "../lib/net";
 import { effectiveQuality } from "../lib/quality";
@@ -26,6 +27,8 @@ const raw = new YouTubeMusic({
   hl: settings().language,
   gl: gl(settings().region),
   cookies: () => settings().cookies,
+  // Android (ExoPlayer) gets its own client order and accepts Opus.
+  platform: Platform.OS,
   onRequestError: (endpoint, e) =>
     logEvent("request-failed", `${endpoint}: ${(e as Error)?.message ?? e}`),
 });

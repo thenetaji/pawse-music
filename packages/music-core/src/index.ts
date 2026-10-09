@@ -237,6 +237,10 @@ export interface ResolveOptions {
   quality?: AudioQuality;
   /** Skip local downloads (used by the downloader itself). */
   remoteOnly?: boolean;
+  /** `via` values whose streams failed for this track; never returned again. */
+  exclude?: string[];
+  /** `via` values that failed on this device; tried last. */
+  avoid?: string[];
 }
 
 /** Turns a Track into a playable URL. Implementations try their own fallbacks. */

@@ -30,8 +30,9 @@ import {
 import { sapisidAuthorization } from "./auth";
 import {
   ClientsConfig,
+  clientsKeyFor,
   DEFAULT_CLIENTS_CONFIG_URL,
-  DEFAULT_STREAM_CLIENTS,
+  defaultStreamClients,
   type StreamClient,
 } from "./clients";
 import {
@@ -70,8 +71,10 @@ export interface YouTubeMusicOptions {
   visitorData?: string;
   /** Remote stream-client list; null disables it. */
   clientsConfigUrl?: string | null;
-  /** Built-in stream clients (default VISIONOS 1.02, 1.03, 1.01). */
+  /** Built-in stream clients (default VISIONOS 1.02, 1.03, 1.01; Android puts ANDROID_VR first). */
   streamClients?: StreamClient[];
+  /** Platform.OS: picks the client list, and "android" also accepts WebM/Opus. */
+  platform?: string;
   /** Range-check the media URL before returning it (default true). */
   verifyStream?: boolean;
   /** Skip the range check when it takes longer than this (default 400 ms). */
@@ -151,7 +154,7 @@ const hasSapisid = (c: string | null | undefined) => {
   return !!(m.SAPISID || m["__Secure-3PAPISID"] || m["__Secure-1PAPISID"]);
 };
 
-/** YouTube Music over InnerTube: WEB_REMIX for catalog/account, signed-out VISIONOS chain for streams. */
+/** YouTube Music over InnerTube: WEB_REMIX for catalog/account, a signed-out client chain (VISIONOS; ANDROID_VR first on Android) for streams. */
 export class YouTubeMusic implements Catalog, Account, StreamResolver {
   hl: string;
   gl: string;
@@ -163,6 +166,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   private readonly clients: ClientsConfig;
   private readonly verify: boolean;
   private readonly verifyBudgetMs: number;
+  private readonly opus: boolean;
   private readonly onRequestError?: YouTubeMusicOptions["onRequestError"];
   private web?: WebConfig;
   private webPending?: Promise<WebConfig>;
@@ -178,6 +182,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     this.visitorData = options.visitorData;
     this.verify = options.verifyStream ?? true;
     this.verifyBudgetMs = options.verifyBudgetMs ?? 400;
+    this.opus = options.platform === "android";
     this.onRequestError = options.onRequestError;
     const url =
       options.clientsConfigUrl === undefined
@@ -186,7 +191,8 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     this.clients = new ClientsConfig(
       this.f,
       url,
-      options.streamClients ?? DEFAULT_STREAM_CLIENTS,
+      options.streamClients ?? defaultStreamClients(options.platform),
+      clientsKeyFor(options.platform),
     );
     void this.cookie().catch(() => undefined);
   }
@@ -654,6 +660,9 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
         verify: this.verify,
         verifyBudgetMs: this.verifyBudgetMs,
         quality: options.quality,
+        opus: this.opus,
+        exclude: options.exclude,
+        avoid: options.avoid,
       },
       this.lastResolveAttempts,
     );

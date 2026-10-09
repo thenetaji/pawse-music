@@ -1,0 +1,43 @@
+diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
+index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..9025b6a3301b8704cac7d84cda346f221f8fc0d3 100644
+--- a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
++++ b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
+@@ -34,6 +34,7 @@ import androidx.media3.datasource.DataSource
+ import androidx.media3.datasource.DataSpec
+ import androidx.media3.datasource.DefaultDataSource
+ import androidx.media3.datasource.DefaultHttpDataSource
++import androidx.media3.datasource.HttpDataSource
+ import androidx.media3.datasource.cache.CacheDataSource
+ import androidx.media3.datasource.cache.CacheWriter
+ import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+@@ -178,6 +179,21 @@ internal fun classifyPlaybackError(error: PlaybackException): String {
+   }
+ }
+ 
++// Flow patch: "Source error" alone hides the cause, so name the error code and any HTTP status.
++@OptIn(UnstableApi::class)
++internal fun describePlaybackError(error: PlaybackException): String {
++  var cause: Throwable? = error.cause
++  var status: Int? = null
++  var depth = 0
++  while (cause != null && status == null && depth++ < 8) {
++    if (cause is HttpDataSource.InvalidResponseCodeException) status = cause.responseCode
++    cause = cause.cause
++  }
++  val base = error.message ?: "Unknown playback error"
++  val code = error.errorCodeName
++  return if (status != null) "$base ($code, HTTP $status)" else "$base ($code)"
++}
++
+ private fun seekByOffset(player: Player, offsetMs: Long) {
+   var positionMs = player.currentPosition + offsetMs
+   val durationMs = player.duration
+@@ -424,7 +440,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+         this@TrackPlayerPlaybackService.emitEvent(
+           PlaybackErrorEvent(
+             code = classifyPlaybackError(error),
+-            message = error.message ?: "Unknown playback error",
++            message = describePlaybackError(error),
+           )
+         )
+       }

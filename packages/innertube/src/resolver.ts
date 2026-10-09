@@ -42,7 +42,8 @@ export function createResolver({
       track: ResolvableTrack,
       options: ResolveOptions = {},
     ): Promise<ResolvedStream> {
-      if (!options.remoteOnly) {
+      const excluded = (via: string) => !!options.exclude?.includes(via);
+      if (!options.remoteOnly && !excluded("local")) {
         const file = local?.(track.id);
         if (file) return file;
       }
@@ -60,11 +61,17 @@ export function createResolver({
           "unplayable",
           `No resolver for ${track.source} tracks`,
         );
-      const order = saavn
-        ? preferSaavn && track.kind === "song"
-          ? [saavn, youtube]
-          : [youtube, saavn]
-        : [youtube];
+      // A Saavn stream that failed here goes last, or out when it failed for this track.
+      const saavnFirst =
+        preferSaavn &&
+        track.kind === "song" &&
+        !options.avoid?.includes("saavn");
+      const order =
+        saavn && !excluded("saavn")
+          ? saavnFirst
+            ? [saavn, youtube]
+            : [youtube, saavn]
+          : [youtube];
       const errors = new Map<StreamResolver, unknown>();
       for (const r of order) {
         try {

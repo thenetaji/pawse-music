@@ -1,8 +1,50 @@
 {
   "version": 1,
-  "updated": "2026-10-08",
-  "note": "Signed-out player clients for @studio/innertube, tried in order. Apps cache this for 6 h and fall back to their built-in list.",
+  "updated": "2026-10-09",
+  "note": "Signed-out player clients for @studio/innertube, tried in order. `clients` is the iOS (and default) order; `android` is the Android (ExoPlayer) order. Apps cache this for 6 h and fall back to their built-in lists.",
   "clients": [
+    {
+      "name": "visionos-1.02",
+      "clientName": "VISIONOS",
+      "clientNameId": 101,
+      "clientVersion": "1.02",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+      "context": { "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.5.23O471" }
+    },
+    {
+      "name": "visionos-1.03",
+      "clientName": "VISIONOS",
+      "clientNameId": 101,
+      "clientVersion": "1.03",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+      "context": { "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.5.23O471" }
+    },
+    {
+      "name": "visionos-1.01",
+      "clientName": "VISIONOS",
+      "clientNameId": 101,
+      "clientVersion": "1.01",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+      "context": { "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.5.23O471" }
+    }
+  ],
+  "android": [
+    {
+      "name": "android_vr-1.61.48",
+      "clientName": "ANDROID_VR",
+      "clientNameId": 28,
+      "clientVersion": "1.61.48",
+      "userAgent": "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Oculus Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)",
+      "context": { "deviceMake": "Oculus", "deviceModel": "Quest 3", "androidSdkVersion": 32, "osName": "Android", "osVersion": "12" }
+    },
+    {
+      "name": "android_vr-1.43.32",
+      "clientName": "ANDROID_VR",
+      "clientNameId": 28,
+      "clientVersion": "1.43.32",
+      "userAgent": "com.google.android.apps.youtube.vr.oculus/1.43.32 (Linux; U; Android 12; en_US; Oculus Quest 3; Build/SQ3A.220605.009.A1; Cronet/107.0.5284.2)",
+      "context": { "deviceMake": "Oculus", "deviceModel": "Quest 3", "androidSdkVersion": 32, "osName": "Android", "osVersion": "12" }
+    },
     {
       "name": "visionos-1.02",
       "clientName": "VISIONOS",

@@ -3,7 +3,11 @@ import { StreamError } from "@studio/music-core";
 import botCheck from "../__fixtures__/player-bot-check.json";
 import unplayable from "../__fixtures__/player-unplayable.json";
 import player from "../__fixtures__/player-visionos.json";
-import { DEFAULT_STREAM_CLIENTS, parseClientsConfig } from "./clients";
+import {
+  DEFAULT_ANDROID_STREAM_CLIENTS,
+  DEFAULT_STREAM_CLIENTS,
+  parseClientsConfig,
+} from "./clients";
 import { YouTubeMusic } from "./music";
 import { loudnessOf, pickAudioFormat } from "./stream";
 
@@ -171,7 +175,9 @@ describe("client fallback chain", () => {
   it("skips a client whose media URL answers 403", async () => {
     let n = 0;
     const m = mockFetch([player], (_url, init) => {
-      expect((init.headers as Record<string, string>).Range).toBe("bytes=0-1");
+      expect((init.headers as Record<string, string>).Range).toBe(
+        "bytes=3449445-3449446",
+      );
       return reply({}, n++ === 0 ? 403 : 206);
     });
     expect((await yt(m.fetch).resolve(track)).via).toBe(
@@ -218,9 +224,106 @@ describe("client fallback chain", () => {
     ]);
   });
 
-  it("ships a remote config file that matches the built-in list", () => {
+  it("ships a remote config file that matches the built-in lists", () => {
+    const remote = require("../../../../sources/innertube-clients.json");
+    expect(parseClientsConfig(remote)).toEqual(DEFAULT_STREAM_CLIENTS);
+    expect(parseClientsConfig(remote, "android")).toEqual(
+      DEFAULT_ANDROID_STREAM_CLIENTS,
+    );
+  });
+});
+
+describe("Android and failed clients", () => {
+  const webmOnly = {
+    ...player,
+    streamingData: {
+      ...player.streamingData,
+      adaptiveFormats: player.streamingData.adaptiveFormats.filter((f) =>
+        /webm/.test(f.mimeType),
+      ),
+    },
+  };
+
+  it("starts Android on ANDROID_VR, reads the remote android list, and keeps iOS on VISIONOS", async () => {
+    const m = mockFetch([botCheck]);
+    await yt(m.fetch, { platform: "android" })
+      .resolve(track)
+      .catch(() => undefined);
+    expect(m.players().map((c) => clientOf(c).clientName)).toEqual([
+      "ANDROID_VR",
+      "ANDROID_VR",
+      "VISIONOS",
+      "VISIONOS",
+      "VISIONOS",
+    ]);
+
+    const remote = {
+      clients: [{ ...DEFAULT_STREAM_CLIENTS[0], name: "ios-x" }],
+      android: [{ ...DEFAULT_STREAM_CLIENTS[0], name: "android-x" }],
+    };
+    const url = "https://example.test/innertube-clients.json";
+    const r = mockFetch([player], undefined, () => reply(remote));
     expect(
-      parseClientsConfig(require("../../../../sources/innertube-clients.json")),
-    ).toEqual(DEFAULT_STREAM_CLIENTS);
+      (
+        await yt(r.fetch, {
+          platform: "android",
+          clientsConfigUrl: url,
+        }).resolve(track)
+      ).via,
+    ).toBe("youtube:android-x");
+    expect(
+      (
+        await yt(r.fetch, { platform: "ios", clientsConfigUrl: url }).resolve(
+          track,
+        )
+      ).via,
+    ).toBe("youtube:ios-x");
+
+    // An older remote file without `android` leaves Android on its built-in order.
+    const old = mockFetch([player], undefined, () =>
+      reply({ clients: remote.clients }),
+    );
+    expect(
+      (
+        await yt(old.fetch, {
+          platform: "android",
+          clientsConfigUrl: url,
+        }).resolve(track)
+      ).via,
+    ).toBe("youtube:android_vr-1.61.48");
+  });
+
+  it("accepts Opus only on Android and only when no AAC is offered", async () => {
+    const s = await yt(mockFetch([webmOnly]).fetch, {
+      platform: "android",
+    }).resolve(track);
+    expect(s.mimeType).toMatch(/^audio\/webm/);
+    expect(s.bitrate).toBe(136544);
+    expect(
+      (
+        await yt(mockFetch([player]).fetch, { platform: "android" }).resolve(
+          track,
+        )
+      ).mimeType,
+    ).toMatch(/mp4a/);
+    await expect(
+      yt(mockFetch([webmOnly]).fetch, { platform: "ios" }).resolve(track),
+    ).rejects.toMatchObject({ code: "no_audio" });
+  });
+
+  it("never returns an excluded client and tries avoided ones last", async () => {
+    const m = mockFetch([player]);
+    const s = await yt(m.fetch).resolve(track, {
+      exclude: ["youtube:visionos-1.02"],
+      avoid: ["youtube:visionos-1.03"],
+    });
+    expect(s.via).toBe("youtube:visionos-1.01");
+
+    const all = DEFAULT_STREAM_CLIENTS.map((c) => `youtube:${c.name}`);
+    const none = mockFetch([player]);
+    await expect(
+      yt(none.fetch).resolve(track, { exclude: all }),
+    ).rejects.toMatchObject({ code: "blocked" });
+    expect(none.players()).toHaveLength(0);
   });
 });

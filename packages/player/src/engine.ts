@@ -10,10 +10,11 @@ import {
   artistLine,
   bestThumbnail,
   type ResolvedStream,
+  type ResolveOptions,
   type Track,
 } from "@studio/music-core";
 import { useEffect, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 
 import { POS_KEY, QUEUE_KEY } from "./keys";
 import * as Q from "./queue";
@@ -36,6 +37,7 @@ const TICK_MS = 5_000;
 const SAVE_MS = 1_000;
 const POS_EVERY_SEC = 15;
 const MAX_SKIPS = 5;
+const MAX_SOURCE_SWITCHES = 3;
 const ARTWORK_PX = 544;
 
 export { POS_KEY, QUEUE_KEY };
@@ -56,6 +58,8 @@ const streams = new Map<string, ResolvedStream>(); // by track id
 const inflight = new Map<string, Promise<ResolvedStream>>();
 const live = new Map<string, number>(); // entry key -> expiresAt of the URL the native queue holds
 const retried = new Map<string, number>(); // entry key -> position of the last error re-resolve
+const failedVia = new Map<string, Set<string>>(); // track id -> stream sources that failed for it
+const avoidVia: string[] = []; // stream sources that failed on this device this session, tried last
 let nativeLoaded = false;
 let pendingSeek: { key: string; position: number } | undefined;
 let navGen = 0;
@@ -116,36 +120,77 @@ function syncStatus(): void {
   if (status !== s.status) set({ status });
 }
 
+function resolveOptions(track: Track): ResolveOptions | undefined {
+  const exclude = [...(failedVia.get(track.id) ?? [])];
+  return exclude.length || avoidVia.length
+    ? { exclude, avoid: [...avoidVia] }
+    : undefined;
+}
+
 function resolveStream(track: Track, force = false): Promise<ResolvedStream> {
   const cached = streams.get(track.id);
-  if (!force && cached && isFresh(cached.expiresAt))
+  const failed = failedVia.get(track.id);
+  if (!force && cached && isFresh(cached.expiresAt) && !failed?.has(cached.via))
     return Promise.resolve(cached);
-  let p = inflight.get(track.id);
+  // A resolve already in flight may predate the failure and return the same source.
+  let p = failed?.size ? undefined : inflight.get(track.id);
   if (!p) {
-    p = opts!.resolver
-      .resolve(track)
+    const next = opts!.resolver
+      .resolve(track, resolveOptions(track))
       .then((st) => (streams.set(track.id, st), st))
-      .finally(() => inflight.delete(track.id));
-    inflight.set(track.id, p);
+      .finally(() => {
+        if (inflight.get(track.id) === next) inflight.delete(track.id);
+      });
+    inflight.set(track.id, next);
+    p = next;
   }
   return p;
 }
 
+/** Records that `via` failed for this track; false when it already had. */
+function blame(trackId: string, via: string): boolean {
+  const failed = failedVia.get(trackId) ?? new Set<string>();
+  if (failed.has(via)) return false;
+  failed.add(via);
+  failedVia.set(trackId, failed);
+  if (via !== "local" && !avoidVia.includes(via)) {
+    avoidVia.push(via);
+    diag("source-avoided", via);
+    forgetVia(via);
+  }
+  return true;
+}
+
+/** Drops cached streams from `via` for every other entry, so they re-resolve before they play. */
+function forgetVia(via: string): void {
+  const { keys, tracks, index } = get();
+  tracks.forEach((t, j) => {
+    if (j === index || streams.get(t.id)?.via !== via) return;
+    streams.delete(t.id);
+    live.delete(keys[j]);
+  });
+}
+
 const artworkOf = (track: Track) =>
   opts?.artwork?.(track) ?? bestThumbnail(track.thumbnails, ARTWORK_PX);
+
+// ExoPlayer opens byte 0 without a Range header, and googlevideo throttles such requests to about 30 KB/s.
+const RANGE_FROM_START =
+  Platform.OS === "android" ? { Range: "bytes=0-" } : undefined;
+const headersOf = (st: ResolvedStream) =>
+  st.headers && RANGE_FROM_START && st.via.startsWith("youtube:")
+    ? { ...RANGE_FROM_START, ...st.headers }
+    : st.headers;
 
 function mediaItem(key: string, track: Track): MediaItem {
   const st = streams.get(track.id);
   const ok = st && isFresh(st.expiresAt);
   if (ok) live.set(key, st.expiresAt);
   else live.delete(key);
+  const headers = ok ? headersOf(st) : undefined;
   return {
     mediaId: key,
-    url: ok
-      ? st.headers
-        ? { uri: st.url, headers: st.headers }
-        : st.url
-      : PLACEHOLDER + key,
+    url: ok ? (headers ? { uri: st.url, headers } : st.url) : PLACEHOLDER + key,
     mimeType: ok ? st.mimeType.split(";")[0] : undefined,
     title: track.title,
     artist: artistLine(track.artists),
@@ -302,6 +347,7 @@ async function start(
     done: false,
   };
   retried.clear();
+  failedVia.clear();
   nativeLoaded = false;
   pendingSeek = undefined;
   currentKey = undefined;
@@ -385,23 +431,30 @@ function syncNativeOrder(oldIndex: number, oldLength: number): void {
 
 async function onError(e: PlaybackErrorEvent): Promise<void> {
   if (e.code === "play-not-permitted") return;
-  diag("error", `${e.code}: ${e.message}`);
-  if (e.code === "controller-connection-failed")
-    return set({ error: e.message });
   const s = get();
   const key = s.keys[s.index];
   const track = s.tracks[s.index];
+  const via = track && live.has(key) ? streams.get(track.id)?.via : undefined;
+  diag("error", `${e.code}: ${e.message}${via ? ` via=${via}` : ""}`);
+  if (e.code === "controller-connection-failed")
+    return set({ error: e.message });
   if (!track) return;
   const gen = navGen;
   const position = TrackPlayer.getProgress().position || savedPos;
   const last = retried.get(key);
-  // One re-resolve per incident; a track that played 30 s since the last retry earns another.
-  if (last === undefined || position > last + 30) {
+  // A source error (HTTP status, unreadable file) blames the stream's source, so the next source gets a turn.
+  const switched =
+    e.code === "source" &&
+    !!via &&
+    blame(track.id, via) &&
+    (failedVia.get(track.id)?.size ?? 0) <= MAX_SOURCE_SWITCHES;
+  // Otherwise one re-resolve per incident; a track that played 30 s since the last retry earns another.
+  if (switched || last === undefined || position > last + 30) {
     retried.set(key, position);
     loading = true;
     syncStatus();
     try {
-      await resolveStream(track, live.has(key));
+      await resolveStream(track, switched || live.has(key));
       if (gen !== navGen || get().keys[get().index] !== key) return;
       TrackPlayer.replaceMediaItem(get().index, mediaItem(key, track));
       if (position > 0) TrackPlayer.seekTo(position);
@@ -409,6 +462,7 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
       loading = false;
       nativeState = PlaybackState.Buffering;
       syncStatus();
+      ensureAhead();
       return;
     } catch (err) {
       diag("resolve-failed", `${track.id}: ${errorText(err)}`);
@@ -885,6 +939,8 @@ export function __resetForTests(): void {
   inflight.clear();
   live.clear();
   retried.clear();
+  failedVia.clear();
+  avoidVia.length = 0;
   nativeLoaded = false;
   pendingSeek = undefined;
   navGen = 0;

@@ -1,5 +1,5 @@
 import TrackPlayer from "@rntp/player";
-import type { ResolvedStream, Track } from "@studio/music-core";
+import type { ResolvedStream, ResolveOptions, Track } from "@studio/music-core";
 
 import {
   __resetForTests,
@@ -211,6 +211,54 @@ test("a playback error re-resolves once at the same position, then skips to the 
     index: 1,
     error: "403 again",
   });
+});
+
+test("a source error re-resolves with the next client, demotes the failed one for later tracks, then skips when none is left", async () => {
+  const clients = ["youtube:a", "youtube:b", "youtube:c"];
+  const byClient = jest.fn(
+    async (
+      t: Pick<Track, "id">,
+      o?: ResolveOptions,
+    ): Promise<ResolvedStream> => {
+      const left = clients.filter((c) => !o?.exclude?.includes(c));
+      const via = [
+        ...left.filter((c) => !o?.avoid?.includes(c)),
+        ...left.filter((c) => o?.avoid?.includes(c)),
+      ][0];
+      if (!via) throw new Error("no client left");
+      return {
+        url: `https://a/${t.id}/${via}/${++version}`,
+        mimeType: "audio/mp4",
+        bitrate: 130_000,
+        expiresAt: now + 6 * HOUR,
+        via,
+      };
+    },
+  );
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve: byClient }, onDiagnostic: diag });
+  await player.play(tracks("x", "y", "z"));
+  await flush();
+  expect(urlAt(1)).toMatch("/youtube:a/");
+  const source = { code: "source", message: "Source error" };
+
+  await rntp.__emit("event.playback-error", source);
+  await flush();
+  expect(diag).toHaveBeenCalledWith(
+    "error",
+    "source: Source error via=youtube:a",
+  );
+  expect(urlAt(0)).toMatch("/x/youtube:b/");
+  expect(urlAt(1)).toMatch("/y/youtube:b/");
+  expect(usePlayerStore.getState().index).toBe(0);
+
+  await rntp.__emit("event.playback-error", source);
+  expect(urlAt(0)).toMatch("/x/youtube:c/");
+  await rntp.__emit("event.playback-error", source);
+  await flush();
+  expect(diag).toHaveBeenCalledWith("resolve-failed", "x: no client left");
+  expect(usePlayerStore.getState().index).toBe(1);
+  expect(tp.skipToIndex).toHaveBeenLastCalledWith(1);
 });
 
 test("radio refills from upNext when fewer than 3 remain, de-duplicated, then follows the continuation", async () => {
