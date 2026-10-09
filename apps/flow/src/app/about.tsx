@@ -23,7 +23,6 @@ const LICENSES = [
 export default function About() {
   const insets = useSafeAreaInsets();
   const color = useSetting<CatColor>("catColor", "orange");
-  const name = useSetting("catName", "Mochi");
   const version = Application.nativeApplicationVersion ?? "0.1.0";
   const build = Application.nativeBuildVersion ?? "dev";
   return (
@@ -42,7 +41,8 @@ export default function About() {
         <Text style={styles.version}>
           Version {version} ({build})
         </Text>
-        <Text style={styles.tag}>Made with {name} on the wire.</Text>
+        <Text style={styles.made}>Made with ♥ by thenetaji</Text>
+        <Text style={styles.tag}>Free, open source, and a little bit cat.</Text>
       </View>
       <View style={styles.group}>
         <Row
@@ -108,7 +108,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 2,
   },
-  tag: { color: "rgba(255,255,255,0.4)", fontSize: 14, marginTop: 8 },
+  made: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 15,
+    fontWeight: "600",
+    marginTop: 14,
+  },
+  tag: { color: "rgba(255,255,255,0.4)", fontSize: 14, marginTop: 3 },
   section: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 13,

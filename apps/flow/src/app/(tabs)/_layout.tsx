@@ -19,7 +19,8 @@ export default function TabsLayout() {
         minimizeBehavior="onScrollDown"
         blurEffect="systemChromeMaterialDark"
       >
-        {Platform.OS === "ios" ? (
+        {/* The mini player slot appears only once something is loaded. */}
+        {Platform.OS === "ios" && hasTrack ? (
           <NativeTabs.BottomAccessory>
             <Accessory />
           </NativeTabs.BottomAccessory>
