@@ -10,7 +10,6 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 - **Songs kept for offline**: songs you finish are saved automatically within a space limit you choose; the least played make room first.
 - **Import**: copy your YouTube Music likes and playlists into Flow so they stay after signing out; import Google Takeout, Apple Music data (privacy.apple.com), Apple Music or iTunes playlist exports and CSV files, with a review step for unsure matches.
 - **Quality by network**: separate quality for Wi-Fi and mobile data, plus Data saver (smaller artwork, no offline saving and less prefetching on mobile data).
-- **In-app updates**: Flow checks for new versions; Android installs the update itself and iOS hands it to SideStore.
 - **Onboarding** suggests popular artists for your region and languages, and offers import.
 - **Search** suggests artists you play and what is trending before you type.
 - **Diagnostics** in Settings → About to copy a playback log for bug reports.
