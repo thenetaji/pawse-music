@@ -16,6 +16,8 @@ export interface SetupOptions {
   radioContinue?: () => boolean;
   /** Seconds the sleep timer fades the volume over before it stops (default 10). */
   sleepFadeSec?: () => number;
+  /** A ready artwork URI (e.g. a local square file) for the system Now Playing; undefined uses the best thumbnail. */
+  artwork?: (track: Track) => string | undefined;
   /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */
   onDiagnostic?: (kind: string, detail?: string) => void;
 }

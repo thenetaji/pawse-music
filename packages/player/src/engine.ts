@@ -36,6 +36,7 @@ const TICK_MS = 5_000;
 const SAVE_MS = 1_000;
 const POS_EVERY_SEC = 15;
 const MAX_SKIPS = 5;
+const ARTWORK_PX = 544;
 
 export { POS_KEY, QUEUE_KEY };
 
@@ -130,6 +131,9 @@ function resolveStream(track: Track, force = false): Promise<ResolvedStream> {
   return p;
 }
 
+const artworkOf = (track: Track) =>
+  opts?.artwork?.(track) ?? bestThumbnail(track.thumbnails, ARTWORK_PX);
+
 function mediaItem(key: string, track: Track): MediaItem {
   const st = streams.get(track.id);
   const ok = st && isFresh(st.expiresAt);
@@ -146,7 +150,7 @@ function mediaItem(key: string, track: Track): MediaItem {
     title: track.title,
     artist: artistLine(track.artists),
     albumTitle: track.album?.title,
-    artworkUrl: bestThumbnail(track.thumbnails, 544),
+    artworkUrl: artworkOf(track),
     duration: trustedDuration(track),
     extras: { trackId: track.id },
   };
@@ -177,6 +181,15 @@ async function ensureReady(i: number, force = false): Promise<boolean> {
     set({ error: errorText(e) });
     return false;
   }
+}
+
+/** Re-reads setup's artwork() for every queued entry of the track; updates metadata only, playback is untouched. */
+export function refreshArtwork(trackId: string): void {
+  if (!nativeLoaded) return;
+  get().tracks.forEach((t, i) => {
+    const url = t.id === trackId ? artworkOf(t) : undefined;
+    if (url) TrackPlayer.updateMetadata(i, { artworkUrl: url });
+  });
 }
 
 /** How many upcoming songs get resolved ahead (data saver uses 1); no argument restores the default. */
