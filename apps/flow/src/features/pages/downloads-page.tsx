@@ -242,7 +242,7 @@ function Options({ keptBytes }: { keptBytes: number }) {
           def="high"
           options={[
             ["high", "High"],
-            ["normal", "Normal"],
+            ["saver", "Low · smaller files"],
           ]}
         />
         <Toggle k="wifiOnly" label="Download on Wi-Fi only" def={false} />

@@ -19,6 +19,7 @@ import {
   networkStore,
   refreshNetworkKind,
 } from "../lib/net";
+import { isLowData, useLowData } from "../lib/quality";
 import { resolver, setLocalLookup } from "./clients";
 import {
   createDownloadManager,
@@ -156,9 +157,9 @@ const manager = createDownloadManager(index, live, {
   },
 });
 
-/** Data saver or Wi-Fi only keeps caching off mobile data. */
+/** Low quality on mobile data, or Wi-Fi only, keeps caching off mobile data. */
 const cacheBlockedOn = (kind: NetworkKind) =>
-  kind === "cellular" && (settings().dataSaver || settings().wifiOnly);
+  kind === "cellular" && (isLowData() || settings().wifiOnly);
 
 const cacheManager = createDownloadManager(cacheIndex, cacheLive, {
   ...fileDeps(cacheDir),
@@ -296,14 +297,9 @@ export function useOnline(): boolean {
 export const useNetworkKind = (): NetworkKind =>
   useStore(networkStore, (s) => s.kind);
 
-/** Data saver on and the phone is on mobile data. */
-export const isDataSaverActive = () =>
-  settings().dataSaver && networkKind() === "cellular";
-export function useDataSaverActive(): boolean {
-  const on = useLibrary((s) => s.settings.dataSaver);
-  const kind = useNetworkKind();
-  return on && kind === "cellular";
-}
+/** Streaming Low on mobile data: the app saves data everywhere else too. */
+export const isDataSaverActive = isLowData;
+export const useDataSaverActive = useLowData;
 
 export type CachedRow = { track: Track; bytes: number; at: number };
 function summarizeCache(entries: IndexState["entries"]) {
@@ -397,7 +393,11 @@ if (native) {
   });
   useLibrary.subscribe((s, prev) => {
     if (s.settings.cacheLimitMb !== prev.settings.cacheLimitMb) evictCache();
-    if (s.settings.dataSaver !== prev.settings.dataSaver) applyPrefetch();
+    if (
+      s.settings.qualityCellular !== prev.settings.qualityCellular ||
+      s.settings.quality !== prev.settings.quality
+    )
+      applyPrefetch();
   });
   networkStore.subscribe(applyPrefetch);
   applyPrefetch();

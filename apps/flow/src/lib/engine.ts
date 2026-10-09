@@ -8,6 +8,7 @@ import "../data/signals";
 import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
 import { logEvent } from "./diagnostics";
+import { noteStall } from "./quality";
 import { clearResources } from "./use-resource";
 
 export { lyricsService, saavn, yt } from "../data/clients";
@@ -40,7 +41,11 @@ export function startEngine() {
     pauseOnDisconnect: settings().pauseOnDisconnect,
     radioContinue: () => settings().radioContinue,
     sleepFadeSec: () => settings().sleepFade,
-    onDiagnostic: logEvent,
+    onDiagnostic: (kind, detail) => {
+      logEvent(kind, detail);
+      // Automatic quality steps down when streams keep stalling.
+      if (kind === "error" && detail?.startsWith("stalled")) noteStall();
+    },
     onPlayed: (track: Track, playedSec: number) => {
       const lib = useLibrary.getState();
       if (lib.settings.pauseHistory) return;

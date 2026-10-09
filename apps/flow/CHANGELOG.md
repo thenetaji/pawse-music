@@ -7,6 +7,10 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 ### Added
 - Word-by-word synced lyrics for many more songs from Lyrics+ (Apple Music lyrics), with Unison as a community fallback matched by the exact YouTube video. Hindi songs from Lyrics+ use romanised (Hinglish) text.
 
+### Changed
+- Streaming quality is now one choice per network, Wi-Fi and mobile data: **Automatic** (new default), High or Low. Automatic plays High on Wi-Fi, 5G and 4G, and Low on slower connections or when songs keep stalling. The separate Data saver switch is gone: Low on mobile data saves data everywhere (smaller artwork, nothing kept offline, only the next song prepared). Earlier choices carry over.
+- Download quality is High or Low (Normal was identical to High for YouTube).
+
 ### Fixed
 - Lyrics from the wrong song: every lyrics source must now match the song's title and artist, titles are cleaned before searching ("(From …)", "(Official Video)", "ft. …"), and credit lines no longer appear as sung lines.
 - Music videos whose length differs from the song show lyrics as plain text instead of timed lines that drift.
