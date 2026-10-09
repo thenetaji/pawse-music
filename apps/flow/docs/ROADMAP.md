@@ -210,7 +210,7 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 ### Release
 - [x] 27. After item 59: tag flow-v0.1.x, watch the iOS and Android jobs, fix failures, then send the summary.
 
-## v0.1.11 (approved 2026-10-08)
+## v0.2.0 (approved 2026-10-08)
 - [x] 60. Full-bleed Now Playing artwork; HD frames for music videos.
 - [x] 61. Real song length (iOS misreads YouTube audio length); end songs on time.
 - [x] 62. Robustness: request timeouts and one retry, saved Home/Explore copies, double-tap guard, crash retry screen, diagnostics log.
