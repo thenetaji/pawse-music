@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated": "2026-10-09",
-  "note": "Signed-out player clients for @studio/innertube, tried in order. `clients` is the iOS (and default) order; `android` is the Android (ExoPlayer) order. Apps cache this for 6 h and fall back to their built-in lists.",
+  "note": "Signed-out player clients for @pawse/innertube, tried in order. `clients` is the iOS (and default) order; `android` is the Android (ExoPlayer) order. Apps cache this for 6 h and fall back to their built-in lists.",
   "clients": [
     {
       "name": "visionos-1.02",

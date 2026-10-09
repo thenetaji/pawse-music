@@ -1,4 +1,4 @@
-import type { ArtistRef, Thumbnail } from "@studio/music-core";
+import type { ArtistRef, Thumbnail } from "@pawse/music-core";
 
 // Tolerant accessors over InnerTube JSON. Nothing here throws on a missing field.
 export type Node = Record<string, any>;

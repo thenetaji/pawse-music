@@ -1,4 +1,4 @@
-import type { Track } from "@studio/music-core";
+import type { Track } from "@pawse/music-core";
 
 import * as Q from "./queue";
 

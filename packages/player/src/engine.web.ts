@@ -1,5 +1,5 @@
 // Web stand-in for the screenshot harness: same API, in-memory queue and a progress clock, no audio.
-import type { Track } from "@studio/music-core";
+import type { Track } from "@pawse/music-core";
 import { useEffect, useState } from "react";
 
 import * as Q from "./queue";

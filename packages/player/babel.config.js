@@ -1,1 +1,1 @@
-module.exports = require("@studio/config/babel");
+module.exports = require("@pawse/config/babel");

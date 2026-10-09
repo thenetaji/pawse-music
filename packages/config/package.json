@@ -1,5 +1,5 @@
 {
-  "name": "@studio/config",
+  "name": "@pawse/config",
   "version": "0.0.0",
   "private": true,
   "description": "Shared build, lint, test and TypeScript configuration for every studio app and package.",

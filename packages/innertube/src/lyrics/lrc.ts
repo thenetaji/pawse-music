@@ -1,4 +1,4 @@
-import type { LyricLine } from "@studio/music-core";
+import type { LyricLine } from "@pawse/music-core";
 
 const TAG = /\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
 const WORD = /<(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?>/;

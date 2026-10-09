@@ -1,4 +1,4 @@
-import { StreamError } from "@studio/music-core";
+import { StreamError } from "@pawse/music-core";
 
 import botCheck from "../__fixtures__/player-bot-check.json";
 import unplayable from "../__fixtures__/player-unplayable.json";

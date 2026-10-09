@@ -5,7 +5,7 @@ import {
   StreamError,
   type StreamResolver,
   type Track,
-} from "@studio/music-core";
+} from "@pawse/music-core";
 
 export interface CreateResolverOptions {
   youtube: StreamResolver;

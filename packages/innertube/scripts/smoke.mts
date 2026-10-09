@@ -1,6 +1,6 @@
 // Opt-in live check against YouTube Music, JioSaavn and the lyrics hosts.
-// Run: pnpm --filter @studio/innertube smoke   (pnpm dlx tsx scripts/smoke.mts)
-import type { ResolvedStream } from "@studio/music-core";
+// Run: pnpm --filter @pawse/innertube smoke   (pnpm dlx tsx scripts/smoke.mts)
+import type { ResolvedStream } from "@pawse/music-core";
 
 import { JioSaavn, LyricsService, YouTubeMusic } from "../src/index";
 

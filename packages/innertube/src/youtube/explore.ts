@@ -1,4 +1,4 @@
-import type { ExploreFeed, MoodTile, Shelf } from "@studio/music-core";
+import type { ExploreFeed, MoodTile, Shelf } from "@pawse/music-core";
 
 import { arr, browseOf, dig, text, unwrap } from "./nodes";
 import { encodeBrowse, parseSectionList, tab0 } from "./parse";

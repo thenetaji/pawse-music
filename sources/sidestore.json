@@ -1,14 +1,14 @@
 {
-  "name": "Flow",
-  "identifier": "com.thenetaji.flow-music",
-  "subtitle": "Flow by thenetaji",
+  "name": "Pawse",
+  "identifier": "com.thenetaji.pawse-music",
+  "subtitle": "Pawse by thenetaji",
   "apps": [
     {
-      "name": "Flow",
+      "name": "Pawse",
       "bundleIdentifier": "com.thenetaji.flow",
       "developerName": "thenetaji",
-      "localizedDescription": "A music player for YouTube Music with a cat that lives in your Dynamic Island.",
-      "iconURL": "https://raw.githubusercontent.com/thenetaji/flow-music/main/apps/flow/assets/images/icon.png",
+      "localizedDescription": "A free music player for YouTube Music, with a cat in your Dynamic Island.",
+      "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
           "version": "0.3.0",

@@ -1,6 +1,6 @@
 name: Apps
 
-# Builds Flow for sideloading: an unsigned IPA (SideStore) and a release-signed APK.
+# Builds Pawse for sideloading: an unsigned IPA (SideStore) and a release-signed APK.
 # Tag `v1.2.3` builds both platforms, publishes a GitHub Release and updates sources/sidestore.json.
 on:
   workflow_dispatch:
@@ -8,8 +8,8 @@ on:
       app:
         description: App folder under apps/
         type: choice
-        options: [flow]
-        default: flow
+        options: [pawse]
+        default: pawse
       platforms:
         description: Platforms to build
         type: choice
@@ -328,7 +328,7 @@ jobs:
           [ -s notes.md ] || echo "${APP_NAME} ${VERSION}." > notes.md
           cat notes.md
 
-      # Stable names next to the versioned files: releases/latest/download/Flow.ipa always works.
+      # Stable names next to the versioned files: releases/latest/download/Pawse.ipa always works.
       - name: Stable copies
         run: |
           for f in dist/${APP_NAME}-*.ipa dist/${APP_NAME}-*.apk; do [ -e "$f" ] || continue; cp "$f" "dist/${APP_NAME}.${f##*.}"; done

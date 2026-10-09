@@ -1,80 +1,97 @@
 <p align="center">
-  <img src="apps/flow/assets/images/icon.png" width="112" alt="Flow icon: an orange cat wearing headphones" />
+  <img src="docs/images/icon-rounded.png" width="104" alt="Pawse app icon: an orange cat with headphones" />
 </p>
 
-<h1 align="center">Flow</h1>
+<h1 align="center">Pawse</h1>
 
 <p align="center">
-  A music player for iPhone and Android, built on YouTube Music, with a cat that lives in your Dynamic Island.
+  <b>A free music player for iPhone and Android, with a cat in your Dynamic Island.</b><br />
+  <sub>Say it like "pause": a cat's paws, and the button you press on music.</sub>
 </p>
 
 <p align="center">
-  <a href="https://github.com/thenetaji/flow-music/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/thenetaji/flow-music?label=release" /></a>
-  <a href="LICENSE"><img alt="Licence: GPL-3.0" src="https://img.shields.io/badge/licence-GPL--3.0-blue" /></a>
-  <img alt="Platforms: iOS and Android" src="https://img.shields.io/badge/platforms-iOS%20%7C%20Android-lightgrey" />
+  <a href="https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa"><img alt="Download for iPhone" src="https://img.shields.io/badge/Download-iPhone-111111?style=for-the-badge&logo=apple&logoColor=white" /></a>
+  <a href="https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk"><img alt="Download for Android" src="https://img.shields.io/badge/Download-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" /></a>
 </p>
 
----
+<p align="center">
+  <a href="https://github.com/thenetaji/pawse-music/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/thenetaji/pawse-music?label=version&color=8B7CFF" /></a>
+  <a href="LICENSE"><img alt="Licence GPL-3.0" src="https://img.shields.io/badge/licence-GPL--3.0-8B7CFF" /></a>
+  <img alt="No ads, no tracking" src="https://img.shields.io/badge/ads-none-8B7CFF" />
+</p>
 
-## Features
+<p align="center">
+  <img src="docs/images/hero.jpg" alt="Pawse on iPhone: home, now playing, explore and search" />
+</p>
 
-- **YouTube Music's catalogue**: search, albums, artists, playlists, charts, moods and genres, radio from any song.
-- **For you, even signed out**: Quick picks, "Because you like…", On repeat and Forgotten favourites, built on your phone from what you play, like and skip.
-- **A library that's yours**: likes, playlists, history and "Made for you" playlists, stored on the phone. Import from your YouTube Music account, Google Takeout, Apple Music data, iTunes exports, CSV files or a playlist link.
-- **Offline**: download songs, or let Flow keep the songs you finish within a space limit you choose.
-- **Lyrics**: synced, often word by word, from LRCLIB, Lyrics+, BetterLyrics, KuGou and Unison, and only ever for the right song.
-- **Mochi the cat**: dances on the progress bar, reacts to likes and skips, naps when you pause, and chases a mischievous mouse. Lives in the Dynamic Island and the lock screen on iPhone, and around the camera on Android.
-- **Sound and data**: Automatic, High or Low quality separately for Wi-Fi and mobile data, the same loudness for every song, a sleep timer and a reorderable queue.
-- **Private by design**: no accounts, servers, ads or analytics. Signing in to YouTube Music is optional and only personalises Home, likes and playlists; music always streams signed out, and your Google session stays in the iOS Keychain or Android Keystore.
+## What it does
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="docs/images/now-playing.png" width="240" alt="Now Playing" /><br /><b>Big, beautiful player</b><br /><sub>The cover fills the screen. Lyrics follow along. Mochi dances on the progress bar.</sub></td>
+    <td align="center" width="33%"><img src="docs/images/home.png" width="240" alt="Home with Quick picks" /><br /><b>Picks just for you</b><br /><sub>Quick picks and "Because you like…", learned on your phone. No sign-in needed.</sub></td>
+    <td align="center" width="33%"><img src="docs/images/explore.png" width="240" alt="Explore moods and genres" /><br /><b>Something for every mood</b><br /><sub>Chill, workout, focus, sleep, charts and new releases.</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/search.png" width="240" alt="Search results" /><br /><b>All of YouTube Music</b><br /><sub>Songs, albums, artists and playlists, with radio from any song.</sub></td>
+    <td align="center"><img src="docs/images/library.png" width="240" alt="Library" /><br /><b>Your library, your phone</b><br /><sub>Likes, playlists, downloads and offline songs. Bring yours over from YouTube Music or Apple Music.</sub></td>
+    <td align="center"><img src="docs/images/settings.png" width="240" alt="Settings" /><br /><b>Made to your taste</b><br /><sub>Pick your cat, your colours and your sound quality.</sub></td>
+  </tr>
+</table>
+
+Also: word-by-word lyrics, a sleep timer, the same loudness for every song, songs that keep playing offline, and a little mouse that keeps teasing the cat.
 
 ## Install
 
-| Platform | How |
+### iPhone
+1. Install **SideStore** on your iPhone, once: follow [this guide](https://docs.sidestore.io/docs/installation/prerequisites) (you need a computer one time).
+2. In SideStore, open **Sources** → tap **+** → paste:
+   ```
+   https://raw.githubusercontent.com/thenetaji/pawse-music/main/sources/sidestore.json
+   ```
+3. Tap **Pawse** → **Install**.
+4. In SideStore settings, turn on **Background Refresh**, so the app keeps working past 7 days (a free Apple ID limit).
+
+### Android
+1. Download **[Pawse.apk](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk)**.
+2. Open it. If Android asks, allow your browser to **install unknown apps**.
+3. Done. Pawse tells you when a new version is out.
+
+### Updates
+- Pawse checks once a day and asks before updating.
+- Or open **Settings → About → Check for updates**.
+
+## Good to know
+
+- **No account needed.** Signing in to YouTube Music is optional. It only brings your own home feed, likes and playlists.
+- **Your data stays on your phone.** No ads, no tracking, no Pawse servers. Your Google sign-in is kept in the iPhone Keychain or the Android Keystore.
+- **Something wrong?** Open an [issue](https://github.com/thenetaji/pawse-music/issues/new/choose) and paste the log from **Settings → About → Diagnostics**.
+
+<details>
+<summary><b>For developers</b></summary>
+
+- **Build it yourself:** [docs/BUILDING.md](docs/BUILDING.md)
+- **Make a release:** [docs/RELEASING.md](docs/RELEASING.md)
+- **Help out:** [CONTRIBUTING.md](CONTRIBUTING.md)
+
+| Folder | What's inside |
 | --- | --- |
-| iPhone | Add the SideStore source `https://raw.githubusercontent.com/thenetaji/flow-music/main/sources/sidestore.json`, or install [Flow.ipa](https://github.com/thenetaji/flow-music/releases/latest/download/Flow.ipa) with SideStore or AltStore. |
-| Android | Download [Flow.apk](https://github.com/thenetaji/flow-music/releases/latest/download/Flow.apk) and open it. |
-
-Flow checks for new versions itself (Settings → About → Check for updates). Step-by-step instructions, including a free Apple ID setup, are in [INSTALL.md](apps/flow/docs/INSTALL.md).
-
-## Build from source
-
-Requirements: Node 24, pnpm 10 (`corepack enable`), and for native builds Xcode 27 on macOS or JDK 17 with the Android SDK (platform 36, NDK 27.1). Flow uses native modules, so it runs in a development build, not Expo Go.
-
-```sh
-pnpm install
-pnpm --filter flow exec expo run:ios       # or expo run:android
-```
-
-Checks used before every release:
-
-```sh
-pnpm verify          # typecheck, lint and tests across the workspace
-```
-
-A web build is handy for working on screens (audio needs a phone): `pnpm --filter flow bundle:web`, then `node apps/flow/scripts/preview-server.mjs apps/flow/.export-web 8733`, which also proxies YouTube's API around browser CORS.
-
-Releases: push a `v1.2.3` tag. The Apps workflow builds the IPA and the release-signed APK, publishes a GitHub Release with notes from [CHANGELOG.md](apps/flow/CHANGELOG.md) and updates the SideStore source.
-
-## Project layout
-
-| Path | What |
-| --- | --- |
-| `apps/flow` | The app: Expo / React Native screens, the cat, the Live Activity (`targets/`) and native modules (`modules/`). |
-| `packages/music-core` | Shared types and interfaces for catalogues, streams and lyrics. |
-| `packages/innertube` | YouTube Music client (catalogue, streams, account), JioSaavn and the lyrics providers. |
-| `packages/player` | The playback engine: queue, radio, stream refresh, prefetching and loudness. |
+| `apps/pawse` | The app: screens, the cat, the Dynamic Island and lock screen (`targets/`), native modules (`modules/`). |
+| `packages/music-core` | Shared types for music, streams and lyrics. |
+| `packages/innertube` | YouTube Music, JioSaavn and the lyrics sources. |
+| `packages/player` | Playback: queue, radio, stream refresh and loudness. |
 | `packages/config` | Shared TypeScript and lint settings. |
 
-## Contributing
-
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first; for bugs, Settings → About → Diagnostics → Copy gives a log worth attaching.
+</details>
 
 ## Licence
 
-Flow is free software under the [GNU GPL v3.0 or later](LICENSE). Audio playback uses @rntp/player, which is free for personal, non-commercial use only; the additional permission that allows this, and what it means for forks, is in [NOTICE.md](NOTICE.md).
+Pawse is free and open source under the [GPL-3.0](LICENSE). It plays audio with [@rntp/player](https://rntp.dev), which is free for personal use only, so read [NOTICE.md](NOTICE.md) before you build something on top of it.
 
-Flow is not affiliated with YouTube, Google, Apple or JioSaavn. Use it for personal listening, in line with their terms.
+Pawse isn't affiliated with YouTube, Google, Apple or JioSaavn. Please use it for your own listening.
 
 ## Thanks
 
-Flow learned from the open-source YouTube Music clients that came before it: InnerTune, OuterTune, Metrolist, ViMusic and Echo Music, and from the reference work of [YouTube.js](https://github.com/LuanRT/YouTube.js) and [ytmusicapi](https://github.com/sigma67/ytmusicapi). Lyrics come from [LRCLIB](https://lrclib.net), Lyrics+, BetterLyrics, KuGou and Unison.
+Pawse learned a lot from the open-source music apps before it: InnerTune, OuterTune, Metrolist, ViMusic and Echo Music, and from [YouTube.js](https://github.com/LuanRT/YouTube.js) and [ytmusicapi](https://github.com/sigma67/ytmusicapi). Lyrics come from [LRCLIB](https://lrclib.net), Lyrics+, BetterLyrics, KuGou and Unison.
+
+<p align="center"><sub>Made with love by <a href="https://github.com/thenetaji">thenetaji</a> 🐾</sub></p>

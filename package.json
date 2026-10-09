@@ -1,9 +1,9 @@
 {
-  "name": "flow-music",
+  "name": "pawse-music",
   "private": true,
   "packageManager": "pnpm@10.12.1",
   "scripts": {
-    "dev": "pnpm --filter flow exec expo start",
+    "dev": "pnpm --filter pawse exec expo start",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -34,6 +34,6 @@
   "license": "GPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://github.com/thenetaji/flow-music.git"
+    "url": "https://github.com/thenetaji/pawse-music.git"
   }
 }

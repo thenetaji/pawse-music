@@ -1,5 +1,5 @@
 {
-  "name": "@studio/innertube",
+  "name": "@pawse/innertube",
   "version": "0.0.0",
   "private": true,
   "description": "YouTube Music catalog (WEB_REMIX) and stream resolution (VISIONOS chain) on plain fetch; runs in React Native and Node.",
@@ -15,10 +15,10 @@
     "smoke": "pnpm dlx tsx scripts/smoke.mts"
   },
   "dependencies": {
-    "@studio/music-core": "workspace:*"
+    "@pawse/music-core": "workspace:*"
   },
   "devDependencies": {
-    "@studio/config": "workspace:*"
+    "@pawse/config": "workspace:*"
   },
   "license": "GPL-3.0-or-later"
 }

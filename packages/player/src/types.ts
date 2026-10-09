@@ -1,4 +1,4 @@
-import type { Catalog, StreamResolver, Track } from "@studio/music-core";
+import type { Catalog, StreamResolver, Track } from "@pawse/music-core";
 
 export interface KeyValueStore {
   get(key: string): Promise<string | null>;

@@ -1,4 +1,4 @@
-import type { Track } from "@studio/music-core";
+import type { Track } from "@pawse/music-core";
 
 // Our queue model: parallel tracks/keys (keys are unique per entry and double as native mediaIds).
 export interface Queue {

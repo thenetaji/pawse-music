@@ -1,4 +1,4 @@
-# Contributing to Flow
+# Contributing to Pawse
 
 Thanks for helping. Bug reports, ideas, translations and code are all welcome.
 
@@ -15,15 +15,15 @@ Please don't post your Google account details or cookies anywhere. The diagnosti
 
 ```sh
 pnpm install
-pnpm --filter flow exec expo run:ios    # or expo run:android
+pnpm --filter pawse exec expo run:ios    # or expo run:android
 pnpm verify                             # typecheck, lint and tests
 ```
 
 - **Style**: Biome formats the code (`pnpm format`); double quotes, and comments kept to a line or two that explain why.
 - **Commits**: [Conventional Commits](https://www.conventionalcommits.org), e.g. `fix(player): resume after a call`.
-- **Layout**: app code lives in `apps/flow`; engine code stays app-agnostic in `packages/` (no imports from the app).
+- **Layout**: app code lives in `apps/pawse`; engine code stays app-agnostic in `packages/` (no imports from the app).
 - **Tests**: add focused tests for engine, parsing and matching logic you change; UI changes need screenshots in the pull request.
-- **Changelog**: add a line under `## [Unreleased]` in `apps/flow/CHANGELOG.md` for anything a user would notice.
+- **Changelog**: add a line under `## [Unreleased]` in `apps/pawse/CHANGELOG.md` for anything a user would notice.
 
 ## Pull requests
 

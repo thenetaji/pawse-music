@@ -1,4 +1,4 @@
-// Domain types and contracts shared by the catalog (@studio/innertube), the player and the UI.
+// Domain types and contracts shared by the catalog (@pawse/innertube), the player and the UI.
 // Pure TypeScript: no React, no React Native.
 
 export type SourceId = "youtube" | "saavn" | "local";
@@ -167,7 +167,7 @@ export interface Lyrics {
   plain?: string;
 }
 
-/** Read side of a music service. YouTube Music implements it in @studio/innertube. */
+/** Read side of a music service. YouTube Music implements it in @pawse/innertube. */
 export interface Catalog {
   home(params?: string): Promise<HomeFeed>;
   homeMore(continuation: string): Promise<HomeFeed>;

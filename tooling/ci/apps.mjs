@@ -24,17 +24,17 @@ function output(values) {
 // Tag `<app>-v1.2.3` builds both platforms and releases; manual runs take the inputs.
 function meta() {
   const tag = env.GITHUB_REF_TYPE === "tag" ? env.GITHUB_REF_NAME : "";
-  // Pushes to main build Flow (no release) to warm the shared caches.
+  // Pushes to main build Pawse (no release) to warm the shared caches.
   let app =
-    env.INPUT_APP || (env.GITHUB_REF === "refs/heads/main" ? "flow" : "");
+    env.INPUT_APP || (env.GITHUB_REF === "refs/heads/main" ? "pawse" : "");
   let platforms = env.INPUT_PLATFORMS || "both";
   let version;
   let versionCode;
   if (tag) {
-    // v1.2.3 releases Flow; <app>-v1.2.3 still works for other apps.
+    // v1.2.3 releases Pawse; <app>-v1.2.3 still works for other apps.
     const m = /^(?:([a-z0-9-]+)-)?v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
     if (!m) fail(`Tag ${tag} is not v<major>.<minor>.<patch>`);
-    const [, a = "flow", major, minor, patch] = m;
+    const [, a = "pawse", major, minor, patch] = m;
     if (+minor > 99 || +patch > 99)
       fail(
         "minor and patch must be below 100 (versionCode = major*10000+minor*100+patch)",

@@ -1,4 +1,4 @@
-import type { Track } from "@studio/music-core";
+import type { Track } from "@pawse/music-core";
 import { useEffect, useRef } from "react";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";

@@ -14,7 +14,7 @@ import type {
   Thumbnail,
   Track,
   UpNext,
-} from "@studio/music-core";
+} from "@pawse/music-core";
 
 import {
   albumFrom,

@@ -17,7 +17,7 @@ import {
   type StreamResolver,
   type Track,
   type UpNext,
-} from "@studio/music-core";
+} from "@pawse/music-core";
 
 import {
   defaultFetch,

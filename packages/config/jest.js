@@ -6,7 +6,7 @@ function createJestConfig(options = {}) {
   // Workspace packages are symlinked into node_modules, which jest-expo does not transform by default.
   const transformIgnorePatterns =
     require("jest-expo/jest-preset").transformIgnorePatterns.map((pattern) =>
-      pattern.replace("(.pnpm|", "(.pnpm|@studio|uniwind|"),
+      pattern.replace("(.pnpm|", "(.pnpm|@pawse|uniwind|"),
     );
   return {
     preset: "jest-expo",

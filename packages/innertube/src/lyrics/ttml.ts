@@ -1,4 +1,4 @@
-import type { LyricLine } from "@studio/music-core";
+import type { LyricLine } from "@pawse/music-core";
 
 import { decodeEntities } from "../saavn";
 

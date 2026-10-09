@@ -5,9 +5,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: Flow version
+      label: Pawse version
       description: Settings → About
-      placeholder: "0.3.1"
+      placeholder: "0.4.0"
     validations:
       required: true
   - type: input

@@ -1,5 +1,5 @@
 import TrackPlayer from "@rntp/player";
-import type { ResolvedStream, ResolveOptions, Track } from "@studio/music-core";
+import type { ResolvedStream, ResolveOptions, Track } from "@pawse/music-core";
 
 import {
   __resetForTests,

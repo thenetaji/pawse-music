@@ -2,7 +2,7 @@ import {
   type AudioQuality,
   type ResolvedStream,
   StreamError,
-} from "@studio/music-core";
+} from "@pawse/music-core";
 
 import { type FetchLike, fetchWithTimeout } from "../util/http";
 import type { StreamClient } from "./clients";

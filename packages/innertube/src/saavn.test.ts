@@ -1,4 +1,4 @@
-import { StreamError } from "@studio/music-core";
+import { StreamError } from "@pawse/music-core";
 
 import blindingLights from "./__fixtures__/saavn-search-blinding-lights.json";
 import tumHiHo from "./__fixtures__/saavn-search-tum-hi-ho.json";

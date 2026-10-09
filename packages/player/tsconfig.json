@@ -1,5 +1,5 @@
 {
-  "extends": "@studio/config/tsconfig.base.json",
+  "extends": "@pawse/config/tsconfig.base.json",
   "include": [
     "src",
     "../config/uniwind-env.d.ts"

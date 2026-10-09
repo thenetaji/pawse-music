@@ -12,7 +12,7 @@ import {
   type ResolvedStream,
   type ResolveOptions,
   type Track,
-} from "@studio/music-core";
+} from "@pawse/music-core";
 import { useEffect, useState } from "react";
 import { AppState, Platform } from "react-native";
 

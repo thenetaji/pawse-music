@@ -3,7 +3,7 @@ import {
   type ResolveOptions,
   StreamError,
   type Track,
-} from "@studio/music-core";
+} from "@pawse/music-core";
 
 import { base64Decode, utf8Decode, utf8Encode } from "./util/bytes";
 import { desEcb, unpadPkcs5 } from "./util/des";
