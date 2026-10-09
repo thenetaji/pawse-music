@@ -448,27 +448,28 @@ export function NowPlayingView(p: NowPlayingProps) {
             onPress={() => setFull(false)}
             accessibilityLabel="Close artwork"
           >
-            <Image
-              source={art}
+            <Animated.View
+              entering={ZoomIn.duration(280)}
               style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              blurRadius={50}
-            />
-            <View style={[StyleSheet.absoluteFill, styles.fullDim]} />
-            <Animated.View entering={ZoomIn.duration(260)}>
+            >
               <Image
                 source={hero.uri ?? art}
-                style={{ width: win.width, height: win.width }}
-                contentFit="contain"
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
                 transition={200}
               />
             </Animated.View>
-            <Text style={styles.fullTitle} numberOfLines={2}>
-              {p.track?.title}
-            </Text>
-            <Text style={styles.fullArtist} numberOfLines={1}>
-              {p.track ? artistLine(p.track.artists) : ""}
-            </Text>
+            <LinearGradient
+              colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.75)"]}
+              style={[styles.fullFade, { paddingBottom: insets.bottom + 28 }]}
+            >
+              <Text style={styles.fullTitle} numberOfLines={2}>
+                {p.track?.title}
+              </Text>
+              <Text style={styles.fullArtist} numberOfLines={1}>
+                {p.track ? artistLine(p.track.artists) : ""}
+              </Text>
+            </LinearGradient>
           </Pressable>
         </Animated.View>
       ) : null}
@@ -719,26 +720,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.35)",
   },
-  full: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#000",
-  },
-  fullDim: { backgroundColor: "rgba(0,0,0,0.45)" },
-  fullTitle: {
-    color: "#fff",
-    fontSize: 22,
-    fontWeight: "800",
-    textAlign: "center",
-    marginTop: 26,
+  full: { flex: 1, backgroundColor: "#000" },
+  fullFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 120,
     paddingHorizontal: 28,
   },
+  fullTitle: { color: "#fff", fontSize: 26, fontWeight: "800" },
   fullArtist: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 16,
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 17,
     marginTop: 4,
-    paddingHorizontal: 28,
   },
   compact: {
     flexDirection: "row",

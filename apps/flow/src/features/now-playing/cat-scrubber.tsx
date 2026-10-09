@@ -45,13 +45,22 @@ function startPurr() {
   shared.purr = setInterval(haptic.soft, 140);
 }
 const stopPurr = () => clearInterval(shared.purr);
+// Never two episodes closer than this, even across songs.
+const EPISODE_GAP_MS = 25_000;
 function claimEpisode() {
-  if (Date.now() - shared.lastEp < 90_000) return false;
+  if (Date.now() - shared.lastEp < EPISODE_GAP_MS) return false;
   shared.lastEp = Date.now();
   return true;
 }
 
-type Episode = "cable" | "note" | "prank" | null;
+/** Seconds between episodes: "Now and then" every 40–75 s, "Often" every 20–40 s. */
+const EVERY: Record<"rare" | "often", [number, number]> = {
+  rare: [40, 75],
+  often: [20, 40],
+};
+const PLAYING_EPISODES = ["peek", "tease", "cable", "note"] as const;
+
+type Episode = "cable" | "note" | "prank" | "peek" | "tease" | null;
 
 // The progress line is a wire the cat sits on. Drag or tap the wire to seek; tap, double-tap or hold the cat to play.
 export function CatScrubber({
@@ -70,6 +79,7 @@ export function CatScrubber({
   const [episode, setEpisode] = useState<Episode>(null);
   const [epMood, setEpMood] = useState<CatMood | null>(null);
   const [carry, setCarry] = useState<"note" | "cable" | undefined>();
+  const [mouseFlip, setMouseFlip] = useState(false);
   const [mouseFrame, setMouseFrame] = useState(0);
   const showCat = useSetting("catWire", true);
   const color = useSetting<CatColor>("catColor", "orange");
@@ -158,18 +168,22 @@ export function CatScrubber({
   // Closing the player mid-hold must not leave the purr haptic running.
   useEffect(() => stopPurr, []);
 
-  // Episodes: now and then on a new song (or a prank while paused), never back to back.
+  // Episodes recur through the song (a prank while paused), spaced so they never run back to back.
   useEffect(() => {
     if (!showCat || freq === "off" || width === 0 || episode) return;
-    const chance = freq === "often" ? 0.5 : 0.18;
+    const [min, max] = EVERY[freq === "often" ? "often" : "rare"];
     const wait = setTimeout(
       () => {
-        if (Math.random() > chance || !claimEpisode()) return;
+        if (!claimEpisode()) return;
         setEpisode(
-          playing ? (Math.random() < 0.5 ? "cable" : "note") : "prank",
+          playing
+            ? PLAYING_EPISODES[
+                Math.floor(Math.random() * PLAYING_EPISODES.length)
+              ]
+            : "prank",
         );
       },
-      6000 + Math.random() * 20000,
+      (min + Math.random() * (max - min)) * 1000,
     );
     return () => clearTimeout(wait);
   }, [trackId, playing, freq, showCat, width, episode]);
@@ -179,7 +193,55 @@ export function CatScrubber({
     const legs = setInterval(() => setMouseFrame((f) => f + 1), 110);
     const steps: [number, () => void][] = [];
     const t = (ms: number, fn: () => void) => steps.push([ms, fn]);
-    if (ep === "prank") {
+    // The mouse lives at the far end of the wire from the cat.
+    const farRight = catCenter < width / 2;
+    if (ep === "peek") {
+      // Peeks in at the far end, wiggles while the cat stares, then ducks out.
+      const out = farRight ? width + MOUSE : -MOUSE;
+      const inX = farRight ? width - MOUSE * 0.7 : -MOUSE * 0.3;
+      t(0, () => setMouseFlip(farRight));
+      mouseX.set(out);
+      mouseX.set(
+        withSequence(
+          withTiming(inX, { duration: 420, easing: Easing.out(Easing.quad) }),
+          withTiming(inX + (farRight ? -6 : 6), { duration: 500 }),
+          withTiming(inX, { duration: 500 }),
+          withTiming(out, { duration: 380, easing: Easing.in(Easing.quad) }),
+        ),
+      );
+      t(350, () => setEpMood("curious"));
+      t(1400, () => haptic.tick());
+      t(1900, () => setEpMood("meow"));
+      t(2600, () => setEpisode(null));
+    } else if (ep === "tease") {
+      // Runs halfway in, the cat lunges, the mouse bolts home and the cat sulks.
+      const out = farRight ? width + MOUSE : -MOUSE;
+      const stop = (catCenter + (farRight ? width : 0)) / 2 - MOUSE / 2;
+      t(0, () => setMouseFlip(farRight));
+      mouseX.set(out);
+      mouseX.set(
+        withSequence(
+          withTiming(stop, { duration: 900, easing: Easing.out(Easing.quad) }),
+          withTiming(stop, { duration: 700 }),
+          withTiming(out, { duration: 650, easing: Easing.in(Easing.quad) }),
+        ),
+      );
+      t(400, () => setEpMood("curious"));
+      t(1500, () => {
+        setEpMood("chase");
+        haptic.light();
+        catDX.set(
+          withSequence(
+            withTiming(farRight ? 60 : -60, { duration: 450 }),
+            withTiming(0, { duration: 900 }),
+          ),
+        );
+      });
+      t(1600, () => setMouseFlip(!farRight));
+      t(2500, () => setEpMood("meow"));
+      t(3300, () => setEpisode(null));
+    } else if (ep === "prank") {
+      t(0, () => setMouseFlip(false));
       mouseX.set(-MOUSE);
       mouseX.set(
         withTiming(width + MOUSE, { duration: 5200, easing: Easing.linear }),
@@ -191,6 +253,7 @@ export function CatScrubber({
     } else {
       const fromRight = ep === "cable";
       const grab = fromRight ? catCenter + 18 : catCenter - 18 - MOUSE;
+      t(0, () => setMouseFlip(fromRight));
       mouseX.set(fromRight ? width + MOUSE : -MOUSE);
       mouseX.set(
         withSequence(
@@ -204,6 +267,7 @@ export function CatScrubber({
       );
       t(0, () => setEpMood("curious"));
       t(1500, () => {
+        setMouseFlip(!fromRight);
         setCarry(ep);
         setEpMood("meow");
         haptic.light();
@@ -291,7 +355,7 @@ export function CatScrubber({
               <Mouse
                 size={MOUSE}
                 frame={mouseFrame}
-                flip={episode === "cable" && !carry}
+                flip={mouseFlip}
                 carrying={carry}
               />
             </Animated.View>

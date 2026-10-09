@@ -50,7 +50,9 @@ const CAT_COLORS: readonly ActivityCatColor[] = [
   "grey",
 ];
 /** Chance that a song gets the mouse cameo, by the catEpisodes setting. */
-const CAMEO_CHANCE = { rare: 0.4, often: 0.8 };
+const CAMEO_CHANCE = { rare: 0.8, often: 1 };
+/** Long songs get another visit this many seconds after the last one. */
+const CAMEO_AGAIN_SEC: [number, number] = [60, 90];
 /** Mouse frame per beat tick: peek, head out, peek, head out, peek; the cat is pleased after. */
 const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1, 2, 1];
 
@@ -251,7 +253,15 @@ export function startIslandController(): () => void {
       return false;
     if (cameo.step >= 0) {
       cameo.step += 1;
-      if (cameo.step === CAMEO_FRAMES.length) setFlash("happy", HAPPY_MS);
+      if (cameo.step === CAMEO_FRAMES.length) {
+        setFlash("happy", HAPPY_MS);
+        // The mouse comes back later in a long song.
+        const [a, b] = CAMEO_AGAIN_SEC;
+        const next = getProgress().position + a + Math.random() * (b - a);
+        const duration = current()?.durationSec ?? 0;
+        if (duration && next < duration - 20)
+          cameo = { trackId: cameo.trackId, atSec: next, step: -1 };
+      }
       return true;
     }
     if (flash || catPrefs().cameoChance === 0) return false;

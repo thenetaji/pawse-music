@@ -5,7 +5,8 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 ## [Unreleased]
 
 ### Added
-- Tap the Now Playing artwork, or its expand button, to see the whole cover full screen; tap again to close.
+- Tap the Now Playing artwork, or its expand button, to show it edge to edge across the whole screen; tap again to close.
+- The mouse visits much more often: on the progress bar it now drops by every 40–75 s ("Now and then") or 20–40 s ("Often"), lives at the far end of the wire from the cat, and has two new tricks (peeking in, and teasing the cat into a lunge). In the Dynamic Island it shows up on most songs and comes back in long ones.
 - Word-by-word synced lyrics for many more songs from Lyrics+ (Apple Music lyrics), with Unison as a community fallback matched by the exact YouTube video. Hindi songs from Lyrics+ use romanised (Hinglish) text.
 
 ### Changed
