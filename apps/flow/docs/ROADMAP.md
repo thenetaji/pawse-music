@@ -225,6 +225,17 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - [x] 71. Cat-and-mouse episode in the compact Dynamic Island.
 - [x] 72. Release notes from CHANGELOG.md; update prompt shows highlights.
 
+## v0.3.0 (approved 2026-10-09)
+- [x] 73. Lyrics only from the right song (validated sources, cleaned titles), plus Lyrics+ word-synced lyrics and Unison.
+- [x] 74. Automatic streaming quality per network; Low on mobile data replaces the data saver switch.
+- [x] 75. Song covers for music videos; square, bar-free system artwork (lock screen, island, Android notification).
+- [x] 76. Live Activity: stale date, slim lock-screen companion, no stuck updates.
+- [x] 77. Queue swipes with a commit threshold, cancel and Undo.
+- [x] 78. Edge-to-edge full-screen artwork.
+- [x] 79. More frequent mouse episodes at the far end of the wire; island mouse on most songs.
+- [x] 80. Shared CI caches through main.
+- [ ] 81. Android: songs skipping, and the pill (waiting for a screenshot and diagnostics).
+
 ## Later
 - Lyrics in the Dynamic Island and the Live Activity. Left out of v1 on purpose.
 - Video mode (music videos), with a careful lock-screen handoff (react-native-video takes over Now Playing; see RNTP #2679).

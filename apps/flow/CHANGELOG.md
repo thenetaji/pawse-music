@@ -2,7 +2,7 @@
 
 All notable changes to Flow. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `flow-vX.Y.Z` tag builds the iOS and Android apps and publishes them under GitHub Releases.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-09
 
 ### Added
 - Tap the Now Playing artwork, or its expand button, to show it edge to edge across the whole screen; tap again to close.
@@ -69,6 +69,7 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 - Signing in takes effect immediately and is verified in Settings.
 - Background audio safeguards; Settings → About → Show onboarding again.
 
+[0.3.0]: https://github.com/thenetaji/studio/releases/tag/flow-v0.3.0
 [0.2.0]: https://github.com/thenetaji/studio/releases/tag/flow-v0.2.0
 [0.1.10]: https://github.com/thenetaji/studio/releases/tag/flow-v0.1.10
 [0.1.9]: https://github.com/thenetaji/studio/releases/tag/flow-v0.1.9
