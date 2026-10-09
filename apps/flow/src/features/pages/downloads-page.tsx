@@ -1,16 +1,26 @@
 import { player } from "@studio/player";
 import { router } from "expo-router";
+import { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
-import { CatState, PressScale } from "../../components/ui";
 import {
+  Foot,
+  Link,
+  Pick,
+  Section,
+  Toggle,
+} from "../../components/settings-rows";
+import { CatState, Chip, PressScale } from "../../components/ui";
+import {
+  clearCache,
   removeAllDownloads,
   removeDownload,
   retryDownloads,
+  useCached,
   useDownloads,
   useOnline,
 } from "../../data/downloads";
@@ -22,8 +32,11 @@ export default function DownloadsPage() {
   const accent = useAccent();
   const online = useOnline();
   const { list, totalBytes, active } = useDownloads();
+  const cached = useCached();
+  const [tab, setTab] = useState<"downloads" | "kept">("downloads");
   const done = list.filter((d) => d.state === "done");
   const failed = list.filter((d) => d.state === "error").length;
+  const kept = cached.list.map((c) => c.track);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
@@ -40,7 +53,67 @@ export default function DownloadsPage() {
           {!online ? " · Offline" : ""}
         </Text>
       </View>
-      {list.length ? (
+      <View style={styles.tabs}>
+        <Chip
+          label={`Downloads ${done.length}`}
+          on={tab === "downloads"}
+          accent={accent}
+          onPress={() => setTab("downloads")}
+        />
+        <Chip
+          label={`Kept offline ${kept.length}`}
+          on={tab === "kept"}
+          accent={accent}
+          onPress={() => setTab("kept")}
+        />
+      </View>
+      {tab === "kept" ? (
+        <FlatList
+          data={cached.list}
+          keyExtractor={(c) => c.track.id}
+          contentContainerStyle={{ paddingBottom: 60 }}
+          ListHeaderComponent={
+            <Text style={styles.note}>
+              Songs you finish are kept here ({formatBytes(cached.bytes)}), so
+              your favourites play without internet. The least played go first
+              when space runs out.
+            </Text>
+          }
+          ListEmptyComponent={
+            <CatState
+              kind="empty"
+              message="Nothing kept yet. Finish a few songs on Wi-Fi."
+            />
+          }
+          ListFooterComponent={<Options keptBytes={cached.bytes} />}
+          renderItem={({ item, index }) => (
+            <Pressable
+              onPress={() =>
+                void player.play(kept, index, {
+                  source: { type: "library", title: "Kept offline" },
+                })
+              }
+              style={styles.row}
+            >
+              <Artwork
+                thumbnails={item.track.thumbnails}
+                size={50}
+                radius={7}
+              />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.title} numberOfLines={1}>
+                  {item.track.title}
+                </Text>
+                <Text style={styles.sub} numberOfLines={1}>
+                  {item.track.artists.map((a) => a.name).join(", ")} ·{" "}
+                  {formatBytes(item.bytes)}
+                </Text>
+              </View>
+            </Pressable>
+          )}
+        />
+      ) : null}
+      {tab === "downloads" && list.length ? (
         <View style={styles.actions}>
           <PressScale
             onPress={() =>
@@ -79,78 +152,139 @@ export default function DownloadsPage() {
           )}
         </View>
       ) : null}
-      <FlatList
-        data={list}
-        keyExtractor={(d) => d.id}
-        contentContainerStyle={{ paddingBottom: 60 }}
-        ListEmptyComponent={
-          <CatState
-            kind="empty"
-            message="Tap the download button on any song, album or playlist to keep it for offline."
-          />
-        }
-        renderItem={({ item }) => (
-          <ReanimatedSwipeable
-            renderRightActions={() => (
-              <View style={styles.del}>
-                <Text style={styles.delText}>Delete</Text>
-              </View>
-            )}
-            onSwipeableOpen={() => {
-              haptic.medium();
-              removeDownload(item.id);
-            }}
-          >
-            <Pressable
-              onPress={() =>
-                item.state === "done" &&
-                void player.play(
-                  done.map((d) => d.track),
-                  Math.max(
-                    0,
-                    done.findIndex((d) => d.id === item.id),
-                  ),
-                  { source: { type: "library", title: "Downloads" } },
-                )
-              }
-              style={styles.row}
+      {tab === "downloads" ? (
+        <FlatList
+          data={list}
+          keyExtractor={(d) => d.id}
+          contentContainerStyle={{ paddingBottom: 60 }}
+          ListFooterComponent={<Options keptBytes={cached.bytes} />}
+          ListEmptyComponent={
+            <CatState
+              kind="empty"
+              message="Tap the download button on any song, album or playlist to keep it for offline."
+            />
+          }
+          renderItem={({ item }) => (
+            <ReanimatedSwipeable
+              renderRightActions={() => (
+                <View style={styles.del}>
+                  <Text style={styles.delText}>Delete</Text>
+                </View>
+              )}
+              onSwipeableOpen={() => {
+                haptic.medium();
+                removeDownload(item.id);
+              }}
             >
-              <Artwork
-                thumbnails={item.track.thumbnails}
-                size={50}
-                radius={7}
-              />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.title} numberOfLines={1}>
-                  {item.track.title}
-                </Text>
-                <Text style={styles.sub} numberOfLines={1}>
-                  {item.state === "done"
-                    ? formatBytes(item.bytes)
-                    : item.state === "error"
-                      ? "Failed"
-                      : item.state === "queued"
-                        ? "Waiting"
-                        : `${Math.round(item.progress * 100)}%`}
-                </Text>
-                {item.state === "downloading" ? (
-                  <View style={styles.bar}>
-                    <View
-                      style={[
-                        styles.fill,
-                        {
-                          width: `${item.progress * 100}%`,
-                          backgroundColor: accent,
-                        },
-                      ]}
-                    />
-                  </View>
-                ) : null}
-              </View>
-            </Pressable>
-          </ReanimatedSwipeable>
-        )}
-      />
+              <Pressable
+                onPress={() =>
+                  item.state === "done" &&
+                  void player.play(
+                    done.map((d) => d.track),
+                    Math.max(
+                      0,
+                      done.findIndex((d) => d.id === item.id),
+                    ),
+                    { source: { type: "library", title: "Downloads" } },
+                  )
+                }
+                style={styles.row}
+              >
+                <Artwork
+                  thumbnails={item.track.thumbnails}
+                  size={50}
+                  radius={7}
+                />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.title} numberOfLines={1}>
+                    {item.track.title}
+                  </Text>
+                  <Text style={styles.sub} numberOfLines={1}>
+                    {item.state === "done"
+                      ? formatBytes(item.bytes)
+                      : item.state === "error"
+                        ? "Failed"
+                        : item.state === "queued"
+                          ? "Waiting"
+                          : `${Math.round(item.progress * 100)}%`}
+                  </Text>
+                  {item.state === "downloading" ? (
+                    <View style={styles.bar}>
+                      <View
+                        style={[
+                          styles.fill,
+                          {
+                            width: `${item.progress * 100}%`,
+                            backgroundColor: accent,
+                          },
+                        ]}
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              </Pressable>
+            </ReanimatedSwipeable>
+          )}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+// Everything about keeping music on the phone, moved here from Settings.
+function Options({ keptBytes }: { keptBytes: number }) {
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Section title="Downloads">
+        <Pick
+          k="downloadQuality"
+          label="Download quality"
+          def="high"
+          options={[
+            ["high", "High"],
+            ["normal", "Normal"],
+          ]}
+        />
+        <Toggle k="wifiOnly" label="Download on Wi-Fi only" def={false} />
+        <Toggle
+          k="autoDownloadLiked"
+          label="Download songs I like"
+          def={false}
+        />
+      </Section>
+      <Section title="Kept offline">
+        <Toggle k="autoCache" label="Keep songs I play" def />
+        <Pick
+          k="cacheLimitMb"
+          label="Space for kept songs"
+          def={500}
+          options={[
+            [250, "250 MB"],
+            [500, "500 MB"],
+            [1000, "1 GB"],
+            [4000, "4 GB"],
+          ]}
+        />
+        <Link
+          label={`Clear kept songs (${formatBytes(keptBytes)})`}
+          danger
+          onPress={() =>
+            showSheet({
+              actions: [
+                {
+                  label: "Clear kept songs",
+                  destructive: true,
+                  onPress: clearCache,
+                },
+              ],
+            })
+          }
+        />
+      </Section>
+      <Foot>
+        Kept songs are saved on Wi-Fi only when Data saver is on. Downloads stay
+        until you delete them.
+      </Foot>
     </View>
   );
 }
@@ -172,6 +306,14 @@ const styles = StyleSheet.create({
   h1: { color: "#fff", fontSize: 34, fontWeight: "800", letterSpacing: -0.8 },
   done: { color: "#fff", fontSize: 17, fontWeight: "600" },
   summary: { paddingHorizontal: 20, marginTop: 4 },
+  tabs: { flexDirection: "row", gap: 8, paddingHorizontal: 20, marginTop: 14 },
+  note: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13.5,
+    lineHeight: 19,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
   sumText: { color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: "600" },
   actions: {
     flexDirection: "row",

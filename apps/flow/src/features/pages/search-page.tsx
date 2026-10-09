@@ -1,8 +1,10 @@
 import {
+  type ArtistSummary,
   artistLine,
   type CatalogItem,
   type SearchFilter,
   type SearchResults,
+  type Shelf as ShelfT,
   type Track,
 } from "@studio/music-core";
 import { player } from "@studio/player";
@@ -39,7 +41,7 @@ import {
 } from "../../components/ui";
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
-import { go } from "../../lib/nav";
+import { useSetting } from "../../lib/settings";
 import { useResource } from "../../lib/use-resource";
 import { PlayGlyph } from "../now-playing/icons";
 import { useAccent } from "../now-playing/now-palette";
@@ -232,16 +234,6 @@ export default function SearchPage() {
 }
 
 type Tile = { title: string; params: string; color?: string };
-const PALETTE = [
-  "#E2455B",
-  "#F08A3C",
-  "#E8B931",
-  "#3FB27F",
-  "#2F9ED8",
-  "#5B6CF0",
-  "#9A5BEF",
-  "#D9539E",
-];
 
 function EmptySearch({
   recent,
@@ -255,6 +247,7 @@ function EmptySearch({
   accent: string;
 }) {
   const moods = useResource<Tile[]>("explore:moods", () => yt.moodsAndGenres());
+  const ideas = useSearchIdeas();
   return (
     <ScrollView
       keyboardShouldPersistTaps="handled"
@@ -285,6 +278,21 @@ function EmptySearch({
           ))}
         </View>
       ) : null}
+      {ideas.length ? (
+        <View>
+          <SectionTitle title="Try" />
+          <View style={styles.ideas}>
+            {ideas.map((x) => (
+              <Chip
+                key={x}
+                label={x}
+                accent={accent}
+                onPress={() => onPick(x)}
+              />
+            ))}
+          </View>
+        </View>
+      ) : null}
       <SectionTitle title="Browse" />
       <View style={styles.grid}>
         {(moods.data ?? []).slice(0, 12).map((m, i) => (
@@ -304,6 +312,32 @@ function EmptySearch({
       </View>
     </ScrollView>
   );
+}
+
+// Artists you play or picked, then what's trending in your region, as one-tap searches.
+function useSearchIdeas(): string[] {
+  const history = useLibrary((s) => s.history);
+  const seeds = useSetting<ArtistSummary[]>("seedArtists", []);
+  const region = useSetting("region", "IN");
+  const charts = useResource<ShelfT[]>(
+    `explore:charts:${region}`,
+    () => yt.charts(region),
+    { keep: true },
+  );
+  const count = new Map<string, number>();
+  for (const h of history.slice(0, 300))
+    for (const a of h.track.artists.slice(0, 1))
+      count.set(a.name, (count.get(a.name) ?? 0) + 1);
+  const mine = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n);
+  const trending = (charts.data ?? [])
+    .flatMap((sh) => sh.items)
+    .filter((i) => i.type === "artist")
+    .map((i) => (i.type === "artist" ? i.name : ""));
+  return [
+    ...new Set([...mine.slice(0, 4), ...seeds.map((a) => a.name), ...trending]),
+  ]
+    .filter(Boolean)
+    .slice(0, 10);
 }
 
 const FILTER_BY_TITLE: Record<string, SearchFilter> = {
@@ -583,6 +617,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     width: 15,
     textAlign: "center",
+  },
+  ideas: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 20,
   },
   grid: {
     flexDirection: "row",

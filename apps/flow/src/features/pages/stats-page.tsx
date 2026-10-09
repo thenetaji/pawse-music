@@ -1,4 +1,4 @@
-import { getSetting } from "../../lib/settings";
+import { bestThumbnail } from "@studio/music-core";
 import { player } from "@studio/player";
 import { useRef, useState } from "react";
 import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
@@ -9,11 +9,10 @@ import { captureRef } from "react-native-view-shot";
 import { Artwork } from "../../components/artwork";
 import { Chip, PressScale } from "../../components/ui";
 import { listeningStats, useLibrary } from "../../data/library";
-import { useSetting } from "../../lib/settings";
+import { getSetting, useSetting } from "../../lib/settings";
 import { Cat, type CatColor } from "../cat/cat";
 import { useAccent, useNowPalette } from "../now-playing/now-palette";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
-import { bestThumbnail } from "@studio/music-core";
 import { BackButton } from "./collection";
 
 const RANGES = [

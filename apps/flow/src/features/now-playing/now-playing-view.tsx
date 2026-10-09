@@ -28,6 +28,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Artwork } from "../../components/artwork";
+import { useDataSaverActive } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
@@ -85,8 +86,11 @@ const SPRING = { damping: 13, stiffness: 140, mass: 0.9 };
 export function NowPlayingView(p: NowPlayingProps) {
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
-  const art = p.track ? bestThumbnail(p.track.thumbnails, 1080) : undefined;
-  const hero = useHeroArt(p.track?.id, art);
+  const saver = useDataSaverActive();
+  const art = p.track
+    ? bestThumbnail(p.track.thumbnails, saver ? 544 : 1080)
+    : undefined;
+  const hero = useHeroArt(p.track?.id, art, saver);
   const palette = useArtworkPalette(
     p.track ? bestThumbnail(p.track.thumbnails, 120) : undefined,
   );
@@ -407,8 +411,9 @@ export function NowPlayingView(p: NowPlayingProps) {
 }
 
 // YouTube video stills come letterboxed at 4:3; the 16:9 HD frames don't, so try those first.
-function heroCandidates(url?: string): string[] {
+function heroCandidates(url?: string, saver?: boolean): string[] {
   if (!url) return [];
+  if (saver) return [url];
   const id = url.match(/ytimg\.com\/vi(?:_webp)?\/([\w-]{11})\//)?.[1];
   if (!id) return [url];
   return [
@@ -418,9 +423,9 @@ function heroCandidates(url?: string): string[] {
   ];
 }
 
-function useHeroArt(trackId: string | undefined, url?: string) {
+function useHeroArt(trackId: string | undefined, url?: string, saver = false) {
   const [miss, setMiss] = useState({ key: "", n: 0 });
-  const list = heroCandidates(url);
+  const list = heroCandidates(url, saver);
   const n = miss.key === trackId ? miss.n : 0;
   return {
     uri: list[n],

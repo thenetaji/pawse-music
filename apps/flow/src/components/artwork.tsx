@@ -5,6 +5,8 @@ import { useState } from "react";
 import { View, type ViewStyle } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
+import { useDataSaverActive } from "../data/downloads";
+
 const FALLBACK: [string, string][] = [
   ["#5B3BD6", "#FF5A7A"],
   ["#1FA59A", "#2F6BD8"],
@@ -29,9 +31,10 @@ export function Artwork({
   style?: ViewStyle;
   seed?: string;
 }) {
-  const uri = thumbnails?.length
-    ? bestThumbnail(thumbnails, Math.min(544, Math.round(size * 3)))
-    : undefined;
+  // Data saver on mobile data asks for roughly a third of the pixels.
+  const saver = useDataSaverActive();
+  const px = Math.min(544, Math.round(size * (saver ? 1.5 : 3)));
+  const uri = thumbnails?.length ? bestThumbnail(thumbnails, px) : undefined;
   const [failed, setFailed] = useState<string | null>(null);
   const r = round ? size / 2 : radius;
   const broken = !uri || failed === uri;

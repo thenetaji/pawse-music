@@ -31,9 +31,9 @@ const CAT_COLORS: readonly ActivityCatColor[] = [
   "grey",
 ];
 /** Chance that a song gets the mouse cameo, by the catEpisodes setting. */
-const CAMEO_CHANCE = { rare: 0.25, often: 0.6 };
-/** Mouse frame per beat tick: peek, head out, peek; the next tick clears it. */
-const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1];
+const CAMEO_CHANCE = { rare: 0.4, often: 0.8 };
+/** Mouse frame per beat tick: peek, head out, peek, head out, peek; the cat is pleased after. */
+const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1, 2, 1];
 
 type CatPrefs = {
   island: boolean;
@@ -84,7 +84,9 @@ export function startIslandController(): () => void {
   let lastKey = "";
   let sending = false;
   let queued: ActivityState | null = null;
-  // At most one cameo per song. step: -1 waiting, 0..2 showing, CAMEO_FRAMES.length done.
+  // The first song of a session always gets the mouse, so the episode is actually seen.
+  let firstCameo = true;
+  // At most one cameo per song. step: -1 waiting, 0..n-1 showing, CAMEO_FRAMES.length done.
   let cameo: { trackId: string; atSec: number; step: number } = {
     trackId: "",
     atSec: 0,
@@ -197,12 +199,13 @@ export function startIslandController(): () => void {
   function planCameo(track: Track) {
     const chance = catPrefs().cameoChance;
     const duration = track.durationSec || 0;
-    // Somewhere in the first two minutes, never in the last 20 s.
-    const atSec = 20 + Math.random() * 100;
+    // Somewhere in the first 80 s, never in the last 20 s.
+    const atSec = 15 + Math.random() * 65;
     const lucky =
       chance > 0 &&
-      Math.random() < chance &&
+      (firstCameo || Math.random() < chance) &&
       (!duration || atSec < duration - 20);
+    if (lucky) firstCameo = false;
     cameo = {
       trackId: track.id,
       atSec,
@@ -216,6 +219,7 @@ export function startIslandController(): () => void {
       return false;
     if (cameo.step >= 0) {
       cameo.step += 1;
+      if (cameo.step === CAMEO_FRAMES.length) setFlash("happy", HAPPY_MS);
       return true;
     }
     if (flash || catPrefs().cameoChance === 0) return false;

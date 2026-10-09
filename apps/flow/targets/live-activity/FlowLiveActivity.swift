@@ -42,7 +42,17 @@ struct FlowLiveActivity: Widget {
             .padding(.top, 6)
         }
       } compactLeading: {
-        ArtworkView(name: context.state.artwork, size: 22, radius: 6)
+        // During an episode the mouse peeks out from behind the camera where the artwork sits.
+        if let mouse = mouseImage(context.state) {
+          Image(mouse)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 22, height: 22)
+            .transition(.move(edge: .trailing).combined(with: .opacity))
+        } else {
+          ArtworkView(name: context.state.artwork, size: 22, radius: 6)
+        }
       } compactTrailing: {
         CatRing(state: context.state, size: 22)
       } minimal: {
@@ -256,8 +266,8 @@ func catImage(_ state: FlowState, head: Bool) -> String {
   let color = state.color.flatMap { catColors.contains($0) ? $0 : nil } ?? "orange"
   let even = state.frame % 2 == 0
   let pose: String
-  if !head && (state.mouse ?? 0) > 0 {
-    pose = "look"
+  if (state.mouse ?? 0) > 0 {
+    pose = head ? "curious" : "look"
   } else {
     switch state.mood {
     case "groove": pose = even ? "groove-a" : "groove-b"

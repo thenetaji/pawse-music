@@ -4,6 +4,7 @@ import { POS_KEY, QUEUE_KEY, setupPlayer } from "@studio/player";
 import { startAccountSync } from "../data/account";
 import { resolver, yt } from "../data/clients";
 import "../data/downloads";
+import "../data/signals";
 import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
 import { logEvent } from "./diagnostics";

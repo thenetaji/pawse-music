@@ -3,10 +3,13 @@ import { createStore } from "zustand/vanilla";
 
 import {
   CHUNK,
+  cacheScore,
   createDownloadManager,
   type DownloadDeps,
   type IndexState,
   type LiveState,
+  pickEvictions,
+  playStats,
   type RangeResult,
 } from "./downloads-core";
 
@@ -173,5 +176,33 @@ describe("download manager", () => {
     await flush();
     expect(t.finished).toEqual([]);
     expect(t.removed).toEqual(["a"]);
+  });
+});
+
+describe("cache eviction", () => {
+  const DAY = 86400_000;
+  const now = Date.UTC(2026, 9, 8);
+  const item = (id: string, at: number, bytes = 10) => ({ id, bytes, at });
+
+  it("keeps often played songs over a newer one-off and evicts stale songs first", () => {
+    const stats = playStats([
+      { track: { id: "new" }, at: now - DAY },
+      ...Array.from({ length: 5 }, (_, k) => ({
+        track: { id: "fav" },
+        at: now - 7 * DAY - k,
+      })),
+      { track: { id: "old" }, at: now - 60 * DAY },
+    ]);
+    const items = [
+      item("fav", now - 30 * DAY),
+      item("new", now - DAY),
+      item("old", now - 60 * DAY),
+    ];
+    expect(cacheScore(items[0], stats.get("fav"), now)).toBeGreaterThan(
+      cacheScore(items[1], stats.get("new"), now),
+    );
+    expect(pickEvictions(items, stats, 30, now)).toEqual([]);
+    expect(pickEvictions(items, stats, 20, now)).toEqual(["old"]);
+    expect(pickEvictions(items, stats, 10, now)).toEqual(["old", "new"]);
   });
 });

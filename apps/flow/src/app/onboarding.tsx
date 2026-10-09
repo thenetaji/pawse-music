@@ -7,11 +7,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Artwork } from "../components/artwork";
 import { Chip, PressScale } from "../components/ui";
+import { onboardingArtists } from "../data/recommend";
+import { Cat, type CatColor } from "../features/cat/cat";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
 import { setSetting, useSetting } from "../lib/settings";
 import { useResource } from "../lib/use-resource";
-import { Cat, type CatColor } from "../features/cat/cat";
 
 const COLORS: { id: CatColor; fur: string; label: string }[] = [
   { id: "orange", fur: "#F49A3C", label: "Ginger" },
@@ -40,16 +41,31 @@ export default function Onboarding() {
   const color = useSetting<CatColor>("catColor", "orange");
   const langs = useSetting<string[]>("seedLanguages", []);
   const artists = useSetting<ArtistSummary[]>("seedArtists", []);
+  const region = useSetting("region", "IN");
   const [q, setQ] = useState("");
-  const query =
-    q.trim() ||
-    (langs[0] === "Hindi" || !langs.length
-      ? "bollywood singers"
-      : `${langs[0]} singers`);
+  const query = q.trim();
+  // Popular artists for your region and languages until you search.
+  const popular = useResource<ArtistSummary[]>(
+    step === 2 && !query ? `onb:popular:${region}:${langs.join(",")}` : null,
+    () => onboardingArtists(region, langs),
+  );
   const found = useResource<SearchResults>(
-    step === 2 ? `onb:${query}` : null,
+    step === 2 && query ? `onb:${query}` : null,
     () => yt.search(query, "artists"),
   );
+  const results: ArtistSummary[] = query
+    ? (found.data?.items ?? found.data?.shelves.flatMap((s) => s.items) ?? [])
+        .filter(
+          (i): i is Extract<typeof i, { type: "artist" }> =>
+            i.type === "artist",
+        )
+        .slice(0, 18)
+    : (popular.data ?? []);
+  // Picks stay in view while the list below changes.
+  const shown = [
+    ...artists,
+    ...results.filter((a) => !artists.some((x) => x.id === a.id)),
+  ];
 
   const finish = () => {
     setSetting("onboarded", true);
@@ -165,7 +181,7 @@ export default function Onboarding() {
             <View style={styles.pad}>
               <Text style={styles.title}>A few favourites</Text>
               <Text style={styles.sub}>
-                Choose artists you love. Mixes start from them.
+                Pick three or more. Your Home and mixes start from them.
               </Text>
               <TextInput
                 value={q}
@@ -177,43 +193,33 @@ export default function Onboarding() {
               />
             </View>
             <ScrollView contentContainerStyle={styles.artists}>
-              {(
-                found.data?.items ??
-                found.data?.shelves.flatMap((s) => s.items) ??
-                []
-              )
-                .filter(
-                  (i): i is Extract<typeof i, { type: "artist" }> =>
-                    i.type === "artist",
-                )
-                .slice(0, 18)
-                .map((a, i) => {
-                  const on = artists.some((x) => x.id === a.id);
-                  return (
-                    <Animated.View
-                      key={a.id}
-                      entering={FadeIn.delay(i * 30)}
-                      style={styles.artist}
+              {shown.map((a, i) => {
+                const on = artists.some((x) => x.id === a.id);
+                return (
+                  <Animated.View
+                    key={a.id}
+                    entering={FadeIn.delay(i * 30)}
+                    style={styles.artist}
+                  >
+                    <PressScale
+                      onPress={() => toggleArtist(a)}
+                      style={{ alignItems: "center" }}
                     >
-                      <PressScale
-                        onPress={() => toggleArtist(a)}
-                        style={{ alignItems: "center" }}
+                      <View
+                        style={[styles.ring, on && { borderColor: ACCENT }]}
                       >
-                        <View
-                          style={[styles.ring, on && { borderColor: ACCENT }]}
-                        >
-                          <Artwork thumbnails={a.thumbnails} size={92} round />
-                        </View>
-                        <Text
-                          style={[styles.artistName, on && { color: "#fff" }]}
-                          numberOfLines={1}
-                        >
-                          {a.name}
-                        </Text>
-                      </PressScale>
-                    </Animated.View>
-                  );
-                })}
+                        <Artwork thumbnails={a.thumbnails} size={92} round />
+                      </View>
+                      <Text
+                        style={[styles.artistName, on && { color: "#fff" }]}
+                        numberOfLines={1}
+                      >
+                        {a.name}
+                      </Text>
+                    </PressScale>
+                  </Animated.View>
+                );
+              })}
             </ScrollView>
           </View>
         ) : (
@@ -236,6 +242,20 @@ export default function Onboarding() {
             >
               <Text style={[styles.ctaText, { color: "#fff" }]}>
                 Sign in to YouTube Music
+              </Text>
+            </PressScale>
+            <PressScale
+              onPress={() => {
+                setSetting("onboarded", true);
+                router.replace("/import");
+              }}
+              style={[
+                styles.cta,
+                { backgroundColor: "rgba(255,255,255,0.08)", marginTop: 10 },
+              ]}
+            >
+              <Text style={[styles.ctaText, { color: "#fff" }]}>
+                Import from Apple Music or a file
               </Text>
             </PressScale>
           </View>

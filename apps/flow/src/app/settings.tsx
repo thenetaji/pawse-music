@@ -2,14 +2,12 @@ import { player } from "@studio/player";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import type { ReactNode } from "react";
 import {
   Alert,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -17,6 +15,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FlowIsland } from "../../modules/flow-island-android";
 import { showSheet } from "../components/action-sheet";
+import {
+  Foot,
+  Info,
+  Link,
+  Pick,
+  Section,
+  Toggle,
+} from "../components/settings-rows";
 import { PressScale } from "../components/ui";
 import { useLibrary } from "../data/library";
 import { signOut } from "../features/account/sign-out";
@@ -40,6 +46,11 @@ const CAT_COLORS: { id: CatColor; fur: string }[] = [
   { id: "black", fur: "#2E2E36" },
   { id: "white", fur: "#F1EEE9" },
   { id: "grey", fur: "#9AA0AD" },
+];
+const QUALITY: ["high" | "normal" | "saver", string][] = [
+  ["high", "High"],
+  ["normal", "Normal"],
+  ["saver", "Data saver"],
 ];
 const ACCENTS = [
   "#8B7CFF",
@@ -129,14 +140,17 @@ export default function Settings() {
       <Section title="Playback">
         <Pick
           k="quality"
-          label="Audio quality"
+          label="Quality on Wi-Fi"
           def="high"
-          options={[
-            ["high", "High"],
-            ["normal", "Normal"],
-            ["saver", "Data saver"],
-          ]}
+          options={QUALITY}
         />
+        <Pick
+          k="qualityCellular"
+          label="Quality on mobile data"
+          def="saver"
+          options={QUALITY}
+        />
+        <Toggle k="dataSaver" label="Data saver on mobile data" def={false} />
         <Toggle k="preferSaavn" label="Prefer JioSaavn 320 kbps" def={false} />
         <Toggle
           k="normalize"
@@ -164,35 +178,11 @@ export default function Settings() {
         />
       </Section>
 
-      <Section title="Downloads and storage">
-        <Pick
-          k="downloadQuality"
-          label="Download quality"
-          def="high"
-          options={[
-            ["high", "High"],
-            ["normal", "Normal"],
-          ]}
-        />
-        <Toggle k="wifiOnly" label="Download on Wi-Fi only" def={false} />
-        <Toggle
-          k="autoDownloadLiked"
-          label="Download songs I like"
-          def={false}
-        />
-        <Pick
-          k="cacheLimitMb"
-          label="Cache size"
-          def={500}
-          options={[
-            [250, "250 MB"],
-            [500, "500 MB"],
-            [1000, "1 GB"],
-            [4000, "4 GB"],
-          ]}
-        />
-        <Link label="Manage downloads" onPress={() => push("/downloads")} />
-      </Section>
+      <Foot>
+        Data saver loads smaller artwork, keeps no songs for offline and
+        prepares only the next song while you’re on mobile data. Downloads and
+        offline songs live in Library.
+      </Foot>
 
       <Section title="Lyrics">
         <Toggle k="lyricsLine" label="Show the live line on Now Playing" def />
@@ -474,119 +464,6 @@ function AccountRow({ fallback }: { fallback: string | null }) {
         ) : null}
       </View>
     </View>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <View>
-      <Text style={styles.section}>{title}</Text>
-      <View style={styles.group}>{children}</View>
-    </View>
-  );
-}
-
-const Foot = ({ children }: { children: ReactNode }) => (
-  <Text style={styles.foot}>{children}</Text>
-);
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>{value}</Text>
-    </View>
-  );
-}
-
-function Toggle({
-  k,
-  label,
-  def,
-  onChange,
-}: {
-  k: string;
-  label: string;
-  def: boolean;
-  onChange?: (v: boolean) => void;
-}) {
-  const value = useSetting(k, def);
-  const accent = useAccent();
-  return (
-    <View style={styles.row}>
-      <Text style={[styles.label, { flex: 1 }]}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={(v) => {
-          haptic.tick();
-          setSetting(k, v);
-          onChange?.(v);
-        }}
-        trackColor={{ true: accent, false: "rgba(255,255,255,0.2)" }}
-        thumbColor="#fff"
-      />
-    </View>
-  );
-}
-
-function Pick<T extends string | number>({
-  k,
-  label,
-  def,
-  options,
-}: {
-  k: string;
-  label: string;
-  def: T;
-  options: [T, string][];
-}) {
-  const value = useSetting<T>(k, def);
-  const shown = options.find(([v]) => v === value)?.[1] ?? "";
-  return (
-    <Pressable
-      onPress={() =>
-        showSheet({
-          actions: options.map(([v, l]) => ({
-            label: v === value ? `✓  ${l}` : l,
-            onPress: () => setSetting(k, v),
-          })),
-        })
-      }
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      <Text style={[styles.label, { flex: 1 }]}>{label}</Text>
-      <Text style={styles.value}>{shown} ›</Text>
-    </Pressable>
-  );
-}
-
-function Link({
-  label,
-  onPress,
-  danger,
-  tint,
-}: {
-  label: string;
-  onPress: () => void;
-  danger?: boolean;
-  tint?: string;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      <Text
-        style={[
-          styles.label,
-          danger && { color: "#FF5A6A" },
-          tint ? { color: tint } : null,
-        ]}
-      >
-        {label}
-      </Text>
-      {!danger && !tint ? <Text style={styles.value}>›</Text> : null}
-    </Pressable>
   );
 }
 

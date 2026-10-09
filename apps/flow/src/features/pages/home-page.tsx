@@ -17,6 +17,7 @@ import {
 } from "../../components/ui";
 import type { DailyMix } from "../../data/account";
 import { dailyMixes, useLibrary } from "../../data/library";
+import { useForYou } from "../../data/recommend";
 import { yt } from "../../lib/engine";
 import { push } from "../../lib/nav";
 import { getSetting, useSetting } from "../../lib/settings";
@@ -140,7 +141,9 @@ export default function HomePage() {
         </ScrollView>
       ) : null}
       {!chip ? <JumpBackIn /> : null}
+      {!chip ? <ForYou part="lead" /> : null}
       {!chip ? <Mixes /> : null}
+      {!chip ? <ForYou part="rest" /> : null}
       {home.data ? (
         shelves.map((s, i) => (
           <Animated.View
@@ -201,6 +204,26 @@ function SignInCard({ accent }: { accent: string }) {
       </View>
       <Text style={[styles.signGo, { color: accent }]}>Sign in</Text>
     </PressScale>
+  );
+}
+
+// Built on the phone from your plays, likes and picks, so it works signed out too.
+function ForYou({ part }: { part: "lead" | "rest" }) {
+  const fy = useForYou();
+  const list = part === "lead" ? fy.shelves.slice(0, 1) : fy.shelves.slice(1);
+  if (!list.length)
+    return part === "lead" && fy.loading ? <SkeletonShelves count={1} /> : null;
+  return (
+    <>
+      {list.map((s, i) => (
+        <Animated.View
+          key={`${s.title}${i}`}
+          entering={FadeInDown.duration(380).delay(i * 50)}
+        >
+          <Shelf shelf={s} />
+        </Animated.View>
+      ))}
+    </>
   );
 }
 

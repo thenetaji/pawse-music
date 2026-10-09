@@ -290,3 +290,54 @@ export function createDownloadManager(
 }
 
 export type DownloadManager = ReturnType<typeof createDownloadManager>;
+
+export type CacheItem = { id: string; bytes: number; at: number };
+export type PlayStat = { plays: number; last: number };
+
+const DAY = 86400_000;
+const HALF_LIFE_DAYS = 14;
+
+/** Plays per track id from newest-first history. */
+export function playStats(
+  history: { track: { id: string }; at: number }[],
+): Map<string, PlayStat> {
+  const out = new Map<string, PlayStat>();
+  for (const p of history) {
+    const s = out.get(p.track.id);
+    if (s) s.plays++;
+    else out.set(p.track.id, { plays: 1, last: p.at });
+  }
+  return out;
+}
+
+/** Higher stays longer: 1 + play count, halved every two weeks since the last play (or caching). */
+export function cacheScore(
+  item: CacheItem,
+  stat: PlayStat | undefined,
+  now: number,
+): number {
+  const last = Math.max(item.at, stat?.last ?? 0);
+  const ageDays = Math.max(0, now - last) / DAY;
+  return (1 + (stat?.plays ?? 0)) * 0.5 ** (ageDays / HALF_LIFE_DAYS);
+}
+
+/** Ids to delete, lowest score first, until the cache fits in `limit` bytes. */
+export function pickEvictions(
+  items: CacheItem[],
+  stats: Map<string, PlayStat>,
+  limit: number,
+  now: number,
+): string[] {
+  let total = items.reduce((sum, i) => sum + i.bytes, 0);
+  if (total <= limit) return [];
+  const scored = items
+    .map((i) => ({ i, score: cacheScore(i, stats.get(i.id), now) }))
+    .sort((a, b) => a.score - b.score || a.i.at - b.i.at);
+  const out: string[] = [];
+  for (const { i } of scored) {
+    if (total <= limit) break;
+    out.push(i.id);
+    total -= i.bytes;
+  }
+  return out;
+}

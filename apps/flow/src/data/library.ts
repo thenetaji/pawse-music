@@ -16,6 +16,7 @@ import {
   type Settings,
   strip,
 } from "./library-model";
+import { readSession, writeSession } from "./session";
 import { kv } from "./storage";
 
 export * from "./library-model";
@@ -59,6 +60,8 @@ export function onLike(cb: LikeListener): () => void {
   return () => void likeListeners.delete(cb);
 }
 
+let legacyCookies = false;
+
 export const useLibrary = create<Library>()(
   persist(
     (set, get) => ({
@@ -71,7 +74,7 @@ export const useLibrary = create<Library>()(
       ytPlaylists: [],
       likedRemoteIds: [],
       syncedAt: 0,
-      settings: DEFAULT_SETTINGS,
+      settings: { ...DEFAULT_SETTINGS, cookies: readSession() },
       addSearch: (q) =>
         set((s) => ({
           recentSearches: [
@@ -237,7 +240,7 @@ export const useLibrary = create<Library>()(
         liked: s.liked,
         playlists: s.playlists,
         history: s.history,
-        settings: s.settings,
+        settings: { ...s.settings, cookies: null },
         recentSearches: s.recentSearches,
         savedAlbums: s.savedAlbums,
         followedArtists: s.followedArtists,
@@ -255,18 +258,34 @@ export const useLibrary = create<Library>()(
           } as LibraryData;
         return s as LibraryData;
       },
-      // New settings fields get their defaults without a version bump.
+      // New settings fields get their defaults without a version bump; the session comes from the keychain.
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<LibraryData>;
+        const legacy = p.settings?.cookies ?? null;
+        const cookies = current.settings.cookies ?? legacy;
+        if (legacy) {
+          if (!current.settings.cookies) writeSession(legacy);
+          legacyCookies = true;
+        }
         return {
           ...current,
           ...p,
-          settings: { ...DEFAULT_SETTINGS, ...p.settings },
+          settings: { ...DEFAULT_SETTINGS, ...p.settings, cookies },
         };
       },
     },
   ),
 );
+
+// Older builds kept the session in the plain store: rewrite it once without cookies.
+if (legacyCookies) useLibrary.setState({});
+
+let savedCookies = useLibrary.getState().settings.cookies;
+useLibrary.subscribe((s) => {
+  if (s.settings.cookies === savedCookies) return;
+  savedCookies = s.settings.cookies;
+  writeSession(savedCookies);
+});
 
 // Signed-in and network actions live in account.ts (it imports the clients, which import this store).
 export const syncYouTubeLibrary = async () =>
@@ -274,3 +293,8 @@ export const syncYouTubeLibrary = async () =>
 export const importPlaylist = async (urlOrId: string) =>
   (await import("./account")).importPlaylist(urlOrId);
 export const dailyMixes = async () => (await import("./account")).dailyMixes();
+export const maybeSyncLibrary = async () =>
+  (await import("./account")).maybeSyncLibrary();
+export const importFromYouTubeAccount = async (
+  onProgress?: (label: string) => void,
+) => (await import("./account")).importFromYouTubeAccount(onProgress);

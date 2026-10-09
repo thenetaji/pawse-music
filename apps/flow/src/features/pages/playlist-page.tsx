@@ -4,7 +4,9 @@ import { useState } from "react";
 import { StyleSheet, Text } from "react-native";
 
 import { CatState, PressScale, SkeletonRows } from "../../components/ui";
+import { useOfflineTracks } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { useSmartPlaylists } from "../../data/recommend";
 import { yt } from "../../lib/engine";
 import { useResource } from "../../lib/use-resource";
 import { Shell } from "./album-page";
@@ -14,6 +16,8 @@ export default function PlaylistPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   if (id === "liked" || id.startsWith("local-"))
     return <LocalPlaylist id={id} />;
+  if (id === "offline") return <OfflineSongs />;
+  if (id.startsWith("smart-")) return <SmartPlaylist id={id.slice(6)} />;
   return <RemotePlaylist id={id} />;
 }
 
@@ -66,6 +70,54 @@ function RemotePlaylist({ id }: { id: string }) {
       source={{ type: "playlist", id: p.id, title: p.title }}
       onEndReached={loadMore}
       footer={loadingMore ? <SkeletonRows count={3} /> : null}
+    />
+  );
+}
+
+// Built from your own listening: Top 50, On repeat, Forgotten favourites and the like.
+function SmartPlaylist({ id }: { id: string }) {
+  const list = useSmartPlaylists().find((p) => p.id === id);
+  const tracks = list?.tracks ?? [];
+  return (
+    <Collection
+      title={list?.title ?? "Playlist"}
+      subtitle="Made for you"
+      meta={list ? `${list.subtitle} · ${tracks.length} songs` : undefined}
+      thumbnails={tracks[0]?.thumbnails ?? []}
+      tracks={tracks}
+      numbered={id === "top50"}
+      source={{ type: "library", id: `smart-${id}`, title: list?.title }}
+      footer={
+        tracks.length ? null : (
+          <CatState
+            kind="empty"
+            message="Play a few more songs and this fills itself in."
+          />
+        )
+      }
+    />
+  );
+}
+
+// Downloads and the songs Flow kept from your listening: everything that plays with no internet.
+function OfflineSongs() {
+  const tracks = useOfflineTracks();
+  return (
+    <Collection
+      title="Available offline"
+      subtitle="Downloads and songs you play often"
+      meta={`${tracks.length} songs`}
+      thumbnails={tracks[0]?.thumbnails ?? []}
+      tracks={tracks}
+      source={{ type: "library", id: "offline", title: "Available offline" }}
+      footer={
+        tracks.length ? null : (
+          <CatState
+            kind="empty"
+            message="Songs you finish are kept here so they play without internet."
+          />
+        )
+      }
     />
   );
 }

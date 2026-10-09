@@ -126,7 +126,8 @@ export async function checkOnLaunch() {
     Platform.OS === "ios"
       ? "Install it now through SideStore?"
       : "Download and install it now?";
-  Alert.alert(`Flow ${u.version} is out`, how, [
+  const news = highlights(u.notes);
+  Alert.alert(`Flow ${u.version} is out`, news ? `${news}\n\n${how}` : how, [
     {
       text: "Skip this version",
       style: "cancel",
@@ -135,4 +136,21 @@ export async function checkOnLaunch() {
     { text: "Later" },
     { text: "Update", onPress: () => void installUpdate(u) },
   ]);
+}
+
+// The first few bullet points of the release notes, without Markdown.
+export function highlights(notes: string, max = 3): string {
+  return notes
+    .split("\n")
+    .filter((l) => /^\s*[-*]\s/.test(l))
+    .slice(0, max)
+    .map(
+      (l) =>
+        l
+          .replace(/^\s*[-*]\s+/, "• ")
+          .replace(/\*\*(.+?)\*\*/g, "$1")
+          .replace(/\[(.+?)\]\(.+?\)/g, "$1")
+          .split(/[:;.]\s/)[0],
+    )
+    .join("\n");
 }
