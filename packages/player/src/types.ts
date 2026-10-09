@@ -43,7 +43,13 @@ export type PlayerStatus =
   | "buffering"
   | "error";
 
-export type PlayerEventName = "trackChanged" | "liked" | "skipped" | "paused";
+/** "finished": the current song played past 80% (fires once per play). */
+export type PlayerEventName =
+  | "trackChanged"
+  | "liked"
+  | "skipped"
+  | "paused"
+  | "finished";
 
 export interface PlayOptions {
   source?: QueueSource;

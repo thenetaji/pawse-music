@@ -30,6 +30,7 @@ import type {
 
 const REFRESH_MS = 10 * 60_000;
 const AHEAD = 2;
+const FINISHED_AT = 0.8;
 const RADIO_LOW = 3;
 const TICK_MS = 5_000;
 const SAVE_MS = 1_000;
@@ -66,6 +67,8 @@ let radio = {
 };
 let currentKey: string | undefined;
 let playedFired = false;
+let finishedFired = false;
+let ahead = AHEAD;
 let savedPos = 0;
 let wantPlay = false;
 let loading = false;
@@ -176,9 +179,14 @@ async function ensureReady(i: number, force = false): Promise<boolean> {
   }
 }
 
+/** How many upcoming songs get resolved ahead (data saver uses 1); no argument restores the default. */
+export function setPrefetchAhead(n?: number): void {
+  ahead = n === undefined ? AHEAD : Math.max(0, Math.round(n));
+}
+
 function ensureAhead(): void {
   const { index, tracks } = get();
-  for (let i = index + 1; i <= index + AHEAD && i < tracks.length; i++)
+  for (let i = index + 1; i <= index + ahead && i < tracks.length; i++)
     void ensureReady(i);
 }
 
@@ -215,6 +223,7 @@ function entered(key: string, rearmSleep: boolean): void {
   if (key !== currentKey) {
     currentKey = key;
     playedFired = false;
+    finishedFired = false;
     savedPos = 0;
     emitPlayerEvent("trackChanged", s.tracks[i]);
     const st = streams.get(s.tracks[i].id);
@@ -411,6 +420,11 @@ function tick(): void {
     playedFired = true;
     opts?.onPlayed?.(track, Math.round(position));
   }
+  // Played past 80%: counts as finished (the tick before the end always lands past it).
+  if (!finishedFired && dur > 0 && position >= dur * FINISHED_AT) {
+    finishedFired = true;
+    emitPlayerEvent("finished", track);
+  }
   if (Math.abs(position - savedPos) >= POS_EVERY_SEC) savePosition(position);
   guardEnd(position, duration, track);
 }
@@ -553,7 +567,7 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     Event.MediaItemTransition,
     ({ item, reason }) => {
       if (!item?.mediaId) return;
-      if (reason === "repeat") playedFired = false;
+      if (reason === "repeat") playedFired = finishedFired = false;
       entered(item.mediaId, reason === "seek" || reason === "playlistChanged");
     },
   );
@@ -870,6 +884,8 @@ export function __resetForTests(): void {
   };
   currentKey = undefined;
   playedFired = false;
+  finishedFired = false;
+  ahead = AHEAD;
   wantPlay = false;
   loading = false;
   playing = false;

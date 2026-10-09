@@ -3,7 +3,7 @@ import type { Track } from "@studio/music-core";
 import { useEffect, useState } from "react";
 
 import * as Q from "./queue";
-import { emitPlayerEvent, usePlayerStore, type StoreState } from "./store";
+import { emitPlayerEvent, type StoreState, usePlayerStore } from "./store";
 import type { Player, Progress, SetupOptions } from "./types";
 
 const get = usePlayerStore.getState;
@@ -37,7 +37,11 @@ function run(on: boolean): void {
   startedAt = on ? Date.now() : null;
   clearTimeout(ender);
   const left = durationOf() - basePos;
-  if (on && left > 0) ender = setTimeout(() => advance(1, true), left * 1000);
+  if (on && left > 0)
+    ender = setTimeout(() => {
+      emitPlayerEvent("finished", get().tracks[get().index]);
+      advance(1, true);
+    }, left * 1000);
   set({ status: on ? "playing" : get().tracks.length ? "paused" : "idle" });
 }
 
@@ -68,6 +72,8 @@ function load(
   set({ ...q, ...extra, error: undefined });
   goTo(q.index);
 }
+
+export function setPrefetchAhead(_n?: number): void {}
 
 export function setupPlayer(_opts: SetupOptions): Promise<void> {
   return Promise.resolve();

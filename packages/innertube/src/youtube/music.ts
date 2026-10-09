@@ -55,6 +55,7 @@ import {
   parseNext,
   parsePlaylist,
   parsePlaylistContinuation,
+  parseRelated,
   parseSearch,
   parseSuggestions,
 } from "./parse";
@@ -503,6 +504,14 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
         tunerSettingValue: "AUTOMIX_SETTING_NORMAL",
       }),
     );
+  }
+
+  /** A song's Related tab; takes a videoId or the MPTR id from upNext().relatedBrowseId. */
+  async related(id: string): Promise<Shelf[]> {
+    const browseId = id.startsWith("MPTR")
+      ? id
+      : (await this.upNext({ videoId: id })).relatedBrowseId;
+    return browseId ? parseRelated(await this.browseRaw(browseId)) : [];
   }
 
   /** Unsynced lyrics text for an MPLY browse id from upNext. */
