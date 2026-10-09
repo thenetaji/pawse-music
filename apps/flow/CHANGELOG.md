@@ -4,9 +4,13 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 
 ## [Unreleased]
 
+### Added
+- Word-by-word synced lyrics for many more songs from Lyrics+ (Apple Music lyrics), with Unison as a community fallback matched by the exact YouTube video. Hindi songs from Lyrics+ use romanised (Hinglish) text.
+
 ### Fixed
 - Lyrics from the wrong song: every lyrics source must now match the song's title and artist, titles are cleaned before searching ("(From …)", "(Official Video)", "ft. …"), and credit lines no longer appear as sung lines.
 - Music videos whose length differs from the song show lyrics as plain text instead of timed lines that drift.
+- Each tab always opens on its own home screen.
 
 ## [0.2.0] - 2026-10-09
 

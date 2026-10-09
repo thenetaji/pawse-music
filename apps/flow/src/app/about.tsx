@@ -18,7 +18,7 @@ const LICENSES = [
   ["@rntp/player", "Double Symmetry, personal-use licence"],
   ["Expo and React Native", "MIT"],
   ["Reanimated, Gesture Handler, Skia", "MIT"],
-  ["LRCLIB lyrics", "Community, free"],
+  ["Lyrics", "LRCLIB, Lyrics+, BetterLyrics, Unison, KuGou"],
 ];
 
 export default function About() {

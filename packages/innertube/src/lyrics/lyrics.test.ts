@@ -7,6 +7,7 @@ import { parseLrc } from "./lrc";
 import { cleanTitle, sameSong } from "./match";
 import { LyricsService } from "./service";
 import { parseTtml } from "./ttml";
+import { parseYouLyPlus } from "./youlyplus";
 
 describe("LRC", () => {
   it("parses real LRCLIB lines with end times from the next line", () => {
@@ -289,6 +290,25 @@ describe("LyricsService validation", () => {
     expect(search).toContain("track_name=Yellow&");
   });
 
+  it("treats lines that all share one time as plain text", async () => {
+    const fetch = mockFetch([
+      [
+        "lyrics-api.boidu.dev",
+        {
+          ttml: '<tt><body><div><p begin="0" end="0">Hum rahen</p><p begin="0" end="0">Kal yaad</p></div></body></tt>',
+        },
+      ],
+    ]);
+    const l = await new LyricsService({ fetch }).lyrics({
+      id: "ndU9kBk3UWI",
+      title: "Pyaar Ke Pal",
+      artists: [{ name: "KK" }],
+      durationSec: 360,
+    });
+    expect(l).toMatchObject({ source: "betterlyrics", synced: false });
+    expect(l?.plain).toBe("Hum rahen\nKal yaad");
+  });
+
   it("keeps synced lyrics when the recording length matches", async () => {
     const fetch = mockFetch([["lrclib.net/api/search", [yellow]]]);
     const l = await new LyricsService({ fetch }).lrclib({
@@ -302,6 +322,213 @@ describe("LyricsService validation", () => {
       startMs: 33_600,
       text: "Look at the stars",
     });
+  });
+});
+
+const syl = (time: number, duration: number, text: string, bg = false) =>
+  bg ? { time, duration, text, isBackground: true } : { time, duration, text };
+const plusBody = (metadata: Record<string, unknown> = {}) => ({
+  type: "Word",
+  metadata: {
+    source: "qApple",
+    title: "Blinding Lights",
+    artist: "The Weeknd",
+    totalDuration: "3:21.570",
+    ...metadata,
+  },
+  lyrics: [
+    {
+      time: 27_395,
+      duration: 1565,
+      text: "I been tryna call",
+      syllabus: [
+        syl(27_395, 154, "I "),
+        syl(27_549, 191, "been "),
+        syl(27_740, 337, "tryna "),
+        syl(28_077, 883, "call"),
+      ],
+    },
+    {
+      time: 139_610,
+      duration: 4199,
+      text: "I'm just calling back to let you know (Back to let you know)",
+      syllabus: [
+        syl(139_610, 289, "I'm "),
+        syl(139_899, 160, "just "),
+        syl(140_059, 294, "calling "),
+        syl(140_353, 373, "back "),
+        syl(140_726, 180, "to "),
+        syl(140_906, 322, "let "),
+        syl(141_228, 217, "you "),
+        syl(141_445, 816, "know "),
+        syl(141_720, 434, "(Back ", true),
+        syl(142_154, 141, "to ", true),
+        syl(142_889, 920, "know)", true),
+      ],
+    },
+  ],
+});
+const blinding = {
+  id: "J7p4bzqLvCw",
+  title: "The Weeknd - Blinding Lights (Official Video)",
+  artists: [{ name: "The Weeknd" }],
+  durationSec: 202,
+};
+
+describe("YouLyPlus", () => {
+  it("maps word timings, drops background vocals and wins over BetterLyrics", async () => {
+    const fetch = mockFetch([
+      ["lyricsplus.binimum.org", plusBody()],
+      ["lyrics-api.boidu.dev", betterLyrics],
+      ["lrclib.net", lrclib],
+    ]);
+    const l = await new LyricsService({ fetch }).lyrics(blinding);
+    expect(l?.source).toBe("youlyplus");
+    expect(l?.synced).toBe(true);
+    expect(l?.lines[0]).toEqual({
+      startMs: 27_395,
+      endMs: 28_960,
+      text: "I been tryna call",
+      words: [
+        { startMs: 27_395, endMs: 27_549, text: "I " },
+        { startMs: 27_549, endMs: 27_740, text: "been " },
+        { startMs: 27_740, endMs: 28_077, text: "tryna " },
+        { startMs: 28_077, endMs: 28_960, text: "call" },
+      ],
+    });
+    expect(l?.lines[1].text).toBe("I'm just calling back to let you know");
+    expect(l?.lines[1].words?.map((w) => w.text).join("")).toBe(
+      "I'm just calling back to let you know ",
+    );
+    const plus = fetch.mock.calls.find(([u]) => u.includes("lyricsplus"))?.[0];
+    expect(plus).toContain("title=Blinding%20Lights&artist=The%20Weeknd");
+  });
+
+  it("fails over to the next server and starts there next time", async () => {
+    const fetch = mockFetch([
+      ["lyricsplus.binimum.org", "error code: 1015", 429],
+      ["lyricsplus.prjktla.my.id", plusBody()],
+    ]);
+    const service = new LyricsService({ fetch });
+    expect((await service.youLyPlus(blinding))?.source).toBe("youlyplus");
+    fetch.mockClear();
+    expect((await service.youLyPlus(blinding))?.synced).toBe(true);
+    expect(fetch.mock.calls.map(([u]) => new URL(u).host)).toEqual([
+      "lyricsplus.prjktla.my.id",
+    ]);
+  });
+
+  it("rejects lyrics for a different title", async () => {
+    const fetch = mockFetch([
+      ["lyricsplus", plusBody({ title: "Save Your Tears" })],
+    ]);
+    expect(await new LyricsService({ fetch }).youLyPlus(blinding)).toBeNull();
+  });
+
+  it("returns plain text for a different-length recording", async () => {
+    const fetch = mockFetch([["lyricsplus", plusBody()]]);
+    const l = await new LyricsService({ fetch }).youLyPlus({
+      ...blinding,
+      durationSec: 230,
+    });
+    expect(l).toMatchObject({ source: "youlyplus", synced: false });
+    expect(l?.lines.map((x) => x.text)).toEqual([
+      "I been tryna call",
+      "I'm just calling back to let you know",
+    ]);
+  });
+});
+
+describe("YouLyPlus parsing", () => {
+  it("drops QQ credit flashes and reads untimed Apple text as unsynced", () => {
+    const qq = parseYouLyPlus({
+      type: "Word",
+      metadata: { source: "QQ Music" },
+      processingTime: {
+        selectedSongMetadata: { title: "Tum Se Hi", duration: 321 },
+      },
+      lyrics: [
+        { time: 0, duration: 150, text: "Tum Se Hi - Mohit Chauhan/Pritam" },
+        { time: 234, duration: 63, text: "Irshad Kamil" },
+        { time: 400, duration: 4864, text: "Pritam/Irshad Kamil" },
+        {
+          time: 608,
+          duration: 1800,
+          text: "Aa-aa",
+          syllabus: [syl(608, 900, "Aa-"), syl(1508, 900, "aa")],
+        },
+      ],
+    });
+    expect(qq).toMatchObject({ title: "Tum Se Hi", durationSec: 321 });
+    expect(qq?.synced).toBe(true);
+    expect(qq?.lines.map((l) => l.text)).toEqual(["Aa-aa"]);
+    const apple = parseYouLyPlus({
+      type: "Line",
+      metadata: { title: "Pyaar Ke Pal", totalDuration: "5:59.302" },
+      lyrics: [
+        { time: 0, duration: 0, text: "Hum rahen ya na rahen kal" },
+        { time: 0, duration: 0, text: "Kal yaad aayenge ye pal" },
+      ],
+    });
+    expect(apple?.synced).toBe(false);
+    expect(apple?.durationSec).toBeCloseTo(359.302);
+    expect(apple?.lines).toHaveLength(2);
+  });
+});
+
+describe("Unison", () => {
+  const riseUp = {
+    id: "6uVrP0Qj1cU",
+    title: "Rise Up",
+    artists: [{ name: "TheFatRat" }],
+    durationSec: 170,
+  };
+  const record = (data: Record<string, unknown> = {}) => ({
+    success: true,
+    data: {
+      videoId: riseUp.id,
+      song: "Rise Up",
+      artist: "TheFatRat",
+      format: "lrc",
+      syncType: "richsync",
+      hidden: false,
+      lyrics:
+        "[by:Generated using LySy]\n[00:02.953]<00:02.953>When <00:03.179>you <00:03.607>feel<00:05.017>\n[02:37.635]<02:37.635>We <02:37.960>rise<02:41.004> [bg:<02:41.620>(Throne)<02:43.456>]",
+      ...data,
+    },
+  });
+
+  it("serves synced lyrics keyed by the video id when nothing else has them", async () => {
+    const fetch = mockFetch([
+      ["unison.boidu.dev/lyrics?v=6uVrP0Qj1cU", record()],
+    ]);
+    const l = await new LyricsService({ fetch }).lyrics(riseUp);
+    expect(l).toMatchObject({ source: "unison", synced: true });
+    expect(l?.lines.map((x) => x.text)).toEqual(["When you feel", "We rise"]);
+    expect(l?.lines[0].words?.[0]).toEqual({
+      startMs: 2953,
+      endMs: 3179,
+      text: "When ",
+    });
+  });
+
+  it("misses on 404, a different song or a non-YouTube id", async () => {
+    const miss = mockFetch([
+      ["unison", { success: false, error: "Lyrics not found" }, 404],
+    ]);
+    expect(await new LyricsService({ fetch: miss }).unison(riseUp)).toBeNull();
+    const junk = mockFetch([
+      ["unison", record({ song: "Test Song", artist: "Test Artist" })],
+    ]);
+    expect(await new LyricsService({ fetch: junk }).unison(riseUp)).toBeNull();
+    const saavn = mockFetch([["unison", record()]]);
+    expect(
+      await new LyricsService({ fetch: saavn }).unison({
+        ...riseUp,
+        id: "aB3dE6",
+      }),
+    ).toBeNull();
+    expect(saavn).not.toHaveBeenCalled();
   });
 });
 
