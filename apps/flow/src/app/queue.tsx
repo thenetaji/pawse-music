@@ -1,29 +1,62 @@
 import { artistLine, type Track } from "@studio/music-core";
 import { player, usePlayerState, usePlayerStore } from "@studio/player";
+import { router } from "expo-router";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOutDown,
+} from "react-native-reanimated";
 import ReorderableList, {
   type ReorderableListReorderEvent,
   useIsActive,
   useReorderableDrag,
 } from "react-native-reorderable-list";
-
-import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { create } from "zustand";
 
 import { showSheet } from "../components/action-sheet";
-import { Artwork } from "../components/artwork";
+import { Artwork, TrackArt } from "../components/artwork";
 import { EqBars } from "../components/eq-bars";
+import { SwipeRow, swipedRecently } from "../components/swipe-row";
 import { PressScale } from "../components/ui";
-import { haptic } from "../lib/haptics";
-import { useSetting } from "../lib/settings";
 import { Cat, type CatColor } from "../features/cat/cat";
-import { ShuffleGlyph } from "../features/pages/collection";
 import { ColorField } from "../features/now-playing/color-field";
 import { useAccent, useNowPalette } from "../features/now-playing/now-palette";
+import { ShuffleGlyph } from "../features/pages/collection";
+import { haptic } from "../lib/haptics";
+import { useSetting } from "../lib/settings";
 
 const SLEEP = [15, 30, 45, 60, 90];
+const UNDO_MS = 4000;
+
+// The last removed song, offered back for a few seconds.
+type Removed = {
+  track: Track;
+  at: number;
+  timer: ReturnType<typeof setTimeout>;
+};
+const useUndo = create<{ removed: Removed | null }>(() => ({ removed: null }));
+
+function removeWithUndo(track: Track, at: number) {
+  player.remove(at);
+  const prev = useUndo.getState().removed;
+  if (prev) clearTimeout(prev.timer);
+  const timer = setTimeout(() => useUndo.setState({ removed: null }), UNDO_MS);
+  useUndo.setState({ removed: { track, at, timer } });
+}
+
+function undoRemove() {
+  const r = useUndo.getState().removed;
+  if (!r) return;
+  clearTimeout(r.timer);
+  useUndo.setState({ removed: null });
+  haptic.light();
+  player.addNext(r.track);
+  const next = usePlayerStore.getState().index + 1;
+  if (r.at !== next) player.move(next, r.at);
+}
 
 export default function Queue() {
   const { queue, index, shuffle, repeat, sleepAt, status, source } =
@@ -64,7 +97,7 @@ export default function Queue() {
       </View>
       {current ? (
         <View style={styles.now}>
-          <Artwork thumbnails={current.thumbnails} size={64} radius={10} />
+          <TrackArt track={current} size={64} radius={10} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.kicker}>Now playing</Text>
             <Text style={styles.nowTitle} numberOfLines={1}>
@@ -159,6 +192,7 @@ export default function Queue() {
           </Text>
         </Animated.View>
       )}
+      <UndoBar />
     </View>
   );
 }
@@ -167,34 +201,21 @@ const Row = memo(function Row({ track, at }: { track: Track; at: number }) {
   const drag = useReorderableDrag();
   const active = useIsActive();
   return (
-    <ReanimatedSwipeable
-      friction={1.6}
-      overshootLeft={false}
-      overshootRight={false}
-      renderLeftActions={() => (
-        <View style={[styles.action, { backgroundColor: "#2ED3A2" }]}>
-          <Text style={styles.actionText}>Play next</Text>
-        </View>
-      )}
-      renderRightActions={() => (
-        <View
-          style={[
-            styles.action,
-            { backgroundColor: "#FF4F6D", alignItems: "flex-end" },
-          ]}
-        >
-          <Text style={styles.actionText}>Remove</Text>
-        </View>
-      )}
-      onSwipeableOpen={(dir) => {
-        haptic.medium();
-        if (dir === "right")
-          player.move(at, usePlayerStore.getState().index + 1);
-        else player.remove(at);
+    <SwipeRow
+      right={{
+        label: "Play next",
+        color: "#2ED3A2",
+        onCommit: () => player.move(at, usePlayerStore.getState().index + 1),
+      }}
+      left={{
+        label: "Remove",
+        color: "#FF4F6D",
+        onCommit: () => removeWithUndo(track, at),
       }}
     >
       <Pressable
         onPress={() => {
+          if (swipedRecently()) return;
           haptic.tick();
           player.skipTo(at);
         }}
@@ -217,9 +238,29 @@ const Row = memo(function Row({ track, at }: { track: Track; at: number }) {
           <View style={styles.bar} />
         </Pressable>
       </Pressable>
-    </ReanimatedSwipeable>
+    </SwipeRow>
   );
 });
+
+function UndoBar() {
+  const removed = useUndo((s) => s.removed);
+  const insets = useSafeAreaInsets();
+  if (!removed) return null;
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(180)}
+      exiting={FadeOutDown.duration(140)}
+      style={[styles.undo, { bottom: insets.bottom + 16 }]}
+    >
+      <Text style={styles.undoText} numberOfLines={1}>
+        Removed “{removed.track.title}”
+      </Text>
+      <Pressable hitSlop={10} onPress={undoRemove}>
+        <Text style={styles.undoAction}>Undo</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 function Toggle({
   on,
@@ -356,6 +397,18 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     backgroundColor: "rgba(255,255,255,0.35)",
   },
-  action: { flex: 1, justifyContent: "center", paddingHorizontal: 22 },
-  actionText: { color: "#000", fontSize: 15, fontWeight: "800" },
+  undo: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 18,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "#2A2A31",
+  },
+  undoText: { flex: 1, color: "#fff", fontSize: 15, fontWeight: "600" },
+  undoAction: { color: "#8B7CFF", fontSize: 15, fontWeight: "800" },
 });

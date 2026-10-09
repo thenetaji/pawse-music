@@ -16,6 +16,12 @@ struct FlowActivityStateRecord: Record {
   @Field var color: String = "orange"
   @Field var mouse: Int = 0
   @Field var name: String? = nil
+  /// Milliseconds since 1970; 0 means never stale.
+  @Field var staleAt: Double = 0
+
+  var staleDate: Date? {
+    staleAt > 0 ? Date(timeIntervalSince1970: staleAt / 1000) : nil
+  }
 
   var contentState: FlowActivityAttributes.ContentState {
     FlowActivityAttributes.ContentState(
@@ -69,7 +75,7 @@ public class FlowActivityModule: Module {
     // Reuses a running activity; returns false when iOS refuses (app in background, activities off).
     AsyncFunction("start") { (record: FlowActivityStateRecord) async -> Bool in
       guard #available(iOS 17.0, *) else { return false }
-      let content = ActivityContent(state: record.contentState, staleDate: nil)
+      let content = ActivityContent(state: record.contentState, staleDate: record.staleDate)
       let running = FlowActivityModule.running()
       if let current = running.first {
         for extra in running.dropFirst() {
@@ -88,7 +94,7 @@ public class FlowActivityModule: Module {
 
     AsyncFunction("update") { (record: FlowActivityStateRecord) async in
       guard #available(iOS 17.0, *) else { return }
-      let content = ActivityContent(state: record.contentState, staleDate: nil)
+      let content = ActivityContent(state: record.contentState, staleDate: record.staleDate)
       for activity in FlowActivityModule.running() {
         await activity.update(content)
       }
@@ -104,6 +110,11 @@ public class FlowActivityModule: Module {
     // Downloads a small square JPEG into the App Group and returns its file name, or nil.
     AsyncFunction("setArtwork") { (url: String) async -> String? in
       await FlowArtwork.store(url)
+    }
+
+    // Square, bar-free JPEG in Caches from the first usable url, for the Now Playing art; returns a file URL or nil.
+    AsyncFunction("squareArtwork") { (urls: [String], px: Int) async -> String? in
+      await FlowArtwork.square(urls, side: px)
     }
   }
 

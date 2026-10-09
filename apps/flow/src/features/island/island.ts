@@ -16,12 +16,31 @@ import {
   FlowActivity,
 } from "../../../modules/flow-activity";
 import { useLibrary } from "../../data/library";
+import { prepareArtwork } from "../../lib/artwork";
 
 /** Groove frame swap period. Each swap is one ActivityKit update, so stay well under 1/s. */
 export const BEAT_MS = 2000;
 /** Stop swapping after this long in the background; the cat rests on one frame. */
 export const BACKGROUND_BEAT_BUDGET_MS = 10 * 60_000;
 const HAPPY_MS = 1500;
+const SEND_TIMEOUT_MS = 4000;
+/** If Flow is closed mid-song, iOS marks the activity stale this long after the song should end. */
+const STALE_AFTER_END_MS = 90_000;
+/** A paused activity goes stale after this, in case Flow is closed while paused. */
+const STALE_WHEN_PAUSED_MS = 15 * 60_000;
+
+// Rounded to the minute so steady playback doesn't make every state look new.
+export function staleAt(
+  playing: boolean,
+  endMs: number,
+  now = Date.now(),
+): number {
+  const at =
+    playing && endMs > now
+      ? endMs + STALE_AFTER_END_MS
+      : now + STALE_WHEN_PAUSED_MS;
+  return Math.ceil(at / 60_000) * 60_000;
+}
 const CURIOUS_MS = 1000;
 const ART_PX = 120;
 const CAT_COLORS: readonly ActivityCatColor[] = [
@@ -126,22 +145,30 @@ export function startIslandController(): () => void {
       color: prefs.color,
       mouse: showing ? (CAMEO_FRAMES[cameo.step] ?? 0) : 0,
       name: prefs.name,
+      staleAt: staleAt(playing, startMs + duration * 1000),
     };
   }
 
   // One native call in flight at a time; only the newest pending state is kept.
+  // A call that hangs is let go after SEND_TIMEOUT_MS so later updates never pile up behind it.
   function send(state: ActivityState) {
     if (sending) {
       queued = state;
       return;
     }
     sending = true;
-    void FlowActivity.update(state).finally(() => {
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      clearTimeout(timer);
       sending = false;
       const next = queued;
       queued = null;
       if (next && active) send(next);
-    });
+    };
+    const timer = setTimeout(release, SEND_TIMEOUT_MS);
+    void FlowActivity.update(state).finally(release);
   }
 
   function push() {
@@ -185,15 +212,20 @@ export function startIslandController(): () => void {
     void FlowActivity.end();
   }
 
+  // The bar-free square from the Now Playing art when there is one, else the thumbnail.
   function loadArt(track: Track) {
     art = { id: track.id, file: null };
-    const url = bestThumbnail(track.thumbnails, ART_PX);
-    if (!url) return;
-    void FlowActivity.setArtwork(url).then((file) => {
-      if (!file || art.id !== track.id) return;
-      art = { id: track.id, file };
-      push();
-    });
+    const fallback = bestThumbnail(track.thumbnails, ART_PX);
+    void prepareArtwork(track)
+      .then((square) => {
+        const url = square ?? fallback;
+        return url && art.id === track.id ? FlowActivity.setArtwork(url) : null;
+      })
+      .then((file) => {
+        if (!file || art.id !== track.id) return;
+        art = { id: track.id, file };
+        push();
+      });
   }
 
   function planCameo(track: Track) {

@@ -23,27 +23,28 @@ enum FlowTheme {
 struct FlowLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: FlowActivityAttributes.self) { context in
-      LockScreenView(state: context.state)
+      LockScreenView(state: context.shown, stale: context.isStale)
         .activityBackgroundTint(Color.black.opacity(0.45))
         .activitySystemActionForegroundColor(.white)
-    } dynamicIsland: { context in
-      DynamicIsland {
+    } dynamicIsland: { activity in
+      let state = activity.shown
+      return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          ArtworkView(name: context.state.artwork, size: 52, radius: 12)
+          ArtworkView(name: state.artwork, size: 52, radius: 12)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          CatStage(state: context.state, size: 44)
+          CatStage(state: state, size: 44)
         }
         DynamicIslandExpandedRegion(.center) {
-          TitleView(state: context.state)
+          TitleView(state: state)
         }
         DynamicIslandExpandedRegion(.bottom) {
-          PlayerBar(state: context.state)
+          PlayerBar(state: state)
             .padding(.top, 6)
         }
       } compactLeading: {
         // During an episode the mouse peeks out from behind the camera where the artwork sits.
-        if let mouse = mouseImage(context.state) {
+        if let mouse = mouseImage(state) {
           Image(mouse)
             .resizable()
             .interpolation(.high)
@@ -51,12 +52,12 @@ struct FlowLiveActivity: Widget {
             .frame(width: 22, height: 22)
             .transition(.move(edge: .trailing).combined(with: .opacity))
         } else {
-          ArtworkView(name: context.state.artwork, size: 22, radius: 6)
+          ArtworkView(name: state.artwork, size: 22, radius: 6)
         }
       } compactTrailing: {
-        CatRing(state: context.state, size: 22)
+        CatRing(state: state, size: 22)
       } minimal: {
-        CatRing(state: context.state, size: 24)
+        CatRing(state: state, size: 24)
       }
       .contentMargins(.horizontal, 8, for: .compactLeading)
       .contentMargins(.horizontal, 8, for: .compactTrailing)
@@ -67,22 +68,52 @@ struct FlowLiveActivity: Widget {
   }
 }
 
+extension ActivityViewContext where Attributes == FlowActivityAttributes {
+  /// Out of date (Flow was likely closed): the cat naps instead of showing a frozen song.
+  var shown: FlowState {
+    guard isStale else { return state }
+    var s = state
+    s.isPlaying = false
+    s.mood = "sleep"
+    s.mouse = 0
+    return s
+  }
+}
+
+/// iOS already shows its own player with controls on the lock screen, so Flow's card is a slim companion.
 struct LockScreenView: View {
   let state: FlowState
+  let stale: Bool
 
   var body: some View {
-    VStack(spacing: 12) {
-      HStack(spacing: 12) {
-        ArtworkView(name: state.artwork, size: 52, radius: 12)
-        TitleView(state: state)
-        CatStage(state: state, size: 44)
+    HStack(spacing: 12) {
+      CatStage(state: state, size: 40)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(verbatim: stale ? "\(state.name ?? "Mochi") is napping" : catLine(state))
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(FlowTheme.accent)
+          .lineLimit(1)
+        Text(verbatim: stale ? "Open Flow to keep listening" : "\(state.title) · \(state.artist)")
+          .font(.system(size: 14, weight: .medium))
+          .foregroundStyle(.white)
+          .lineLimit(1)
       }
-      PlayerBar(state: state)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
     .padding(.horizontal, 16)
-    .padding(.vertical, 14)
-    .foregroundStyle(.white)
+    .padding(.vertical, 10)
     .environment(\.colorScheme, .dark)
+  }
+}
+
+func catLine(_ state: FlowState) -> String {
+  let name = state.name ?? "Mochi"
+  if (state.mouse ?? 0) > 0 { return "\(name) spotted a mouse" }
+  switch state.mood {
+  case "groove": return "\(name) is dancing"
+  case "happy": return "\(name) loves this one"
+  case "curious": return "\(name) is listening"
+  default: return "\(name) is waiting"
   }
 }
 

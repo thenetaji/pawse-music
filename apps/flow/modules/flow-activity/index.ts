@@ -25,6 +25,8 @@ export interface ActivityState {
   mouse: 0 | 1 | 2;
   /** The cat's name for VoiceOver; null uses "The cat". */
   name: string | null;
+  /** ms since epoch after which iOS treats the activity as out of date (Flow may have been closed). */
+  staleAt: number;
 }
 
 type Events = { onAction(event: { action: ActivityAction }): void };
@@ -35,6 +37,7 @@ declare class FlowActivityNative extends NativeModule<Events> {
   update(state: ActivityState): Promise<void>;
   end(): Promise<void>;
   setArtwork(url: string): Promise<string | null>;
+  squareArtwork(urls: string[], px: number): Promise<string | null>;
 }
 
 const native =
@@ -73,6 +76,13 @@ export const FlowActivity = {
   setArtwork(url: string): Promise<string | null> {
     return native
       ? native.setArtwork(url).catch(() => null)
+      : Promise.resolve(null);
+  },
+
+  /** Square, bar-free JPEG from the first usable url, as a file URI; null when none loads. */
+  squareArtwork(urls: string[], px: number): Promise<string | null> {
+    return native
+      ? native.squareArtwork(urls, px).catch(() => null)
       : Promise.resolve(null);
   },
 

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
@@ -50,6 +51,11 @@ class FlowIslandModule : Module() {
     AsyncFunction<Unit>("hide") { Island.hide() }
 
     AsyncFunction<Boolean>("openBatterySettings") { openBatterySettings() }.runOnQueue(Queues.MAIN)
+
+    // Square, bar-free JPEG in the cache dir for the Now Playing art; works off the shared module queue.
+    AsyncFunction("squareArtwork") { urls: List<String>, px: Int, promise: Promise ->
+      Artwork.square(context, urls, px) { promise.resolve(it) }
+    }
   }
 
   /** Opens the vendor autostart screen where there is one, else the system battery list. */

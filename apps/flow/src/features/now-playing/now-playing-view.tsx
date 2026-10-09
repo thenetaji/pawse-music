@@ -33,6 +33,7 @@ import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
 import { useSetting } from "../../lib/settings";
+import { useSongArt } from "../../lib/song-art";
 import type { CatMood } from "../cat/cat";
 import { AirPlay } from "./airplay";
 import { CatScrubber } from "./cat-scrubber";
@@ -87,12 +88,12 @@ export function NowPlayingView(p: NowPlayingProps) {
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
   const saver = useDataSaverActive();
-  const art = p.track
-    ? bestThumbnail(p.track.thumbnails, saver ? 544 : 1080)
-    : undefined;
+  // Music videos show their song's album cover when one matches, like YouTube Music.
+  const thumbs = useSongArt(p.track);
+  const art = p.track ? bestThumbnail(thumbs, saver ? 544 : 1080) : undefined;
   const hero = useHeroArt(p.track?.id, art, saver);
   const palette = useArtworkPalette(
-    p.track ? bestThumbnail(p.track.thumbnails, 120) : undefined,
+    p.track ? bestThumbnail(thumbs, 120) : undefined,
   );
   const background = useSetting<"field" | "blur" | "black">(
     "npBackground",
@@ -272,7 +273,7 @@ export function NowPlayingView(p: NowPlayingProps) {
           >
             <View style={styles.compact}>
               {p.track ? (
-                <Artwork thumbnails={p.track.thumbnails} size={56} radius={8} />
+                <Artwork thumbnails={thumbs} size={56} radius={8} />
               ) : null}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.compactTitle} numberOfLines={1}>

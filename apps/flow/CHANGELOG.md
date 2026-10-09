@@ -8,6 +8,9 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 - Word-by-word synced lyrics for many more songs from Lyrics+ (Apple Music lyrics), with Unison as a community fallback matched by the exact YouTube video. Hindi songs from Lyrics+ use romanised (Hinglish) text.
 
 ### Changed
+- Music videos show their song's square album cover when a confident match exists (no more "725M views" thumbnails), on Now Playing, the mini player, the queue, the lock screen and the islands. Other artwork the system shows is cropped square without black bars.
+- Flow's lock-screen card is a slim one-line companion to iOS's own player, and turns into "napping" instead of freezing if Flow was closed.
+- Queue swipes commit only past about 40% of the row, with a tick at the commit point and a way back by dragging back; removing a song offers Undo.
 - Streaming quality is now one choice per network, Wi-Fi and mobile data: **Automatic** (new default), High or Low. Automatic plays High on Wi-Fi, 5G and 4G, and Low on slower connections or when songs keep stalling. The separate Data saver switch is gone: Low on mobile data saves data everywhere (smaller artwork, nothing kept offline, only the next song prepared). Earlier choices carry over.
 - Download quality is High or Low (Normal was identical to High for YouTube).
 

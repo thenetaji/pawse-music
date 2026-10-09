@@ -7,6 +7,7 @@ import "../data/downloads";
 import "../data/signals";
 import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
+import { readyArtwork, startArtwork } from "./artwork";
 import { logEvent } from "./diagnostics";
 import { noteStall } from "./quality";
 import { clearResources } from "./use-resource";
@@ -41,6 +42,7 @@ export function startEngine() {
     pauseOnDisconnect: settings().pauseOnDisconnect,
     radioContinue: () => settings().radioContinue,
     sleepFadeSec: () => settings().sleepFade,
+    artwork: readyArtwork,
     onDiagnostic: (kind, detail) => {
       logEvent(kind, detail);
       // Automatic quality steps down when streams keep stalling.
@@ -63,6 +65,7 @@ export function startEngine() {
       }
     },
   });
+  startArtwork();
   startAccountSync();
   return started;
 }
