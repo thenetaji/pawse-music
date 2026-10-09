@@ -215,6 +215,13 @@ async function drainRates(): Promise<void> {
   }
 }
 
+/** Mirrors a follow to the YouTube account as a channel subscription, when signed in and syncing. */
+export function mirrorFollow(channelId: string, on: boolean): void {
+  const s = useLibrary.getState().settings;
+  if (!s.cookies || !s.syncLikes) return;
+  void ytAccount.subscribe(channelId, on).catch(() => {});
+}
+
 let started = false;
 /** Registers the account write paths (like mirroring); reads only sync from maybeSyncLibrary. */
 export function startAccountSync(): void {

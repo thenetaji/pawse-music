@@ -17,6 +17,8 @@ import {
 } from "../../../modules/flow-activity";
 import { useLibrary } from "../../data/library";
 import { prepareArtwork } from "../../lib/artwork";
+import { songVibe } from "../../lib/vibe";
+import { readable, useNowPalette } from "../now-playing/now-palette";
 
 /** Groove frame swap period. Each swap is one ActivityKit update, so stay well under 1/s. */
 export const BEAT_MS = 2000;
@@ -81,6 +83,19 @@ export function catPrefs(): CatPrefs {
   };
 }
 
+// The artwork accent as "#RRGGBB", lifted so it reads on black; null before the palette loads.
+export function tintHex(color: string): string | null {
+  const c = readable(color);
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c.toUpperCase();
+  const m = c.match(/\d+/g);
+  if (!m || m.length < 3) return null;
+  return `#${m
+    .slice(0, 3)
+    .map((n) => Math.min(255, Number(n)).toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase()}`;
+}
+
 const isPlaying = (s: PlayerStatus) =>
   s === "playing" || s === "buffering" || s === "loading";
 
@@ -139,7 +154,8 @@ export function startIslandController(): () => void {
       artist: artistLine(track.artists),
       artwork: art.id === track.id ? art.file : null,
       isPlaying: playing,
-      mood: flash?.mood ?? (playing ? "groove" : "sleep"),
+      mood:
+        flash?.mood ?? (playing ? songVibe(track, s.source?.title) : "sleep"),
       frame,
       start: Math.round(startMs),
       end: Math.round(startMs + duration * 1000),
@@ -147,6 +163,7 @@ export function startIslandController(): () => void {
       color: prefs.color,
       mouse: showing ? (CAMEO_FRAMES[cameo.step] ?? 0) : 0,
       name: prefs.name,
+      tint: tintHex(useNowPalette.getState().palette.accent),
       staleAt: staleAt(playing, startMs + duration * 1000),
     };
   }
@@ -350,8 +367,14 @@ export function startIslandController(): () => void {
     setFlash("curious", CURIOUS_MS),
   );
   const unsubAction = FlowActivity.onAction((action) =>
-    action === "next" ? player.next() : player.toggle(),
+    action === "next"
+      ? player.next()
+      : action === "previous"
+        ? player.previous()
+        : player.toggle(),
   );
+  // The artwork colour arrives a moment after the song changes.
+  const unsubPalette = useNowPalette.subscribe(() => push());
   const unsubSettings = useLibrary.subscribe((s, prev) => {
     if (s.settings === prev.settings) return;
     if (!catPrefs().island) {
@@ -384,6 +407,7 @@ export function startIslandController(): () => void {
     unsubLiked();
     unsubSkipped();
     unsubAction();
+    unsubPalette();
     unsubSettings();
     appState.remove();
     if (flash) clearTimeout(flash.timer);

@@ -20,10 +20,12 @@ import { dailyMixes, useLibrary } from "../../data/library";
 import { useForYou } from "../../data/recommend";
 import { yt } from "../../lib/engine";
 import { push } from "../../lib/nav";
+import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { getSetting, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
+import { showTrackActions } from "../library/track-actions";
 import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
 
@@ -61,7 +63,11 @@ export default function HomePage() {
     extra.shelves.length || extra.mood
       ? extra.continuation
       : home.data?.continuation;
-  const shelves = [...(home.data?.shelves ?? []), ...extra.shelves];
+  const keep = useHomeKeep();
+  const shelves = keepShelves(
+    [...(home.data?.shelves ?? []), ...extra.shelves],
+    keep,
+  );
 
   const loadMore = () => {
     if (loadingMore || !home.data) return;
@@ -151,7 +157,7 @@ export default function HomePage() {
             key={`${s.title}${i}`}
             entering={FadeInDown.duration(420).delay(Math.min(i % 8, 6) * 60)}
           >
-            <Shelf shelf={s} />
+            <Shelf shelf={s} removable />
           </Animated.View>
         ))
       ) : home.error ? (
@@ -211,7 +217,8 @@ function SignInCard({ accent }: { accent: string }) {
 // Built on the phone from your plays, likes and picks, so it works signed out too.
 function ForYou({ part }: { part: "lead" | "rest" }) {
   const fy = useForYou();
-  const list = part === "lead" ? fy.shelves.slice(0, 1) : fy.shelves.slice(1);
+  const all = keepShelves(fy.shelves, useHomeKeep());
+  const list = part === "lead" ? all.slice(0, 1) : all.slice(1);
   if (!list.length)
     return part === "lead" && fy.loading ? <SkeletonShelves count={1} /> : null;
   return (
@@ -221,7 +228,7 @@ function ForYou({ part }: { part: "lead" | "rest" }) {
           key={`${s.title}${i}`}
           entering={FadeInDown.duration(380).delay(i * 50)}
         >
-          <Shelf shelf={s} />
+          <Shelf shelf={s} removable />
         </Animated.View>
       ))}
     </>
@@ -231,10 +238,11 @@ function ForYou({ part }: { part: "lead" | "rest" }) {
 // "Jump back in": your recent plays as big tiles, one tap to resume.
 function JumpBackIn() {
   const history = useLibrary((s) => s.history);
+  const keep = useHomeKeep();
   const seen = new Set<string>();
   const recent: Track[] = [];
   for (const h of history) {
-    if (seen.has(h.track.id)) continue;
+    if (seen.has(h.track.id) || !keep(h.track)) continue;
     seen.add(h.track.id);
     recent.push(h.track);
     if (recent.length === 6) break;
@@ -253,6 +261,7 @@ function JumpBackIn() {
                 source: { type: "library", title: "Recently played" },
               })
             }
+            onLongPress={() => showTrackActions(t, { removable: true })}
             style={styles.tile}
           >
             <Artwork thumbnails={t.thumbnails} size={52} radius={8} />

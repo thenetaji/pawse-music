@@ -7,8 +7,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const CHROME =
-  process.env.CHROME_PATH ??
-  process.env.CHROMIUM_PATH || undefined;
+  process.env.CHROME_PATH ?? process.env.CHROMIUM_PATH ?? undefined;
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(here, "../targets/live-activity/Assets.xcassets");
 // Points; only @2x and @3x ship (every iOS 17 device is 2x or 3x).
@@ -51,6 +50,15 @@ const FULL = {
   happy: { mood: "happy", frame: 1 },
   curious: { mood: "curious", frame: 0 },
   look: { mood: "look", frame: 0 },
+  // Song moods (lib/vibe.ts): two frames each, swapped on the island beat.
+  "hype-a": { mood: "hype", frame: 0 },
+  "hype-b": { mood: "hype", frame: 1 },
+  "vibe-a": { mood: "vibe", frame: 0 },
+  "vibe-b": { mood: "vibe", frame: 1 },
+  "love-a": { mood: "love", frame: 0 },
+  "love-b": { mood: "love", frame: 1 },
+  "sad-a": { mood: "sad", frame: 0 },
+  "sad-b": { mood: "sad", frame: 1 },
 };
 // Head frames (compact, minimal): no shadow, notes or hop, tight crop.
 const HEAD = {
@@ -60,7 +68,21 @@ const HEAD = {
   "head-sleep-b": { mood: "sleep", frame: 1 },
   "head-happy": { mood: "happy", frame: 1 },
   "head-curious": { mood: "curious", frame: 0 },
+  "head-hype-a": { mood: "hype", frame: 0 },
+  "head-hype-b": { mood: "hype", frame: 1 },
+  "head-vibe-a": { mood: "vibe", frame: 0 },
+  "head-vibe-b": { mood: "vibe", frame: 1 },
+  "head-love-a": { mood: "love", frame: 0 },
+  "head-love-b": { mood: "love", frame: 1 },
+  "head-sad-a": { mood: "sad", frame: 0 },
+  "head-sad-b": { mood: "sad", frame: 1 },
 };
+
+// Same as heart() in cat.tsx.
+function heart(cx, cy, k) {
+  const p = (x, y) => `${cx + x * k} ${cy + y * k}`;
+  return `M${p(0, 6)} C${p(-9, 0)} ${p(-7, -8)} ${p(0, -3.5)} C${p(7, -8)} ${p(9, 0)} ${p(0, 6)}Z`;
+}
 
 function catSvg({ mood, frame, color, head, viewBox, pt }) {
   const f = FUR[color];
@@ -71,20 +93,41 @@ function catSvg({ mood, frame, color, head, viewBox, pt }) {
   const pivot = head ? "60 64" : "60 100";
   let tilt = mood === "groove" ? (odd ? 7 : -7) : mood === "curious" ? 9 : 0;
   if (mood === "look") tilt = -6;
+  if (mood === "hype") tilt = odd ? 9 : -9;
+  if (mood === "vibe") tilt = odd ? 6 : -6;
+  if (mood === "love") tilt = odd ? 4 : -4;
+  if (mood === "sad") tilt = odd ? -5 : -3;
   if (head && mood === "groove") tilt = odd ? 6 : -6;
-  const hop = !head && mood === "happy" && odd ? -7 : 0;
+  if (head && mood === "hype") tilt = odd ? 7 : -7;
+  const hop = head
+    ? 0
+    : (mood === "happy" || mood === "hype") && odd
+      ? -7
+      : mood === "love" && odd
+        ? -2
+        : mood === "sad"
+          ? 2
+          : 0;
   const look =
     mood === "curious" ? [3, 0] : mood === "look" ? [-3.4, 1.6] : [0, 0];
-  const blush = mood === "happy" ? 0.6 : 0.35;
+  const blush =
+    mood === "happy" || mood === "hype" || mood === "love" ? 0.6 : 0.35;
 
+  const sadMarks =
+    mood === "sad"
+      ? `<path d="M37 59 l12 -4 M83 59 l-12 -4" stroke="${ink}" stroke-width="2.6" stroke-linecap="round" />
+    <path ${odd ? 'transform="translate(0 3)"' : ""} d="M40 79 q-3 5 0 7 q3 -2 0 -7z" fill="#7CC8FF" />`
+      : "";
   const eyes =
-    mood === "sleep"
-      ? `<g stroke="${ink}" stroke-width="2.8" stroke-linecap="round" fill="none">
+    mood === "love"
+      ? `<g fill="#FF4F7B"><path d="${heart(44, 69, odd ? 1.05 : 0.95)}" /><path d="${heart(76, 69, odd ? 1.05 : 0.95)}" /></g>`
+      : mood === "sleep" || mood === "vibe"
+        ? `<g stroke="${ink}" stroke-width="2.8" stroke-linecap="round" fill="none">
           <path d="M37.5 70 q6.5 5 13 0" /><path d="M69.5 70 q6.5 5 13 0" /></g>`
-      : mood === "happy"
-        ? `<g stroke="${ink}" stroke-width="3" stroke-linecap="round" fill="none">
+        : mood === "happy" || mood === "hype"
+          ? `<g stroke="${ink}" stroke-width="3" stroke-linecap="round" fill="none">
           <path d="M37.5 72 q6.5 -8 13 0" /><path d="M69.5 72 q6.5 -8 13 0" /></g>`
-        : `<g>
+          : `<g>
           <g transform="translate(${look[0] / 2} ${look[1] / 2})">
             <ellipse cx="44" cy="69" rx="6.6" ry="8" fill="url(#eye)" />
             <ellipse cx="76" cy="69" rx="6.6" ry="8" fill="url(#eye)" />
@@ -96,20 +139,27 @@ function catSvg({ mood, frame, color, head, viewBox, pt }) {
             <circle cx="74.6" cy="72.5" r="1.1" fill="#fff" opacity="0.8" />
           </g></g>`;
 
+  const note = mood === "sad" ? "#9FD3FF" : "#fff";
   const extra = head
     ? ""
-    : mood === "groove"
+    : mood === "groove" || mood === "vibe" || mood === "sad"
       ? `<g ${odd ? 'transform="translate(3 -4)"' : ""}>
-          <path d="M104 22 v-13 l9 -2.5 v12" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-          <ellipse cx="101.5" cy="22.5" rx="3.6" ry="2.8" fill="#fff" />
-          <ellipse cx="110.5" cy="19.5" rx="3.6" ry="2.8" fill="#fff" /></g>`
-      : mood === "sleep"
-        ? `<g ${odd ? 'transform="translate(2 -3)"' : ""} fill="#fff" font-family="-apple-system, Helvetica, Arial, sans-serif">
+          <path d="M104 22 v-13 l9 -2.5 v12" stroke="${note}" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+          <ellipse cx="101.5" cy="22.5" rx="3.6" ry="2.8" fill="${note}" />
+          <ellipse cx="110.5" cy="19.5" rx="3.6" ry="2.8" fill="${note}" /></g>`
+      : mood === "love"
+        ? `<path ${odd ? 'transform="translate(2 -4)"' : ""} d="${heart(106, 14, 0.9)}" fill="#FF5A7A" />`
+        : mood === "hype"
+          ? `<g fill="#FFE27A" opacity="${odd ? 1 : 0.5}">
+          <path d="M104 10 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" />
+          <path d="M14 14 l1.5 3.5 3.5 1.5 -3.5 1.5 -1.5 3.5 -1.5 -3.5 -3.5 -1.5 3.5 -1.5z" /></g>`
+          : mood === "sleep"
+            ? `<g ${odd ? 'transform="translate(2 -3)"' : ""} fill="#fff" font-family="-apple-system, Helvetica, Arial, sans-serif">
           <text x="98" y="26" font-size="15" font-weight="800">z</text>
           <text x="108" y="14" font-size="10" font-weight="800">z</text></g>`
-        : mood === "happy"
-          ? `<path d="M108 20 c-6-4-9-7-9-10.5 0-2.5 2-4.3 4.3-4.3 1.8 0 3.3 1 4.7 2.8 1.4-1.8 2.9-2.8 4.7-2.8 2.3 0 4.3 1.8 4.3 4.3 0 3.5-3 6.5-9 10.5z" fill="#FF5A7A" />`
-          : "";
+            : mood === "happy"
+              ? `<path d="M108 20 c-6-4-9-7-9-10.5 0-2.5 2-4.3 4.3-4.3 1.8 0 3.3 1 4.7 2.8 1.4-1.8 2.9-2.8 4.7-2.8 2.3 0 4.3 1.8 4.3 4.3 0 3.5-3 6.5-9 10.5z" fill="#FF5A7A" />`
+              : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${pt}" height="${pt}" viewBox="${viewBox ?? "0 0 120 120"}">
   <defs>
@@ -139,6 +189,7 @@ function catSvg({ mood, frame, color, head, viewBox, pt }) {
     <ellipse cx="37" cy="83" rx="7" ry="4.5" fill="#FF8C8C" opacity="${blush}" />
     <ellipse cx="83" cy="83" rx="7" ry="4.5" fill="#FF8C8C" opacity="${blush}" />
     ${eyes}
+    ${sadMarks}
     <path d="M56.5 79.5 h7 q1.2 0 .5 1.1 l-2.8 2.8 q-.7.7-1.4 0 l-2.8-2.8 q-.7-1.1.5-1.1z" fill="#F07C86" />
     <path d="M60 84 q-1 4 -5.5 4 M60 84 q1 4 5.5 4" stroke="#7a4a32" stroke-width="1.8" stroke-linecap="round" fill="none" />
     <path d="M40 86 l-17 -2 M40 89.5 l-16 3 M80 86 l17 -2 M80 89.5 l16 3" stroke="${dark ? "#bbb" : "#fff"}" stroke-width="1.3" stroke-linecap="round" opacity="0.8" />

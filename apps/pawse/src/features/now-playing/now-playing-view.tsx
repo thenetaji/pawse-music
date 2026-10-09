@@ -38,6 +38,7 @@ import { activeLine } from "../../lib/lrc";
 import { useSetting } from "../../lib/settings";
 import { useSongArt } from "../../lib/song-art";
 import { display } from "../../lib/type";
+import { songVibe } from "../../lib/vibe";
 import type { CatMood } from "../cat/cat";
 import { AirPlay } from "./airplay";
 import { CatScrubber } from "./cat-scrubber";
@@ -83,6 +84,9 @@ export type NowPlayingProps = {
   onQueue?: () => void;
   onClose?: () => void;
   onMore?: () => void;
+  /** Tapping the title opens the album; tapping the artist opens the artist. */
+  onTitle?: () => void;
+  onArtist?: () => void;
   onShareLyric?: (line: string) => void;
 };
 
@@ -105,7 +109,7 @@ export function NowPlayingView(p: NowPlayingProps) {
   );
   const showLine = useSetting("lyricsLine", true);
   const playing = p.status === "playing" || p.status === "buffering";
-  const mood = useCatMood(p.status, p.liked, p.track);
+  const mood = useCatMood(p.status, p.liked, p.track, p.context?.title);
   const lyricsMode = p.mode === "lyrics";
 
   // Paused: the artwork dims and settles back a touch.
@@ -339,22 +343,42 @@ export function NowPlayingView(p: NowPlayingProps) {
 
             <View style={styles.meta}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Animated.Text
-                  key={`t${p.track?.id}`}
-                  entering={FadeInDown.duration(320)}
-                  style={styles.title}
-                  numberOfLines={1}
+                <Pressable
+                  onPress={p.onTitle}
+                  style={({ pressed }) => [
+                    styles.link,
+                    pressed && styles.metaPressed,
+                  ]}
+                  accessibilityRole="link"
+                  accessibilityHint="Opens the album"
                 >
-                  {p.track?.title ?? " "}
-                </Animated.Text>
-                <Animated.Text
-                  key={`a${p.track?.id}`}
-                  entering={FadeInDown.duration(380).delay(40)}
-                  style={styles.artist}
-                  numberOfLines={1}
+                  <Animated.Text
+                    key={`t${p.track?.id}`}
+                    entering={FadeInDown.duration(320)}
+                    style={styles.title}
+                    numberOfLines={1}
+                  >
+                    {p.track?.title ?? " "}
+                  </Animated.Text>
+                </Pressable>
+                <Pressable
+                  onPress={p.onArtist}
+                  style={({ pressed }) => [
+                    styles.link,
+                    pressed && styles.metaPressed,
+                  ]}
+                  accessibilityRole="link"
+                  accessibilityHint="Opens the artist"
                 >
-                  {p.track ? artistLine(p.track.artists) : " "}
-                </Animated.Text>
+                  <Animated.Text
+                    key={`a${p.track?.id}`}
+                    entering={FadeInDown.duration(380).delay(40)}
+                    style={styles.artist}
+                    numberOfLines={1}
+                  >
+                    {p.track ? artistLine(p.track.artists) : " "}
+                  </Animated.Text>
+                </Pressable>
               </View>
               {likeButton}
             </View>
@@ -569,11 +593,12 @@ function Btn({
   );
 }
 
-// Groove while playing, sleep when paused, yawn on resume, a hop on like, excited for a new artist.
+// Dance to the song's mood while playing, sleep when paused, yawn on resume, a hop on like, excited for a new artist.
 function useCatMood(
   status: NowPlayingStatus,
   liked: boolean,
   track?: Track,
+  sourceTitle?: string,
 ): CatMood {
   const [flash, setFlash] = useState<CatMood | null>(null);
   const prev = useRef({ liked, id: track?.id, status });
@@ -608,7 +633,7 @@ function useCatMood(
     );
   }, [liked, track, status]);
   if (flash) return flash;
-  if (status === "playing") return "groove";
+  if (status === "playing") return songVibe(track, sourceTitle);
   if (status === "paused" || status === "idle") return "sleep";
   return "curious";
 }
@@ -647,6 +672,9 @@ const styles = StyleSheet.create({
     ...display("700"),
     letterSpacing: -0.3,
   },
+  // Only the text itself is tappable, not the empty space beside it.
+  link: { alignSelf: "flex-start", maxWidth: "100%" },
+  metaPressed: { opacity: 0.55 },
   artist: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 19,

@@ -47,6 +47,7 @@ export default function HistoryPage() {
             <View style={{ backgroundColor: "#000" }}>
               <TrackRow
                 track={item.track}
+                removable
                 subtitle={`${item.track.artists.map((a) => a.name).join(", ")} · ${new Date(item.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`}
                 onPress={() =>
                   void player.playRadio({

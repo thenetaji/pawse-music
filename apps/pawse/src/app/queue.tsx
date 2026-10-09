@@ -1,8 +1,9 @@
 import { artistLine, type Track } from "@pawse/music-core";
 import { player, usePlayerState, usePlayerStore } from "@pawse/player";
 import { router } from "expo-router";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Gesture } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -32,31 +33,48 @@ import { display } from "../lib/type";
 const SLEEP = [15, 30, 45, 60, 90];
 const UNDO_MS = 4000;
 
-// The last removed song, offered back for a few seconds.
-type Removed = {
-  track: Track;
-  at: number;
+// The last queue change, offered back for a few seconds.
+type Undo = {
+  message: string;
+  revert: () => void;
   timer: ReturnType<typeof setTimeout>;
 };
-const useUndo = create<{ removed: Removed | null }>(() => ({ removed: null }));
+const useUndo = create<{ last: Undo | null }>(() => ({ last: null }));
+
+function offerUndo(message: string, revert: () => void) {
+  const prev = useUndo.getState().last;
+  if (prev) clearTimeout(prev.timer);
+  const timer = setTimeout(() => useUndo.setState({ last: null }), UNDO_MS);
+  useUndo.setState({ last: { message, revert, timer } });
+}
 
 function removeWithUndo(track: Track, at: number) {
   player.remove(at);
-  const prev = useUndo.getState().removed;
-  if (prev) clearTimeout(prev.timer);
-  const timer = setTimeout(() => useUndo.setState({ removed: null }), UNDO_MS);
-  useUndo.setState({ removed: { track, at, timer } });
+  offerUndo(`Removed “${track.title}”`, () => {
+    player.addNext(track);
+    const next = usePlayerStore.getState().index + 1;
+    if (at !== next) player.move(next, at);
+  });
 }
 
-function undoRemove() {
-  const r = useUndo.getState().removed;
-  if (!r) return;
-  clearTimeout(r.timer);
-  useUndo.setState({ removed: null });
-  haptic.light();
-  player.addNext(r.track);
+function playNextWithUndo(track: Track, at: number) {
   const next = usePlayerStore.getState().index + 1;
-  if (r.at !== next) player.move(next, r.at);
+  if (at === next) return;
+  player.move(at, next);
+  offerUndo(`“${track.title}” plays next`, () => {
+    const now = usePlayerStore.getState().index + 1;
+    if (usePlayerStore.getState().tracks[now]?.id === track.id)
+      player.move(now, at);
+  });
+}
+
+function undoLast() {
+  const u = useUndo.getState().last;
+  if (!u) return;
+  clearTimeout(u.timer);
+  useUndo.setState({ last: null });
+  haptic.light();
+  u.revert();
 }
 
 export default function Queue() {
@@ -76,6 +94,9 @@ export default function Queue() {
             minute: "2-digit",
           })
         : "Sleep";
+
+  // Reordering only reacts to vertical drags, so sideways swipes reach the rows.
+  const listPan = useMemo(() => Gesture.Pan().activeOffsetY([-10, 10]), []);
 
   const onReorder = ({ from, to }: ReorderableListReorderEvent) => {
     haptic.light();
@@ -180,6 +201,8 @@ export default function Queue() {
           data={upNext}
           keyExtractor={(t, i) => `${t.id}:${i}`}
           onReorder={onReorder}
+          panGesture={listPan}
+          shouldUpdateActiveItem
           contentContainerStyle={{ paddingBottom: 60 }}
           renderItem={({ item, index: i }) => (
             <Row track={item} at={index + 1 + i} />
@@ -206,7 +229,7 @@ const Row = memo(function Row({ track, at }: { track: Track; at: number }) {
       right={{
         label: "Play next",
         color: "#2ED3A2",
-        onCommit: () => player.move(at, usePlayerStore.getState().index + 1),
+        onCommit: () => playNextWithUndo(track, at),
       }}
       left={{
         label: "Remove",
@@ -244,9 +267,9 @@ const Row = memo(function Row({ track, at }: { track: Track; at: number }) {
 });
 
 function UndoBar() {
-  const removed = useUndo((s) => s.removed);
+  const last = useUndo((s) => s.last);
   const insets = useSafeAreaInsets();
-  if (!removed) return null;
+  if (!last) return null;
   return (
     <Animated.View
       entering={FadeInDown.duration(180)}
@@ -254,9 +277,9 @@ function UndoBar() {
       style={[styles.undo, { bottom: insets.bottom + 16 }]}
     >
       <Text style={styles.undoText} numberOfLines={1}>
-        Removed “{removed.track.title}”
+        {last.message}
       </Text>
-      <Pressable hitSlop={10} onPress={undoRemove}>
+      <Pressable hitSlop={10} onPress={undoLast}>
         <Text style={styles.undoAction}>Undo</Text>
       </Pressable>
     </Animated.View>

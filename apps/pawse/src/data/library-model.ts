@@ -72,6 +72,8 @@ export type Settings = {
   /** YouTube `hl`. */
   language: string;
   explicitFilter: boolean;
+  /** Track ids hidden from Home, newest first. */
+  hiddenFromHome: string[];
   // Privacy
   pauseHistory: boolean;
   // Android
@@ -119,6 +121,7 @@ export const DEFAULT_SETTINGS: Settings = {
   region: "auto",
   language: "auto",
   explicitFilter: false,
+  hiddenFromHome: [],
   pauseHistory: false,
   androidPill: false,
   androidPillOffset: 0,

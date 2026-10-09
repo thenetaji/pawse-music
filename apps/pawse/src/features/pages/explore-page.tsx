@@ -14,7 +14,6 @@ import {
 } from "../../components/ui";
 import { yt } from "../../lib/engine";
 import { useRegion } from "../../lib/locale";
-import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { TopGlow } from "./top-glow";

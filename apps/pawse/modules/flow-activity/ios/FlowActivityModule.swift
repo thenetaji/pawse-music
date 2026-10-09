@@ -16,6 +16,7 @@ struct FlowActivityStateRecord: Record {
   @Field var color: String = "orange"
   @Field var mouse: Int = 0
   @Field var name: String? = nil
+  @Field var tint: String? = nil
   /// Milliseconds since 1970; 0 means never stale.
   @Field var staleAt: Double = 0
 
@@ -36,13 +37,14 @@ struct FlowActivityStateRecord: Record {
       progress: min(max(progress, 0), 1),
       color: color,
       mouse: min(max(mouse, 0), 2),
-      name: name
+      name: name,
+      tint: tint
     )
   }
 }
 
 public class FlowActivityModule: Module {
-  private static let actions = ["toggle", "next"]
+  private static let actions = ["toggle", "next", "previous"]
   private var terminateObserver: NSObjectProtocol?
 
   public func definition() -> ModuleDefinition {

@@ -8,18 +8,19 @@ import { Artwork } from "../../components/artwork";
 import { download, isDownloaded, removeDownload } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
-import { go, push } from "../../lib/nav";
+import { push } from "../../lib/nav";
+import { removeSong } from "../../lib/remove-song";
 import { useShareCard } from "../../lib/share-card-store";
+import { openAlbum, openArtist } from "../../lib/song-links";
 
 export function showTrackActions(
   track: Track,
-  opts?: { fromPlayer?: boolean },
+  opts?: { fromPlayer?: boolean; removable?: boolean },
 ) {
   const lib = useLibrary.getState();
   const liked = lib.isLiked(track.id);
   const saved = isDownloaded(track.id);
-  const artist = track.artists.find((a) => a.id);
-  const leave = (fn: () => void) => () => {
+  const leave = (fn: () => void) => {
     if (opts?.fromPlayer) router.back();
     setTimeout(fn, opts?.fromPlayer ? 250 : 0);
   };
@@ -39,6 +40,15 @@ export function showTrackActions(
       </View>
     ),
     actions: [
+      ...(opts?.removable
+        ? [
+            {
+              label: "Remove from Home & history",
+              destructive: true,
+              onPress: () => removeSong(track),
+            },
+          ]
+        : []),
       ...(opts?.fromPlayer
         ? []
         : [
@@ -66,19 +76,16 @@ export function showTrackActions(
         keepOpen: true,
         onPress: () => showPlaylistPicker(track),
       },
-      ...(track.album?.id
+      {
+        label: "Go to album",
+        onPress: () => void openAlbum(track, leave),
+      },
+      ...(track.artists.length
         ? [
             {
-              label: "Go to album",
-              onPress: leave(() => go(`/album/${track.album!.id}`)),
-            },
-          ]
-        : []),
-      ...(artist?.id
-        ? [
-            {
-              label: "Go to artist",
-              onPress: leave(() => go(`/artist/${artist.id}`)),
+              label:
+                track.artists.length > 1 ? "Go to artists" : "Go to artist",
+              onPress: () => void openArtist(track, leave),
             },
           ]
         : []),

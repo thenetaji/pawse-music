@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { type ReactNode, useState } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   interpolate,
@@ -14,9 +14,10 @@ import { display } from "../lib/type";
 
 type Action = { label: string; color: string; onCommit: () => void };
 
-// Past this share of the row's width a swipe commits on release; anything shorter springs back.
-const COMMIT = 0.4;
-const SPRING = { damping: 20, stiffness: 260 };
+// A short swipe only reveals the button (like Mail); a swipe past FULL of the width acts at once.
+const OPEN = 104;
+const FULL = 0.62;
+const SPRING = { damping: 22, stiffness: 240 };
 
 let lastSwipe = 0;
 /** True right after a swipe, so the row's tap handler can ignore the release that ended it. */
@@ -25,9 +26,15 @@ const markSwipe = () => {
   lastSwipe = Date.now();
 };
 
+// Only one row stays open; touching another row closes it.
+let openRow: { id: object; close: () => void } | null = null;
+const setOpenRow = (row: typeof openRow) => {
+  openRow = row;
+};
+
 /**
- * Swipe right for `right`, left for `left`. The row follows the finger; crossing the commit point
- * ticks and lights the label, and dragging back before letting go cancels.
+ * Swipe right for `right`, left for `left`. A short swipe opens a button to tap; letting go
+ * early or swiping back cancels, and only a long deliberate swipe commits straight away.
  */
 export function SwipeRow({
   children,
@@ -39,21 +46,50 @@ export function SwipeRow({
   left?: Action;
 }) {
   const x = useSharedValue(0);
+  const start = useSharedValue(0);
   const width = useSharedValue(1);
   const armed = useSharedValue(0);
+  const [id] = useState(() => ({}));
+  const [open, setOpen] = useState<0 | 1 | -1>(0);
+
+  const close = () => {
+    x.set(withSpring(0, SPRING));
+    setOpen(0);
+    if (openRow?.id === id) setOpenRow(null);
+  };
+
+  const commit = (dir: 1 | -1) => {
+    const action = dir === 1 ? right : left;
+    if (!action) return;
+    haptic.light();
+    if (openRow?.id === id) setOpenRow(null);
+    setOpen(0);
+    x.set(withTiming(dir * width.get(), { duration: 170 }));
+    // Let the slide-out read before the list changes, then reset for reuse.
+    setTimeout(() => {
+      action.onCommit();
+      x.set(0);
+    }, 180);
+  };
 
   const pan = Gesture.Pan()
     .runOnJS(true)
-    .activeOffsetX([-16, 16])
-    .failOffsetY([-12, 12])
-    .onStart(markSwipe)
+    .activeOffsetX([-22, 22])
+    .failOffsetY([-10, 10])
+    .onBegin(() => {
+      if (openRow && openRow.id !== id) openRow.close();
+    })
+    .onStart(() => {
+      markSwipe();
+      start.set(x.get());
+    })
     .onUpdate((e) => {
       markSwipe();
-      const t = e.translationX;
+      const t = start.get() + e.translationX;
       // No action that way: a little give, then it stops.
       const allowed = (t > 0 && right) || (t < 0 && left);
-      x.set(allowed ? t : t * 0.15);
-      const limit = width.get() * COMMIT;
+      x.set(allowed ? t : t * 0.12);
+      const limit = width.get() * FULL;
       const next = !allowed ? 0 : t > limit ? 1 : t < -limit ? -1 : 0;
       if (next !== armed.get()) {
         armed.set(next);
@@ -61,21 +97,27 @@ export function SwipeRow({
         else haptic.tick();
       }
     })
-    .onEnd(() => {
+    .onEnd((e) => {
       markSwipe();
       const dir = armed.get();
       armed.set(0);
-      const action = dir === 1 ? right : dir === -1 ? left : undefined;
-      if (!action) {
-        x.set(withSpring(0, SPRING));
+      if (dir === 1 || dir === -1) {
+        commit(dir);
         return;
       }
-      x.set(withTiming(dir * width.get(), { duration: 160 }));
-      // Let the slide-out read before the list changes, then reset for reuse.
-      setTimeout(() => {
-        action.onCommit();
-        x.set(0);
-      }, 170);
+      const t = x.get();
+      // Flicking back toward the middle on release means "never mind".
+      const back =
+        (t > 0 && e.velocityX < -300) || (t < 0 && e.velocityX > 300);
+      const side =
+        t > OPEN * 0.55 && right ? 1 : t < -OPEN * 0.55 && left ? -1 : 0;
+      if (!side || back) {
+        close();
+        return;
+      }
+      x.set(withSpring(side * OPEN, SPRING));
+      setOpen(side);
+      setOpenRow({ id, close });
     });
 
   const rowStyle = useAnimatedStyle(() => ({
@@ -84,20 +126,14 @@ export function SwipeRow({
   // Colour fills only the strip the row has uncovered, so transparent rows don't tint.
   const rightBg = useAnimatedStyle(() => ({ width: Math.max(0, x.value) }));
   const leftBg = useAnimatedStyle(() => ({ width: Math.max(0, -x.value) }));
-  const rightLabel = useAnimatedStyle(() => {
-    const p = Math.min(1, x.value / (width.value * COMMIT));
-    return {
-      opacity: interpolate(p, [0, 0.4, 1], [0, 0.6, 1]),
-      transform: [{ scale: p >= 1 ? 1.08 : 0.9 + p * 0.1 }],
-    };
-  });
-  const leftLabel = useAnimatedStyle(() => {
-    const p = Math.min(1, -x.value / (width.value * COMMIT));
-    return {
-      opacity: interpolate(p, [0, 0.4, 1], [0, 0.6, 1]),
-      transform: [{ scale: p >= 1 ? 1.08 : 0.9 + p * 0.1 }],
-    };
-  });
+  const rightLabel = useAnimatedStyle(() => ({
+    opacity: interpolate(x.value / OPEN, [0, 0.5, 1], [0, 0.4, 1], "clamp"),
+    transform: [{ scale: x.value > width.value * FULL ? 1.12 : 1 }],
+  }));
+  const leftLabel = useAnimatedStyle(() => ({
+    opacity: interpolate(-x.value / OPEN, [0, 0.5, 1], [0, 0.4, 1], "clamp"),
+    transform: [{ scale: -x.value > width.value * FULL ? 1.12 : 1 }],
+  }));
 
   return (
     <View onLayout={(e) => width.set(e.nativeEvent.layout.width || 1)}>
@@ -105,37 +141,48 @@ export function SwipeRow({
         <Animated.View
           style={[
             styles.bg,
-            { left: 0, backgroundColor: right.color, alignItems: "flex-start" },
+            { left: 0, backgroundColor: right.color, alignItems: "flex-end" },
             rightBg,
           ]}
         >
-          <Animated.View style={[styles.labelBox, rightLabel]}>
-            <Text style={styles.label} numberOfLines={1}>
+          <Pressable
+            disabled={open !== 1}
+            onPress={() => commit(1)}
+            style={styles.button}
+          >
+            <Animated.Text style={[styles.label, rightLabel]} numberOfLines={1}>
               {right.label}
-            </Text>
-          </Animated.View>
+            </Animated.Text>
+          </Pressable>
         </Animated.View>
       ) : null}
       {left ? (
         <Animated.View
           style={[
             styles.bg,
-            { right: 0, backgroundColor: left.color, alignItems: "flex-end" },
+            { right: 0, backgroundColor: left.color, alignItems: "flex-start" },
             leftBg,
           ]}
         >
-          <Animated.View style={[styles.labelBox, leftLabel]}>
-            <Text
-              style={[styles.label, { textAlign: "right" }]}
-              numberOfLines={1}
-            >
+          <Pressable
+            disabled={open !== -1}
+            onPress={() => commit(-1)}
+            style={styles.button}
+          >
+            <Animated.Text style={[styles.label, leftLabel]} numberOfLines={1}>
               {left.label}
-            </Text>
-          </Animated.View>
+            </Animated.Text>
+          </Pressable>
         </Animated.View>
       ) : null}
       <GestureDetector gesture={pan}>
-        <Animated.View style={rowStyle}>{children}</Animated.View>
+        <Animated.View style={rowStyle}>
+          {children}
+          {open ? (
+            // While open, a tap on the row only closes it.
+            <Pressable style={StyleSheet.absoluteFill} onPress={close} />
+          ) : null}
+        </Animated.View>
       </GestureDetector>
     </View>
   );
@@ -150,6 +197,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  labelBox: { width: 120, marginHorizontal: 22 },
-  label: { color: "#000", fontSize: 15, ...display("800") },
+  button: {
+    width: OPEN,
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  label: { color: "#000", fontSize: 14, ...display("800") },
 });

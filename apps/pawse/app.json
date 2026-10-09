@@ -81,7 +81,20 @@
           ]
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "./plugins/with-ios-app-icons.js",
+        [
+          {
+            "name": "Midnight",
+            "ios": "./assets/images/app-icons/midnight.png"
+          },
+          {
+            "name": "Graphite",
+            "ios": "./assets/images/app-icons/graphite.png"
+          }
+        ]
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

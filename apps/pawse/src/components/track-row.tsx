@@ -24,6 +24,8 @@ type Props = {
   subtitle?: string;
   /** Off inside horizontal carousels, where a sideways swipe should scroll. */
   swipeable?: boolean;
+  /** On Home and History, the menu offers removing the song from both. */
+  removable?: boolean;
 };
 
 // Swipe right to play next, left to add to the queue; long-press for everything else.
@@ -34,6 +36,7 @@ export const TrackRow = memo(function TrackRow({
   showArt = true,
   subtitle,
   swipeable = true,
+  removable,
 }: Props) {
   const current = usePlayerSelect((s) => s.current?.id === track.id);
   const playing = usePlayerSelect((s) => s.status === "playing");
@@ -49,7 +52,7 @@ export const TrackRow = memo(function TrackRow({
         haptic.tick();
         onPress();
       }}
-      onLongPress={() => showTrackActions(track)}
+      onLongPress={() => showTrackActions(track, { removable })}
       delayLongPress={300}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
@@ -94,7 +97,7 @@ export const TrackRow = memo(function TrackRow({
       </View>
       <Pressable
         hitSlop={12}
-        onPress={() => showTrackActions(track)}
+        onPress={() => showTrackActions(track, { removable })}
         style={styles.more}
       >
         <MoreGlyph size={18} color="rgba(255,255,255,0.5)" />

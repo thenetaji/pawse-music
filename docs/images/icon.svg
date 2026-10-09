@@ -1,11 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><radialGradient id="bg" cx=".5" cy=".35" r=".9"><stop offset="0" stop-color="#1D1530"/><stop offset="1" stop-color="#050507"/></radialGradient>
-    <linearGradient id="gl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8B7CFF"/><stop offset=".55" stop-color="#C86BFF"/><stop offset="1" stop-color="#FF6A9E"/></linearGradient></defs>
-    <rect width="1024" height="1024" fill="url(#bg)"/>
-    
-  <mask id="cut"><rect width="1024" height="1024" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><rect width="1024" height="1024" fill="#000"/><mask id="cut"><rect width="1024" height="1024" fill="#fff"/>
     <rect x="455" y="578" width="40" height="150" rx="20" fill="#000"/>
     <rect x="529" y="578" width="40" height="150" rx="20" fill="#000"/></mask>
-  <g fill="url(#gl)" mask="url(#cut)">
+  <g fill="#FFFFFF" mask="url(#cut)">
     <path d="M512 488 C606 488 694 572 724 660 C750 738 704 808 632 808 C582 808 560 780 512 780 C464 780 442 808 392 808 C320 808 274 738 300 660 C330 572 418 488 512 488 Z"/>
     <ellipse cx="338" cy="462" rx="66" ry="86" transform="rotate(-24 338 462)"/>
     <ellipse cx="446" cy="338" rx="68" ry="92" transform="rotate(-8 446 338)"/>

@@ -23,6 +23,16 @@ struct FlowNextIntent: LiveActivityIntent {
   }
 }
 
+@available(iOS 17.0, *)
+struct FlowPreviousIntent: LiveActivityIntent {
+  static let title: LocalizedStringResource = "Previous Track"
+
+  func perform() async throws -> some IntentResult {
+    await FlowIntentSignal.send("previous")
+    return .result()
+  }
+}
+
 enum FlowIntentSignal {
   static func send(_ action: String) async {
     let name = CFNotificationName("com.thenetaji.flow.activity.\(action)" as CFString)

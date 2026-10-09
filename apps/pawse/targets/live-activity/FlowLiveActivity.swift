@@ -14,9 +14,28 @@ struct FlowWidgets: WidgetBundle {
 typealias FlowState = FlowActivityAttributes.ContentState
 
 enum FlowTheme {
-  /// The cat's headphone purple, Flow's default accent.
+  /// The cat's headphone purple, the accent when the artwork has no colour yet.
   static let accent = Color(red: 0.545, green: 0.486, blue: 1)
   static let secondary = Color.white.opacity(0.6)
+}
+
+private func rgb(_ hex: String?) -> (Double, Double, Double)? {
+  guard let hex, hex.count == 7, hex.first == "#", let v = UInt32(hex.dropFirst(), radix: 16) else {
+    return nil
+  }
+  return (Double((v >> 16) & 0xFF) / 255, Double((v >> 8) & 0xFF) / 255, Double(v & 0xFF) / 255)
+}
+
+/// The artwork's colour, so the ring, bar and text match the song like the in-app player.
+func accent(_ state: FlowState) -> Color {
+  guard let c = rgb(state.tint) else { return FlowTheme.accent }
+  return Color(red: c.0, green: c.1, blue: c.2)
+}
+
+/// A deep shade of the artwork colour for the lock screen card, dark enough for white text.
+func deepAccent(_ state: FlowState) -> Color {
+  guard let c = rgb(state.tint) else { return Color.black.opacity(0.45) }
+  return Color(red: c.0 * 0.32, green: c.1 * 0.32, blue: c.2 * 0.32).opacity(0.82)
 }
 
 // Sized for the HIG metrics: compact and minimal are 36.67 pt tall, expanded and lock screen stay under 160 pt.
@@ -24,23 +43,24 @@ struct FlowLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: FlowActivityAttributes.self) { context in
       LockScreenView(state: context.shown, stale: context.isStale)
-        .activityBackgroundTint(Color.black.opacity(0.45))
+        .activityBackgroundTint(deepAccent(context.shown))
         .activitySystemActionForegroundColor(.white)
     } dynamicIsland: { activity in
       let state = activity.shown
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          ArtworkView(name: state.artwork, size: 52, radius: 12)
+          ArtworkView(name: state.artwork, size: 58, radius: 14)
+            .shadow(color: accent(state).opacity(0.55), radius: 10)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          CatStage(state: state, size: 44)
+          CatStage(state: state, size: 50)
         }
         DynamicIslandExpandedRegion(.center) {
           TitleView(state: state)
         }
         DynamicIslandExpandedRegion(.bottom) {
           PlayerBar(state: state)
-            .padding(.top, 6)
+            .padding(.top, 8)
         }
       } compactLeading: {
         // During an episode the mouse peeks out from behind the camera where the artwork sits.
@@ -63,7 +83,7 @@ struct FlowLiveActivity: Widget {
       .contentMargins(.horizontal, 8, for: .compactTrailing)
       .contentMargins(.horizontal, 18, for: .expanded)
       .contentMargins(.bottom, 14, for: .expanded)
-      .keylineTint(FlowTheme.accent)
+      .keylineTint(accent(state))
     }
   }
 }
@@ -91,7 +111,7 @@ struct LockScreenView: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(verbatim: stale ? "\(state.name ?? "Mochi") is napping" : catLine(state))
           .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(FlowTheme.accent)
+          .foregroundStyle(accent(state))
           .lineLimit(1)
         Text(verbatim: stale ? "Open Flow to keep listening" : "\(state.title) · \(state.artist)")
           .font(.system(size: 14, weight: .medium))
@@ -111,9 +131,13 @@ func catLine(_ state: FlowState) -> String {
   if (state.mouse ?? 0) > 0 { return "\(name) spotted a mouse" }
   switch state.mood {
   case "groove": return "\(name) is dancing"
+  case "hype": return "\(name) is going wild"
+  case "vibe": return "\(name) is vibing"
+  case "love": return "\(name) is in love with this one"
+  case "sad": return "\(name) is feeling this one"
   case "happy": return "\(name) loves this one"
   case "curious": return "\(name) is listening"
-  default: return "\(name) is waiting"
+  default: return "\(name) is napping"
   }
 }
 
@@ -130,36 +154,51 @@ struct TitleView: View {
         .font(.system(size: 13))
         .foregroundStyle(FlowTheme.secondary)
         .lineLimit(1)
+      Text(verbatim: catLine(state))
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(accent(state))
+        .lineLimit(1)
+        .padding(.top, 1)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
-/// Elapsed time, a slim bar, remaining time, then play/pause and next.
+/// A tinted progress row, then previous, play/pause and next in the middle.
 struct PlayerBar: View {
   let state: FlowState
 
   var body: some View {
-    HStack(spacing: 8) {
-      TimeLabel(state: state, remaining: false)
-      SlimProgress(state: state)
-      TimeLabel(state: state, remaining: true)
-      Button(intent: FlowToggleIntent()) {
-        Image(systemName: state.isPlaying ? "pause.fill" : "play.fill")
-          .font(.system(size: 20, weight: .semibold))
-          .frame(width: 34, height: 34)
-          .contentShape(Rectangle())
+    VStack(spacing: 4) {
+      HStack(spacing: 8) {
+        TimeLabel(state: state, remaining: false)
+        SlimProgress(state: state)
+        TimeLabel(state: state, remaining: true)
       }
-      .buttonStyle(.plain)
-      Button(intent: FlowNextIntent()) {
-        Image(systemName: "forward.fill")
-          .font(.system(size: 17, weight: .semibold))
-          .frame(width: 34, height: 34)
-          .contentShape(Rectangle())
+      HStack(spacing: 40) {
+        ControlButton(intent: FlowPreviousIntent(), symbol: "backward.fill", size: 18)
+        ControlButton(
+          intent: FlowToggleIntent(), symbol: state.isPlaying ? "pause.fill" : "play.fill", size: 24)
+        ControlButton(intent: FlowNextIntent(), symbol: "forward.fill", size: 18)
       }
-      .buttonStyle(.plain)
     }
     .foregroundStyle(.white)
+  }
+}
+
+struct ControlButton<I: LiveActivityIntent>: View {
+  let intent: I
+  let symbol: String
+  let size: CGFloat
+
+  var body: some View {
+    Button(intent: intent) {
+      Image(systemName: symbol)
+        .font(.system(size: size, weight: .semibold))
+        .frame(width: 40, height: 34)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
   }
 }
 
@@ -212,7 +251,7 @@ struct SlimProgress: View {
       }
     }
     .progressViewStyle(.linear)
-    .tint(.white)
+    .tint(accent(state))
   }
 }
 
@@ -247,15 +286,15 @@ struct RingProgress: View {
         EmptyView()
       }
       .progressViewStyle(.circular)
-      .tint(FlowTheme.accent)
+      .tint(accent(state))
     } else {
       // A determinate circular ProgressView can render as a spinner, so draw the paused ring.
       ZStack {
         Circle()
-          .stroke(FlowTheme.accent.opacity(0.25), lineWidth: 2)
+          .stroke(accent(state).opacity(0.25), lineWidth: 2)
         Circle()
           .trim(from: 0, to: CGFloat(state.progress))
-          .stroke(FlowTheme.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+          .stroke(accent(state), style: StrokeStyle(lineWidth: 2, lineCap: .round))
           .rotationEffect(.degrees(-90))
       }
       .padding(1)
@@ -301,7 +340,7 @@ func catImage(_ state: FlowState, head: Bool) -> String {
     pose = head ? "curious" : "look"
   } else {
     switch state.mood {
-    case "groove": pose = even ? "groove-a" : "groove-b"
+    case "groove", "hype", "vibe", "love", "sad": pose = "\(state.mood)-\(even ? "a" : "b")"
     case "happy": pose = "happy"
     case "curious": pose = "curious"
     default: pose = even ? "sleep-a" : "sleep-b"
@@ -321,7 +360,10 @@ func mouseImage(_ state: FlowState) -> String? {
 func catLabel(_ state: FlowState) -> String {
   let name = state.name ?? "The cat"
   switch state.mood {
-  case "groove": return "\(name) is dancing"
+  case "groove", "hype": return "\(name) is dancing"
+  case "vibe": return "\(name) is swaying"
+  case "love": return "\(name) is in love"
+  case "sad": return "\(name) is feeling the song"
   case "happy": return "\(name) is happy"
   case "curious": return "\(name) is curious"
   default: return "\(name) is asleep"

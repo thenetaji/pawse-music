@@ -398,7 +398,7 @@ export function forYouShelves(
   if (forgotten.length)
     out.push({ title: "Forgotten favourites", items: asItems(forgotten) });
   if (data.fresh.length >= 2)
-    out.push({ title: "New from artists you play", items: data.fresh });
+    out.push({ title: "New from your artists", items: data.fresh });
   for (const p of data.popular) {
     const tracks = unused(p.tracks);
     if (tracks.length >= 5)
@@ -587,7 +587,7 @@ async function newFromArtists(
     fetchOnce("new", () => yt.newReleases()).catch(() => [] as Shelf[]),
     ...top
       .filter((a) => a.id)
-      .slice(0, 3)
+      .slice(0, 4)
       .map((a) => artistPage(a.id!).catch(() => undefined)),
   ]);
   const fromArtists = pages.flatMap((p) =>
@@ -741,6 +741,7 @@ export function useForYou(): {
   const languages = useLibrary((s) => s.settings.seedLanguages);
   const region = useRegion();
   const explicit = useLibrary((s) => s.settings.explicitFilter);
+  const hidden = useLibrary((s) => s.settings.hiddenFromHome);
   const signals = useSignals((s) => s.tracks);
   const smart = useSmartPlaylists();
   const clock = useClock();
@@ -754,11 +755,12 @@ export function useForYou(): {
     const stats = listeningStats(history, now - 90 * DAY, Infinity, 20);
     const topArtists: ArtistRef[] = [];
     const seenA = new Set<string>();
+    // Followed artists come first, so their new releases always make the cut.
     for (const a of [
+      ...followed,
       ...stats.topArtists.map((s) => s.artist),
       ...liked.slice(0, 50).map((t) => t.artists[0]),
       ...seedArtists,
-      ...followed,
     ]) {
       if (!a || seenA.has(artistKey(a))) continue;
       seenA.add(artistKey(a));
@@ -796,6 +798,7 @@ export function useForYou(): {
     [
       inputs.plan.songs.map((s) => s.track.id).sort(),
       inputs.plan.artists.map((a) => a.id).sort(),
+      followed.map((a) => a.id).sort(),
       languages,
       region,
       inputs.isNew,
@@ -819,9 +822,13 @@ export function useForYou(): {
   const shelves = useMemo(
     () =>
       data
-        ? forYouShelves(data, smart, { drop: inputs.drop, known: inputs.known })
+        ? forYouShelves(data, smart, {
+            // Hidden songs drop out here, so Quick picks refills from its pool.
+            drop: new Set([...inputs.drop, ...(hidden ?? [])]),
+            known: inputs.known,
+          })
         : [],
-    [data, smart, inputs],
+    [data, smart, inputs, hidden],
   );
 
   return {

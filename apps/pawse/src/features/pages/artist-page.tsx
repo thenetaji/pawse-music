@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomSpace } from "../../components/page";
 import { Shelf } from "../../components/shelf";
 import { CatState, PressScale, SkeletonShelves } from "../../components/ui";
+import { mirrorFollow } from "../../data/account";
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
@@ -143,12 +144,13 @@ export default function ArtistPage() {
               <PressScale
                 onPress={() => {
                   haptic.success();
-                  useLibrary.getState().toggleFollowArtist({
+                  const on = useLibrary.getState().toggleFollowArtist({
                     id: a.id,
                     name: a.name,
                     subtitle: a.subscribers,
                     thumbnails: a.thumbnails,
                   });
+                  mirrorFollow(a.channelId ?? a.id, on);
                 }}
                 style={[styles.follow, following && styles.following]}
               >
@@ -161,17 +163,20 @@ export default function ArtistPage() {
             </View>
           </Animated.View>
         </View>
-        {a.shelves.map((s, i) => (
-          <Shelf key={`${s.title}${i}`} shelf={s} />
-        ))}
-        {a.description ? (
-          <View style={styles.aboutBox}>
-            <Text style={styles.aboutTitle}>About</Text>
-            <Text style={styles.about} numberOfLines={8}>
-              {a.description}
-            </Text>
-          </View>
-        ) : null}
+        {/* Opaque, so the parallax photo sliding down stays behind the rows. */}
+        <View style={styles.body}>
+          {a.shelves.map((s, i) => (
+            <Shelf key={`${s.title}${i}`} shelf={s} />
+          ))}
+          {a.description ? (
+            <View style={styles.aboutBox}>
+              <Text style={styles.aboutTitle}>About</Text>
+              <Text style={styles.about} numberOfLines={8}>
+                {a.description}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       </Animated.ScrollView>
       <Animated.View
         pointerEvents="none"
@@ -190,6 +195,7 @@ export default function ArtistPage() {
 }
 
 const styles = StyleSheet.create({
+  body: { backgroundColor: "#000" },
   heroText: { position: "absolute", left: 20, right: 20, bottom: 6 },
   name: {
     color: "#fff",

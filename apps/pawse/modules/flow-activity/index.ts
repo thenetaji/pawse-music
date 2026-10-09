@@ -2,8 +2,16 @@
 import { NativeModule, requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
 
-export type ActivityMood = "groove" | "sleep" | "happy" | "curious";
-export type ActivityAction = "toggle" | "next";
+export type ActivityMood =
+  | "groove"
+  | "sleep"
+  | "happy"
+  | "curious"
+  | "hype"
+  | "vibe"
+  | "love"
+  | "sad";
+export type ActivityAction = "toggle" | "next" | "previous";
 export type ActivityCatColor = "orange" | "black" | "white" | "grey";
 
 export interface ActivityState {
@@ -25,6 +33,8 @@ export interface ActivityState {
   mouse: 0 | 1 | 2;
   /** The cat's name for VoiceOver; null uses "The cat". */
   name: string | null;
+  /** "#RRGGBB" from the artwork, for the ring, bar and lock screen; null keeps the purple. */
+  tint: string | null;
   /** ms since epoch after which iOS treats the activity as out of date (Flow may have been closed). */
   staleAt: number;
 }

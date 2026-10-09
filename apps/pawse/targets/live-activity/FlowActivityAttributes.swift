@@ -9,7 +9,7 @@ struct FlowActivityAttributes: ActivityAttributes {
     /// "<app group id>/<file name>" of a small JPEG, nil when there is no art yet.
     var artwork: String?
     var isPlaying: Bool
-    /// groove | sleep | happy | curious
+    /// groove | sleep | happy | curious, or a song mood: hype | vibe | love | sad
     var mood: String
     var frame: Int
     var start: Date
@@ -22,5 +22,7 @@ struct FlowActivityAttributes: ActivityAttributes {
     var mouse: Int?
     /// The cat's name, read out by VoiceOver.
     var name: String?
+    /// "#RRGGBB" from the artwork. Optional so an activity from an older build still decodes.
+    var tint: String?
   }
 }

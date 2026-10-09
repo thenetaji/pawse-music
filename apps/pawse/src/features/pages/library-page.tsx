@@ -177,6 +177,30 @@ export default function LibraryPage() {
         </>
       ) : null}
 
+      {artists.length ? (
+        <>
+          <SectionTitle title="Your artists" />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hlist}
+          >
+            {artists.map((a) => (
+              <PressScale
+                key={a.id}
+                onPress={() => go(`/artist/${a.id}`)}
+                style={styles.artist}
+              >
+                <Artwork thumbnails={a.thumbnails} size={84} radius={42} />
+                <Text style={styles.artistName} numberOfLines={1}>
+                  {a.name}
+                </Text>
+              </PressScale>
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
+
       {week.plays > 0 ? (
         <PressScale onPress={() => go("/stats")} style={styles.stats}>
           <View style={{ flex: 1 }}>
@@ -661,6 +685,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   hlist: { paddingHorizontal: 20, gap: 14 },
+  artist: { width: 84, alignItems: "center", gap: 7 },
+  artistName: { color: "#fff", fontSize: 13, fontWeight: "500" },
   grid: { paddingHorizontal: 20, paddingTop: 6 },
   gridRow: { justifyContent: "space-between", marginBottom: 16 },
   row: {

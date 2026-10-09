@@ -2,6 +2,7 @@ import { player } from "@pawse/player";
 import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { useState } from "react";
 import {
   Alert,
   Platform,
@@ -20,6 +21,7 @@ import {
   Info,
   Link,
   Pick,
+  styles as rowStyles,
   Section,
   Toggle,
 } from "../components/settings-rows";
@@ -28,6 +30,13 @@ import { useLibrary } from "../data/library";
 import { signOut } from "../features/account/sign-out";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { useAccent } from "../features/now-playing/now-palette";
+import {
+  APP_ICONS,
+  type AppIconId,
+  appIconsSupported,
+  currentAppIcon,
+  setAppIcon,
+} from "../lib/app-icon";
 import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
@@ -122,7 +131,11 @@ export default function Settings() {
         {signedIn ? (
           <>
             <AccountRow fallback={accountName} />
-            <Toggle k="syncLikes" label="Sync likes to YouTube" def />
+            <Toggle
+              k="syncLikes"
+              label="Sync likes and follows to YouTube"
+              def
+            />
             <Toggle k="reportPlays" label="Send plays to YouTube history" def />
             <Link
               label="Import my YouTube Music library"
@@ -199,6 +212,7 @@ export default function Settings() {
       </Section>
 
       <Section title="Appearance">
+        <AppIconRow />
         <Pick
           k="accentMode"
           label="Accent colour"
@@ -508,6 +522,49 @@ function AccountRow({ fallback }: { fallback: string | null }) {
   );
 }
 
+function AppIconRow() {
+  const [icon, setIcon] = useState<AppIconId>(currentAppIcon);
+  const accent = useAccent();
+  if (!appIconsSupported) return null;
+  return (
+    <View style={[styles.row, styles.iconRow]}>
+      <Text style={[rowStyles.label, styles.iconLabel]}>App icon</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.icons}
+      >
+        {APP_ICONS.map((a) => {
+          const on = a.id === icon;
+          return (
+            <PressScale
+              key={a.name}
+              accessibilityLabel={`${a.name} icon`}
+              accessibilityState={{ selected: on }}
+              onPress={async () => {
+                if (on) return;
+                haptic.tick();
+                if (await setAppIcon(a.id)) setIcon(a.id);
+              }}
+              style={styles.iconItem}
+            >
+              <View style={[styles.iconRing, on && { borderColor: accent }]}>
+                <Image source={a.preview} style={styles.iconImg} />
+              </View>
+              <Text
+                style={[styles.iconName, on && { color: "#fff" }]}
+                numberOfLines={1}
+              >
+                {a.name}
+              </Text>
+            </PressScale>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
 function AccentRow() {
   const mode = useSetting<string>("accentMode", "artwork");
   const color = useSetting("accentColor", "#8B7CFF");
@@ -533,6 +590,25 @@ function AccentRow() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
+  iconRow: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    paddingHorizontal: 0,
+    paddingTop: 14,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  iconLabel: { paddingHorizontal: 16 },
+  icons: { paddingHorizontal: 16, gap: 14 },
+  iconItem: { alignItems: "center", gap: 6, width: 66 },
+  iconRing: {
+    padding: 3,
+    borderRadius: 19,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  iconImg: { width: 56, height: 56, borderRadius: 13 },
+  iconName: { color: "rgba(255,255,255,0.55)", fontSize: 12 },
   head: {
     flexDirection: "row",
     alignItems: "center",

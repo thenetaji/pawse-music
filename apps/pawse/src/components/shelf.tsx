@@ -42,12 +42,25 @@ export function openItem(item: CatalogItem, siblings?: CatalogItem[]) {
   });
 }
 
+/** A shelf's "›": playlists open as playlists (artist Top songs), the rest as a See all page. */
+export function openMore(shelf: ShelfT) {
+  if (!shelf.more) return;
+  const [browseId] = shelf.more.split("|");
+  if (browseId.startsWith("VL")) return go(`/playlist/${browseId.slice(2)}`);
+  go(
+    `/more/${encodeURIComponent(shelf.more)}?title=${encodeURIComponent(shelf.title)}`,
+  );
+}
+
 export function Shelf({
   shelf,
   onMore,
+  removable,
 }: {
   shelf: ShelfT;
   onMore?: () => void;
+  /** On Home, song menus offer removing the song. */
+  removable?: boolean;
 }) {
   const tracks = shelf.items.filter((i) => i.type === "track");
   const onlyTracks = tracks.length === shelf.items.length && tracks.length > 0;
@@ -55,7 +68,7 @@ export function Shelf({
     <View style={styles.shelf}>
       <Pressable
         disabled={!shelf.more && !onMore}
-        onPress={onMore}
+        onPress={onMore ?? (() => openMore(shelf))}
         style={styles.head}
       >
         {shelf.subtitle ? (
@@ -67,16 +80,22 @@ export function Shelf({
         </Text>
       </Pressable>
       {onlyTracks && tracks.length > 4 ? (
-        <TrackGrid items={shelf.items} />
+        <TrackGrid items={shelf.items} removable={removable} />
       ) : (
-        <Cards items={shelf.items} />
+        <Cards items={shelf.items} removable={removable} />
       )}
     </View>
   );
 }
 
 // Quick picks: four rows per page, swiped sideways like a deck.
-function TrackGrid({ items }: { items: CatalogItem[] }) {
+function TrackGrid({
+  items,
+  removable,
+}: {
+  items: CatalogItem[];
+  removable?: boolean;
+}) {
   const pages: CatalogItem[][] = [];
   for (let i = 0; i < items.length; i += 4) pages.push(items.slice(i, i + 4));
   return (
@@ -96,6 +115,7 @@ function TrackGrid({ items }: { items: CatalogItem[] }) {
               track={t as Track}
               onPress={() => openItem(t, items)}
               swipeable={false}
+              removable={removable}
             />
           ))}
         </View>
@@ -106,7 +126,13 @@ function TrackGrid({ items }: { items: CatalogItem[] }) {
 // One page per screen width, with the next page peeking in.
 const PAGE_W = Dimensions.get("window").width - 44;
 
-function Cards({ items }: { items: CatalogItem[] }) {
+function Cards({
+  items,
+  removable,
+}: {
+  items: CatalogItem[];
+  removable?: boolean;
+}) {
   return (
     <FlatList
       horizontal
@@ -119,6 +145,7 @@ function Cards({ items }: { items: CatalogItem[] }) {
           item={item}
           siblings={items}
           size={item.type === "artist" ? 110 : undefined}
+          removable={removable}
         />
       )}
     />
@@ -129,10 +156,12 @@ export function Card({
   item,
   siblings,
   size = CARD,
+  removable,
 }: {
   item: CatalogItem;
   siblings?: CatalogItem[];
   size?: number;
+  removable?: boolean;
 }) {
   const round = item.type === "artist";
   const title = item.type === "artist" ? item.name : item.title;
@@ -159,7 +188,9 @@ export function Card({
     <Pressable
       onPress={() => openItem(item, siblings)}
       onLongPress={
-        item.type === "track" ? () => showTrackActions(item) : undefined
+        item.type === "track"
+          ? () => showTrackActions(item, { removable })
+          : undefined
       }
       style={({ pressed }) => [
         { width: wide ? size * 1.6 : size },

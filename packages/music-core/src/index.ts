@@ -108,6 +108,8 @@ export interface AlbumDetail extends AlbumSummary {
 export interface ArtistDetail extends ArtistSummary {
   description?: string;
   subscribers?: string;
+  /** YouTube channel to subscribe to when following, when it differs from `id` or is known. */
+  channelId?: string;
   /** Endless radio for the artist. */
   radioPlaylistId?: string;
   shufflePlaylistId?: string;

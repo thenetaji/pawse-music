@@ -547,6 +547,15 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     await this.call(ep, { target: { videoId } });
   }
 
+  /** Subscribes to (or leaves) an artist's channel on the signed-in account. */
+  async subscribe(channelId: string, on: boolean): Promise<void> {
+    await this.requireCookie();
+    await this.call(
+      on ? "subscription/subscribe" : "subscription/unsubscribe",
+      { channelIds: [channelId] },
+    );
+  }
+
   /** Who YouTube thinks is signed in; null when the session isn't accepted. */
   async accountInfo(): Promise<{
     name: string;

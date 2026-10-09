@@ -635,6 +635,9 @@ export function parseArtist(json: unknown, id: string): ArtistDetail {
       ) ||
       undefined,
     thumbnails: thumbnails(h.thumbnail),
+    channelId:
+      dig(h, "subscriptionButton", "subscribeButtonRenderer", "channelId") ||
+      undefined,
     description:
       text(h.description) || text(descShelf?.description) || undefined,
     radioPlaylistId,

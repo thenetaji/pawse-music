@@ -23,7 +23,12 @@ export type CatMood =
   | "purr"
   | "yawn"
   | "excited"
-  | "chase";
+  | "chase"
+  // Song moods while playing: fast bounce, eyes-closed sway, heart eyes, a quiet tear.
+  | "hype"
+  | "vibe"
+  | "love"
+  | "sad";
 
 export type CatColor = "orange" | "black" | "white" | "grey";
 
@@ -78,15 +83,23 @@ export function Cat({
   const period =
     mood === "groove"
       ? beatMs
-      : mood === "happy" || mood === "excited"
-        ? 170
-        : mood === "purr"
-          ? 260
-          : mood === "sleep"
-            ? 1300
-            : mood === "chase"
-              ? 120
-              : 0;
+      : mood === "hype"
+        ? 330
+        : mood === "vibe"
+          ? 900
+          : mood === "love"
+            ? 700
+            : mood === "sad"
+              ? 1150
+              : mood === "happy" || mood === "excited"
+                ? 170
+                : mood === "purr"
+                  ? 260
+                  : mood === "sleep"
+                    ? 1300
+                    : mood === "chase"
+                      ? 120
+                      : 0;
   const frame = useFrame(period);
   const id = (n: string) => `${n}${uid}`;
   const url = (n: string) => `url(#${id(n)})`;
@@ -100,18 +113,37 @@ export function Cat({
   let dy = 0;
   if (mood === "groove") {
     if (style === 0) tilt = odd ? 7 : -7;
-    if (style === 1) (dy = odd ? 3 : 0), (tilt = odd ? -3 : 3);
+    if (style === 1) {
+      dy = odd ? 3 : 0;
+      tilt = odd ? -3 : 3;
+    }
     if (style === 2) dy = odd ? -6 : 0;
   }
   if (mood === "happy" || mood === "excited") dy = odd ? -7 : 0;
   if (mood === "curious") tilt = 9;
   if (mood === "purr") tilt = odd ? 2 : -2;
-  if (mood === "chase") (tilt = odd ? -4 : 4), (dy = odd ? -3 : 0);
+  if (mood === "chase") {
+    tilt = odd ? -4 : 4;
+    dy = odd ? -3 : 0;
+  }
   if (mood === "yawn") tilt = -4;
+  if (mood === "hype") {
+    tilt = odd ? 9 : -9;
+    dy = odd ? -7 : 0;
+  }
+  if (mood === "vibe") tilt = odd ? 6 : -6;
+  if (mood === "love") {
+    tilt = odd ? 4 : -4;
+    dy = odd ? -2 : 0;
+  }
+  if (mood === "sad") {
+    tilt = odd ? -5 : -3;
+    dy = 2;
+  }
   const lookX = look !== undefined ? look * 3 : mood === "curious" ? 3 : 0;
 
-  const eyesClosed = mood === "sleep" || mood === "purr";
-  const eyesHappy = mood === "happy" || mood === "excited";
+  const eyesClosed = mood === "sleep" || mood === "purr" || mood === "vibe";
+  const eyesHappy = mood === "happy" || mood === "excited" || mood === "hype";
   const eyesSquint = mood === "yawn";
   const mouthOpen = mood === "meow" || mood === "yawn";
   const ink = dark ? "#E9E3DA" : "#3a2416";
@@ -189,6 +221,11 @@ export function Cat({
             <Path d="M37.5 72 q6.5 -8 13 0" />
             <Path d="M69.5 72 q6.5 -8 13 0" />
           </G>
+        ) : mood === "love" ? (
+          <G fill="#FF4F7B">
+            <Path d={heart(44, 69, odd ? 1.05 : 0.95)} />
+            <Path d={heart(76, 69, odd ? 1.05 : 0.95)} />
+          </G>
         ) : eyesSquint ? (
           <G stroke={ink} strokeWidth={3} strokeLinecap="round" fill="none">
             <Path d="M38 68 l12 3" />
@@ -219,6 +256,21 @@ export function Cat({
           </G>
         )}
 
+        {mood === "sad" ? (
+          <G>
+            <Path
+              d="M37 59 l12 -4 M83 59 l-12 -4"
+              stroke={ink}
+              strokeWidth={2.6}
+              strokeLinecap="round"
+            />
+            <Path
+              transform={odd ? "translate(0 3)" : undefined}
+              d="M40 79 q-3 5 0 7 q3 -2 0 -7z"
+              fill="#7CC8FF"
+            />
+          </G>
+        ) : null}
         <Path
           d="M56.5 79.5 h7 q1.2 0 .5 1.1 l-2.8 2.8 q-.7.7-1.4 0 l-2.8-2.8 q-.7-1.1.5-1.1z"
           fill="#F07C86"
@@ -283,19 +335,38 @@ export function Cat({
         />
       </G>
 
-      {mood === "groove" && (
+      {(mood === "groove" || mood === "vibe" || mood === "sad") && (
         <G transform={odd ? "translate(3 -4)" : undefined}>
           <Path
             d="M104 22 v-13 l9 -2.5 v12"
-            stroke="#fff"
+            stroke={mood === "sad" ? "#9FD3FF" : "#fff"}
             strokeWidth={2.4}
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          <Ellipse cx="101.5" cy="22.5" rx="3.6" ry="2.8" fill="#fff" />
-          <Ellipse cx="110.5" cy="19.5" rx="3.6" ry="2.8" fill="#fff" />
+          <Ellipse
+            cx="101.5"
+            cy="22.5"
+            rx="3.6"
+            ry="2.8"
+            fill={mood === "sad" ? "#9FD3FF" : "#fff"}
+          />
+          <Ellipse
+            cx="110.5"
+            cy="19.5"
+            rx="3.6"
+            ry="2.8"
+            fill={mood === "sad" ? "#9FD3FF" : "#fff"}
+          />
         </G>
+      )}
+      {mood === "love" && (
+        <Path
+          transform={odd ? "translate(2 -4)" : undefined}
+          d={heart(106, 14, 0.9)}
+          fill="#FF5A7A"
+        />
       )}
       {mood === "sleep" && (
         <G transform={odd ? "translate(2 -3)" : undefined} fill="#fff">
@@ -314,7 +385,7 @@ export function Cat({
           fill="#FF5A7A"
         />
       )}
-      {mood === "excited" && (
+      {(mood === "excited" || mood === "hype") && (
         <G fill="#FFE27A" opacity={odd ? 1 : 0.5}>
           <Path d="M104 10 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2z" />
           <Path d="M14 14 l1.5 3.5 3.5 1.5 -3.5 1.5 -1.5 3.5 -1.5 -3.5 -3.5 -1.5 3.5 -1.5z" />
@@ -336,6 +407,12 @@ export function Cat({
       )}
     </Svg>
   );
+}
+
+// A heart centred on (cx, cy), about 14 units wide at scale 1.
+function heart(cx: number, cy: number, k: number) {
+  const p = (x: number, y: number) => `${cx + x * k} ${cy + y * k}`;
+  return `M${p(0, 6)} C${p(-9, 0)} ${p(-7, -8)} ${p(0, -3.5)} C${p(7, -8)} ${p(9, 0)} ${p(0, 6)}Z`;
 }
 
 // Ticks only while the app is in the foreground, so a mounted cat costs nothing during background audio.

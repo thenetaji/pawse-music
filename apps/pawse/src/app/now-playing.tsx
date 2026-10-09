@@ -17,6 +17,7 @@ import {
 import { NowPlayingView } from "../features/now-playing/now-playing-view";
 import { lyricsService } from "../lib/engine";
 import { push } from "../lib/nav";
+import { openAlbum, openArtist } from "../lib/song-links";
 import { useResource } from "../lib/use-resource";
 
 const LABEL = {
@@ -28,6 +29,12 @@ const LABEL = {
   library: "Playing from library",
   other: "Now playing",
 } as const;
+
+// Close the player first, then open the page inside the current tab.
+const leavePlayer = (fn: () => void) => {
+  router.back();
+  setTimeout(fn, 250);
+};
 
 export default function NowPlaying() {
   const { current, status, source } = usePlayerState();
@@ -80,6 +87,8 @@ export default function NowPlaying() {
       onQueue={() => push("/queue")}
       onClose={() => router.back()}
       onMore={() => current && showTrackActions(current, { fromPlayer: true })}
+      onTitle={() => current && void openAlbum(current, leavePlayer)}
+      onArtist={() => current && void openArtist(current, leavePlayer)}
       onShareLyric={(line) => current && shareLyric(current, line)}
     />
   );

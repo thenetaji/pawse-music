@@ -2,6 +2,23 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [0.5.0] - 2026-10-09
+
+### Added
+- Mochi dances to the song's mood: bouncing for hype, swaying with eyes closed for chill, heart eyes for love songs and a little tear for sad ones. Same in the Dynamic Island.
+- Tap the song title in Now Playing to open its album, or the artist name to open the artist. Works for radio and video songs too.
+- "Remove from Home & history" in the song menu on Home and History: the song leaves your history and stops showing in Quick picks, Jump back in and the other Home rows.
+- The Dynamic Island takes the artwork's colour, has a previous button, and says what Mochi is up to.
+- A new black icon, Noir. On iPhone you can switch to Midnight (the previous icon) or Graphite in Settings → Appearance.
+- Following an artist now counts: they show under Your artists in Library, their new releases come first on Home, and you're subscribed on YouTube too when signed in.
+
+### Fixed
+- Queue swipes: a short swipe now only shows the button, a swipe back or a tap cancels, and only a long swipe acts at once. Play next and Remove both offer Undo.
+- Queue swipes were cut off by the reorder gesture; reordering now only reacts to up and down drags, and the dragged row lifts.
+- "Hide explicit songs" now also covers Jump back in, On repeat and the other rows built from your history.
+- "Top songs ›", "Albums ›" and other "›" links open the full list (artist top songs, discography, singles and more).
+- Pulling down on an artist page no longer slides the photo over the songs.
+
 ## [0.4.0] - 2026-10-09
 
 Flow is now **Pawse** (say it like "pause"), and it's open source.
