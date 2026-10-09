@@ -8,7 +8,8 @@ import { getSetting, setSetting } from "./settings";
 
 const RELEASES =
   "https://api.github.com/repos/thenetaji/studio/releases?per_page=30";
-const DAY = 24 * 60 * 60 * 1000;
+// Often enough that a new release shows up on the next launch, well inside GitHub's 60 requests/hour.
+const CHECK_EVERY = 60 * 60 * 1000;
 
 export type Update = { version: string; file: string; notes: string };
 
@@ -116,10 +117,10 @@ export async function installUpdate(update: Update) {
   }
 }
 
-// Once a day on launch: if a newer build is out, offer it.
+// On launch, at most hourly: if a newer build is out, offer it.
 export async function checkOnLaunch() {
   if (!supported) return;
-  if (Date.now() - getSetting("updateCheckedAt", 0) < DAY) return;
+  if (Date.now() - getSetting("updateCheckedAt", 0) < CHECK_EVERY) return;
   const u = await checkForUpdate();
   if (!u || getSetting("updateSkipped", "") === u.version) return;
   const how =
