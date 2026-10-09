@@ -10,16 +10,27 @@ import {
 } from "react-native";
 
 import { activeLine } from "../../lib/lrc";
+import { useSetting } from "../../lib/settings";
 
 type Props = {
   lyrics: Lyrics | null | undefined;
   loading: boolean;
   position: number;
   onSeek: (sec: number) => void;
+  onShare?: (line: string) => void;
 };
 
 // Full lyrics: the sung line in white, words lighting up as they're sung; tap a line to jump there.
-export function LyricsView({ lyrics, loading, position, onSeek }: Props) {
+export function LyricsView({
+  lyrics,
+  loading,
+  position,
+  onSeek,
+  onShare,
+}: Props) {
+  const fs = { s: 24, m: 30, l: 36 }[
+    useSetting<"s" | "m" | "l">("lyricsSize", "m")
+  ];
   const scroll = useRef<ScrollView>(null);
   const tops = useRef<number[]>([]);
   const [height, setHeight] = useState(0);
@@ -85,9 +96,11 @@ export function LyricsView({ lyrics, loading, position, onSeek }: Props) {
             (tops.current[i] = e.nativeEvent.layout.y)
           }
           onPress={() => onSeek(line.startMs / 1000 + 0.01)}
+          onLongPress={() => line.text && onShare?.(line.text)}
           style={styles.linePress}
         >
           <Line
+            fs={fs}
             line={line}
             state={i === active ? "now" : i < active ? "past" : "next"}
             ms={ms}
@@ -104,7 +117,9 @@ function Line({
   state,
   ms,
   distance,
+  fs,
 }: {
+  fs: number;
   line: LyricLine;
   state: "now" | "past" | "next";
   ms: number;
@@ -115,6 +130,7 @@ function Line({
       <Text
         style={[
           styles.line,
+          { fontSize: fs, lineHeight: fs * 1.2 },
           styles.dots,
           { opacity: state === "now" ? 0.9 : 0.25 },
         ]}
@@ -125,7 +141,13 @@ function Line({
   const fade = state === "now" ? 1 : Math.max(0.16, 0.42 - distance * 0.05);
   if (state !== "now")
     return (
-      <Text style={[styles.line, { color: `rgba(255,255,255,${fade})` }]}>
+      <Text
+        style={[
+          styles.line,
+          { fontSize: fs, lineHeight: fs * 1.2 },
+          { color: `rgba(255,255,255,${fade})` },
+        ]}
+      >
         {line.text}
       </Text>
     );
@@ -133,7 +155,9 @@ function Line({
   // Words light up as they're sung: real word timings when present, otherwise spread evenly over the line.
   const words = line.words?.length ? line.words : evenWords(line);
   return (
-    <Text style={[styles.line, styles.now]}>
+    <Text
+      style={[styles.line, { fontSize: fs, lineHeight: fs * 1.2 }, styles.now]}
+    >
       {words.map((w, i) => (
         <Text
           key={i}

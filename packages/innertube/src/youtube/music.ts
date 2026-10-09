@@ -3,10 +3,13 @@ import {
   type AlbumDetail,
   type ArtistDetail,
   type Catalog,
+  type ExploreFeed,
   type HomeFeed,
+  type MoodTile,
   type PlaylistDetail,
   type PlaylistSummary,
   type ResolvedStream,
+  type ResolveOptions,
   type SearchFilter,
   type SearchResults,
   type Shelf,
@@ -17,8 +20,9 @@ import {
 } from "@studio/music-core";
 
 import {
-  type FetchLike,
   defaultFetch,
+  type FetchLike,
+  fetchWithRetry,
   fetchWithTimeout,
   parseCookies,
   query,
@@ -30,6 +34,15 @@ import {
   DEFAULT_STREAM_CLIENTS,
   type StreamClient,
 } from "./clients";
+import {
+  MOOD_CATEGORY,
+  moodParams,
+  parseCharts,
+  parseExplore,
+  parseMoodPage,
+  parseMoodsAndGenres,
+  parseNewReleases,
+} from "./explore";
 import { decodeParam } from "./nodes";
 import {
   albumIdFromPlaylist,
@@ -42,6 +55,7 @@ import {
   parseNext,
   parsePlaylist,
   parsePlaylistContinuation,
+  parseRelated,
   parseSearch,
   parseSuggestions,
 } from "./parse";
@@ -62,6 +76,8 @@ export interface YouTubeMusicOptions {
   verifyStream?: boolean;
   /** Skip the range check when it takes longer than this (default 400 ms). */
   verifyBudgetMs?: number;
+  /** Called once per catalog/account request that fails after retries. */
+  onRequestError?: (endpoint: string, error: unknown) => void;
 }
 
 export const ORIGIN = "https://music.youtube.com";
@@ -78,7 +94,15 @@ export const SEARCH_PARAMS: Record<Exclude<SearchFilter, "all">, string> = {
   playlists: "EgWKAQIoAWoKEAkQBRAKEAMQBA==",
 };
 
-const TIMEOUT_MS = 10_000;
+const TIMEOUT_MS = 12_000;
+// Reads safe to send twice; writes (like/like) and playback reporting are never retried.
+const IDEMPOTENT = new Set([
+  "browse",
+  "search",
+  "next",
+  "music/get_search_suggestions",
+  "account/account_menu",
+]);
 const BOOTSTRAP_RETRY_MS = 5 * 60_000;
 
 interface WebConfig {
@@ -129,8 +153,8 @@ const hasSapisid = (c: string | null | undefined) => {
 
 /** YouTube Music over InnerTube: WEB_REMIX for catalog/account, signed-out VISIONOS chain for streams. */
 export class YouTubeMusic implements Catalog, Account, StreamResolver {
-  readonly hl: string;
-  readonly gl: string;
+  hl: string;
+  gl: string;
   /** Per-client attempts of the last resolve(), for diagnostics. */
   lastResolveAttempts: ResolveAttempt[] = [];
 
@@ -139,6 +163,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   private readonly clients: ClientsConfig;
   private readonly verify: boolean;
   private readonly verifyBudgetMs: number;
+  private readonly onRequestError?: YouTubeMusicOptions["onRequestError"];
   private web?: WebConfig;
   private webPending?: Promise<WebConfig>;
   private webFailedAt = 0;
@@ -153,6 +178,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     this.visitorData = options.visitorData;
     this.verify = options.verifyStream ?? true;
     this.verifyBudgetMs = options.verifyBudgetMs ?? 400;
+    this.onRequestError = options.onRequestError;
     const url =
       options.clientsConfigUrl === undefined
         ? DEFAULT_CLIENTS_CONFIG_URL
@@ -163,6 +189,17 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
       options.streamClients ?? DEFAULT_STREAM_CLIENTS,
     );
     void this.cookie().catch(() => undefined);
+  }
+
+  /** Feed language and region for later calls; drops the cached ytcfg when the language changes. */
+  setLocale(hl: string, gl: string): void {
+    if (hl === this.hl && gl === this.gl) return;
+    if (hl !== this.hl) {
+      this.web = undefined;
+      this.webFailedAt = 0;
+    }
+    this.hl = hl;
+    this.gl = gl;
   }
 
   /** Preloads ytcfg and the stream-client list so the first call is fast. */
@@ -199,7 +236,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
 
   private async bootstrap(): Promise<WebConfig> {
     try {
-      const res = await fetchWithTimeout(
+      const res = await fetchWithRetry(
         this.f,
         `${ORIGIN}/`,
         {
@@ -287,23 +324,30 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
       ...(await this.webHeaders(cfg, cookie)),
       "Content-Type": "application/json",
     };
-    const res = await fetchWithTimeout(
-      this.f,
-      `${ORIGIN}/youtubei/v1/${endpoint}?prettyPrint=false`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ context: this.context(cfg), ...body }),
-        credentials: "omit",
-      },
-      TIMEOUT_MS,
-    );
-    if (!res.ok)
-      throw new InnerTubeError(
-        res.status,
-        `InnerTube ${endpoint} HTTP ${res.status}`,
+    let json: any;
+    try {
+      const res = await fetchWithRetry(
+        this.f,
+        `${ORIGIN}/youtubei/v1/${endpoint}?prettyPrint=false`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ context: this.context(cfg), ...body }),
+          credentials: "omit",
+        },
+        TIMEOUT_MS,
+        IDEMPOTENT.has(endpoint) ? 1 : 0,
       );
-    const json = await res.json();
+      if (!res.ok)
+        throw new InnerTubeError(
+          res.status,
+          `InnerTube ${endpoint} HTTP ${res.status}`,
+        );
+      json = await res.json();
+    } catch (e) {
+      this.onRequestError?.(endpoint, e);
+      throw e;
+    }
     const vd = json?.responseContext?.visitorData;
     if (!this.visitorData && typeof vd === "string") this.visitorData = vd;
     return json;
@@ -400,6 +444,48 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     return parseBrowse(await this.browseRaw(browseId, params));
   }
 
+  // Explore
+
+  async explore(): Promise<ExploreFeed> {
+    return parseExplore(await this.browseRaw("FEmusic_explore"));
+  }
+
+  async moodsAndGenres(): Promise<MoodTile[]> {
+    return parseMoodsAndGenres(
+      await this.browseRaw("FEmusic_moods_and_genres"),
+    );
+  }
+
+  /** Playlists for a mood or genre tile; takes MoodTile.params or the raw params. */
+  async moodPage(params: string): Promise<Shelf[]> {
+    return parseMoodPage(
+      await this.browseRaw(MOOD_CATEGORY, moodParams(params)),
+    );
+  }
+
+  private chartsRaw(country: string) {
+    return this.call("browse", {
+      browseId: "FEmusic_charts",
+      formData: { selectedValues: [country] },
+    }).then((j) => parseCharts(j, country));
+  }
+
+  /** Charts shelves for an ISO country code; "ZZ" is global. */
+  async charts(country = "ZZ"): Promise<Shelf[]> {
+    return (await this.chartsRaw(country)).shelves;
+  }
+
+  /** Countries the charts page offers (includes Global as ZZ). */
+  async chartsCountries(): Promise<{ code: string; title: string }[]> {
+    return (await this.chartsRaw("ZZ")).countries;
+  }
+
+  async newReleases(): Promise<Shelf[]> {
+    return parseNewReleases(
+      await this.browseRaw("FEmusic_new_releases_albums"),
+    );
+  }
+
   async upNext(input: {
     videoId?: string;
     playlistId?: string;
@@ -418,6 +504,14 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
         tunerSettingValue: "AUTOMIX_SETTING_NORMAL",
       }),
     );
+  }
+
+  /** A song's Related tab; takes a videoId or the MPTR id from upNext().relatedBrowseId. */
+  async related(id: string): Promise<Shelf[]> {
+    const browseId = id.startsWith("MPTR")
+      ? id
+      : (await this.upNext({ videoId: id })).relatedBrowseId;
+    return browseId ? parseRelated(await this.browseRaw(browseId)) : [];
   }
 
   /** Unsynced lyrics text for an MPLY browse id from upNext. */
@@ -445,6 +539,31 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
           ? "like/dislike"
           : "like/removelike";
     await this.call(ep, { target: { videoId } });
+  }
+
+  /** Who YouTube thinks is signed in; null when the session isn't accepted. */
+  async accountInfo(): Promise<{
+    name: string;
+    handle?: string;
+    photo?: string;
+  } | null> {
+    if (!(await this.cookie())) return null;
+    const json = await this.call("account/account_menu", {});
+    const header =
+      json?.actions?.[0]?.openPopupAction?.popup?.multiPageMenuRenderer?.header
+        ?.activeAccountHeaderRenderer;
+    const name =
+      header?.accountName?.runs?.[0]?.text ?? header?.accountName?.simpleText;
+    if (!name) return null;
+    const thumbs = header?.accountPhoto?.thumbnails;
+    return {
+      name,
+      handle: header?.channelHandle?.runs?.[0]?.text,
+      photo:
+        Array.isArray(thumbs) && thumbs.length
+          ? thumbs[thumbs.length - 1].url
+          : undefined,
+    };
   }
 
   async likedSongs(): Promise<PlaylistDetail> {
@@ -515,6 +634,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
 
   async resolve(
     track: Pick<Track, "id" | "source" | "title" | "artists" | "durationSec">,
+    options: ResolveOptions = {},
   ): Promise<ResolvedStream> {
     if (track.source !== "youtube")
       throw new StreamError(
@@ -533,6 +653,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
         visitorData: this.visitorData,
         verify: this.verify,
         verifyBudgetMs: this.verifyBudgetMs,
+        quality: options.quality,
       },
       this.lastResolveAttempts,
     );

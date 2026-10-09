@@ -3,6 +3,7 @@ import type {
   AlbumSummary,
   ArtistDetail,
   ArtistRef,
+  ArtistSummary,
   CatalogItem,
   HomeFeed,
   PlaylistDetail,
@@ -16,8 +17,6 @@ import type {
 } from "@studio/music-core";
 
 import {
-  type Node,
-  type Run,
   albumFrom,
   arr,
   artistsFrom,
@@ -27,13 +26,15 @@ import {
   durationFrom,
   groups,
   isExplicit,
+  type Node,
   obj,
   parseDuration,
+  type Run,
   runs,
+  TYPE_LABELS,
   text,
   thumbnails,
   tokenOfItem,
-  TYPE_LABELS,
   unwrap,
   watchOf,
   yearFrom,
@@ -343,7 +344,7 @@ export function parseSectionList(contents: unknown, d?: ItemDefaults): Shelf[] {
   return out;
 }
 
-const tab0 = (j: unknown) =>
+export const tab0 = (j: unknown) =>
   dig(
     j,
     "contents",
@@ -358,8 +359,13 @@ const twoCol = (j: unknown) =>
   dig(j, "contents", "twoColumnBrowseResultsRenderer");
 
 export function parseHome(json: unknown): HomeFeed {
+  const appended = arr(dig(json, "onResponseReceivedActions")).flatMap((x) =>
+    arr(dig(x, "appendContinuationItemsAction", "continuationItems")),
+  );
   const sl =
-    tab0(json) ?? dig(json, "continuationContents", "sectionListContinuation");
+    tab0(json) ??
+    dig(json, "continuationContents", "sectionListContinuation") ??
+    (appended.length ? { contents: appended } : undefined);
   const chips = arr(dig(sl, "header", "chipCloudRenderer", "chips"))
     .map((c) => {
       const chip = dig(c, "chipCloudChipRenderer");
@@ -698,6 +704,45 @@ export function parseBrowse(json: unknown): Shelf[] {
   const h = pageHeader(json);
   if (h && shelves[0] && !shelves[0].title) shelves[0].title = text(h.title);
   return shelves;
+}
+
+/** A song's Related tab (MPTR browse): "You might also like", playlists, similar artists, "More from". */
+export function parseRelated(json: unknown): Shelf[] {
+  const out: Shelf[] = [];
+  for (const c of arr(
+    dig(json, "contents", "sectionListRenderer", "contents"),
+  )) {
+    // "More from {artist}" links its title to the artist; its albums omit the artist line.
+    const h = unwrap(dig(c, "musicCarouselShelfRenderer", "header"))?.node;
+    const run = runs(h?.title)[0];
+    const b = browseOf(run?.navigationEndpoint);
+    const d =
+      b.pageType === "MUSIC_PAGE_TYPE_ARTIST" && b.browseId && run
+        ? { artists: [{ id: b.browseId, name: run.text }] }
+        : undefined;
+    const s = parseShelf(c, d);
+    if (s?.items.length) out.push(s);
+  }
+  return out.length ? out : parseBrowse(json);
+}
+
+/** Artists from the first all-artist shelf ("Similar artists", "Fans might also like"). */
+export function similarArtists(shelves: Shelf[]): ArtistSummary[] {
+  const s = shelves.find(
+    (x) => x.items.length && x.items.every((i) => i.type === "artist"),
+  );
+  return (s?.items ?? []).flatMap((i) =>
+    i.type === "artist"
+      ? [
+          {
+            id: i.id,
+            name: i.name,
+            subtitle: i.subtitle,
+            thumbnails: i.thumbnails,
+          },
+        ]
+      : [],
+  );
 }
 
 export function parseNext(json: unknown): UpNext {

@@ -1,4 +1,8 @@
-import { type ResolvedStream, StreamError } from "@studio/music-core";
+import {
+  type AudioQuality,
+  type ResolvedStream,
+  StreamError,
+} from "@studio/music-core";
 
 import { type FetchLike, fetchWithTimeout } from "../util/http";
 import type { StreamClient } from "./clients";
@@ -9,6 +13,7 @@ export interface AdaptiveFormat {
   mimeType?: string;
   bitrate?: number;
   contentLength?: string;
+  approxDurationMs?: string;
   signatureCipher?: string;
   cipher?: string;
 }
@@ -25,11 +30,17 @@ const isDirectAac = (f: AdaptiveFormat): boolean =>
   /^audio\/mp4\b/i.test(f.mimeType ?? "") &&
   /mp4a/i.test(f.mimeType ?? "");
 
-/** AVPlayer cannot play WebM/Opus: direct-url AAC only, highest bitrate first, 140 on ties. */
+/** AVPlayer cannot play WebM/Opus: direct-url AAC only, highest bitrate first, 140 on ties; 'saver' prefers 139. */
 export function pickAudioFormat(
   formats: AdaptiveFormat[] | undefined,
+  quality: AudioQuality = "high",
 ): AdaptiveFormat | undefined {
   const usable = (formats ?? []).filter(isDirectAac);
+  if (quality === "saver") {
+    const low = usable.find((f) => f.itag === 139);
+    if (low) return low;
+    return usable.sort((a, b) => (a.bitrate ?? 0) - (b.bitrate ?? 0))[0];
+  }
   const rank = (f: AdaptiveFormat) => (f.itag === 140 ? 1 : 0);
   return usable.sort(
     (a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0) || rank(b) - rank(a),
@@ -83,6 +94,7 @@ export interface ResolveOptions {
   /** Confirms the URL with a bytes=0-1 request; skipped if it takes longer than verifyBudgetMs. */
   verify: boolean;
   verifyBudgetMs: number;
+  quality?: AudioQuality;
 }
 
 export interface ResolveAttempt {
@@ -152,7 +164,7 @@ async function tryClient(
   const bad = playabilityError(data?.playabilityStatus);
   if (bad) throw bad;
   const sd = data?.streamingData;
-  const format = pickAudioFormat(sd?.adaptiveFormats);
+  const format = pickAudioFormat(sd?.adaptiveFormats, o.quality);
   if (!format?.url)
     throw new StreamError("no_audio", "no AAC format with a direct url");
   if (
@@ -164,6 +176,7 @@ async function tryClient(
   }
   const ttl = Number(sd?.expiresInSeconds);
   const length = Number(format.contentLength);
+  const ms = Number(format.approxDurationMs);
   return {
     url: format.url,
     mimeType: format.mimeType ?? "audio/mp4",
@@ -172,6 +185,7 @@ async function tryClient(
     expiresAt: Date.now() + (ttl > 0 ? ttl : DEFAULT_TTL_SEC) * 1000,
     headers: { "User-Agent": c.userAgent },
     loudnessDb: loudnessOf(data?.playerConfig?.audioConfig),
+    durationSec: ms > 0 ? ms / 1000 : undefined,
     via: `youtube:${c.name}`,
   };
 }

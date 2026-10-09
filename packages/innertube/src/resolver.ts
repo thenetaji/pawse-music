@@ -1,5 +1,7 @@
 import {
+  type AudioQuality,
   type ResolvedStream,
+  type ResolveOptions,
   StreamError,
   type StreamResolver,
   type Track,
@@ -10,6 +12,10 @@ export interface CreateResolverOptions {
   saavn?: StreamResolver;
   /** Try JioSaavn first for YouTube tracks of kind 'song'. */
   preferSaavn?: boolean;
+  /** A downloaded copy, checked before any network source unless `remoteOnly`. */
+  local?: (id: string) => ResolvedStream | undefined;
+  /** Default quality when the call does not pass one. */
+  quality?: () => AudioQuality;
 }
 
 /** A Track's identity plus `kind`, which decides whether Saavn goes first. */
@@ -18,20 +24,36 @@ export type ResolvableTrack = Pick<
   "id" | "source" | "title" | "artists" | "durationSec"
 > & { kind?: Track["kind"] };
 
-/** YouTube first (or Saavn first for songs when preferred), falling back to the other on any failure. */
+/** Local file first, then YouTube (or Saavn first for songs when preferred), falling back to the other. */
 export function createResolver({
   youtube,
   saavn,
   preferSaavn = false,
+  local,
+  quality,
 }: CreateResolverOptions): StreamResolver & {
-  resolve(track: ResolvableTrack): Promise<ResolvedStream>;
+  resolve(
+    track: ResolvableTrack,
+    options?: ResolveOptions,
+  ): Promise<ResolvedStream>;
 } {
   return {
-    async resolve(track: ResolvableTrack): Promise<ResolvedStream> {
+    async resolve(
+      track: ResolvableTrack,
+      options: ResolveOptions = {},
+    ): Promise<ResolvedStream> {
+      if (!options.remoteOnly) {
+        const file = local?.(track.id);
+        if (file) return file;
+      }
+      const o: ResolveOptions = {
+        ...options,
+        quality: options.quality ?? quality?.(),
+      };
       if (track.source === "saavn") {
         if (!saavn)
           throw new StreamError("unplayable", "JioSaavn is not configured");
-        return saavn.resolve(track);
+        return saavn.resolve(track, o);
       }
       if (track.source !== "youtube")
         throw new StreamError(
@@ -46,7 +68,7 @@ export function createResolver({
       const errors = new Map<StreamResolver, unknown>();
       for (const r of order) {
         try {
-          return await r.resolve(track);
+          return await r.resolve(track, o);
         } catch (e) {
           errors.set(r, e);
         }

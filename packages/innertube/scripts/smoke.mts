@@ -66,6 +66,39 @@ if (home?.continuation)
     (h) => `${h.shelves.length} shelves`,
   );
 await step(
+  "explore",
+  () => yt.explore(),
+  (e) =>
+    `${e.shelves.map((s) => `${s.title}(${s.items.length})`).join(" ")}; ${e.moods.length} moods`,
+);
+const tiles = await step(
+  "moods & genres",
+  () => yt.moodsAndGenres(),
+  (t) => `${t.length} tiles, first ${t[0]?.title} ${t[0]?.color}`,
+);
+if (tiles?.length)
+  await step(
+    "mood page",
+    () => yt.moodPage(tiles[0].params),
+    (s) => s.map((x) => `${x.title}(${x.items.length})`).join(" "),
+  );
+for (const c of ["IN", "ZZ"])
+  await step(
+    `charts ${c}`,
+    () => yt.charts(c),
+    (s) => s.map((x) => `${x.title}(${x.items.length})`).join(" "),
+  );
+await step(
+  "charts countries",
+  () => yt.chartsCountries(),
+  (c) => `${c.length} countries, IN=${c.some((x) => x.code === "IN")}`,
+);
+await step(
+  "new releases",
+  () => yt.newReleases(),
+  (s) => s.map((x) => `${x.title}(${x.items.length})`).join(" "),
+);
+await step(
   "suggestions",
   () => yt.suggestions("blinding"),
   (s) => s.slice(0, 3).join(" | "),

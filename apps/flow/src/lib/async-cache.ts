@@ -50,9 +50,11 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
     const run = useEffectEvent((k: string, force: boolean) =>
       load(k, loader, force),
     );
+    // Also reloads after clear(): the entry drops back to IDLE.
+    const missing = entry === IDLE;
     useEffect(() => {
       if (key) run(key, false);
-    }, [key]);
+    }, [key, missing]);
     return {
       data: entry.data,
       error: entry.error,
@@ -62,5 +64,20 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
     };
   }
 
-  return { use, load, peek: (key: string) => entries.get(key)?.data };
+  // Shows saved data straight away; it counts as stale, so the first use still refreshes it.
+  const seed = (key: string, data: T) => {
+    if (!entries.has(key)) entries.set(key, { data, loading: false, at: 0 });
+  };
+
+  const clear = () => {
+    entries.clear();
+    emit();
+  };
+  return {
+    use,
+    load,
+    clear,
+    seed,
+    peek: (key: string) => entries.get(key)?.data,
+  };
 }

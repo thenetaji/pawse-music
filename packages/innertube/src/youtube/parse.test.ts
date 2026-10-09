@@ -2,6 +2,7 @@ import album from "../__fixtures__/album.json";
 import olakAlbum from "../__fixtures__/album-olak-playlist.json";
 import artist from "../__fixtures__/artist.json";
 import homeCont from "../__fixtures__/home-continuation.json";
+import homeLast from "../__fixtures__/home-continuation-last.json";
 import home from "../__fixtures__/home.json";
 import lyricsBrowse from "../__fixtures__/lyrics-browse.json";
 import nextCont from "../__fixtures__/next-continuation.json";
@@ -58,6 +59,35 @@ describe("home", () => {
       artists: [{ name: "Anirudh Ravichander" }, { name: "Super Subu" }],
     });
     expect(feed.continuation).toBeTruthy();
+  });
+
+  it("reads the last live page: shelves, no chips, no continuation", () => {
+    const feed = parseHome(homeLast);
+    expect(feed.chips).toEqual([]);
+    expect(feed.shelves.length).toBe(3);
+    expect(feed.shelves.every((s) => s.items.length > 0)).toBe(true);
+    expect(feed.continuation).toBeUndefined();
+  });
+
+  it("reads the onResponseReceivedActions append layout", () => {
+    const contents = (homeLast as any).continuationContents
+      .sectionListContinuation.contents;
+    const token = {
+      continuationItemRenderer: {
+        continuationEndpoint: { continuationCommand: { token: "next-token" } },
+      },
+    };
+    const feed = parseHome({
+      onResponseReceivedActions: [
+        {
+          appendContinuationItemsAction: {
+            continuationItems: [...contents, token],
+          },
+        },
+      ],
+    });
+    expect(feed.shelves.length).toBe(3);
+    expect(feed.continuation).toBe("next-token");
   });
 });
 

@@ -16,5 +16,11 @@ struct FlowActivityAttributes: ActivityAttributes {
     var end: Date
     /// 0...1, used for the static bar while paused.
     var progress: Double
+    /// orange | black | white | grey. Optional so an activity from an older build still decodes.
+    var color: String?
+    /// Mouse cameo frame: 0 none, 1 peeking, 2 head out.
+    var mouse: Int?
+    /// The cat's name, read out by VoiceOver.
+    var name: String?
   }
 }

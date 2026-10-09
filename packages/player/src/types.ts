@@ -10,6 +10,14 @@ export interface SetupOptions {
   catalog?: Pick<Catalog, "upNext">;
   storage?: KeyValueStore;
   onPlayed?: (track: Track, playedSec: number) => void;
+  /** Pause when headphones disconnect; read once at setup (native option). */
+  pauseOnDisconnect?: boolean;
+  /** When true, any queue keeps going with radio from its last track once it runs low. */
+  radioContinue?: () => boolean;
+  /** Seconds the sleep timer fades the volume over before it stops (default 10). */
+  sleepFadeSec?: () => number;
+  /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */
+  onDiagnostic?: (kind: string, detail?: string) => void;
 }
 
 export type RepeatMode = "off" | "all" | "one";
@@ -35,7 +43,13 @@ export type PlayerStatus =
   | "buffering"
   | "error";
 
-export type PlayerEventName = "trackChanged" | "liked" | "skipped" | "paused";
+/** "finished": the current song played past 80% (fires once per play). */
+export type PlayerEventName =
+  | "trackChanged"
+  | "liked"
+  | "skipped"
+  | "paused"
+  | "finished";
 
 export interface PlayOptions {
   source?: QueueSource;

@@ -7,10 +7,16 @@ import {
 } from "@studio/player";
 import { router } from "expo-router";
 import { useState } from "react";
-
+import { View } from "react-native";
+import { CatState } from "../components/ui";
 import { useLibrary } from "../data/library";
+import {
+  shareLyric,
+  showTrackActions,
+} from "../features/library/track-actions";
 import { NowPlayingView } from "../features/now-playing/now-playing-view";
 import { lyricsService } from "../lib/engine";
+import { push } from "../lib/nav";
 import { useResource } from "../lib/use-resource";
 
 const LABEL = {
@@ -35,6 +41,19 @@ export default function NowPlaying() {
     () => lyricsService.lyrics(current!),
   );
 
+  if (!current)
+    return (
+      <View
+        style={{ flex: 1, backgroundColor: "#000", justifyContent: "center" }}
+      >
+        <CatState
+          kind="empty"
+          message="Nothing is playing. Pick a song and the cat starts dancing."
+          action="Close"
+          onAction={() => router.back()}
+        />
+      </View>
+    );
   return (
     <NowPlayingView
       track={current}
@@ -58,8 +77,10 @@ export default function NowPlaying() {
           emitPlayerEvent("liked", current);
       }}
       onLyrics={() => setMode((m) => (m === "lyrics" ? "art" : "lyrics"))}
-      onQueue={() => router.push("/queue")}
+      onQueue={() => push("/queue")}
       onClose={() => router.back()}
+      onMore={() => current && showTrackActions(current, { fromPlayer: true })}
+      onShareLyric={(line) => current && shareLyric(current, line)}
     />
   );
 }

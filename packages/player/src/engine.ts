@@ -1,10 +1,10 @@
 import TrackPlayer, {
   Event,
+  type MediaItem,
+  RepeatMode as NativeRepeat,
+  type PlaybackErrorEvent,
   PlaybackState,
   PlayerCommand,
-  RepeatMode as NativeRepeat,
-  type MediaItem,
-  type PlaybackErrorEvent,
 } from "@rntp/player";
 import {
   artistLine,
@@ -15,8 +15,9 @@ import {
 import { useEffect, useState } from "react";
 import { AppState } from "react-native";
 
+import { POS_KEY, QUEUE_KEY } from "./keys";
 import * as Q from "./queue";
-import { emitPlayerEvent, usePlayerStore, type StoreState } from "./store";
+import { emitPlayerEvent, type StoreState, usePlayerStore } from "./store";
 import type {
   Player,
   PlayerStatus,
@@ -29,13 +30,15 @@ import type {
 
 const REFRESH_MS = 10 * 60_000;
 const AHEAD = 2;
+const FINISHED_AT = 0.8;
 const RADIO_LOW = 3;
 const TICK_MS = 5_000;
 const SAVE_MS = 1_000;
 const POS_EVERY_SEC = 15;
 const MAX_SKIPS = 5;
-export const QUEUE_KEY = "player.queue.v1";
-export const POS_KEY = "player.position.v1";
+
+export { POS_KEY, QUEUE_KEY };
+
 const PLACEHOLDER = "https://flow.invalid/pending/";
 const NATIVE_REPEAT: Record<RepeatMode, NativeRepeat> = {
   off: NativeRepeat.Off,
@@ -64,6 +67,8 @@ let radio = {
 };
 let currentKey: string | undefined;
 let playedFired = false;
+let finishedFired = false;
+let ahead = AHEAD;
 let savedPos = 0;
 let wantPlay = false;
 let loading = false;
@@ -71,10 +76,26 @@ let playing = false;
 let nativeState: PlaybackState = PlaybackState.Idle;
 let ticker: ReturnType<typeof setInterval> | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let stallTimer: ReturnType<typeof setTimeout> | undefined;
+const STALL_MS = 8000;
+const diag = (kind: string, detail?: string) =>
+  opts?.onDiagnostic?.(kind, detail);
+let endTimer: ReturnType<typeof setTimeout> | undefined;
 
+// iOS can misread the length of YouTube's audio files and keep "playing" silence past the end.
+const trustedDuration = (track?: Track) =>
+  track ? (streams.get(track.id)?.durationSec ?? track.durationSec) : undefined;
+const disagrees = (native: number, trusted: number) =>
+  !native || Math.abs(native - trusted) > Math.max(10, trusted * 0.15);
+function chooseDuration(native: number, track?: Track): number {
+  const trusted = trustedDuration(track);
+  return trusted && disagrees(native, trusted) ? trusted : native;
+}
+
+// Floor at about -9 dB: estimated loudness can overshoot, and a near-silent song reads as "no audio".
 export function normalizeVolume(loudnessDb?: number): number {
   return loudnessDb && loudnessDb > 0
-    ? Q.clamp(10 ** (-loudnessDb / 20), 0, 1)
+    ? Q.clamp(10 ** (-loudnessDb / 20), 0.35, 1)
     : 1;
 }
 
@@ -126,7 +147,7 @@ function mediaItem(key: string, track: Track): MediaItem {
     artist: artistLine(track.artists),
     albumTitle: track.album?.title,
     artworkUrl: bestThumbnail(track.thumbnails, 544),
-    duration: track.durationSec,
+    duration: trustedDuration(track),
     extras: { trackId: track.id },
   };
 }
@@ -158,9 +179,14 @@ async function ensureReady(i: number, force = false): Promise<boolean> {
   }
 }
 
+/** How many upcoming songs get resolved ahead (data saver uses 1); no argument restores the default. */
+export function setPrefetchAhead(n?: number): void {
+  ahead = n === undefined ? AHEAD : Math.max(0, Math.round(n));
+}
+
 function ensureAhead(): void {
   const { index, tracks } = get();
-  for (let i = index + 1; i <= index + AHEAD && i < tracks.length; i++)
+  for (let i = index + 1; i <= index + ahead && i < tracks.length; i++)
     void ensureReady(i);
 }
 
@@ -197,8 +223,11 @@ function entered(key: string, rearmSleep: boolean): void {
   if (key !== currentKey) {
     currentKey = key;
     playedFired = false;
+    finishedFired = false;
     savedPos = 0;
     emitPlayerEvent("trackChanged", s.tracks[i]);
+    const st = streams.get(s.tracks[i].id);
+    diag("track", `${s.tracks[i].id} via=${st?.via ?? "?"}`);
   }
   if (rearmSleep && s.sleepAt === "endOfTrack")
     TrackPlayer.sleepAfterMediaItemAtIndex(i);
@@ -280,8 +309,10 @@ function need(): SetupOptions {
 async function refill(): Promise<void> {
   const s = get();
   const catalog = opts?.catalog;
+  const auto =
+    !s.radio && s.repeat === "off" && (opts?.radioContinue?.() ?? false);
   if (
-    !s.radio ||
+    !(s.radio || auto) ||
     !catalog ||
     radio.busy ||
     radio.done ||
@@ -341,6 +372,7 @@ function syncNativeOrder(oldIndex: number, oldLength: number): void {
 
 async function onError(e: PlaybackErrorEvent): Promise<void> {
   if (e.code === "play-not-permitted") return;
+  diag("error", `${e.code}: ${e.message}`);
   if (e.code === "controller-connection-failed")
     return set({ error: e.message });
   const s = get();
@@ -366,6 +398,7 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
       syncStatus();
       return;
     } catch (err) {
+      diag("resolve-failed", `${track.id}: ${errorText(err)}`);
       set({ error: errorText(err) });
     }
   } else set({ error: e.message });
@@ -382,12 +415,47 @@ function tick(): void {
   const track = s.tracks[s.index];
   if (!track || !nativeLoaded) return;
   const { position, duration } = TrackPlayer.getProgress();
-  const dur = duration || track.durationSec || 0;
+  const dur = chooseDuration(duration, track) || 0;
   if (!playedFired && (position >= 30 || (dur > 0 && position >= dur / 2))) {
     playedFired = true;
     opts?.onPlayed?.(track, Math.round(position));
   }
+  // Played past 80%: counts as finished (the tick before the end always lands past it).
+  if (!finishedFired && dur > 0 && position >= dur * FINISHED_AT) {
+    finishedFired = true;
+    emitPlayerEvent("finished", track);
+  }
   if (Math.abs(position - savedPos) >= POS_EVERY_SEC) savePosition(position);
+  guardEnd(position, duration, track);
+}
+
+// When the player's own length is wrong, end the song at its real length instead of playing silence.
+function guardEnd(position: number, native: number, track: Track): void {
+  clearTimeout(endTimer);
+  const trusted = trustedDuration(track);
+  if (!playing || !trusted || !disagrees(native, trusted) || native < trusted)
+    return;
+  const left = trusted + 1.5 - position;
+  if (left > TICK_MS / 1000) return;
+  const key = get().keys[get().index];
+  endTimer = setTimeout(
+    () => {
+      const s = get();
+      if (s.keys[s.index] !== key || !playing) return;
+      diag(
+        "duration-guard",
+        `${track.id} native=${Math.round(native)}s real=${Math.round(trusted)}s`,
+      );
+      if (s.repeat === "one") return void TrackPlayer.seekTo(0);
+      const n = Q.stepIndex(s.tracks.length, s.index, 1, s.repeat === "all");
+      if (n !== null && n !== s.index) void goTo(n, ++navGen, true);
+      else {
+        pause();
+        seekTo(0);
+      }
+    },
+    Math.max(0, left * 1000),
+  );
 }
 
 function savePosition(position: number): void {
@@ -477,7 +545,7 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
   if (setupPromise) return setupPromise;
   TrackPlayer.setupPlayer({
     contentType: "music",
-    handleAudioBecomingNoisy: true,
+    handleAudioBecomingNoisy: o.pauseOnDisconnect ?? true,
     android: { wakeMode: "network" },
   });
   TrackPlayer.setCommands({
@@ -499,15 +567,35 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     Event.MediaItemTransition,
     ({ item, reason }) => {
       if (!item?.mediaId) return;
-      if (reason === "repeat") playedFired = false;
+      if (reason === "repeat") playedFired = finishedFired = false;
       entered(item.mediaId, reason === "seek" || reason === "playlistChanged");
     },
   );
   TrackPlayer.addEventListener(Event.PlaybackStateChanged, ({ state }) => {
     nativeState = state;
     syncStatus();
+    // A stream stuck buffering gets a fresh URL and resumes where it was.
+    clearTimeout(stallTimer);
+    if (state === PlaybackState.Buffering && wantPlay)
+      stallTimer = setTimeout(() => {
+        if (nativeState === PlaybackState.Buffering && wantPlay)
+          void onError({
+            code: "stalled",
+            message: "Playback stalled",
+          } as unknown as PlaybackErrorEvent);
+      }, STALL_MS);
+  });
+  // Going to the background mid-song: re-assert playback, but never over a call or Siri pause.
+  AppState.addEventListener("change", (st) => {
+    if (wantPlay) diag("app", `${st} native=${nativeState}`);
+    if (st === "background" && wantPlay && nativeLoaded && playing) {
+      diag("background-nudge");
+      TrackPlayer.play();
+    }
   });
   TrackPlayer.addEventListener(Event.IsPlayingChanged, ({ playing: on }) => {
+    // A pause nobody asked for: a call, Siri, another app or headphones unplugged.
+    if (!on && wantPlay && !loading) diag("paused-by-system", nativeState);
     playing = on;
     clearInterval(ticker);
     ticker = on ? setInterval(tick, TICK_MS) : undefined;
@@ -586,6 +674,8 @@ async function swapCurrent(force: boolean): Promise<void> {
 
 function seekTo(sec: number): void {
   const s = get();
+  const real = trustedDuration(s.tracks[s.index]);
+  if (real) sec = Math.min(sec, Math.max(0, real - 1));
   if (nativeLoaded) TrackPlayer.seekTo(sec);
   else if (s.keys[s.index])
     pendingSeek = { key: s.keys[s.index], position: sec };
@@ -714,8 +804,9 @@ export const player: Player = {
       set({ sleepAt: "endOfTrack" });
     } else {
       const seconds = Math.max(1, Math.round(value * 60));
+      const fade = Math.max(0, opts?.sleepFadeSec?.() ?? 10);
       TrackPlayer.sleepAfterTime(seconds, {
-        fadeOutSeconds: Math.min(10, seconds),
+        fadeOutSeconds: Math.min(fade, seconds),
       });
       set({ sleepAt: Date.now() + seconds * 1000 });
     }
@@ -730,7 +821,13 @@ export const player: Player = {
 function readProgress(): Progress {
   if (nativeLoaded) {
     const { position, duration, buffered } = TrackPlayer.getProgress();
-    return { position, duration, buffered };
+    const track = get().tracks[get().index];
+    const dur = chooseDuration(duration, track);
+    return {
+      position: Math.min(position, dur || position),
+      duration: dur,
+      buffered,
+    };
   }
   const s = get();
   return {
@@ -787,6 +884,8 @@ export function __resetForTests(): void {
   };
   currentKey = undefined;
   playedFired = false;
+  finishedFired = false;
+  ahead = AHEAD;
   wantPlay = false;
   loading = false;
   playing = false;

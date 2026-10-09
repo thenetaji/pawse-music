@@ -33,7 +33,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.thenetaji.flow"
+      "package": "com.thenetaji.flow",
+      "permissions": ["android.permission.REQUEST_INSTALL_PACKAGES"]
     },
     "web": {
       "output": "static",
@@ -57,7 +58,16 @@
       "expo-sqlite",
       "@studio/config/plugins/with-scene-lifecycle",
       "expo-web-browser",
-      "@bacons/apple-targets"
+      "@bacons/apple-targets",
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "ccacheEnabled": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

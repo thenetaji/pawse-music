@@ -206,4 +206,32 @@ describe("createResolver", () => {
       }).resolve(song),
     ).rejects.toMatchObject({ code: "age_restricted" });
   });
+
+  it("plays a downloaded file first unless remoteOnly, and passes the quality", async () => {
+    const youtube = ok("yt");
+    const file = {
+      url: "file:///doc/v.m4a",
+      mimeType: "audio/mp4",
+      bitrate: 0,
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      via: "local",
+    };
+    const r = createResolver({
+      youtube,
+      local: (id) => (id === "v" ? file : undefined),
+      quality: () => "saver",
+    });
+    expect((await r.resolve(song)).via).toBe("local");
+    expect(youtube.resolve).not.toHaveBeenCalled();
+    expect((await r.resolve(song, { remoteOnly: true })).via).toBe("yt");
+    expect(youtube.resolve).toHaveBeenLastCalledWith(song, {
+      remoteOnly: true,
+      quality: "saver",
+    });
+    await r.resolve({ ...song, id: "w" }, { quality: "high" });
+    expect(youtube.resolve).toHaveBeenLastCalledWith(
+      { ...song, id: "w" },
+      { quality: "high" },
+    );
+  });
 });

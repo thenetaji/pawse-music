@@ -3,17 +3,19 @@ import { artistLine, bestThumbnail, type Track } from "@studio/music-core";
 import {
   getProgress,
   onPlayerEvent,
+  type PlayerStatus,
   player,
   usePlayerStore,
-  type PlayerStatus,
 } from "@studio/player";
 import { AppState } from "react-native";
 
 import {
-  FlowActivity,
+  type ActivityCatColor,
   type ActivityMood,
   type ActivityState,
+  FlowActivity,
 } from "../../../modules/flow-activity";
+import { useLibrary } from "../../data/library";
 
 /** Groove frame swap period. Each swap is one ActivityKit update, so stay well under 1/s. */
 export const BEAT_MS = 2000;
@@ -22,6 +24,41 @@ export const BACKGROUND_BEAT_BUDGET_MS = 10 * 60_000;
 const HAPPY_MS = 1500;
 const CURIOUS_MS = 1000;
 const ART_PX = 120;
+const CAT_COLORS: readonly ActivityCatColor[] = [
+  "orange",
+  "black",
+  "white",
+  "grey",
+];
+/** Chance that a song gets the mouse cameo, by the catEpisodes setting. */
+const CAMEO_CHANCE = { rare: 0.4, often: 0.8 };
+/** Mouse frame per beat tick: peek, head out, peek, head out, peek; the cat is pleased after. */
+const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1, 2, 1];
+
+type CatPrefs = {
+  island: boolean;
+  color: ActivityCatColor;
+  cameoChance: number;
+  name: string | null;
+};
+
+// The cat fields are new to Settings; read them loosely with defaults so older saved state works.
+export function catPrefs(): CatPrefs {
+  const s = (useLibrary.getState().settings ?? {}) as Record<string, unknown>;
+  const episodes = s.catEpisodes;
+  const name = typeof s.catName === "string" ? s.catName.trim() : "";
+  return {
+    island: s.catIsland !== false,
+    color: CAT_COLORS.find((c) => c === s.catColor) ?? "orange",
+    cameoChance:
+      episodes === "off" || episodes === false
+        ? 0
+        : episodes === "often"
+          ? CAMEO_CHANCE.often
+          : CAMEO_CHANCE.rare,
+    name: name ? name.slice(0, 32) : null,
+  };
+}
 
 const isPlaying = (s: PlayerStatus) =>
   s === "playing" || s === "buffering" || s === "loading";
@@ -47,6 +84,14 @@ export function startIslandController(): () => void {
   let lastKey = "";
   let sending = false;
   let queued: ActivityState | null = null;
+  // The first song of a session always gets the mouse, so the episode is actually seen.
+  let firstCameo = true;
+  // At most one cameo per song. step: -1 waiting, 0..n-1 showing, CAMEO_FRAMES.length done.
+  let cameo: { trackId: string; atSec: number; step: number } = {
+    trackId: "",
+    atSec: 0,
+    step: CAMEO_FRAMES.length,
+  };
 
   const current = (): Track | undefined => {
     const s = usePlayerStore.getState();
@@ -63,6 +108,11 @@ export function startIslandController(): () => void {
     const start = Date.now() - position * 1000;
     // Ignore small drift so steady playback doesn't produce a new state every tick.
     if (Math.abs(start - startMs) > 1500) startMs = start;
+    const prefs = catPrefs();
+    const showing =
+      cameo.trackId === track.id &&
+      cameo.step >= 0 &&
+      cameo.step < CAMEO_FRAMES.length;
     return {
       title: track.title,
       artist: artistLine(track.artists),
@@ -73,6 +123,9 @@ export function startIslandController(): () => void {
       start: Math.round(startMs),
       end: Math.round(startMs + duration * 1000),
       progress: duration ? Math.min(1, position / duration) : 0,
+      color: prefs.color,
+      mouse: showing ? (CAMEO_FRAMES[cameo.step] ?? 0) : 0,
+      name: prefs.name,
     };
   }
 
@@ -104,12 +157,17 @@ export function startIslandController(): () => void {
   async function begin() {
     if (starting || active) return;
     const state = compose();
-    if (!state || !FlowActivity.isSupported()) return;
+    // Island cat off: no activity at all, so the system's Now Playing island shows instead.
+    if (!state || !catPrefs().island || !FlowActivity.isSupported()) return;
     starting = true;
     // iOS refuses to start an activity from the background; we retry when the app is active again.
     const ok = await FlowActivity.start(state);
     starting = false;
-    if (!ok || !isPlaying(usePlayerStore.getState().status)) {
+    if (
+      !ok ||
+      !isPlaying(usePlayerStore.getState().status) ||
+      !catPrefs().island
+    ) {
       if (ok) void FlowActivity.end();
       return;
     }
@@ -138,6 +196,40 @@ export function startIslandController(): () => void {
     });
   }
 
+  function planCameo(track: Track) {
+    const chance = catPrefs().cameoChance;
+    const duration = track.durationSec || 0;
+    // Somewhere in the first 80 s, never in the last 20 s.
+    const atSec = 15 + Math.random() * 65;
+    const lucky =
+      chance > 0 &&
+      (firstCameo || Math.random() < chance) &&
+      (!duration || atSec < duration - 20);
+    if (lucky) firstCameo = false;
+    cameo = {
+      trackId: track.id,
+      atSec,
+      step: lucky ? -1 : CAMEO_FRAMES.length,
+    };
+  }
+
+  // Runs on a beat tick and takes that tick's update instead of the groove swap, so it costs nothing extra.
+  function stepCameo(spentMs: number): boolean {
+    if (cameo.trackId !== current()?.id || cameo.step >= CAMEO_FRAMES.length)
+      return false;
+    if (cameo.step >= 0) {
+      cameo.step += 1;
+      if (cameo.step === CAMEO_FRAMES.length) setFlash("happy", HAPPY_MS);
+      return true;
+    }
+    if (flash || catPrefs().cameoChance === 0) return false;
+    if (getProgress().position < cameo.atSec) return false;
+    const needMs = (CAMEO_FRAMES.length + 1) * BEAT_MS;
+    if (spentMs + needMs > BACKGROUND_BEAT_BUDGET_MS) return false;
+    cameo.step = 0;
+    return true;
+  }
+
   function syncBeat() {
     const want =
       active &&
@@ -146,9 +238,9 @@ export function startIslandController(): () => void {
       Date.now() - backgroundSince < BACKGROUND_BEAT_BUDGET_MS;
     if (want && !beat) {
       beat = setInterval(() => {
-        if (Date.now() - backgroundSince >= BACKGROUND_BEAT_BUDGET_MS)
-          frame = 0;
-        else frame ^= 1;
+        const spent = Date.now() - backgroundSince;
+        if (spent >= BACKGROUND_BEAT_BUDGET_MS) frame = 0;
+        else if (!stepCameo(spent)) frame ^= 1;
         push();
         syncBeat();
       }, BEAT_MS);
@@ -193,6 +285,7 @@ export function startIslandController(): () => void {
       return;
     }
     if (track.id !== art.id) loadArt(track);
+    if (track.id !== cameo.trackId) planCameo(track);
     if (!active) {
       if (s.status === "playing") void begin();
     } else {
@@ -217,10 +310,21 @@ export function startIslandController(): () => void {
   const unsubAction = FlowActivity.onAction((action) =>
     action === "next" ? player.next() : player.toggle(),
   );
+  const unsubSettings = useLibrary.subscribe((s, prev) => {
+    if (s.settings === prev.settings) return;
+    if (!catPrefs().island) {
+      if (active || starting) finish();
+      return;
+    }
+    // Starts the activity if the cat was just switched on, or pushes the new colour/name.
+    onChange();
+  });
   const appState = AppState.addEventListener("change", (st) => {
     if (st === "active") {
       backgroundSince = 0;
       frame = 0;
+      // The cameo is a background treat; a half-shown one counts as this song's.
+      if (cameo.step >= 0) cameo.step = CAMEO_FRAMES.length;
       onChange();
     } else if (!backgroundSince) {
       backgroundSince = Date.now();
@@ -229,7 +333,8 @@ export function startIslandController(): () => void {
   });
 
   // A previous process may have left an activity behind; start clean.
-  if (!isPlaying(usePlayerStore.getState().status)) void FlowActivity.end();
+  if (!isPlaying(usePlayerStore.getState().status) || !catPrefs().island)
+    void FlowActivity.end();
   onChange();
 
   stopController = () => {
@@ -237,6 +342,7 @@ export function startIslandController(): () => void {
     unsubLiked();
     unsubSkipped();
     unsubAction();
+    unsubSettings();
     appState.remove();
     if (flash) clearTimeout(flash.timer);
     if (beat) clearInterval(beat);

@@ -1,44 +1,49 @@
-import {
-  createResolver,
-  JioSaavn,
-  LyricsService,
-  YouTubeMusic,
-} from "@studio/innertube";
-import type { StreamResolver, Track } from "@studio/music-core";
-import { setupPlayer } from "@studio/player";
+import type { Track } from "@studio/music-core";
+import { POS_KEY, QUEUE_KEY, setupPlayer } from "@studio/player";
 
+import { startAccountSync } from "../data/account";
+import { resolver, yt } from "../data/clients";
+import "../data/downloads";
+import "../data/signals";
 import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
-import { appFetch } from "./net";
+import { logEvent } from "./diagnostics";
+import { clearResources } from "./use-resource";
 
-// One YouTube Music client for the app: cookies only when signed in, and only for catalog/account calls.
-export const yt = new YouTubeMusic({
-  fetch: appFetch,
-  cookies: () => useLibrary.getState().settings.cookies,
+export { lyricsService, saavn, yt } from "../data/clients";
+
+const settings = () => useLibrary.getState().settings;
+
+// "Resume where you left off" off: the queue is still saved, but never restored.
+const playerStorage = {
+  get: (k: string) =>
+    !settings().resume && (k === QUEUE_KEY || k === POS_KEY)
+      ? Promise.resolve(null)
+      : kv.get(k),
+  set: (k: string, v: string) => kv.set(k, v),
+};
+
+// Signing in or out changes every catalog answer, so cached pages are dropped.
+let lastCookies = useLibrary.getState().settings.cookies;
+useLibrary.subscribe((st) => {
+  if (st.settings.cookies === lastCookies) return;
+  lastCookies = st.settings.cookies;
+  clearResources();
 });
-export const saavn = new JioSaavn({ fetch: appFetch });
-export const lyricsService = new LyricsService({ fetch: appFetch });
-
-const resolvers = {
-  youtube: createResolver({ youtube: yt, saavn }),
-  saavn: createResolver({ youtube: yt, saavn, preferSaavn: true }),
-};
-const resolver: StreamResolver = {
-  resolve: (t) =>
-    (useLibrary.getState().settings.preferSaavn
-      ? resolvers.saavn
-      : resolvers.youtube
-    ).resolve(t),
-};
 
 let started: Promise<void> | null = null;
 export function startEngine() {
   started ??= setupPlayer({
     resolver,
     catalog: yt,
-    storage: kv,
+    storage: playerStorage,
+    pauseOnDisconnect: settings().pauseOnDisconnect,
+    radioContinue: () => settings().radioContinue,
+    sleepFadeSec: () => settings().sleepFade,
+    onDiagnostic: logEvent,
     onPlayed: (track: Track, playedSec: number) => {
       const lib = useLibrary.getState();
+      if (lib.settings.pauseHistory) return;
       lib.recordPlay(track);
       if (
         lib.settings.cookies &&
@@ -53,5 +58,6 @@ export function startEngine() {
       }
     },
   });
+  startAccountSync();
   return started;
 }

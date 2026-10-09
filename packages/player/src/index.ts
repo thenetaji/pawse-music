@@ -3,17 +3,19 @@ export {
   getProgress,
   normalizeVolume,
   player,
+  setPrefetchAhead,
   setupPlayer,
   useProgress,
 } from "./engine";
+export { POS_KEY, QUEUE_KEY } from "./keys";
 export {
   emitPlayerEvent,
   onPlayerEvent,
+  type PlayerSnapshot,
   usePlayerEvent,
-  usePlayerStore,
   usePlayerSelect,
   usePlayerState,
-  type PlayerSnapshot,
+  usePlayerStore,
 } from "./store";
 export type {
   KeyValueStore,

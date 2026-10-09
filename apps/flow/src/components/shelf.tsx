@@ -1,3 +1,4 @@
+import { getSetting } from "../lib/settings";
 import {
   artistLine,
   type CatalogItem,
@@ -6,7 +7,14 @@ import {
 } from "@studio/music-core";
 import { go } from "../lib/nav";
 import { player } from "@studio/player";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Dimensions,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import { showTrackActions } from "../features/library/track-actions";
 import { Artwork } from "./artwork";
@@ -29,7 +37,7 @@ export function openItem(item: CatalogItem, siblings?: CatalogItem[]) {
   if (tracks.length <= 1)
     return void player.playRadio({ videoId: item.id, title: item.title });
   void player.play(tracks as Track[], at, {
-    radio: true,
+    radio: getSetting("radioContinue", true),
     source: { type: "other" },
   });
 }
@@ -87,6 +95,7 @@ function TrackGrid({ items }: { items: CatalogItem[] }) {
               key={t.id}
               track={t as Track}
               onPress={() => openItem(t, items)}
+              swipeable={false}
             />
           ))}
         </View>
@@ -94,7 +103,8 @@ function TrackGrid({ items }: { items: CatalogItem[] }) {
     />
   );
 }
-const PAGE_W = 340;
+// One page per screen width, with the next page peeking in.
+const PAGE_W = Dimensions.get("window").width - 44;
 
 function Cards({ items }: { items: CatalogItem[] }) {
   return (
@@ -104,7 +114,13 @@ function Cards({ items }: { items: CatalogItem[] }) {
       keyExtractor={(i, n) => `${i.type}${i.id}${n}`}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}
-      renderItem={({ item }) => <Card item={item} siblings={items} />}
+      renderItem={({ item }) => (
+        <Card
+          item={item}
+          siblings={items}
+          size={item.type === "artist" ? 110 : undefined}
+        />
+      )}
     />
   );
 }
