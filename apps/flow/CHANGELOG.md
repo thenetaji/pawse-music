@@ -2,6 +2,12 @@
 
 All notable changes to Flow. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `flow-vX.Y.Z` tag builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [Unreleased]
+
+### Fixed
+- Lyrics from the wrong song: every lyrics source must now match the song's title and artist, titles are cleaned before searching ("(From …)", "(Official Video)", "ft. …"), and credit lines no longer appear as sung lines.
+- Music videos whose length differs from the song show lyrics as plain text instead of timed lines that drift.
+
 ## [0.2.0] - 2026-10-09
 
 ### Added

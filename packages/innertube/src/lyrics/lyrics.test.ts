@@ -1,9 +1,10 @@
 import betterLyrics from "../__fixtures__/betterlyrics.json";
 import lrclib from "../__fixtures__/lrclib-get.json";
-import { sapisidAuthorization } from "../youtube/auth";
 import { sha1Hex } from "../util/sha1";
-import { cleanKugouLrc } from "./kugou";
+import { sapisidAuthorization } from "../youtube/auth";
+import { cleanKugouLrc, kugouLyrics } from "./kugou";
 import { parseLrc } from "./lrc";
+import { cleanTitle, sameSong } from "./match";
 import { LyricsService } from "./service";
 import { parseTtml } from "./ttml";
 
@@ -89,6 +90,218 @@ describe("LyricsService", () => {
     });
     expect(l?.source).toBe("betterlyrics");
     expect(l?.lines[0].words?.length).toBeGreaterThan(0);
+  });
+});
+
+type Route = [string, unknown, number?];
+const mockFetch = (routes: Route[]) =>
+  jest.fn(async (url: string) => {
+    const [, body, status = 200] = routes.find(([k]) => url.includes(k)) ?? [
+      "",
+      {},
+      404,
+    ];
+    return {
+      ok: status < 400,
+      status,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    } as Response;
+  });
+const b64 = (s: string) =>
+  btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+
+describe("matching", () => {
+  it("cleans video and upload noise out of titles", () => {
+    expect(cleanTitle('Kesariya (From "Brahmastra")', ["Arijit Singh"])).toBe(
+      "Kesariya",
+    );
+    expect(cleanTitle("Coldplay - Yellow (Official Video)", ["Coldplay"])).toBe(
+      "Yellow",
+    );
+    expect(cleanTitle("Tum Hi Ho | Aashiqui 2 | Lyrical")).toBe("Tum Hi Ho");
+    expect(
+      cleanTitle("Diljit Dosanjh: LOVER (Official Music Video)", [
+        "Diljit Dosanjh",
+      ]),
+    ).toBe("LOVER");
+    expect(cleanTitle("Blinding Lights [4K]")).toBe("Blinding Lights");
+    expect(cleanTitle("Perfect ft. Beyoncé")).toBe("Perfect");
+    expect(cleanTitle("Perfect (feat. Beyoncé) (Lyric Video)")).toBe("Perfect");
+    expect(cleanTitle("Yesterday - Remastered 2009")).toBe("Yesterday");
+    expect(cleanTitle("Teri Ore (Full Video Song) HD")).toBe("Teri Ore");
+    expect(cleanTitle("Yellow (Acoustic)")).toBe("Yellow (Acoustic)");
+    expect(cleanTitle("Ishq Bulaava - Hasee Toh Phasee", ["Sanam Puri"])).toBe(
+      "Ishq Bulaava - Hasee Toh Phasee",
+    );
+  });
+
+  it("tells the same song from a different one", () => {
+    const track = {
+      title: "Teri Ore",
+      artists: ["Rahat Fateh Ali Khan, Shreya Ghoshal"],
+    };
+    expect(
+      sameSong(
+        {
+          title: 'Teri Ore (From "Singh Is Kinng")',
+          artist: "Shreya Ghoshal、Rahat Fateh Ali Khan",
+        },
+        track,
+      ),
+    ).toBe(true);
+    expect(
+      sameSong(
+        { title: "Kaise Mujhe", artist: "Shreya Ghoshal、Benny Dayal" },
+        track,
+      ),
+    ).toBe(false);
+    expect(sameSong({ title: "Teri Ore", artist: "Someone Else" }, track)).toBe(
+      false,
+    );
+    expect(
+      sameSong({ title: "Yellow Submarine" }, { title: "Yellow", artists: [] }),
+    ).toBe(false);
+    expect(
+      sameSong(
+        { title: "Pyaar Ke Pal", artist: "K.K." },
+        { title: "Pyaar Ke Pal", artists: ["KK"] },
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("KuGou", () => {
+  it("strips head lines that only name the song and its artists", () => {
+    const lrc = [
+      '[00:00.00]Tera Hone Laga Hoon (From "Ajab Prem Ki Ghazab Kahani") - Atif Aslam (阿特夫)/Alisha Chinai',
+      "[00:00.50]Tum Hi Ho - Arijit Singh",
+      "[00:01.05]Shining in the shade",
+      "[00:03.72]Tera hone laga hoon",
+    ].join("\n");
+    expect(
+      cleanKugouLrc(lrc, "Tera Hone Laga Hoon", ["Pritam", "Atif Aslam"]),
+    ).toBe(
+      "[00:00.50]Tum Hi Ho - Arijit Singh\n[00:01.05]Shining in the shade\n[00:03.72]Tera hone laga hoon",
+    );
+    expect(
+      cleanKugouLrc(
+        "[00:00.00]Tum Hi Ho - Arijit Singh\n[00:00.40]Tum Hi Ho\n[00:10.38]Hum tere bin",
+        "Tum Hi Ho",
+        ["Arijit Singh"],
+      ),
+    ).toBe("[00:10.38]Hum tere bin");
+  });
+
+  it("rejects hash and keyword candidates for a different song", async () => {
+    const fetch = mockFetch([
+      [
+        "search/song",
+        {
+          data: {
+            info: [
+              {
+                songname: "Kaise Mujhe",
+                singername: "Shreya Ghoshal、Benny Dayal",
+                duration: 343,
+                hash: "h1",
+              },
+            ],
+          },
+        },
+      ],
+      [
+        "lyrics.kugou.com/search",
+        {
+          candidates: [
+            {
+              id: "1",
+              accesskey: "k",
+              song: "Kaise Mujhe",
+              singer: "Shreya Ghoshal、Benny Dayal",
+              duration: 346644,
+            },
+          ],
+        },
+      ],
+      [
+        "download",
+        { content: b64("[00:00.00]Kaise Mujhe\n[00:10.00]Wrong song") },
+      ],
+    ]);
+    const track = {
+      title: "Teri Ore",
+      artists: ["Rahat Fateh Ali Khan, Shreya Ghoshal"],
+      durationSec: 340,
+    };
+    expect(await kugouLyrics(fetch, track, 1000)).toBeUndefined();
+    expect(fetch.mock.calls.some(([u]) => u.includes("hash=h1"))).toBe(false);
+    expect(fetch.mock.calls.some(([u]) => u.includes("download"))).toBe(false);
+  });
+});
+
+describe("LyricsService validation", () => {
+  const yellow = {
+    trackName: "Yellow",
+    artistName: "Coldplay",
+    duration: 267,
+    instrumental: false,
+    plainLyrics: "Look at the stars\nLook how they shine for you",
+    syncedLyrics:
+      "[00:33.60] Look at the stars\n[00:38.00] Look how they shine for you",
+  };
+
+  it("rejects an LRCLIB search hit for a different song", async () => {
+    const fetch = mockFetch([
+      [
+        "lrclib.net/api/search",
+        [{ ...yellow, trackName: "Kaise Mujhe", artistName: "Shreya Ghoshal" }],
+      ],
+    ]);
+    const l = await new LyricsService({ fetch }).lrclib({
+      id: "x",
+      title: "Teri Ore",
+      artists: [{ name: "Shreya Ghoshal" }],
+      durationSec: 267,
+    });
+    expect(l).toBeNull();
+  });
+
+  it("returns plain text when the only match is a different-length recording", async () => {
+    const fetch = mockFetch([
+      ["lrclib.net/api/search", [yellow]],
+      ["boidu", { error: "API key required" }, 401],
+      ["search/song", { data: { info: [] } }],
+      ["lyrics.kugou.com/search", { candidates: [] }],
+    ]);
+    const l = await new LyricsService({ fetch }).lyrics({
+      id: "9qnqYL0eNNI",
+      title: "Coldplay - Yellow (Official Video)",
+      artists: [{ name: "Coldplay" }],
+      durationSec: 290,
+    });
+    expect(l).toMatchObject({ source: "lrclib", synced: false });
+    expect(l?.lines.map((x) => x.text)).toEqual([
+      "Look at the stars",
+      "Look how they shine for you",
+    ]);
+    const search = fetch.mock.calls.find(([u]) => u.includes("/search?"))?.[0];
+    expect(search).toContain("track_name=Yellow&");
+  });
+
+  it("keeps synced lyrics when the recording length matches", async () => {
+    const fetch = mockFetch([["lrclib.net/api/search", [yellow]]]);
+    const l = await new LyricsService({ fetch }).lrclib({
+      id: "x",
+      title: "Yellow",
+      artists: [{ name: "Coldplay" }],
+      durationSec: 268,
+    });
+    expect(l).toMatchObject({ source: "lrclib", synced: true });
+    expect(l?.lines[0]).toMatchObject({
+      startMs: 33_600,
+      text: "Look at the stars",
+    });
   });
 });
 
