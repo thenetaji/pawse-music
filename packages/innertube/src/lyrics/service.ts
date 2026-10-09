@@ -39,7 +39,7 @@ export interface LyricsServiceOptions {
 
 const LRCLIB = "https://lrclib.net/api";
 const BETTER_LYRICS = "https://lyrics-api.boidu.dev/getLyrics";
-const LRCLIB_CLIENT = "Flow (https://github.com/thenetaji/studio)";
+const LRCLIB_CLIENT = "Flow (https://github.com/thenetaji/flow-music)";
 const VIDEO_ID = /^[\w-]{11}$/;
 // A hung Lyrics+ server gets this share of the budget so the next one still has time.
 const SERVER_SHARE = 0.6;

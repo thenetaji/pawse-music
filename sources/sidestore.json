@@ -1,14 +1,14 @@
 {
-  "name": "Studio",
-  "identifier": "com.thenetaji.studio",
-  "subtitle": "Apps by thenetaji",
+  "name": "Flow",
+  "identifier": "com.thenetaji.flow-music",
+  "subtitle": "Flow by thenetaji",
   "apps": [
     {
       "name": "Flow",
       "bundleIdentifier": "com.thenetaji.flow",
       "developerName": "thenetaji",
-      "localizedDescription": "Flow",
-      "iconURL": "https://raw.githubusercontent.com/thenetaji/studio/main/apps/flow/assets/images/icon.png",
+      "localizedDescription": "A music player for YouTube Music with a cat that lives in your Dynamic Island.",
+      "iconURL": "https://raw.githubusercontent.com/thenetaji/flow-music/main/apps/flow/assets/images/icon.png",
       "versions": [
         {
           "version": "0.3.0",

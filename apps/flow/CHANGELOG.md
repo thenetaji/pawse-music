@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to Flow. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `flow-vX.Y.Z` tag builds the iOS and Android apps and publishes them under GitHub Releases.
+All notable changes to Flow. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` before 0.3.1) builds the iOS and Android apps and publishes them under GitHub Releases.
+
+## [0.3.1] - 2026-10-09
+
+### Changed
+- Flow is open source and has its own home: https://github.com/thenetaji/flow-music (GPL-3.0-or-later). Updates, the SideStore source and the download links now come from there; this version moves the in-app updater over, so nothing else is needed.
+- Releases are tagged `v1.2.3`, and `releases/latest/download/Flow.ipa` and `Flow.apk` always point at the newest build.
 
 ## [0.3.0] - 2026-10-09
 
@@ -69,6 +75,7 @@ All notable changes to Flow. The format follows [Keep a Changelog](https://keepa
 - Signing in takes effect immediately and is verified in Settings.
 - Background audio safeguards; Settings → About → Show onboarding again.
 
+[0.3.1]: https://github.com/thenetaji/flow-music/releases/tag/v0.3.1
 [0.3.0]: https://github.com/thenetaji/studio/releases/tag/flow-v0.3.0
 [0.2.0]: https://github.com/thenetaji/studio/releases/tag/flow-v0.2.0
 [0.1.10]: https://github.com/thenetaji/studio/releases/tag/flow-v0.1.10

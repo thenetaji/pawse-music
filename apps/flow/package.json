@@ -10,14 +10,9 @@
     "@rn-primitives/slot": "^1.5.2",
     "@rntp/player": "5.12.1",
     "@shopify/react-native-skia": "2.6.2",
-    "@studio/data": "workspace:*",
-    "@studio/icons": "workspace:*",
     "@studio/innertube": "workspace:*",
-    "@studio/motion": "workspace:*",
     "@studio/music-core": "workspace:*",
     "@studio/player": "workspace:*",
-    "@studio/theme": "workspace:*",
-    "@studio/ui": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.3",
@@ -84,5 +79,6 @@
     "doctor": "pnpm dlx expo-doctor",
     "typegen": "CI=1 timeout 75 expo start --port 8097 >/dev/null 2>&1 || true"
   },
-  "private": true
+  "private": true,
+  "license": "GPL-3.0-or-later"
 }

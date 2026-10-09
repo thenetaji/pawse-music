@@ -1,26 +1,26 @@
 name: Apps
 
-# Builds an app for sideloading: an unsigned IPA (SideStore) and a release-signed APK.
-# Tag `<app>-v1.2.3` builds both platforms, publishes a GitHub Release and updates sources/sidestore.json.
+# Builds Flow for sideloading: an unsigned IPA (SideStore) and a release-signed APK.
+# Tag `v1.2.3` builds both platforms, publishes a GitHub Release and updates sources/sidestore.json.
 on:
   workflow_dispatch:
     inputs:
       app:
         description: App folder under apps/
         type: choice
-        options: [finance, flow]
-        default: finance
+        options: [flow]
+        default: flow
       platforms:
         description: Platforms to build
         type: choice
         options: [ios, android, both]
         default: both
   push:
-    tags: ['finance-v*', 'flow-v*']
+    tags: ['v*']
     # Builds on main (no release) save the shared caches; tag builds can only read caches from main.
     branches: [main]
     paths:
-      - 'apps/flow/**'
+      - 'apps/**'
       - 'packages/**'
       - 'pnpm-lock.yaml'
       - 'tooling/ci/**'
@@ -328,30 +328,20 @@ jobs:
           [ -s notes.md ] || echo "${APP_NAME} ${VERSION}." > notes.md
           cat notes.md
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ env.APP_NAME }} ${{ env.VERSION }}
-          body_path: notes.md
-          files: |
-            dist/*.ipa
-            dist/*.apk
-          fail_on_unmatched_files: false
-
-      # A fixed download link that always points at the newest build: <app>-latest / Flow.ipa, Flow.apk.
+      # Stable names next to the versioned files: releases/latest/download/Flow.ipa always works.
       - name: Stable copies
         run: |
-          for f in dist/*.ipa dist/*.apk; do [ -e "$f" ] || continue; cp "$f" "dist/${APP_NAME}.${f##*.}"; done
+          for f in dist/${APP_NAME}-*.ipa dist/${APP_NAME}-*.apk; do [ -e "$f" ] || continue; cp "$f" "dist/${APP_NAME}.${f##*.}"; done
           ls dist
 
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.APP }}-latest
-          name: ${{ env.APP_NAME }} (latest)
-          body: Always the newest ${{ env.APP_NAME }} build (currently ${{ env.VERSION }}). Versioned releases are listed separately.
-          make_latest: false
+          name: ${{ env.APP_NAME }} ${{ env.VERSION }}
+          body_path: notes.md
+          make_latest: true
           files: |
-            dist/${{ env.APP_NAME }}.ipa
-            dist/${{ env.APP_NAME }}.apk
+            dist/*.ipa
+            dist/*.apk
           fail_on_unmatched_files: false
 
       - name: Update the SideStore source

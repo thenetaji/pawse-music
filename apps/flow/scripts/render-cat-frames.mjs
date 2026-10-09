@@ -4,11 +4,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { chromium } from "/home/dev/studio/node_modules/playwright/index.mjs";
+import { chromium } from "playwright";
 
 const CHROME =
   process.env.CHROME_PATH ??
-  "/home/dev/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell";
+  process.env.CHROMIUM_PATH || undefined;
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(here, "../targets/live-activity/Assets.xcassets");
 // Points; only @2x and @3x ship (every iOS 17 device is 2x or 3x).

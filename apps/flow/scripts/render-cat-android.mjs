@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { chromium } from "/home/dev/studio/node_modules/playwright/index.mjs";
+import { chromium } from "playwright";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(
@@ -83,7 +83,7 @@ const files = {
 const browser = await chromium.launch({
   executablePath:
     process.env.CHROME_PATH ??
-    "/home/dev/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell",
+    process.env.CHROMIUM_PATH || undefined,
 });
 const page = await browser.newPage({ viewport: { width: PX, height: PX } });
 for (const [name, s] of Object.entries(files)) {

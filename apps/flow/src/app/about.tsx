@@ -9,11 +9,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { useSetting } from "../lib/settings";
 import { Cat, type CatColor } from "../features/cat/cat";
+import { useSetting } from "../lib/settings";
 
-const REPO = "https://github.com/thenetaji/studio";
+const REPO = "https://github.com/thenetaji/flow-music";
 const LICENSES = [
   ["@rntp/player", "Double Symmetry, personal-use licence"],
   ["Expo and React Native", "MIT"],

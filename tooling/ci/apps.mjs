@@ -31,9 +31,10 @@ function meta() {
   let version;
   let versionCode;
   if (tag) {
-    const m = /^([a-z0-9-]+)-v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
-    if (!m) fail(`Tag ${tag} is not <app>-v<major>.<minor>.<patch>`);
-    const [, a, major, minor, patch] = m;
+    // v1.2.3 releases Flow; <app>-v1.2.3 still works for other apps.
+    const m = /^(?:([a-z0-9-]+)-)?v(\d+)\.(\d+)\.(\d+)$/.exec(tag);
+    if (!m) fail(`Tag ${tag} is not v<major>.<minor>.<patch>`);
+    const [, a = "flow", major, minor, patch] = m;
     if (+minor > 99 || +patch > 99)
       fail(
         "minor and patch must be below 100 (versionCode = major*10000+minor*100+patch)",
@@ -243,9 +244,9 @@ function sidestore(ipaPath) {
   const source = fs.existsSync(file)
     ? JSON.parse(fs.readFileSync(file, "utf8"))
     : {
-        name: "Studio",
-        identifier: `com.${owner}.studio`,
-        subtitle: `Apps by ${owner}`,
+        name: expo.name,
+        identifier: `com.${owner}.${expo.slug ?? "flow"}`,
+        subtitle: `${expo.name} by ${owner}`,
         apps: [],
         news: [],
       };

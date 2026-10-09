@@ -19,5 +19,6 @@
   },
   "devDependencies": {
     "@studio/config": "workspace:*"
-  }
+  },
+  "license": "GPL-3.0-or-later"
 }

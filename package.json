@@ -1,19 +1,14 @@
 {
-  "name": "studio",
+  "name": "flow-music",
   "private": true,
   "packageManager": "pnpm@10.12.1",
   "scripts": {
-    "dev:finance": "pnpm --filter finance exec expo start",
-    "dev:flow": "pnpm --filter flow exec expo start",
+    "dev": "pnpm --filter flow exec expo start",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "bundle:ios": "turbo run bundle:ios",
-    "verify": "turbo run typecheck lint test bundle:ios",
-    "e2e": "node tooling/qa/e2e.mjs",
-    "screenshots": "node tooling/qa/screenshots.mjs",
-    "typegen": "node tooling/qa/typegen.mjs",
-    "icons": "node packages/icons/scripts/build-icons.mjs --tab-icons apps/finance --tabs home,activity,insights,budgets",
+    "verify": "turbo run typecheck lint test",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "commitlint": "commitlint --edit"
@@ -30,12 +25,15 @@
     "eslint-config-expo": "^57.0.2",
     "jest": "^29.7.0",
     "jest-expo": "^57.0.5",
-    "pixelmatch": "^8.0.0",
     "playwright": "^1.61.1",
-    "pngjs": "^7.0.0",
     "prettier": "^3.9.9",
     "react-test-renderer": "^19.3.0",
     "turbo": "^2.11.7",
     "typescript": "~6.0.3"
+  },
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thenetaji/flow-music.git"
   }
 }

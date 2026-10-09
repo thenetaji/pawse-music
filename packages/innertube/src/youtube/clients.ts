@@ -36,7 +36,7 @@ export const DEFAULT_STREAM_CLIENTS: StreamClient[] = [
 ];
 
 export const DEFAULT_CLIENTS_CONFIG_URL =
-  "https://raw.githubusercontent.com/thenetaji/studio/main/sources/innertube-clients.json";
+  "https://raw.githubusercontent.com/thenetaji/flow-music/main/sources/innertube-clients.json";
 
 const CONFIG_TTL_MS = 6 * 3600_000;
 const ERROR_TTL_MS = 10 * 60_000;

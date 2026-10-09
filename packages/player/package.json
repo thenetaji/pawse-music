@@ -5,9 +5,25 @@
   "description": "Music playback engine over @rntp/player: queue, radio refill, stream refresh, resume, sleep timer, normalisation.",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc --noEmit", "lint": "eslint .", "test": "jest --passWithNoTests" },
-  "dependencies": { "@studio/music-core": "workspace:*" },
-  "peerDependencies": { "@rntp/player": "*", "react": "*", "react-native": "*", "zustand": "*" },
-  "devDependencies": { "@studio/config": "workspace:*" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@studio/music-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@rntp/player": "*",
+    "react": "*",
+    "react-native": "*",
+    "zustand": "*"
+  },
+  "devDependencies": {
+    "@studio/config": "workspace:*"
+  },
+  "license": "GPL-3.0-or-later"
 }

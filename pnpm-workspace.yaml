@@ -1,8 +1,6 @@
 packages:
   - apps/*
   - packages/*
-  - tooling/*
-  - services/*
 
 patchedDependencies:
   expo-sqlite: patches/expo-sqlite.patch
