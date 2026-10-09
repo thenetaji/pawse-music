@@ -12,7 +12,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { AppState } from "react-native";
-
+import { useRegion } from "../lib/locale";
 import { useResource } from "../lib/use-resource";
 import { dropExplicit, yt } from "./clients";
 import { useLibrary } from "./library";
@@ -739,7 +739,7 @@ export function useForYou(): {
   const followed = useLibrary((s) => s.followedArtists);
   const seedArtists = useLibrary((s) => s.settings.seedArtists);
   const languages = useLibrary((s) => s.settings.seedLanguages);
-  const region = useLibrary((s) => s.settings.region);
+  const region = useRegion();
   const explicit = useLibrary((s) => s.settings.explicitFilter);
   const signals = useSignals((s) => s.tracks);
   const smart = useSmartPlaylists();

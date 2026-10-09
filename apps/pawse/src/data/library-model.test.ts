@@ -1,5 +1,6 @@
 import {
   DEFAULT_SETTINGS,
+  migrateLocale,
   migrateQuality,
   type Settings,
 } from "./library-model";
@@ -44,5 +45,22 @@ describe("migrateQuality", () => {
     const saved = { quality: "high", qualityV2: true } as Partial<Settings>;
     const s = merged(saved);
     expect(migrateQuality(s, saved)).toBe(s);
+  });
+});
+
+describe("migrateLocale", () => {
+  it("moves the old India/English defaults to Automatic", () => {
+    const saved = { region: "IN", language: "en" } as Partial<Settings>;
+    const s = migrateLocale(merged(saved), saved);
+    expect(s.region).toBe("auto");
+    expect(s.language).toBe("auto");
+    expect(s.localeV2).toBe(true);
+  });
+
+  it("keeps a region or language someone picked", () => {
+    const saved = { region: "US", language: "hi" } as Partial<Settings>;
+    const s = migrateLocale(merged(saved), saved);
+    expect(s.region).toBe("US");
+    expect(s.language).toBe("hi");
   });
 });

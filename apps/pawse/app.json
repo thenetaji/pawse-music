@@ -80,7 +80,8 @@
             "../../node_modules/@expo-google-fonts/inter/800ExtraBold/Inter_800ExtraBold.ttf"
           ]
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,

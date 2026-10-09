@@ -11,6 +11,7 @@ import { onboardingArtists } from "../data/recommend";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
+import { useRegion } from "../lib/locale";
 import { setSetting, useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import { useResource } from "../lib/use-resource";
@@ -42,7 +43,7 @@ export default function Onboarding() {
   const color = useSetting<CatColor>("catColor", "orange");
   const langs = useSetting<string[]>("seedLanguages", []);
   const artists = useSetting<ArtistSummary[]>("seedArtists", []);
-  const region = useSetting("region", "IN");
+  const region = useRegion();
   const [q, setQ] = useState("");
   const query = q.trim();
   // Popular artists for your region and languages until you search.

@@ -41,6 +41,7 @@ import {
 } from "../../components/ui";
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
+import { useRegion } from "../../lib/locale";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
@@ -319,7 +320,7 @@ function EmptySearch({
 function useSearchIdeas(): string[] {
   const history = useLibrary((s) => s.history);
   const seeds = useSetting<ArtistSummary[]>("seedArtists", []);
-  const region = useSetting("region", "IN");
+  const region = useRegion();
   const charts = useResource<ShelfT[]>(
     `explore:charts:${region}`,
     () => yt.charts(region),

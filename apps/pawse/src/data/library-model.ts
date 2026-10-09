@@ -36,6 +36,8 @@ export type Settings = {
   qualityCellular: AudioQuality | "auto";
   /** Set once older quality settings have been moved to Automatic. */
   qualityV2: boolean;
+  /** Set once the old India/English defaults have moved to Automatic. */
+  localeV2: boolean;
   radioContinue: boolean;
   resume: boolean;
   /** Read when the player starts; a change applies on the next launch. */
@@ -92,6 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quality: "auto",
   qualityCellular: "auto",
   qualityV2: true,
+  localeV2: true,
   radioContinue: true,
   resume: true,
   pauseOnDisconnect: true,
@@ -113,8 +116,8 @@ export const DEFAULT_SETTINGS: Settings = {
   catIsland: true,
   catEpisodes: "rare",
   catColor: "orange",
-  region: "IN",
-  language: "en",
+  region: "auto",
+  language: "auto",
   explicitFilter: false,
   pauseHistory: false,
   androidPill: false,
@@ -319,5 +322,20 @@ export function migrateQuality(
     downloadQuality: s.downloadQuality === "saver" ? "saver" : "high",
     qualityCellular: old.dataSaver ? "saver" : "auto",
     qualityV2: true,
+  };
+}
+
+// Region and language used to default to India and English; follow the phone instead, once.
+export function migrateLocale(
+  s: Settings,
+  saved?: Partial<Settings>,
+): Settings {
+  if (!saved || saved.localeV2) return s;
+  return {
+    ...s,
+    region: !saved.region || saved.region === "IN" ? "auto" : saved.region,
+    language:
+      !saved.language || saved.language === "en" ? "auto" : saved.language,
+    localeV2: true,
   };
 }

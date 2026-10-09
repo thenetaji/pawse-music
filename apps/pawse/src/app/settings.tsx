@@ -31,6 +31,14 @@ import { useAccent } from "../features/now-playing/now-palette";
 import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
+import {
+  LANGUAGES,
+  languageCode,
+  languageName,
+  REGIONS,
+  regionCode,
+  regionName,
+} from "../lib/locale";
 import { push } from "../lib/nav";
 import { count } from "../lib/plural";
 import { useAutoQuality } from "../lib/quality";
@@ -233,21 +241,20 @@ export default function Settings() {
         <Pick
           k="region"
           label="Region"
-          def="IN"
+          def="auto"
           options={[
-            ["IN", "India"],
-            ["US", "United States"],
-            ["GB", "United Kingdom"],
-            ["ZZ", "Global"],
+            ["auto", `Automatic (${regionName(regionCode("auto"))})`],
+            ["ZZ", "Worldwide"],
+            ...REGIONS,
           ]}
         />
         <Pick
           k="language"
           label="Feed language"
-          def="en"
+          def="auto"
           options={[
-            ["en", "English"],
-            ["hi", "Hindi"],
+            ["auto", `Automatic (${languageName(languageCode("auto"))})`],
+            ...LANGUAGES,
           ]}
         />
         <Toggle k="explicitFilter" label="Hide explicit songs" def={false} />

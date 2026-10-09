@@ -12,6 +12,7 @@ import {
   HISTORY_MAX,
   type LibraryData,
   mergeLikes,
+  migrateLocale,
   migrateQuality,
   moveItem,
   type Settings,
@@ -271,8 +272,11 @@ export const useLibrary = create<Library>()(
         return {
           ...current,
           ...p,
-          settings: migrateQuality(
-            { ...DEFAULT_SETTINGS, ...p.settings, cookies },
+          settings: migrateLocale(
+            migrateQuality(
+              { ...DEFAULT_SETTINGS, ...p.settings, cookies },
+              p.settings,
+            ),
             p.settings,
           ),
         };

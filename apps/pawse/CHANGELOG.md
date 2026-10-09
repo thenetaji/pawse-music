@@ -16,6 +16,7 @@ Flow is now **Pawse** (say it like "pause"), and it's open source.
 - About shows who made it.
 - Android looks the part: a near-black tab bar with labels and a soft accent pill, a glassy mini player, and Inter for headings.
 - Counts read naturally ("1 song", "2 songs").
+- Region and feed language follow your phone by default (Automatic), falling back to Worldwide and English. Pick any of 22 countries, Worldwide, or 18 languages in Settings. The old India and English defaults move to Automatic once.
 
 ### Fixed
 - Android: songs no longer fail with "Source error" and skip. Pawse picks YouTube streams Android can play, tries another one if a stream fails, and starts streams faster.

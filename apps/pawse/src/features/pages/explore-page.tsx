@@ -13,6 +13,7 @@ import {
   SkeletonShelves,
 } from "../../components/ui";
 import { yt } from "../../lib/engine";
+import { useRegion } from "../../lib/locale";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
@@ -22,7 +23,7 @@ type Tile = { title: string; params: string; color?: string };
 
 export default function ExplorePage() {
   useTabRoot("explore");
-  const region = useSetting("region", "IN");
+  const region = useRegion();
   const moods = useResource<Tile[]>(
     "explore:moods",
     () => yt.moodsAndGenres(),

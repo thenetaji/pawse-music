@@ -13,6 +13,7 @@ import type {
 } from "@pawse/music-core";
 import { Platform } from "react-native";
 import { logEvent } from "../lib/diagnostics";
+import { languageCode, regionCode } from "../lib/locale";
 import { appFetch } from "../lib/net";
 import { effectiveQuality } from "../lib/quality";
 import { useLibrary } from "./library";
@@ -24,8 +25,8 @@ const gl = (region: string) => (region === "ZZ" ? "US" : region);
 // One YouTube Music client for the app: cookies only when signed in, and only for catalog/account calls.
 const raw = new YouTubeMusic({
   fetch: appFetch,
-  hl: settings().language,
-  gl: gl(settings().region),
+  hl: languageCode(settings().language),
+  gl: gl(regionCode(settings().region)),
   cookies: () => settings().cookies,
   // Android (ExoPlayer) gets its own client order and accepts Opus.
   platform: Platform.OS,
@@ -33,7 +34,10 @@ const raw = new YouTubeMusic({
     logEvent("request-failed", `${endpoint}: ${(e as Error)?.message ?? e}`),
 });
 useLibrary.subscribe((s) =>
-  raw.setLocale(s.settings.language, gl(s.settings.region)),
+  raw.setLocale(
+    languageCode(s.settings.language),
+    gl(regionCode(s.settings.region)),
+  ),
 );
 
 const FILTERED = new Set([
