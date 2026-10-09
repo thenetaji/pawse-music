@@ -19,6 +19,7 @@ import { CatState, PressScale, SkeletonShelves } from "../../components/ui";
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
+import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { PlayGlyph } from "../now-playing/icons";
 import { Shell } from "./album-page";
@@ -193,7 +194,7 @@ const styles = StyleSheet.create({
   name: {
     color: "#fff",
     fontSize: 46,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: -1.6,
     lineHeight: 50,
   },
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.14)",
   },
   primary: { backgroundColor: "#fff" },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  btnText: { color: "#fff", fontSize: 16, ...display("700") },
   follow: {
     height: 48,
     paddingHorizontal: 16,
@@ -225,7 +226,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.4)",
   },
   following: { backgroundColor: "#fff", borderColor: "#fff" },
-  followText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  followText: { color: "#fff", fontSize: 15, ...display("800") },
   aboutBox: {
     marginHorizontal: 16,
     marginTop: 30,
@@ -236,7 +237,7 @@ const styles = StyleSheet.create({
   aboutTitle: {
     color: "#fff",
     fontSize: 18,
-    fontWeight: "800",
+    ...display("800"),
     marginBottom: 6,
   },
   about: { color: "rgba(255,255,255,0.65)", fontSize: 15, lineHeight: 21 },
@@ -249,5 +250,5 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10,10,14,0.92)",
     paddingHorizontal: 60,
   },
-  barTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  barTitle: { color: "#fff", fontSize: 17, ...display("700") },
 });

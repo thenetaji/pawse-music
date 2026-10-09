@@ -42,6 +42,7 @@ import {
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
 import { useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { PlayGlyph } from "../now-playing/icons";
 import { useAccent } from "../now-playing/now-palette";
@@ -550,7 +551,7 @@ const styles = StyleSheet.create({
   h1: {
     color: "#fff",
     fontSize: 34,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.8,
     marginTop: 8,
     marginLeft: 4,
@@ -584,7 +585,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.3)",
   },
-  clearText: { color: "#000", fontSize: 15, fontWeight: "800", marginTop: -1 },
+  clearText: { color: "#000", fontSize: 15, ...display("800"), marginTop: -1 },
   cancel: { fontSize: 17, fontWeight: "500" },
   filterRow: { marginTop: 12, marginHorizontal: -16 },
   filters: { gap: 8, paddingHorizontal: 20 },
@@ -610,7 +611,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 4,
   },
-  recentTitle: { color: "#fff", fontSize: 20, fontWeight: "800" },
+  recentTitle: { color: "#fff", fontSize: 20, ...display("800") },
   clearAll: { fontSize: 15, fontWeight: "600" },
   recentIcon: {
     color: "rgba(255,255,255,0.4)",
@@ -637,7 +638,7 @@ const styles = StyleSheet.create({
     padding: 14,
     justifyContent: "flex-end",
   },
-  tileText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  tileText: { color: "#fff", fontSize: 16, ...display("800") },
   topWrap: { paddingHorizontal: 16, marginTop: 12 },
   top1: {
     flexDirection: "row",
@@ -650,10 +651,10 @@ const styles = StyleSheet.create({
   topKind: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 12,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: 0.4,
   },
-  topTitle: { color: "#fff", fontSize: 20, fontWeight: "800", marginTop: 3 },
+  topTitle: { color: "#fff", fontSize: 20, ...display("800"), marginTop: 3 },
   topSub: { color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 2 },
   topPlay: {
     width: 44,

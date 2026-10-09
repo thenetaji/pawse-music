@@ -28,7 +28,9 @@ import { useDownloads, useOfflineTracks } from "../../data/downloads";
 import { listeningStats, useLibrary } from "../../data/library";
 import { useSmartPlaylists } from "../../data/recommend";
 import { go, push } from "../../lib/nav";
+import { count } from "../../lib/plural";
 import { getSetting, useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
 
@@ -84,14 +86,17 @@ export default function LibraryPage() {
     ...playlists.map((p) => ({
       id: p.id,
       title: p.title,
-      sub: `${p.tracks.length} songs · Pawse`,
+      sub: `${count(p.tracks.length, "song")} · Pawse`,
       thumbs: p.tracks[0]?.thumbnails,
       at: p.updatedAt,
     })),
     ...ytPlaylists.map((p) => ({
       id: p.id,
       title: p.title,
-      sub: ["YouTube Music", p.trackCount ? `${p.trackCount} songs` : null]
+      sub: [
+        "YouTube Music",
+        p.trackCount ? `${count(p.trackCount, "song")}` : null,
+      ]
         .filter(Boolean)
         .join(" · "),
       thumbs: p.thumbnails,
@@ -122,26 +127,26 @@ export default function LibraryPage() {
       <View style={styles.tiles}>
         <Tile
           title="Liked"
-          sub={`${liked.length} songs`}
+          sub={`${count(liked.length, "song")}`}
           color={accent}
           dark
           onPress={() => go("/playlist/liked")}
         />
         <Tile
           title="Downloads"
-          sub={`${downloads.list.filter((d) => d.state === "done").length} songs${
+          sub={`${count(downloads.list.filter((d) => d.state === "done").length, "song")}${
             downloads.active ? ` · ${downloads.active} saving` : ""
           }`}
           onPress={() => push("/downloads")}
         />
         <Tile
           title="Offline"
-          sub={`${offline.length} songs ready`}
+          sub={`${count(offline.length, "song")} ready`}
           onPress={() => go("/playlist/offline")}
         />
         <Tile
           title="History"
-          sub={`${history.length} plays`}
+          sub={`${count(history.length, "play")}`}
           onPress={() => go("/history")}
         />
       </View>
@@ -180,7 +185,7 @@ export default function LibraryPage() {
             <Text style={styles.statsSub} numberOfLines={1}>
               {week.topArtists[0]
                 ? `Mostly ${week.topArtists[0].artist.name}`
-                : `${week.plays} plays`}
+                : `${count(week.plays, "play")}`}
             </Text>
           </View>
           <View style={styles.statsArt}>
@@ -334,7 +339,7 @@ export default function LibraryPage() {
                   track={t}
                   subtitle={
                     sort === "plays" && plays.get(t.id)
-                      ? `${plays.get(t.id)} plays · ${t.artists.map((a) => a.name).join(", ")}`
+                      ? `${count(plays.get(t.id) ?? 0, "play")} · ${t.artists.map((a) => a.name).join(", ")}`
                       : undefined
                   }
                   onPress={() =>
@@ -532,13 +537,13 @@ const styles = StyleSheet.create({
   tileTitle: {
     color: "#fff",
     fontSize: 20,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: -0.4,
   },
   tileSub: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 13,
-    fontWeight: "700",
+    ...display("700"),
     marginTop: 1,
   },
   mosaic: {
@@ -564,7 +569,7 @@ const styles = StyleSheet.create({
     bottom: 10,
     color: "#fff",
     fontSize: 17,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: -0.3,
   },
   smartSub: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 6 },
@@ -580,14 +585,14 @@ const styles = StyleSheet.create({
   statsKicker: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 12,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: 0.8,
     textTransform: "uppercase",
   },
   statsBig: {
     color: "#fff",
     fontSize: 28,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: -0.8,
     marginTop: 2,
   },
@@ -601,7 +606,7 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     justifyContent: "center",
   },
-  ctaText: { color: "#000", fontSize: 16, fontWeight: "800" },
+  ctaText: { color: "#000", fontSize: 16, ...display("800") },
   ctaHint: {
     color: "rgba(255,255,255,0.45)",
     fontSize: 13.5,

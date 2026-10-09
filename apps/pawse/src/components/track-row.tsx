@@ -12,6 +12,7 @@ import { showTrackActions } from "../features/library/track-actions";
 import { MoreGlyph } from "../features/now-playing/icons";
 import { useAccent } from "../features/now-playing/now-palette";
 import { haptic } from "../lib/haptics";
+import { display } from "../lib/type";
 import { Artwork } from "./artwork";
 import { EqBars } from "./eq-bars";
 
@@ -174,10 +175,10 @@ const styles = StyleSheet.create({
   },
   text: { flex: 1, minWidth: 0 },
   title: { color: "#fff", fontSize: 16, fontWeight: "500" },
-  e: { color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "800" },
+  e: { color: "rgba(255,255,255,0.5)", fontSize: 11, ...display("800") },
   subRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },
   sub: { flexShrink: 1, color: "rgba(255,255,255,0.5)", fontSize: 13.5 },
-  pct: { fontSize: 11, fontWeight: "800" },
+  pct: { fontSize: 11, ...display("800") },
   more: {
     width: 30,
     height: 30,
@@ -186,5 +187,5 @@ const styles = StyleSheet.create({
   },
   action: { flex: 1, justifyContent: "center", paddingHorizontal: 22 },
   right: { backgroundColor: "#2B2B34", alignItems: "flex-end" },
-  actionText: { color: "#000", fontSize: 15, fontWeight: "800" },
+  actionText: { color: "#000", fontSize: 15, ...display("800") },
 });

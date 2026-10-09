@@ -10,6 +10,7 @@ import { Artwork } from "../../components/artwork";
 import { Chip, PressScale } from "../../components/ui";
 import { listeningStats, useLibrary } from "../../data/library";
 import { getSetting, useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 import { Cat, type CatColor } from "../cat/cat";
 import { useAccent, useNowPalette } from "../now-playing/now-palette";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
@@ -179,7 +180,7 @@ const styles = StyleSheet.create({
   h1: {
     color: "#fff",
     fontSize: 34,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.8,
     paddingHorizontal: 20,
   },
@@ -203,21 +204,21 @@ const styles = StyleSheet.create({
   cardKicker: {
     color: "rgba(255,255,255,0.75)",
     fontSize: 12,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: 1,
     textTransform: "uppercase",
   },
   cardBig: {
     color: "#fff",
     fontSize: 64,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: -2.5,
     marginTop: 6,
   },
   cardUnit: {
     color: "rgba(255,255,255,0.8)",
     fontSize: 16,
-    fontWeight: "700",
+    ...display("700"),
     marginTop: -4,
   },
   cardRow: {
@@ -227,7 +228,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 8,
   },
-  cardLine: { flex: 1, color: "#fff", fontSize: 16, fontWeight: "700" },
+  cardLine: { flex: 1, color: "#fff", fontSize: 16, ...display("700") },
   cardSong: {
     flexDirection: "row",
     alignItems: "center",
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
     width: 16,
     color: "rgba(255,255,255,0.7)",
     fontSize: 15,
-    fontWeight: "900",
+    ...display("900"),
   },
   cardSongText: { flex: 1, color: "#fff", fontSize: 15, fontWeight: "600" },
   share: {
@@ -250,11 +251,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fff",
   },
-  shareText: { color: "#000", fontSize: 15, fontWeight: "800" },
+  shareText: { color: "#000", fontSize: 15, ...display("800") },
   section: {
     color: "#fff",
     fontSize: 22,
-    fontWeight: "800",
+    ...display("800"),
     paddingHorizontal: 20,
     marginTop: 30,
     marginBottom: 6,
@@ -270,7 +271,7 @@ const styles = StyleSheet.create({
     width: 22,
     color: "rgba(255,255,255,0.5)",
     fontSize: 16,
-    fontWeight: "800",
+    ...display("800"),
     textAlign: "center",
   },
   title: { color: "#fff", fontSize: 16, fontWeight: "500" },

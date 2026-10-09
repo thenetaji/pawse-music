@@ -14,6 +14,7 @@ import {
 } from "../../components/ui";
 import { yt } from "../../lib/engine";
 import { useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { TopGlow } from "./top-glow";
 
@@ -154,5 +155,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
   },
-  toggleText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  toggleText: { color: "#fff", fontSize: 14, ...display("700") },
 });

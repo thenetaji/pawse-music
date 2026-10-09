@@ -291,8 +291,8 @@ jobs:
 
   release:
     needs: [meta, ios, android]
-    # Publishes whatever built: a failed or skipped platform must not block the other one.
-    if: always() && needs.meta.outputs.release == 'true' && (needs.ios.result == 'success' || needs.android.result == 'success')
+    # A release ships both apps or neither, so nobody gets a half release.
+    if: needs.meta.outputs.release == 'true' && needs.ios.result == 'success' && needs.android.result == 'success'
     runs-on: ubuntu-latest
     env:
       APP: ${{ needs.meta.outputs.app }}

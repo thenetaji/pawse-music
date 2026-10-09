@@ -27,6 +27,7 @@ import { useAccent, useNowPalette } from "../features/now-playing/now-palette";
 import { ShuffleGlyph } from "../features/pages/collection";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
+import { display } from "../lib/type";
 
 const SLEEP = [15, 30, 45, 60, 90];
 const UNDO_MS = 4000;
@@ -304,7 +305,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 6,
   },
-  headTitle: { color: "#fff", fontSize: 20, fontWeight: "800" },
+  headTitle: { color: "#fff", fontSize: 20, ...display("800") },
   done: { color: "#fff", fontSize: 17, fontWeight: "600" },
   root: { flex: 1, backgroundColor: "#0E0E12" },
   now: {
@@ -318,11 +319,11 @@ const styles = StyleSheet.create({
   kicker: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 11,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: 1,
     textTransform: "uppercase",
   },
-  nowTitle: { color: "#fff", fontSize: 19, fontWeight: "800", marginTop: 2 },
+  nowTitle: { color: "#fff", fontSize: 19, ...display("800"), marginTop: 2 },
   nowSub: { color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 1 },
   controls: {
     flexDirection: "row",
@@ -341,9 +342,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.09)",
   },
-  tText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  tText: { color: "#fff", fontSize: 14, ...display("700") },
   tOn: { color: "#000" },
-  sheetTitle: { color: "#fff", fontSize: 17, fontWeight: "700", marginTop: 4 },
+  sheetTitle: { color: "#fff", fontSize: 17, ...display("700"), marginTop: 4 },
   listHead: {
     flexDirection: "row",
     alignItems: "baseline",
@@ -355,7 +356,7 @@ const styles = StyleSheet.create({
   section: {
     color: "#fff",
     fontSize: 22,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.3,
   },
   from: { flex: 1, color: "rgba(255,255,255,0.45)", fontSize: 14 },
@@ -410,5 +411,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#2A2A31",
   },
   undoText: { flex: 1, color: "#fff", fontSize: 15, fontWeight: "600" },
-  undoAction: { color: "#8B7CFF", fontSize: 15, fontWeight: "800" },
+  undoAction: { color: "#8B7CFF", fontSize: 15, ...display("800") },
 });

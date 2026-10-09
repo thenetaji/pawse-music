@@ -37,6 +37,7 @@ import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
 import { useSetting } from "../../lib/settings";
 import { useSongArt } from "../../lib/song-art";
+import { display } from "../../lib/type";
 import type { CatMood } from "../cat/cat";
 import { AirPlay } from "./airplay";
 import { CatScrubber } from "./cat-scrubber";
@@ -626,7 +627,7 @@ const styles = StyleSheet.create({
   contextLabel: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 11,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: 1.1,
     textTransform: "uppercase",
   },
@@ -643,7 +644,7 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     fontSize: 24,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: -0.3,
   },
   artist: {
@@ -729,7 +730,7 @@ const styles = StyleSheet.create({
     paddingTop: 120,
     paddingHorizontal: 28,
   },
-  fullTitle: { color: "#fff", fontSize: 26, fontWeight: "800" },
+  fullTitle: { color: "#fff", fontSize: 26, ...display("800") },
   fullArtist: {
     color: "rgba(255,255,255,0.75)",
     fontSize: 17,
@@ -741,6 +742,6 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 4,
   },
-  compactTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  compactTitle: { color: "#fff", fontSize: 17, ...display("700") },
   compactArtist: { color: "rgba(255,255,255,0.6)", fontSize: 15, marginTop: 1 },
 });

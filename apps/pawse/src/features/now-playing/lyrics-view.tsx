@@ -11,6 +11,7 @@ import {
 
 import { activeLine } from "../../lib/lrc";
 import { useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 
 type Props = {
   lyrics: Lyrics | null | undefined;
@@ -193,13 +194,13 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.85)",
     fontSize: 22,
     lineHeight: 32,
-    fontWeight: "700",
+    ...display("700"),
   },
   linePress: { paddingVertical: 9 },
   line: {
     fontSize: 30,
     lineHeight: 36,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.4,
   },
   now: { color: "#fff" },

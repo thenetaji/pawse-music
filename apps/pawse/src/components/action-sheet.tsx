@@ -18,6 +18,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FullWindowOverlay } from "react-native-screens";
 import { create } from "zustand";
+import { display } from "../lib/type";
 
 export type SheetAction = {
   label: string;
@@ -129,5 +130,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(44,44,50,0.96)",
   },
-  cancelText: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  cancelText: { color: "#fff", fontSize: 17, ...display("700") },
 });

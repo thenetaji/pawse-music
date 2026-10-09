@@ -10,6 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { haptic } from "../lib/haptics";
+import { display } from "../lib/type";
 
 type Action = { label: string; color: string; onCommit: () => void };
 
@@ -150,5 +151,5 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   labelBox: { width: 120, marginHorizontal: 22 },
-  label: { color: "#000", fontSize: 15, fontWeight: "800" },
+  label: { color: "#000", fontSize: 15, ...display("800") },
 });

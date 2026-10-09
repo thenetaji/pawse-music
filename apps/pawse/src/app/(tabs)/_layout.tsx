@@ -1,4 +1,5 @@
 import { usePlayerSelect } from "@pawse/player";
+import { LinearGradient } from "expo-linear-gradient";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { Platform, StyleSheet, View } from "react-native";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
@@ -6,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOnline } from "../../data/downloads";
 import { MiniPlayer } from "../../features/now-playing/mini-player";
 import { useAccent } from "../../features/now-playing/now-palette";
+import { display } from "../../lib/type";
 
 export default function TabsLayout() {
   const accent = useAccent();
@@ -16,6 +18,7 @@ export default function TabsLayout() {
         tintColor={accent}
         minimizeBehavior="onScrollDown"
         blurEffect="systemChromeMaterialDark"
+        {...(Platform.OS === "android" ? androidBar(accent) : {})}
       >
         {/* The mini player slot appears only once something is loaded. */}
         {Platform.OS === "ios" && hasTrack ? (
@@ -57,6 +60,14 @@ export default function TabsLayout() {
       {Platform.OS !== "ios" && hasTrack ? (
         <View style={styles.floating} pointerEvents="box-none">
           <View style={styles.floatingCard}>
+            {/* A faint wash of the song's colour gives the card depth instead of flat grey. */}
+            <LinearGradient
+              colors={[withAlpha(accent, 0.28), "rgba(20,19,26,0)"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
             <MiniPlayer />
           </View>
         </View>
@@ -84,6 +95,31 @@ function OfflineBanner() {
   );
 }
 
+// Android: a near-black bar that melts into the app, labels always on, a soft accent pill.
+function androidBar(accent: string) {
+  return {
+    backgroundColor: "#08080B",
+    labelVisibilityMode: "labeled" as const,
+    indicatorColor: withAlpha(accent, 0.2),
+    rippleColor: "rgba(255,255,255,0.08)",
+    iconColor: { default: "rgba(255,255,255,0.55)", selected: accent },
+    labelStyle: {
+      default: { color: "rgba(255,255,255,0.55)", fontSize: 12 },
+      selected: { color: accent, fontSize: 12 },
+    },
+  };
+}
+
+function withAlpha(color: string, a: number): string {
+  const hex = /^#([0-9a-f]{6})$/i.exec(color)?.[1];
+  if (hex) {
+    const n = Number.parseInt(hex, 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  const m = color.match(/\d+(\.\d+)?/g);
+  return m && m.length >= 3 ? `rgba(${m[0]},${m[1]},${m[2]},${a})` : color;
+}
+
 function Accessory() {
   const placement = NativeTabs.BottomAccessory.usePlacement();
   return <MiniPlayer inline={placement === "inline"} />;
@@ -99,7 +135,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(40,40,46,0.95)",
   },
-  offlineText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  offlineText: { color: "#fff", fontSize: 13, ...display("700") },
   floating: {
     position: "absolute",
     left: 10,
@@ -107,9 +143,13 @@ const styles = StyleSheet.create({
     bottom: Platform.OS === "web" ? 70 : 92,
   },
   floatingCard: {
-    height: 58,
-    borderRadius: 18,
+    height: 60,
+    borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: "rgba(38,38,44,0.94)",
+    backgroundColor: "rgba(20,19,26,0.97)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.12)",
+    elevation: 14,
+    shadowColor: "#000",
   },
 });

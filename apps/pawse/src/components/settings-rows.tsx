@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useAccent } from "../features/now-playing/now-palette";
 import { haptic } from "../lib/haptics";
 import { setSetting, useSetting } from "../lib/settings";
+import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
 
 // Grouped settings rows shared by Settings and Downloads.
@@ -129,7 +130,7 @@ export const styles = StyleSheet.create({
   section: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 13,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: 0.6,
     textTransform: "uppercase",
     paddingHorizontal: 32,

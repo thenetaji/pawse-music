@@ -12,6 +12,7 @@ import { Cat, type CatColor } from "../features/cat/cat";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
 import { setSetting, useSetting } from "../lib/settings";
+import { display } from "../lib/type";
 import { useResource } from "../lib/use-resource";
 
 const COLORS: { id: CatColor; fur: string; label: string }[] = [
@@ -300,7 +301,7 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     fontSize: 32,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: -0.9,
     marginTop: 14,
     textAlign: "center",
@@ -320,7 +321,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     color: "#fff",
     fontSize: 24,
-    fontWeight: "800",
+    ...display("800"),
     backgroundColor: "rgba(255,255,255,0.08)",
   },
   colors: { flexDirection: "row", gap: 18, marginTop: 22 },
@@ -383,5 +384,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignSelf: "stretch",
   },
-  ctaText: { color: "#000", fontSize: 17, fontWeight: "800" },
+  ctaText: { color: "#000", fontSize: 17, ...display("800") },
 });

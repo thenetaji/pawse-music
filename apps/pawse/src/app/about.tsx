@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { useSetting } from "../lib/settings";
+import { display } from "../lib/type";
 
 const REPO = "https://github.com/thenetaji/pawse-music";
 const LICENSES = [
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
   name: {
     color: "#fff",
     fontSize: 40,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: -1.2,
     marginTop: 8,
   },
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
   section: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 13,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: 0.6,
     textTransform: "uppercase",
     paddingHorizontal: 32,

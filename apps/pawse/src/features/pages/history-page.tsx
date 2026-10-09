@@ -7,6 +7,7 @@ import { TrackRow } from "../../components/track-row";
 import { CatState } from "../../components/ui";
 import { historyByDay, useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
+import { display } from "../../lib/type";
 import { BackButton } from "./collection";
 
 export default function HistoryPage() {
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
   h1: {
     color: "#fff",
     fontSize: 34,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.8,
     paddingHorizontal: 20,
     marginBottom: 6,
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
   day: {
     color: "#fff",
     fontSize: 15,
-    fontWeight: "800",
+    ...display("800"),
     paddingHorizontal: 20,
     paddingVertical: 8,
     backgroundColor: "rgba(0,0,0,0.92)",
@@ -101,5 +102,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 22,
   },
-  delText: { color: "#000", fontWeight: "800" },
+  delText: { color: "#000", ...display("800") },
 });

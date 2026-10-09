@@ -14,6 +14,8 @@ Flow is now **Pawse** (say it like "pause"), and it's open source.
 - The app is called Pawse. It's the same app: it installs over Flow and keeps your library and settings.
 - Updates, the SideStore source and the download links now come from the new repository. Releases are tagged `v1.2.3`, and `releases/latest/download/Pawse.ipa` and `Pawse.apk` always point at the newest build.
 - About shows who made it.
+- Android looks the part: a near-black tab bar with labels and a soft accent pill, a glassy mini player, and Inter for headings.
+- Counts read naturally ("1 song", "2 songs").
 
 ### Fixed
 - Android: songs no longer fail with "Source error" and skip. Pawse picks YouTube streams Android can play, tries another one if a stream fails, and starts streams faster.

@@ -26,6 +26,7 @@ import { downloadMany, useDownloads } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { getSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 import { PlayGlyph } from "../now-playing/icons";
 import { readable } from "../now-playing/now-palette";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
@@ -416,7 +417,7 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     fontSize: 25,
-    fontWeight: "800",
+    ...display("800"),
     textAlign: "center",
     marginTop: 18,
     letterSpacing: -0.5,
@@ -452,7 +453,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
   primary: { backgroundColor: "#fff" },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  btnText: { color: "#fff", fontSize: 16, ...display("700") },
   icon: {
     width: 48,
     height: 48,
@@ -461,7 +462,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.12)",
   },
-  editText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  editText: { color: "#fff", fontSize: 13, ...display("800") },
   editRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -477,7 +478,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#FF4F6D",
   },
-  minusText: { color: "#fff", fontSize: 18, fontWeight: "900", marginTop: -2 },
+  minusText: { color: "#fff", fontSize: 18, ...display("900"), marginTop: -2 },
   editTitle: { flex: 1, color: "#fff", fontSize: 15 },
   arrow: {
     width: 32,
@@ -487,7 +488,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
   },
-  arrowText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  arrowText: { color: "#fff", fontSize: 16, ...display("800") },
   bar: {
     position: "absolute",
     top: 0,
@@ -497,7 +498,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10,10,14,0.92)",
     paddingHorizontal: 60,
   },
-  barTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  barTitle: { color: "#fff", fontSize: 17, ...display("700") },
   back: {
     position: "absolute",
     left: 14,

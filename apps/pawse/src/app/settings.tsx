@@ -32,8 +32,10 @@ import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
 import { push } from "../lib/nav";
+import { count } from "../lib/plural";
 import { useAutoQuality } from "../lib/quality";
 import { setSetting, useSetting } from "../lib/settings";
+import { display } from "../lib/type";
 import {
   checkForUpdate,
   currentVersion,
@@ -323,7 +325,7 @@ export default function Settings() {
                   r &&
                   Alert.alert(
                     "Library imported",
-                    `${r.liked} likes, ${r.playlists} playlists, ${r.plays} plays`,
+                    `${count(r.liked, "like")}, ${count(r.playlists, "playlist")}, ${count(r.plays, "play")}`,
                   ),
               )
               .catch((e: Error) => Alert.alert("Import failed", e.message))
@@ -530,7 +532,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
   },
-  h1: { color: "#fff", fontSize: 34, fontWeight: "800", letterSpacing: -0.8 },
+  h1: { color: "#fff", fontSize: 34, ...display("800"), letterSpacing: -0.8 },
   done: { color: "#fff", fontSize: 17, fontWeight: "600" },
   catCard: {
     flexDirection: "row",
@@ -545,14 +547,14 @@ const styles = StyleSheet.create({
   catKicker: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 12,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: 0.6,
     textTransform: "uppercase",
   },
   catName: {
     color: "#fff",
     fontSize: 24,
-    fontWeight: "800",
+    ...display("800"),
     paddingVertical: 2,
   },
   swatches: { flexDirection: "row", gap: 10, marginTop: 6 },
@@ -566,7 +568,7 @@ const styles = StyleSheet.create({
   section: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 13,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: 0.6,
     textTransform: "uppercase",
     paddingHorizontal: 32,

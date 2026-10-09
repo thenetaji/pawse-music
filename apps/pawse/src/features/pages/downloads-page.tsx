@@ -25,6 +25,7 @@ import {
   useOnline,
 } from "../../data/downloads";
 import { haptic } from "../../lib/haptics";
+import { display } from "../../lib/type";
 import { useAccent } from "../now-playing/now-palette";
 
 export default function DownloadsPage() {
@@ -303,7 +304,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
   },
-  h1: { color: "#fff", fontSize: 34, fontWeight: "800", letterSpacing: -0.8 },
+  h1: { color: "#fff", fontSize: 34, ...display("800"), letterSpacing: -0.8 },
   done: { color: "#fff", fontSize: 17, fontWeight: "600" },
   summary: { paddingHorizontal: 20, marginTop: 4 },
   tabs: { flexDirection: "row", gap: 8, paddingHorizontal: 20, marginTop: 14 },
@@ -330,7 +331,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.12)",
   },
-  btnText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  btnText: { color: "#fff", fontSize: 15, ...display("800") },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -356,5 +357,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 22,
   },
-  delText: { color: "#000", fontWeight: "800" },
+  delText: { color: "#000", ...display("800") },
 });

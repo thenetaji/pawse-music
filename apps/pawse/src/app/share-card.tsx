@@ -21,6 +21,7 @@ import { useArtworkPalette } from "../features/now-playing/use-artwork-palette";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
 import { useShareCard } from "../lib/share-card-store";
+import { display } from "../lib/type";
 
 // A shareable card: artwork-coloured, the cat in the corner, optional lyric.
 export default function ShareCard() {
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
   lyric: {
     color: "#fff",
     fontSize: 21,
-    fontWeight: "800",
+    ...display("800"),
     lineHeight: 27,
     marginTop: 18,
     letterSpacing: -0.3,
@@ -136,7 +137,7 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     fontSize: 22,
-    fontWeight: "900",
+    ...display("900"),
     marginTop: 16,
     letterSpacing: -0.4,
   },
@@ -155,7 +156,7 @@ const styles = StyleSheet.create({
   brand: {
     color: "rgba(255,255,255,0.85)",
     fontSize: 15,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: 0.4,
   },
   cta: {
@@ -165,5 +166,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fff",
   },
-  ctaText: { color: "#000", fontSize: 17, fontWeight: "800" },
+  ctaText: { color: "#000", fontSize: 17, ...display("800") },
 });

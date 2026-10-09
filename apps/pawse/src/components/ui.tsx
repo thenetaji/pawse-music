@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Cat, type CatColor, type CatMood } from "../features/cat/cat";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
+import { display } from "../lib/type";
 
 // Pressable that springs down and gives a light tap. One element, so layout styles (flex, padding) apply directly.
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -369,7 +370,7 @@ const styles = StyleSheet.create({
   h1: {
     color: "#fff",
     fontSize: 34,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.8,
     flexShrink: 1,
     transformOrigin: "left",
@@ -390,12 +391,12 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: "rgba(255,255,255,0.12)",
   },
-  barTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  barTitle: { color: "#fff", fontSize: 17, ...display("700") },
   section: { paddingHorizontal: 20, marginTop: 28, marginBottom: 10 },
   kicker: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 12,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: 0.8,
     textTransform: "uppercase",
     marginBottom: 2,
@@ -403,7 +404,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: "#fff",
     fontSize: 22,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.4,
   },
   chev: { color: "rgba(255,255,255,0.4)", fontWeight: "600" },
@@ -413,7 +414,7 @@ const styles = StyleSheet.create({
     paddingVertical: 50,
     paddingHorizontal: 30,
   },
-  stateTitle: { color: "#fff", fontSize: 19, fontWeight: "700", marginTop: 14 },
+  stateTitle: { color: "#fff", fontSize: 19, ...display("700"), marginTop: 14 },
   stateMsg: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 15,
@@ -429,7 +430,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.14)",
   },
-  stateBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  stateBtnText: { color: "#fff", fontSize: 15, ...display("700") },
   chip: {
     height: 34,
     paddingHorizontal: 14,

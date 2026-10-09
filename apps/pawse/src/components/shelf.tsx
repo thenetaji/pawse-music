@@ -16,6 +16,7 @@ import {
 import { showTrackActions } from "../features/library/track-actions";
 import { go } from "../lib/nav";
 import { getSetting } from "../lib/settings";
+import { display } from "../lib/type";
 import { Artwork } from "./artwork";
 import { TrackRow } from "./track-row";
 
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
   kicker: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 12,
-    fontWeight: "700",
+    ...display("700"),
     letterSpacing: 0.8,
     textTransform: "uppercase",
     marginBottom: 2,
@@ -216,7 +217,7 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     fontSize: 22,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.4,
   },
   chev: { color: "rgba(255,255,255,0.4)", fontWeight: "600" },

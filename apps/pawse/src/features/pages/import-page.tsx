@@ -32,7 +32,9 @@ import {
 import { importPlaylist, useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
+import { count } from "../../lib/plural";
 import { useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 import { Cat, type CatColor } from "../cat/cat";
 import { useAccent } from "../now-playing/now-palette";
 
@@ -145,7 +147,7 @@ export default function ImportPage() {
     }
     haptic.success();
     setStage({ kind: "start" });
-    setMsg(`Added ${added} songs to your library.`);
+    setMsg(`Added ${count(added, "song")} to your library.`);
   };
 
   const title =
@@ -242,7 +244,7 @@ export default function ImportPage() {
                       const r = await importFromYouTubeAccount((label) =>
                         setBusy(label),
                       );
-                      return `Copied ${r.liked} liked songs and ${r.playlists} playlists.`;
+                      return `Copied ${count(r.liked, "liked song")} and ${count(r.playlists, "playlist")}.`;
                     })
                   : push("/sign-in")
               }
@@ -318,7 +320,7 @@ export default function ImportPage() {
                   const p = useLibrary
                     .getState()
                     .playlists.find((x) => x.id === id);
-                  return `Imported ${p?.title ?? "playlist"} · ${p?.tracks.length ?? 0} songs`;
+                  return `Imported ${p?.title ?? "playlist"} · ${count(p?.tracks.length ?? 0, "song")}`;
                 })
               }
               style={[
@@ -591,7 +593,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  h1: { color: "#fff", fontSize: 34, fontWeight: "800", letterSpacing: -0.8 },
+  h1: { color: "#fff", fontSize: 34, ...display("800"), letterSpacing: -0.8 },
   done: { color: "#fff", fontSize: 17, fontWeight: "600" },
   center: { alignItems: "center", marginTop: 18, marginBottom: 8 },
   card: {
@@ -600,7 +602,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.07)",
   },
-  cardTitle: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  cardTitle: { color: "#fff", fontSize: 18, ...display("800") },
   cardBody: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 14.5,
@@ -618,7 +620,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
   },
   input: { flex: 1, color: "#fff", fontSize: 16 },
-  paste: { fontSize: 15, fontWeight: "700" },
+  paste: { fontSize: 15, ...display("700") },
   cta: {
     marginTop: 12,
     height: 50,
@@ -628,14 +630,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   ghost: { backgroundColor: "rgba(255,255,255,0.12)" },
-  ctaText: { color: "#000", fontSize: 16, fontWeight: "800" },
+  ctaText: { color: "#000", fontSize: 16, ...display("800") },
   busyRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 16,
   },
-  how: { fontSize: 14, fontWeight: "700", marginTop: 12, textAlign: "center" },
+  how: { fontSize: 14, ...display("700"), marginTop: 12, textAlign: "center" },
   msg: {
     color: "rgba(255,255,255,0.8)",
     fontSize: 15,
@@ -643,10 +645,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     lineHeight: 21,
   },
-  helpTitle: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  helpTitle: { color: "#fff", fontSize: 15, ...display("800") },
   helpText: { color: "rgba(255,255,255,0.7)", fontSize: 14, lineHeight: 20 },
   matching: { flex: 1, alignItems: "center", justifyContent: "center" },
-  matchTitle: { color: "#fff", fontSize: 22, fontWeight: "800", marginTop: 12 },
+  matchTitle: { color: "#fff", fontSize: 22, ...display("800"), marginTop: 12 },
   matchSub: { color: "rgba(255,255,255,0.55)", fontSize: 15, marginTop: 4 },
   bar: {
     width: "80%",
@@ -678,7 +680,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  checkMark: { color: "#000", fontSize: 14, fontWeight: "900" },
+  checkMark: { color: "#000", fontSize: 14, ...display("900") },
   rowTitle: { color: "#fff", fontSize: 16, fontWeight: "600" },
   rowSub: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 2 },
   chips: { flexDirection: "row", gap: 8, marginTop: 14, marginBottom: 6 },
@@ -688,7 +690,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.1)",
     gap: 6,
   },
-  wanted: { color: "rgba(255,255,255,0.85)", fontSize: 15, fontWeight: "700" },
+  wanted: { color: "rgba(255,255,255,0.85)", fontSize: 15, ...display("700") },
   cand: {
     flexDirection: "row",
     alignItems: "center",
@@ -699,5 +701,5 @@ const styles = StyleSheet.create({
   },
   candOn: { backgroundColor: "rgba(255,255,255,0.12)" },
   candTitle: { color: "#fff", fontSize: 15, fontWeight: "500" },
-  candMark: { color: "#fff", fontSize: 14, fontWeight: "800", paddingRight: 6 },
+  candMark: { color: "#fff", fontSize: 14, ...display("800"), paddingRight: 6 },
 });

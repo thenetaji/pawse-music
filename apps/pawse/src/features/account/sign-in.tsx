@@ -11,6 +11,7 @@ import { syncYouTubeLibrary, useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
 import { useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 import { Cat, type CatColor } from "../cat/cat";
 import { useAccent } from "../now-playing/now-palette";
 
@@ -133,7 +134,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     height: 50,
   },
-  barTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  barTitle: { color: "#fff", fontSize: 17, ...display("700") },
   cancel: { color: "rgba(255,255,255,0.75)", fontSize: 17 },
   center: {
     flex: 1,
@@ -145,7 +146,7 @@ const styles = StyleSheet.create({
   title: {
     color: "#fff",
     fontSize: 30,
-    fontWeight: "900",
+    ...display("900"),
     letterSpacing: -0.8,
     marginTop: 16,
   },
@@ -175,5 +176,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#fff",
   },
-  ctaText: { color: "#000", fontSize: 17, fontWeight: "800" },
+  ctaText: { color: "#000", fontSize: 17, ...display("800") },
 });

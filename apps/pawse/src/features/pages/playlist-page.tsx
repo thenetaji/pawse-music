@@ -8,6 +8,8 @@ import { useOfflineTracks } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { useSmartPlaylists } from "../../data/recommend";
 import { yt } from "../../lib/engine";
+import { count } from "../../lib/plural";
+import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { Shell } from "./album-page";
 import { Collection, confirmDelete } from "./collection";
@@ -64,7 +66,7 @@ function RemotePlaylist({ id }: { id: string }) {
     <Collection
       title={p.title}
       subtitle={p.author}
-      meta={p.trackCount ? `${p.trackCount} songs` : undefined}
+      meta={p.trackCount ? `${count(p.trackCount, "song")}` : undefined}
       thumbnails={p.thumbnails}
       tracks={tracks}
       source={{ type: "playlist", id: p.id, title: p.title }}
@@ -82,7 +84,9 @@ function SmartPlaylist({ id }: { id: string }) {
     <Collection
       title={list?.title ?? "Playlist"}
       subtitle="Made for you"
-      meta={list ? `${list.subtitle} · ${tracks.length} songs` : undefined}
+      meta={
+        list ? `${list.subtitle} · ${count(tracks.length, "song")}` : undefined
+      }
       thumbnails={tracks[0]?.thumbnails ?? []}
       tracks={tracks}
       numbered={id === "top50"}
@@ -106,7 +110,7 @@ function OfflineSongs() {
     <Collection
       title="Available offline"
       subtitle="Downloads and songs you play often"
-      meta={`${tracks.length} songs`}
+      meta={`${count(tracks.length, "song")}`}
       thumbnails={tracks[0]?.thumbnails ?? []}
       tracks={tracks}
       source={{ type: "library", id: "offline", title: "Available offline" }}
@@ -131,7 +135,7 @@ function LocalPlaylist({ id }: { id: string }) {
     <Collection
       title={title}
       subtitle="Pawse"
-      meta={`${tracks.length} songs`}
+      meta={`${count(tracks.length, "song")}`}
       thumbnails={tracks[0]?.thumbnails ?? []}
       tracks={tracks}
       source={{ type: "library", id, title }}
@@ -174,5 +178,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,79,109,0.14)",
   },
-  deleteText: { color: "#FF4F6D", fontSize: 15, fontWeight: "700" },
+  deleteText: { color: "#FF4F6D", fontSize: 15, ...display("700") },
 });

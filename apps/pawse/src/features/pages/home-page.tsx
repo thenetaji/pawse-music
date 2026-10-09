@@ -21,6 +21,7 @@ import { useForYou } from "../../data/recommend";
 import { yt } from "../../lib/engine";
 import { push } from "../../lib/nav";
 import { getSetting, useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
 import { useAccent } from "../now-playing/now-palette";
@@ -391,14 +392,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: "rgba(255,255,255,0.07)",
   },
-  signTitle: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  signTitle: { color: "#fff", fontSize: 16, ...display("800") },
   signSub: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 13,
     marginTop: 2,
     lineHeight: 17,
   },
-  signGo: { fontSize: 15, fontWeight: "800" },
+  signGo: { fontSize: 15, ...display("800") },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -428,7 +429,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 12,
   },
-  mixNo: { color: "#000", fontSize: 14, fontWeight: "900" },
+  mixNo: { color: "#000", fontSize: 14, ...display("900") },
   mixName: { color: "#fff", fontSize: 14, fontWeight: "600", marginTop: 8 },
   more: {
     alignSelf: "center",
@@ -439,5 +440,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
   },
-  moreText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  moreText: { color: "#fff", fontSize: 14, ...display("700") },
 });

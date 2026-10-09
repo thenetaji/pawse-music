@@ -5,6 +5,7 @@ import { View } from "react-native";
 import { CatState, SkeletonRows } from "../../components/ui";
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
+import { count } from "../../lib/plural";
 import { useResource } from "../../lib/use-resource";
 import { BackButton, Collection } from "./collection";
 
@@ -41,7 +42,7 @@ export default function AlbumPage() {
       meta={[
         kind,
         a.year,
-        `${a.tracks.length} songs`,
+        `${count(a.tracks.length, "song")}`,
         mins ? `${mins} min` : null,
       ]
         .filter(Boolean)

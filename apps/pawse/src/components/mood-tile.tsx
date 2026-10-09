@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { yt } from "../lib/engine";
 import { go } from "../lib/nav";
+import { display } from "../lib/type";
 import { useResource } from "../lib/use-resource";
 import { Artwork } from "./artwork";
 import { PressScale } from "./ui";
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
     maxWidth: "62%",
     color: "#fff",
     fontSize: 16,
-    fontWeight: "800",
+    ...display("800"),
     letterSpacing: -0.2,
   },
 });
