@@ -139,7 +139,7 @@ export default function Settings() {
             />
             <Toggle k="reportPlays" label="Send plays to YouTube history" def />
             <Link
-              label="Import my YouTube Music library"
+              label="Import music library"
               onPress={() => push("/import")}
             />
             <Link label="Sign out" danger onPress={() => void signOut()} />

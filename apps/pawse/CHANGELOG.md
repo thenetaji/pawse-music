@@ -2,6 +2,11 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [0.7.4] - 2026-10-10
+
+### Changed
+- Settings says **Import music library** instead of "Import my YouTube Music library", since it also imports from Apple Music, Google Takeout and CSV files.
+
 ## [0.7.3] - 2026-10-10
 
 ### Fixed
@@ -164,6 +169,7 @@ Flow is now **Pawse** (say it like "pause"), and it's open source.
 - Signing in takes effect immediately and is verified in Settings.
 - Background audio safeguards; Settings → About → Show onboarding again.
 
+[0.7.4]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.4
 [0.7.3]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.3
 [0.7.2]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.2
 [0.7.1]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.1
