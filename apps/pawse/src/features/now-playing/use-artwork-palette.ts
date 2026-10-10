@@ -5,6 +5,8 @@ import { createAsyncCache } from "../../lib/async-cache";
 import { FALLBACK_PALETTE, type Palette, pickPalette } from "./palette";
 
 const cache = createAsyncCache<Palette>(24 * 3600_000);
+// Named as a hook so the React Compiler never memoizes the call away.
+const useCachedPalette = cache.use;
 
 // Native: decode with Skia, scale to 24×24 and read pixels.
 async function extract(url: string): Promise<Palette> {
@@ -32,7 +34,7 @@ async function extract(url: string): Promise<Palette> {
 
 // While the next artwork loads, the last palette stays, so colours don't flash grey between songs.
 export function useArtworkPalette(url?: string): Palette {
-  const { data, loading } = cache.use(url ?? null, () => extract(url!));
+  const { data, loading } = useCachedPalette(url ?? null, () => extract(url!));
   const [held, setHeld] = useState(FALLBACK_PALETTE);
   if (data && data !== held) setHeld(data);
   return data ?? (loading ? held : FALLBACK_PALETTE);
