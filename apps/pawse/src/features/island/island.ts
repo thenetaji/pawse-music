@@ -83,7 +83,7 @@ export function catPrefs(): CatPrefs {
   const name = typeof s.catName === "string" ? s.catName.trim() : "";
   return {
     island: s.catIsland !== false,
-    style: ISLAND_STYLES.find((v) => v === s.islandStyle) ?? "cat",
+    style: ISLAND_STYLES.find((v) => v === s.islandStyle) ?? "time",
     color: CAT_COLORS.find((c) => c === s.catColor) ?? "orange",
     cameoChance:
       episodes === "off" || episodes === false

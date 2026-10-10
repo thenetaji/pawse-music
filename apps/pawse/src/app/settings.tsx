@@ -253,7 +253,7 @@ export default function Settings() {
           <Pick
             k="islandStyle"
             label="Bubble shows"
-            def="cat"
+            def="time"
             options={[
               ["cat", catName],
               ["time", "Time left"],

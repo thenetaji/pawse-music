@@ -39,7 +39,7 @@ func deepAccent(_ state: PawseState) -> Color {
 }
 
 // Sized for the HIG metrics: compact and minimal are 36.67 pt tall, expanded and lock screen stay under 160 pt.
-// Expanded fills that height like Apple Music: 64 pt art, then the bar (16) and 40 pt controls, about 150 pt.
+// Expanded has no buttons (iOS's own player has them): ringed art, the cat, the bar and its mood line, about 120 pt.
 // Compact (only when iOS's own player isn't showing): the artwork on the left, the cat or time left on the right.
 struct PawseLiveActivity: Widget {
   var body: some WidgetConfiguration {
@@ -51,19 +51,25 @@ struct PawseLiveActivity: Widget {
       let state = activity.shown
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          ArtworkView(name: state.artwork, size: 64, radius: 14)
+          // The art sits in a ring of the song's colour, glowing like the in-app player.
+          ArtworkView(name: state.artwork, size: 58, radius: 15)
+            .padding(3)
             .overlay(
-              RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+              RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(
+                  LinearGradient(
+                    colors: [accent(state), accent(state).opacity(0.25)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing),
+                  lineWidth: 2)
             )
-            .shadow(color: accent(state).opacity(0.5), radius: 10)
+            .shadow(color: accent(state).opacity(0.55), radius: 12)
         }
         DynamicIslandExpandedRegion(.trailing) {
           if islandStyle(state) == "cat" {
-            CatStage(state: state, size: 52)
+            CatStage(state: state, size: 62)
           } else {
-            WaveBars(state: state, height: 24)
-              .frame(width: 52, height: 64)
+            TimeRing(state: state, size: 58, text: 13)
+              .frame(height: 64)
           }
         }
         DynamicIslandExpandedRegion(.center) {
@@ -72,8 +78,9 @@ struct PawseLiveActivity: Widget {
             .frame(maxHeight: .infinity)
         }
         DynamicIslandExpandedRegion(.bottom) {
+          // No buttons: iOS's own player has them. Time, a tinted bar and the cat's mood instead.
           PlayerBar(state: state)
-            .padding(.top, 8)
+            .padding(.top, 6)
         }
       } compactLeading: {
         // Fixed-width sides, art at the far left and the style at the far right, make the island long like Apple Music's.
@@ -97,13 +104,13 @@ struct PawseLiveActivity: Widget {
       } minimal: {
         // iOS's own Now Playing island sits next to this bubble while music plays, so it never repeats the artwork.
         if islandStyle(state) == "time" {
-          TimeLeft(state: state, size: 10, width: 28, align: .center)
+          TimeRing(state: state, size: 26, text: 8)
         } else {
           CatRing(state: state, size: 24)
         }
       }
       .contentMargins(.horizontal, 20, for: .expanded)
-      .contentMargins(.bottom, 12, for: .expanded)
+      .contentMargins(.bottom, 8, for: .expanded)
       .keylineTint(accent(state))
     }
   }
@@ -123,7 +130,11 @@ struct CompactTrailing: View {
   var body: some View {
     switch islandStyle(state) {
     case "time":
-      TimeLeft(state: state)
+      HStack(spacing: 6) {
+        WaveBars(state: state, height: 12)
+          .frame(width: 14)
+        TimeLeft(state: state, size: 13, width: 38)
+      }
     default:
       HStack(spacing: 8) {
         WaveBars(state: state, height: 13)
@@ -149,6 +160,21 @@ struct WaveBars: View {
       .opacity(state.isPlaying ? 1 : 0.45)
       .symbolEffect(.variableColor.iterative.dimInactiveLayers, isActive: state.isPlaying)
       .accessibilityHidden(true)
+  }
+}
+
+/// Time left inside a ring of the song's colour that fills as it plays; both run on their own.
+struct TimeRing: View {
+  let state: PawseState
+  let size: CGFloat
+  let text: CGFloat
+
+  var body: some View {
+    ZStack {
+      RingProgress(state: state)
+      TimeLeft(state: state, size: text, width: size * 0.8, align: .center)
+    }
+    .frame(width: size, height: size)
   }
 }
 
@@ -230,13 +256,9 @@ func catLine(_ state: PawseState) -> String {
   }
 }
 
-/// Title and artist; for a cat moment (a mouse, a like, a skip) the artist line becomes the cat's line.
+/// Title and artist; the cat's line lives under the bar.
 struct TitleView: View {
   let state: PawseState
-
-  private var catMoment: Bool {
-    (state.mouse ?? 0) > 0 || state.mood == "happy" || state.mood == "curious"
-  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 3) {
@@ -244,41 +266,31 @@ struct TitleView: View {
         .font(.system(size: 17, weight: .semibold))
         .foregroundStyle(.white)
         .lineLimit(1)
-      Group {
-        if catMoment {
-          Text(verbatim: catLine(state))
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(accent(state))
-        } else {
-          Text(state.artist)
-            .font(.system(size: 15))
-            .foregroundStyle(PawseTheme.secondary)
-        }
-      }
-      .lineLimit(1)
-      .contentTransition(.opacity)
+      Text(state.artist)
+        .font(.system(size: 15))
+        .foregroundStyle(PawseTheme.secondary)
+        .lineLimit(1)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
-/// A tinted progress row, then previous, play/pause and next in the middle.
+/// A tinted progress row, then the cat's line about the song.
 struct PlayerBar: View {
   let state: PawseState
 
   var body: some View {
-    VStack(spacing: 8) {
+    VStack(spacing: 6) {
       HStack(spacing: 10) {
         TimeLabel(state: state, remaining: false)
         SlimProgress(state: state)
         TimeLabel(state: state, remaining: true)
       }
-      HStack(spacing: 50) {
-        ControlButton(intent: PawsePreviousIntent(), symbol: "backward.fill", size: 24)
-        ControlButton(
-          intent: PawseToggleIntent(), symbol: state.isPlaying ? "pause.fill" : "play.fill", size: 32)
-        ControlButton(intent: PawseNextIntent(), symbol: "forward.fill", size: 24)
-      }
+      Text(verbatim: catLine(state))
+        .font(.system(size: 12, weight: .semibold))
+        .foregroundStyle(accent(state).opacity(0.9))
+        .lineLimit(1)
+        .contentTransition(.opacity)
     }
     .foregroundStyle(.white)
   }
@@ -294,7 +306,7 @@ struct ControlButton<I: LiveActivityIntent>: View {
       Image(systemName: symbol)
         .font(.system(size: size, weight: .semibold))
         .contentTransition(.symbolEffect(.replace))
-        .frame(width: 56, height: 40)
+        .frame(width: 52, height: 34)
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
