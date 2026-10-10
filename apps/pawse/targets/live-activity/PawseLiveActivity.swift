@@ -74,19 +74,24 @@ struct PawseLiveActivity: Widget {
             .padding(.top, 6)
         }
       } compactLeading: {
-        // During an episode the mouse peeks out from behind the camera where the artwork sits.
-        if let mouse = mouseImage(state), islandStyle(state) == "cat" {
-          Image(mouse)
-            .resizable()
-            .interpolation(.high)
-            .aspectRatio(contentMode: .fit)
-            .frame(width: 26, height: 26)
-            .transition(.move(edge: .trailing).combined(with: .opacity))
-        } else {
-          ArtworkView(name: state.artwork, size: 26, radius: 7)
+        // Fixed-width sides, art at the far left and the style at the far right, make the island long like Apple Music's.
+        Group {
+          // During an episode the mouse peeks out from behind the camera where the artwork sits.
+          if let mouse = mouseImage(state), islandStyle(state) == "cat" {
+            Image(mouse)
+              .resizable()
+              .interpolation(.high)
+              .aspectRatio(contentMode: .fit)
+              .frame(width: 26, height: 26)
+              .transition(.move(edge: .trailing).combined(with: .opacity))
+          } else {
+            ArtworkView(name: state.artwork, size: 26, radius: 7)
+          }
         }
+        .frame(width: compactSide, alignment: .leading)
       } compactTrailing: {
         CompactTrailing(state: state)
+          .frame(width: compactSide, alignment: .trailing)
       } minimal: {
         if islandStyle(state) == "cat" {
           CatRing(state: state, size: 24)
@@ -94,14 +99,15 @@ struct PawseLiveActivity: Widget {
           ArtworkView(name: state.artwork, size: 24, radius: 12)
         }
       }
-      .contentMargins(.leading, 6, for: .compactLeading)
-      .contentMargins(.trailing, 8, for: .compactTrailing)
       .contentMargins(.horizontal, 20, for: .expanded)
       .contentMargins(.bottom, 14, for: .expanded)
       .keylineTint(accent(state))
     }
   }
 }
+
+/// Width of each side of the compact island; the content sits at its outer edge.
+let compactSide: CGFloat = 60
 
 func islandStyle(_ state: PawseState) -> String {
   switch state.style {
@@ -117,8 +123,8 @@ struct CompactTrailing: View {
   var body: some View {
     switch islandStyle(state) {
     case "music":
-      WaveBars(state: state, height: 16)
-        .frame(width: 34)
+      WaveBars(state: state, height: 18)
+        .frame(width: 38)
     case "time":
       TimeLeft(state: state)
     default:

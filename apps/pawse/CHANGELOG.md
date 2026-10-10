@@ -2,6 +2,11 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [0.7.2] - 2026-10-10
+
+### Fixed
+- The Dynamic Island is long and roomy like Apple Music's: the artwork sits at the far left and the cat, sound bars or time left at the far right, instead of hugging the camera.
+
 ## [0.7.1] - 2026-10-10
 
 ### Added
@@ -154,6 +159,7 @@ Flow is now **Pawse** (say it like "pause"), and it's open source.
 - Signing in takes effect immediately and is verified in Settings.
 - Background audio safeguards; Settings → About → Show onboarding again.
 
+[0.7.2]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.2
 [0.7.1]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.1
 [0.7.0]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.0
 [0.6.0]: https://github.com/thenetaji/pawse-music/releases/tag/v0.6.0
