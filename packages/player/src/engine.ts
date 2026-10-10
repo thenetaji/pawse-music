@@ -47,7 +47,7 @@ const NEAR_END_SEC = 30;
 
 export { POS_KEY, QUEUE_KEY };
 
-const PLACEHOLDER = "https://flow.invalid/pending/";
+const PLACEHOLDER = "https://pawse.invalid/pending/";
 const NATIVE_REPEAT: Record<RepeatMode, NativeRepeat> = {
   off: NativeRepeat.Off,
   all: NativeRepeat.All,
@@ -72,6 +72,7 @@ let queueGen = 0;
 let radio = {
   continuation: undefined as string | undefined,
   playlistId: undefined as string | undefined,
+  endless: undefined as boolean | undefined,
   busy: false,
   done: false,
 };
@@ -358,6 +359,7 @@ async function start(
   radio = {
     continuation: seed?.continuation,
     playlistId: seed?.playlistId,
+    endless: o.endless,
     busy: false,
     done: false,
   };
@@ -384,7 +386,9 @@ async function refill(): Promise<void> {
   const s = get();
   const catalog = opts?.catalog;
   const auto =
-    !s.radio && s.repeat === "off" && (opts?.radioContinue?.() ?? false);
+    !s.radio &&
+    s.repeat === "off" &&
+    (radio.endless ?? opts?.radioContinue?.() ?? false);
   if (
     !(s.radio || auto) ||
     !catalog ||
@@ -568,6 +572,7 @@ function saveQueue(): void {
         on: s.radio,
         continuation: radio.continuation,
         playlistId: radio.playlistId,
+        endless: radio.endless,
       },
     };
     void opts?.storage?.set(QUEUE_KEY, JSON.stringify(data)).catch(() => {});
@@ -591,7 +596,12 @@ async function restore(): Promise<void> {
     shuffle: boolean;
     repeat: RepeatMode;
     normalize: boolean;
-    radio?: { on: boolean; continuation?: string; playlistId?: string };
+    radio?: {
+      on: boolean;
+      continuation?: string;
+      playlistId?: string;
+      endless?: boolean;
+    };
   };
   if (!Array.isArray(d.tracks) || d.tracks.length !== d.keys?.length) return;
   const pos = rawP
@@ -602,6 +612,7 @@ async function restore(): Promise<void> {
   radio = {
     continuation: d.radio?.continuation,
     playlistId: d.radio?.playlistId,
+    endless: d.radio?.endless,
     busy: false,
     done: false,
   };
@@ -972,6 +983,7 @@ export function __resetForTests(): void {
   radio = {
     continuation: undefined,
     playlistId: undefined,
+    endless: undefined,
     busy: false,
     done: false,
   };

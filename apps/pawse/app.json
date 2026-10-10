@@ -2,14 +2,15 @@
   "expo": {
     "name": "Pawse",
     "slug": "pawse",
+    "description": "A free music player for YouTube Music, with a cat in your Dynamic Island.",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "flow",
+    "scheme": "pawse",
     "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "com.thenetaji.flow",
+      "bundleIdentifier": "com.thenetaji.pawse",
       "supportsTablet": false,
       "infoPlist": {
         "UIBackgroundModes": [
@@ -21,7 +22,7 @@
       },
       "entitlements": {
         "com.apple.security.application-groups": [
-          "group.com.thenetaji.flow"
+          "group.com.thenetaji.pawse"
         ]
       }
     },
@@ -32,8 +33,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "backgroundColor": "#000000",
       "predictiveBackGestureEnabled": false,
-      "package": "com.thenetaji.flow",
+      "package": "com.thenetaji.pawse",
       "permissions": [
         "android.permission.REQUEST_INSTALL_PACKAGES"
       ]
@@ -82,6 +84,7 @@
         }
       ],
       "expo-localization",
+      "./plugins/with-android-system-bars.js",
       [
         "./plugins/with-ios-app-icons.js",
         [

@@ -1,4 +1,5 @@
 import type { LyricLine, Lyrics } from "@pawse/music-core";
+import { useProgress } from "@pawse/player";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type LayoutChangeEvent,
@@ -16,19 +17,14 @@ import { display } from "../../lib/type";
 type Props = {
   lyrics: Lyrics | null | undefined;
   loading: boolean;
-  position: number;
   onSeek: (sec: number) => void;
   onShare?: (line: string) => void;
 };
 
 // Full lyrics: the sung line in white, words lighting up as they're sung; tap a line to jump there.
-export function LyricsView({
-  lyrics,
-  loading,
-  position,
-  onSeek,
-  onShare,
-}: Props) {
+// Reads progress itself, so the player screen around it never re-renders on the 1 s tick.
+export function LyricsView({ lyrics, loading, onSeek, onShare }: Props) {
+  const { position } = useProgress();
   const fs = { s: 24, m: 30, l: 36 }[
     useSetting<"s" | "m" | "l">("lyricsSize", "m")
   ];
@@ -104,7 +100,7 @@ export function LyricsView({
             fs={fs}
             line={line}
             state={i === active ? "now" : i < active ? "past" : "next"}
-            ms={ms}
+            ms={i === active ? ms : 0}
             distance={Math.abs(i - active)}
           />
         </Pressable>

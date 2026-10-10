@@ -3,8 +3,8 @@ import { bestThumbnail, type Track } from "@pawse/music-core";
 import { refreshArtwork, usePlayerStore } from "@pawse/player";
 import { Platform } from "react-native";
 
-import { FlowActivity } from "../../modules/flow-activity";
-import { FlowIsland } from "../../modules/flow-island-android";
+import { PawseActivity } from "../../modules/pawse-activity";
+import { PawseIsland } from "../../modules/pawse-island-android";
 import { findSongArt } from "./song-art";
 
 export const NOW_PLAYING_PX = 600;
@@ -29,8 +29,8 @@ export function artworkSources(url: string): string[] {
 /** A square JPEG file URI from the best source for `url`; null on web, in Expo Go or when nothing loads. */
 export function squareArtwork(url: string, px: number): Promise<string | null> {
   const urls = artworkSources(url);
-  if (Platform.OS === "ios") return FlowActivity.squareArtwork(urls, px);
-  if (Platform.OS === "android") return FlowIsland.squareArtwork(urls, px);
+  if (Platform.OS === "ios") return PawseActivity.squareArtwork(urls, px);
+  if (Platform.OS === "android") return PawseIsland.squareArtwork(urls, px);
   return Promise.resolve(null);
 }
 

@@ -1,7 +1,14 @@
 import type { HomeFeed, Shelf as ShelfT, Track } from "@pawse/music-core";
 import { player } from "@pawse/player";
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Circle, Path } from "react-native-svg";
 import { Artwork } from "../../components/artwork";
@@ -121,6 +128,7 @@ export default function HomePage() {
           <PressScale
             onPress={() => push("/settings")}
             style={styles.gear}
+            hitSlop={Platform.OS === "android" ? 5 : undefined}
             accessibilityLabel="Settings"
           >
             <GearGlyph />

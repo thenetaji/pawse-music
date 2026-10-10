@@ -10,8 +10,8 @@ import { getSetting, setSetting } from "./settings";
 const RELEASES =
   "https://api.github.com/repos/thenetaji/pawse-music/releases?per_page=30";
 const DAY = 24 * 60 * 60 * 1000;
-// Releases are tagged v1.2.3; builds made in the old studio repo used flow-v1.2.3.
-const TAG = /^(?:flow-)?v(\d+\.\d+\.\d+)$/;
+// Releases are tagged v1.2.3.
+const TAG = /^v(\d+\.\d+\.\d+)$/;
 
 export type Update = { version: string; file: string; notes: string };
 
@@ -64,7 +64,7 @@ type Release = {
   assets: { name: string; browser_download_url: string }[];
 };
 
-// Newest vX.Y.Z (or older flow-vX.Y.Z) release on GitHub that ships this platform's build, if it is newer than this one.
+// Newest vX.Y.Z release on GitHub that ships this platform's build, if it is newer than this one.
 export async function checkForUpdate(): Promise<Update | null> {
   if (!supported) return null;
   set({ kind: "checking" });

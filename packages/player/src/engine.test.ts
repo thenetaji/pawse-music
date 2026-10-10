@@ -167,7 +167,7 @@ test("play resolves the current track first and pre-resolves the next two into t
   expect(resolvedIds().sort()).toEqual(["b", "c", "d"]);
   expect(urlAt(2)).toMatch("https://a/c/");
   expect(urlAt(3)).toMatch("https://a/d/");
-  expect(urlAt(4)).toMatch("flow.invalid");
+  expect(urlAt(4)).toMatch("pawse.invalid");
   expect(usePlayerStore.getState().index).toBe(1);
 });
 
@@ -306,6 +306,22 @@ test("radio refills from upNext when fewer than 3 remain, de-duplicated, then fo
   ]);
 });
 
+test("a queue played with endless off stops at its end even when the setting is on", async () => {
+  const upNext = jest.fn().mockResolvedValue({ tracks: tracks("z") });
+  await setupPlayer({
+    resolver: { resolve },
+    catalog: { upNext },
+    radioContinue: () => true,
+  });
+  await player.play(tracks("a", "b"), 0, { endless: false });
+  await flush();
+  expect(upNext).not.toHaveBeenCalled();
+
+  await player.play(tracks("a", "b"), 0);
+  await flush();
+  expect(upNext).toHaveBeenCalledTimes(1);
+});
+
 test("the queue, index, position, shuffle and repeat survive a restart and restore without autoplay", async () => {
   const storage = memory();
   await setupPlayer({ resolver: { resolve }, storage });
@@ -383,5 +399,5 @@ test("a failed prefetch of a later song leaves the playing one without an error"
   await player.play(tracks("a", "b"));
   await flush();
   expect(usePlayerStore.getState().error).toBeUndefined();
-  expect(urlAt(1)).toMatch("flow.invalid");
+  expect(urlAt(1)).toMatch("pawse.invalid");
 });

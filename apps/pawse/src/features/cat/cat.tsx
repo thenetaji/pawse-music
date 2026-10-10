@@ -70,7 +70,7 @@ type Props = {
   look?: number;
 };
 
-// Flow's cat. One vector drawing; moods switch eyes, mouth and pose.
+// Pawse's cat. One vector drawing; moods switch eyes, mouth and pose.
 export function Cat({
   mood,
   size,

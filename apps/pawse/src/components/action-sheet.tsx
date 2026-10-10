@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -15,6 +16,8 @@ import Animated, {
   FadeInDown,
   FadeOut,
   FadeOutDown,
+  useAnimatedKeyboard,
+  useAnimatedStyle,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FullWindowOverlay } from "react-native-screens";
@@ -40,6 +43,41 @@ const Overlay = Platform.OS === "ios" ? FullWindowOverlay : Fragment;
 const ENTER = FadeInDown.duration(200).easing(Easing.out(Easing.cubic));
 const EXIT = FadeOutDown.duration(130);
 
+/** Asks for a short line of text, such as a playlist name; an empty answer uses the placeholder. */
+export function askText(o: {
+  title: string;
+  placeholder: string;
+  confirm: string;
+  onSubmit: (text: string) => void;
+}) {
+  let text = "";
+  const submit = () => o.onSubmit(text.trim() || o.placeholder);
+  showSheet({
+    header: (
+      <View>
+        <Text style={styles.noteTitle}>{o.title}</Text>
+        <TextInput
+          autoFocus
+          placeholder={o.placeholder}
+          placeholderTextColor="rgba(255,255,255,0.35)"
+          onChangeText={(t) => {
+            text = t;
+          }}
+          onSubmitEditing={() => {
+            hideSheet();
+            submit();
+          }}
+          returnKeyType="done"
+          maxLength={80}
+          selectionColor="#fff"
+          style={styles.input}
+        />
+      </View>
+    ),
+    actions: [{ label: o.confirm, onPress: submit }],
+  });
+}
+
 /** A sheet header with a title and a short paragraph. */
 export function SheetNote({ title, body }: { title: string; body: string }) {
   return (
@@ -55,6 +93,13 @@ export function ActionSheetHost() {
   const sheet = useSheet((s) => s.sheet);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  // Rides above the keyboard when the sheet asks for text.
+  const keyboard = useAnimatedKeyboard();
+  const lift = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: -Math.max(0, keyboard.height.value - insets.bottom) },
+    ],
+  }));
   if (!sheet) return null;
   // Wide windows (desktop) get a centred panel instead of one stretched edge to edge.
   const side = width > 700 ? (width - 440) / 2 : 10;
@@ -69,51 +114,62 @@ export function ActionSheetHost() {
           <Pressable style={StyleSheet.absoluteFill} onPress={hideSheet} />
         </Animated.View>
         <Animated.View
-          entering={ENTER}
-          exiting={EXIT}
           style={[
             styles.wrap,
-            { left: side, right: side, paddingBottom: insets.bottom + 8 },
+            { left: side, right: side },
             width > 700 && styles.wrapWide,
+            lift,
           ]}
         >
-          <BlurView
-            intensity={40}
-            tint="systemThickMaterialDark"
-            style={styles.panel}
+          <Animated.View
+            entering={ENTER}
+            exiting={EXIT}
+            style={[styles.stack, { paddingBottom: insets.bottom + 8 }]}
           >
-            {sheet.header ? (
-              <View style={styles.header}>{sheet.header}</View>
-            ) : null}
-            <ScrollView style={{ maxHeight: 440 }} bounces={false}>
-              {sheet.actions.map((a, i) => (
-                <Pressable
-                  key={a.label}
-                  onPress={() => {
-                    if (!a.keepOpen) hideSheet();
-                    a.onPress();
-                  }}
-                  style={({ pressed }) => [
-                    styles.row,
-                    i > 0 && styles.sep,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text
-                    style={[styles.label, a.destructive && styles.destructive]}
+            <BlurView
+              intensity={40}
+              tint="systemThickMaterialDark"
+              style={styles.panel}
+            >
+              {sheet.header ? (
+                <View style={styles.header}>{sheet.header}</View>
+              ) : null}
+              <ScrollView style={{ maxHeight: 440 }} bounces={false}>
+                {sheet.actions.map((a, i) => (
+                  <Pressable
+                    key={a.label}
+                    onPress={() => {
+                      if (!a.keepOpen) hideSheet();
+                      a.onPress();
+                    }}
+                    style={({ pressed }) => [
+                      styles.row,
+                      i > 0 && styles.sep,
+                      pressed && styles.pressed,
+                    ]}
                   >
-                    {a.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </BlurView>
-          <Pressable
-            onPress={hideSheet}
-            style={({ pressed }) => [styles.cancel, pressed && styles.pressed]}
-          >
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
+                    <Text
+                      style={[
+                        styles.label,
+                        a.destructive && styles.destructive,
+                      ]}
+                    >
+                      {a.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </BlurView>
+            <Pressable
+              onPress={hideSheet}
+              style={({ pressed }) => [
+                styles.cancel,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+          </Animated.View>
         </Animated.View>
       </View>
     </Overlay>
@@ -122,13 +178,23 @@ export function ActionSheetHost() {
 
 const styles = StyleSheet.create({
   dim: { backgroundColor: "rgba(0,0,0,0.5)" },
-  wrap: { position: "absolute", left: 10, right: 10, bottom: 0, gap: 8 },
+  wrap: { position: "absolute", left: 10, right: 10, bottom: 0 },
+  stack: { gap: 8 },
   wrapWide: { bottom: 24 },
   noteTitle: {
     color: "#fff",
     fontSize: 17,
     textAlign: "center",
     ...display("800"),
+  },
+  input: {
+    marginTop: 12,
+    height: 46,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    color: "#fff",
+    fontSize: 17,
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
   noteBody: {
     color: "rgba(255,255,255,0.65)",

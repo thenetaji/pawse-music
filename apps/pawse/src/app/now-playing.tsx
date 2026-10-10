@@ -1,10 +1,5 @@
 import type { Lyrics } from "@pawse/music-core";
-import {
-  emitPlayerEvent,
-  player,
-  usePlayerState,
-  useProgress,
-} from "@pawse/player";
+import { emitPlayerEvent, player, usePlayerSelect } from "@pawse/player";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
@@ -37,8 +32,9 @@ const leavePlayer = (fn: () => void) => {
 };
 
 export default function NowPlaying() {
-  const { current, status, source } = usePlayerState();
-  const { position, duration } = useProgress();
+  // Status and progress are read by the small parts that show them, not by the whole screen.
+  const current = usePlayerSelect((s) => s.current);
+  const source = usePlayerSelect((s) => s.source);
   const liked = useLibrary((s) =>
     current ? s.liked.some((t) => t.id === current.id) : false,
   );
@@ -68,9 +64,6 @@ export default function NowPlaying() {
   return (
     <NowPlayingView
       track={current}
-      status={status}
-      position={position}
-      duration={duration || current?.durationSec || 0}
       lyrics={lyrics.data}
       lyricsLoading={lyrics.loading}
       mode={mode}

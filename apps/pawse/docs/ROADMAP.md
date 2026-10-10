@@ -1,4 +1,4 @@
-# Flow roadmap
+# Pawse roadmap
 
 Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit that finishes it.
 
@@ -8,7 +8,7 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - [x] JioSaavn 320 kbps as an option and as a fallback.
 - [x] Now playing: artwork-colour field, the cat on the progress wire, the current lyric line, full lyrics, queue.
 - [x] Dynamic Island and lock screen Live Activity with the cat (first version).
-- [x] apps.yml builds the IPA and APK; flow-v* tags publish a Release and update the SideStore source.
+- [x] apps.yml builds the IPA and APK; v* tags publish a Release and update the SideStore source.
 - [x] Fixed: dragging the progress cat crashed the app (gesture callbacks now run on the JS thread).
 
 ## Tonight (approved 2026-10-08)
@@ -51,7 +51,7 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
   - cat episodes on/off;
   - about.
 - [x] 14. About page: version and build number, a link to the source, licences.
-- [x] 15. App icon: a Flow logo with the cat.
+- [x] 15. App icon: a Pawse logo with the cat.
 - [x] 16. Premium motion everywhere:
   - shared transitions;
   - springy presses;
@@ -208,7 +208,7 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - [x] 59. Fresh-context review after the build work: a code review (Opus reviewer) of the diff for bugs, and a design review of screenshots of every screen against "premium". Fix the findings, then re-verify (typecheck, lint, tests, web screenshots, iOS CI build).
 
 ### Release
-- [x] 27. After item 59: tag flow-v0.1.x, watch the iOS and Android jobs, fix failures, then send the summary.
+- [x] 27. After item 59: tag the 0.1.x releases, watch the iOS and Android jobs, fix failures, then send the summary.
 
 ## v0.2.0 (approved 2026-10-08)
 - [x] 60. Full-bleed Now Playing artwork; HD frames for music videos.

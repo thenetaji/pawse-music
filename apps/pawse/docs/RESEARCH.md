@@ -1,6 +1,6 @@
-# Flow research (2026-10-08)
+# Pawse research (2026-10-08)
 
-Why Flow exists, which libraries it uses, and how it gets audio. Re-check the stream section whenever playback breaks: YouTube changes often.
+Why Pawse exists, which libraries it uses, and how it gets audio. Re-check the stream section whenever playback breaks: YouTube changes often.
 
 ## Prior art
 No open-source native iOS app streams YouTube Music with a native queue and lock-screen controls.

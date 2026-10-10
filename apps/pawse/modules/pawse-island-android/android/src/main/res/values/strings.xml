@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="pawse_widget_label">Pawse</string>
+  <string name="pawse_widget_description">The cat, the song and play controls.</string>
+  <string name="pawse_widget_idle_title">Pawse</string>
+  <string name="pawse_widget_idle_artist">Nothing playing</string>
+  <string name="pawse_widget_toggle">Play or pause</string>
+  <string name="pawse_widget_next">Next</string>
+  <string name="pawse_widget_artwork">Album art</string>
+  <string name="pawse_widget_cat">The Pawse cat</string>
+</resources>

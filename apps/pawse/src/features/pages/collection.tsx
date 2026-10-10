@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { type ReactNode, useState } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -19,6 +20,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { Artwork } from "../../components/artwork";
+import { ArrowDown, ArrowUp, MinusGlyph } from "../../components/glyphs";
 import { useBottomSpace } from "../../components/page";
 import { TrackRow } from "../../components/track-row";
 import { PressScale } from "../../components/ui";
@@ -94,9 +96,11 @@ export function Collection({
   const play = (i: number, shuffle = false) => {
     haptic.light();
     player.setShuffle(shuffle);
+    // Playlists and albums end where they end unless the user asked for more.
     void player.play(tracks, i, {
       source,
-      radio: getSetting("radioContinue", true),
+      endless:
+        getSetting("radioContinue", true) && getSetting("listsContinue", false),
     });
   };
 
@@ -269,7 +273,7 @@ function EditRow({
         onPress={() => lib.removeFromPlaylist(id, track.id)}
         style={styles.minus}
       >
-        <Text style={styles.minusText}>−</Text>
+        <MinusGlyph size={14} weight={3} />
       </Pressable>
       <Artwork thumbnails={track.thumbnails} size={44} radius={6} />
       <Text style={styles.editTitle} numberOfLines={1}>
@@ -281,7 +285,7 @@ function EditRow({
         onPress={() => lib.movePlaylistTrack(id, index, index - 1)}
         style={[styles.arrow, index === 0 && { opacity: 0.25 }]}
       >
-        <Text style={styles.arrowText}>↑</Text>
+        <ArrowUp size={18} color="rgba(255,255,255,0.7)" />
       </Pressable>
       <Pressable
         hitSlop={6}
@@ -289,7 +293,7 @@ function EditRow({
         onPress={() => lib.movePlaylistTrack(id, index, index + 1)}
         style={[styles.arrow, index === count - 1 && { opacity: 0.25 }]}
       >
-        <Text style={styles.arrowText}>↓</Text>
+        <ArrowDown size={18} color="rgba(255,255,255,0.7)" />
       </Pressable>
     </View>
   );
@@ -413,6 +417,10 @@ const styles = StyleSheet.create({
     shadowRadius: 26,
     shadowOffset: { width: 0, height: 18 },
     elevation: 16,
+    // Elevation casts from the view's own background, which this wrapper lacks.
+    ...Platform.select({
+      android: { borderRadius: 16, backgroundColor: "#141418" },
+    }),
   },
   title: {
     color: "#fff",
@@ -478,7 +486,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#FF4F6D",
   },
-  minusText: { color: "#fff", fontSize: 18, ...display("900"), marginTop: -2 },
   editTitle: { flex: 1, color: "#fff", fontSize: 15 },
   arrow: {
     width: 32,
@@ -488,7 +495,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.1)",
   },
-  arrowText: { color: "#fff", fontSize: 16, ...display("800") },
   bar: {
     position: "absolute",
     top: 0,

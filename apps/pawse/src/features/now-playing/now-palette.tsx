@@ -1,9 +1,10 @@
 import { bestThumbnail } from "@pawse/music-core";
-import { usePlayerState } from "@pawse/player";
-import { useEffect } from "react";
+import { usePlayerSelect } from "@pawse/player";
+import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
 
 import { useSetting } from "../../lib/settings";
+import { useSongArt } from "../../lib/song-art";
 
 import { FALLBACK_PALETTE, type Palette } from "./palette";
 import { useArtworkPalette } from "./use-artwork-palette";
@@ -13,12 +14,35 @@ export const useNowPalette = create<{ palette: Palette }>(() => ({
   palette: FALLBACK_PALETTE,
 }));
 
+// A new song's colours wait until it plays (at least MIN_MS) or MAX_MS pass, off the skip's render.
+const SETTLE_MIN_MS = 120;
+const SETTLE_MAX_MS = 500;
+
 export function NowPaletteSync() {
-  const current = usePlayerState().current;
+  const current = usePlayerSelect((s) => s.current);
+  const playing = usePlayerSelect((s) => s.status === "playing");
+  // Same art the player shows (album cover over a video still), so there's one palette per song.
+  const thumbs = useSongArt(current);
   const palette = useArtworkPalette(
-    current ? bestThumbnail(current.thumbnails, 120) : undefined,
+    current ? bestThumbnail(thumbs, 120) : undefined,
   );
-  useEffect(() => useNowPalette.setState({ palette }), [palette]);
+  const id = current?.id;
+  const [shown, setShown] = useState(id);
+  const changedAt = useRef(0);
+  useEffect(() => {
+    changedAt.current = Date.now();
+  }, [id]);
+  useEffect(() => {
+    if (shown === id) return;
+    const waited = Date.now() - changedAt.current;
+    const wait = (playing ? SETTLE_MIN_MS : SETTLE_MAX_MS) - waited;
+    const t = setTimeout(() => setShown(id), Math.max(0, wait));
+    return () => clearTimeout(t);
+  }, [id, playing, shown]);
+  useEffect(() => {
+    if (shown !== id || useNowPalette.getState().palette === palette) return;
+    useNowPalette.setState({ palette });
+  }, [shown, id, palette]);
   return null;
 }
 

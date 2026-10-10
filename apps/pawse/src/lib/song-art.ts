@@ -7,7 +7,7 @@ import { yt } from "../data/clients";
 import { MATCH_SCORE, scoreTrack } from "../data/import/score";
 import { kv } from "../data/storage";
 
-const KEY = "flow.songart.v1";
+const KEY = "pawse.songart.v1";
 const KEEP = 400;
 const YTIMG = /^https?:\/\/i\d?\.ytimg\.com\//;
 

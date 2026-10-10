@@ -1,4 +1,4 @@
-// Drives Flow's Live Activity (Dynamic Island + Lock Screen) from the player. iOS only; a no-op elsewhere.
+// Drives Pawse's Live Activity (Dynamic Island + Lock Screen) from the player. iOS only; a no-op elsewhere.
 import { artistLine, bestThumbnail, type Track } from "@pawse/music-core";
 import {
   getProgress,
@@ -13,8 +13,9 @@ import {
   type ActivityCatColor,
   type ActivityMood,
   type ActivityState,
-  FlowActivity,
-} from "../../../modules/flow-activity";
+  type IslandStyle,
+  PawseActivity,
+} from "../../../modules/pawse-activity";
 import { useLibrary } from "../../data/library";
 import { prepareArtwork } from "../../lib/artwork";
 import { songVibe } from "../../lib/vibe";
@@ -29,9 +30,11 @@ const SEND_TIMEOUT_MS = 4000;
 /** While playing, re-check this often that the island's timeline still matches the song. */
 const DRIFT_CHECK_MS = 15_000;
 const SEEK_SETTLE_MS = 400;
-/** If Flow is closed mid-song, iOS marks the activity stale this long after the song should end. */
+/** After an island play/pause tap, states that contradict it are held back this long. */
+const TOGGLE_HOLD_MS = 1200;
+/** If Pawse is closed mid-song, iOS marks the activity stale this long after the song should end. */
 const STALE_AFTER_END_MS = 90_000;
-/** A paused activity goes stale after this, in case Flow is closed while paused. */
+/** A paused activity goes stale after this, in case Pawse is closed while paused. */
 const STALE_WHEN_PAUSED_MS = 15 * 60_000;
 
 // Rounded to the minute so steady playback doesn't make every state look new.
@@ -61,8 +64,11 @@ const CAMEO_AGAIN_SEC: [number, number] = [60, 90];
 /** Mouse frame per beat tick: peek, head out, peek, head out, peek; the cat is pleased after. */
 const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1, 2, 1];
 
+const ISLAND_STYLES: readonly IslandStyle[] = ["cat", "music", "time"];
+
 type CatPrefs = {
   island: boolean;
+  style: IslandStyle;
   color: ActivityCatColor;
   cameoChance: number;
   name: string | null;
@@ -75,6 +81,7 @@ export function catPrefs(): CatPrefs {
   const name = typeof s.catName === "string" ? s.catName.trim() : "";
   return {
     island: s.catIsland !== false,
+    style: ISLAND_STYLES.find((v) => v === s.islandStyle) ?? "cat",
     color: CAT_COLORS.find((c) => c === s.catColor) ?? "orange",
     cameoChance:
       episodes === "off" || episodes === false
@@ -107,7 +114,7 @@ let stopController: (() => void) | null = null;
 /** Call once from the app root. Returns a stop function (handy for fast refresh). */
 export function startIslandController(): () => void {
   if (stopController) return stopController;
-  if (!FlowActivity.available) return () => {};
+  if (!PawseActivity.available) return () => {};
 
   let active = false;
   let starting = false;
@@ -123,6 +130,9 @@ export function startIslandController(): () => void {
   let startMs = 0;
   let lastKey = "";
   let sending = false;
+  // The island already shows the tapped state; the player's own state catches up a moment later.
+  let hold: { playing: boolean; timer: ReturnType<typeof setTimeout> } | null =
+    null;
   let queued: ActivityState | null = null;
   // The first song of a session always gets the mouse, so the episode is actually seen.
   let firstCameo = true;
@@ -173,6 +183,7 @@ export function startIslandController(): () => void {
       name: prefs.name,
       tint: tintHex(useNowPalette.getState().palette.accent),
       staleAt: staleAt(playing, startMs + duration * 1000),
+      style: prefs.style,
     };
   }
 
@@ -195,7 +206,7 @@ export function startIslandController(): () => void {
       if (next && active) send(next);
     };
     const timer = setTimeout(release, SEND_TIMEOUT_MS);
-    void FlowActivity.update(state)
+    void PawseActivity.update(state)
       .then((alive) => {
         if (!alive && active) lost();
       })
@@ -216,6 +227,7 @@ export function startIslandController(): () => void {
     if (!active) return;
     const state = compose();
     if (!state) return;
+    if (hold && state.isPlaying !== hold.playing) return;
     const key = JSON.stringify(state);
     if (key === lastKey) return;
     lastKey = key;
@@ -226,17 +238,17 @@ export function startIslandController(): () => void {
     if (starting || active) return;
     const state = compose();
     // Island cat off: no activity at all, so the system's Now Playing island shows instead.
-    if (!state || !catPrefs().island || !FlowActivity.isSupported()) return;
+    if (!state || !catPrefs().island || !PawseActivity.isSupported()) return;
     starting = true;
     // iOS refuses to start an activity from the background; we retry when the app is active again.
-    const ok = await FlowActivity.start(state);
+    const ok = await PawseActivity.start(state);
     starting = false;
     if (
       !ok ||
       !isPlaying(usePlayerStore.getState().status) ||
       !catPrefs().island
     ) {
-      if (ok) void FlowActivity.end();
+      if (ok) void PawseActivity.end();
       return;
     }
     active = true;
@@ -252,7 +264,7 @@ export function startIslandController(): () => void {
     queued = null;
     syncBeat();
     syncDrift();
-    void FlowActivity.end();
+    void PawseActivity.end();
   }
 
   // Buffering and seeks shift the song's timeline; compose only sends a new state when it moved.
@@ -272,7 +284,9 @@ export function startIslandController(): () => void {
     void prepareArtwork(track)
       .then((square) => {
         const url = square ?? fallback;
-        return url && art.id === track.id ? FlowActivity.setArtwork(url) : null;
+        return url && art.id === track.id
+          ? PawseActivity.setArtwork(url)
+          : null;
       })
       .then((file) => {
         if (!file || art.id !== track.id) return;
@@ -402,11 +416,21 @@ export function startIslandController(): () => void {
     setFlash("curious", CURIOUS_MS),
   );
   // Native already flipped play/pause on the island, so the next real state must always be sent.
-  const unsubAction = FlowActivity.onAction((action) => {
+  const unsubAction = PawseActivity.onAction((action) => {
     lastKey = "";
-    if (action === "next") player.next();
-    else if (action === "previous") player.previous();
-    else player.toggle();
+    if (action === "next") return player.next();
+    if (action === "previous") return player.previous();
+    const playing = !isPlaying(usePlayerStore.getState().status);
+    if (hold) clearTimeout(hold.timer);
+    hold = {
+      playing,
+      timer: setTimeout(() => {
+        hold = null;
+        lastKey = "";
+        push();
+      }, TOGGLE_HOLD_MS),
+    };
+    player.toggle();
   });
   let seekTimer: ReturnType<typeof setTimeout> | undefined;
   const unsubSeeked = onPlayerEvent("seeked", () => {
@@ -439,7 +463,7 @@ export function startIslandController(): () => void {
 
   // A previous process may have left an activity behind; start clean.
   if (!isPlaying(usePlayerStore.getState().status) || !catPrefs().island)
-    void FlowActivity.end();
+    void PawseActivity.end();
   onChange();
 
   stopController = () => {

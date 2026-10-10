@@ -14,8 +14,9 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { FlowIsland } from "../../modules/flow-island-android";
+import { PawseIsland } from "../../modules/pawse-island-android";
 import { showSheet } from "../components/action-sheet";
+import { DownloadOptions } from "../components/download-options";
 import {
   Foot,
   Info,
@@ -26,7 +27,7 @@ import {
   Toggle,
 } from "../components/settings-rows";
 import { PressScale } from "../components/ui";
-import { useLibrary } from "../data/library";
+import { listeningStats, useLibrary } from "../data/library";
 import { signOut } from "../features/account/sign-out";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { useAccent } from "../features/now-playing/now-palette";
@@ -170,7 +171,16 @@ export default function Settings() {
           def
           onChange={(v) => player.setNormalize(v)}
         />
-        <Toggle k="radioContinue" label="Keep playing similar songs" def />
+        <Toggle
+          k="radioContinue"
+          label="Play similar songs when the queue ends"
+          def
+        />
+        <Toggle
+          k="listsContinue"
+          label="Also after playlists and albums"
+          def={false}
+        />
         <Toggle k="resume" label="Resume where I left off" def />
         <Toggle
           k="pauseOnDisconnect"
@@ -194,8 +204,9 @@ export default function Settings() {
         Automatic plays High on Wi-Fi, 5G and 4G, and Low on slower connections
         or when songs keep stalling. Low on mobile data also loads smaller
         artwork, keeps no songs offline and prepares only the next song.
-        Downloads and offline songs live in Library.
       </Foot>
+
+      {Platform.OS !== "web" ? <DownloadOptions manage /> : null}
 
       <Section title="Lyrics">
         <Toggle k="lyricsLine" label="Show the live line on Now Playing" def />
@@ -239,6 +250,18 @@ export default function Settings() {
       <Section title="Cat">
         <Toggle k="catWire" label={`${catName} on the progress bar`} def />
         <Toggle k="catIsland" label={`${catName} in the Dynamic Island`} def />
+        {Platform.OS === "ios" ? (
+          <Pick
+            k="islandStyle"
+            label="Dynamic Island style"
+            def="cat"
+            options={[
+              ["cat", `${catName} and sound bars`],
+              ["music", "Sound bars"],
+              ["time", "Time left"],
+            ]}
+          />
+        ) : null}
         <Pick
           k="catEpisodes"
           label="Mouse episodes"
@@ -304,8 +327,8 @@ export default function Settings() {
             label={`${catName} pill around the camera`}
             def={false}
             onChange={(v) => {
-              if (v && !FlowIsland.hasOverlayPermission())
-                FlowIsland.requestOverlayPermission();
+              if (v && !PawseIsland.hasOverlayPermission())
+                PawseIsland.requestOverlayPermission();
             }}
           />
           <Pick
@@ -318,10 +341,10 @@ export default function Settings() {
               [6, "Lower"],
             ]}
           />
-          {FlowIsland.needsBatteryTip() ? (
+          {PawseIsland.needsBatteryTip() ? (
             <Link
               label="Keep Pawse running (battery settings)"
-              onPress={() => FlowIsland.openBatterySettings()}
+              onPress={() => PawseIsland.openBatterySettings()}
             />
           ) : null}
         </Section>
@@ -353,6 +376,7 @@ export default function Settings() {
           }
         />
       </Section>
+      <BackupNote />
 
       <Section title="About">
         <Link label="About Pawse" onPress={() => push("/about")} />
@@ -463,6 +487,22 @@ function QualityRow({
 }
 
 // Copies the playback log so a bug report says what actually happened.
+// What a backup holds, so it's clear the stats travel with it.
+function BackupNote() {
+  const liked = useLibrary((s) => s.liked.length);
+  const lists = useLibrary((s) => s.playlists.length);
+  const history = useLibrary((s) => s.history);
+  const hours = Math.round(listeningStats(history, 0).minutes / 60);
+  return (
+    <Foot>
+      A backup holds your {count(liked, "like")}, {count(lists, "playlist")} and
+      your last {count(history.length, "play")} (about {count(hours, "hour")} of
+      listening, which your stats come from). Deleting the app deletes all of
+      this, so export first.
+    </Foot>
+  );
+}
+
 function DiagnosticsRow() {
   const count = useLogCount();
   return (

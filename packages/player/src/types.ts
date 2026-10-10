@@ -65,6 +65,8 @@ export interface PlayOptions {
   source?: QueueSource;
   /** Keep refilling from catalog.upNext. */
   radio?: boolean;
+  /** Add similar songs when the queue runs out; defaults to the radioContinue setting. */
+  endless?: boolean;
 }
 
 export interface RadioSeed {

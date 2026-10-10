@@ -14,7 +14,9 @@ import {
   type Settings,
 } from "./library-model";
 
-export const BACKUP_FORMAT = "flow.library";
+export const BACKUP_FORMAT = "pawse.library";
+// Backups exported before the app was renamed to Pawse.
+const LEGACY_FORMAT = "flow.library";
 export const BACKUP_VERSION = 1;
 const HISTORY_MAX = 1000;
 const SOURCES = new Set<SourceId>(["youtube", "saavn", "local"]);
@@ -132,7 +134,10 @@ function toSettings(v: unknown): Partial<Settings> {
 
 /** Validates a parsed backup file; throws BackupError when it is not one. */
 export function parseBackup(json: unknown): Backup {
-  if (!isObj(json) || json.format !== BACKUP_FORMAT)
+  if (
+    !isObj(json) ||
+    (json.format !== BACKUP_FORMAT && json.format !== LEGACY_FORMAT)
+  )
     throw new BackupError("Not a Pawse library backup");
   if (typeof json.version !== "number" || json.version > BACKUP_VERSION)
     throw new BackupError("This backup is from a newer version of Pawse");

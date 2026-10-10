@@ -308,11 +308,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter pawse-desktop run web
+      # Internal hand-off to the desktop jobs, not a download: it only runs inside the desktop app.
       - uses: actions/upload-artifact@v4
         with:
-          name: desktop-web
+          name: internal-desktop-ui
           path: apps/desktop/web
           if-no-files-found: error
+          retention-days: 1
 
   desktop:
     needs: [meta, desktop-web]
@@ -339,7 +341,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@v4
         with:
-          name: desktop-web
+          name: internal-desktop-ui
           path: apps/desktop/web
       - name: Stamp version
         run: node -e "const f='apps/desktop/package.json',fs=require('fs'),p=JSON.parse(fs.readFileSync(f));p.version=process.env.VERSION;fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
@@ -396,6 +398,19 @@ jobs:
             awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## / {exit} on {print}' "$f" > notes.md
           fi
           [ -s notes.md ] || echo "${APP_NAME} ${VERSION}." > notes.md
+          # Which file do I need? Only files that were built for this release get a row.
+          {
+            printf '\n### Which file do I need?\n\n| File | For |\n| --- | --- |\n'
+            row() { [ -e "dist/$1" ] && printf '| %s | %s |\n' "$1" "$2"; return 0; }
+            row "${APP_NAME}-${VERSION}.ipa" "iPhone (install with SideStore, AltStore or Sideloadly)"
+            row "${APP_NAME}-${VERSION}.apk" "Android (one file for all phones)"
+            row "${APP_NAME}-${VERSION}-mac-arm64.dmg" "Macs with Apple silicon (M1 and newer)"
+            row "${APP_NAME}-${VERSION}-mac-x64.dmg" "Intel Macs"
+            row "${APP_NAME}-Setup-${VERSION}.exe" "Windows 10 and 11, 64-bit"
+            row "${APP_NAME}-${VERSION}-linux-x86_64.AppImage" "Any 64-bit Linux"
+            row "${APP_NAME}-${VERSION}-linux-amd64.deb" "Ubuntu, Debian, Mint and Pop!_OS"
+            printf '\nEach file is attached twice: with the version in the name and without it (for example %s.apk). They are the same file. The plain names always mean the newest version. Steps for every device: https://github.com/%s#install\n' "${APP_NAME}" "${GITHUB_REPOSITORY}"
+          } >> notes.md
           cat notes.md
 
       # Stable names next to the versioned files: releases/latest/download/Pawse.ipa always works.

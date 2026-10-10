@@ -39,6 +39,8 @@ export type Settings = {
   /** Set once the old India/English defaults have moved to Automatic. */
   localeV2: boolean;
   radioContinue: boolean;
+  /** Also add similar songs after a playlist or album ends. */
+  listsContinue: boolean;
   resume: boolean;
   /** Read when the player starts; a change applies on the next launch. */
   pauseOnDisconnect: boolean;
@@ -48,6 +50,7 @@ export type Settings = {
   downloadQuality: AudioQuality;
   wifiOnly: boolean;
   autoDownloadLiked: boolean;
+  autoDownloadPlaylists: boolean;
   cacheLimitMb: number;
   /** Keep songs you finish on the phone (up to cacheLimitMb) so they play offline. */
   autoCache: boolean;
@@ -98,12 +101,14 @@ export const DEFAULT_SETTINGS: Settings = {
   qualityV2: true,
   localeV2: true,
   radioContinue: true,
+  listsContinue: false,
   resume: true,
   pauseOnDisconnect: true,
   sleepFade: 10,
   downloadQuality: "high",
   wifiOnly: false,
   autoDownloadLiked: false,
+  autoDownloadPlaylists: false,
   cacheLimitMb: 500,
   autoCache: true,
   lyricsLine: true,

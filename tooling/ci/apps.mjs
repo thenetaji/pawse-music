@@ -245,7 +245,7 @@ function sidestore(ipaPath) {
     ? JSON.parse(fs.readFileSync(file, "utf8"))
     : {
         name: expo.name,
-        identifier: `com.${owner}.${expo.slug ?? "flow"}`,
+        identifier: `com.${owner}.${expo.slug ?? "pawse"}`,
         subtitle: `${expo.name} by ${owner}`,
         apps: [],
         news: [],
@@ -258,7 +258,7 @@ function sidestore(ipaPath) {
       name: expo.name,
       bundleIdentifier: expo.ios.bundleIdentifier,
       developerName: owner,
-      localizedDescription: expo.name,
+      localizedDescription: expo.description ?? expo.name,
       iconURL: `https://raw.githubusercontent.com/${repo}/${env.DEFAULT_BRANCH || "main"}/apps/${env.APP}/assets/images/icon.png`,
       versions: [],
     };

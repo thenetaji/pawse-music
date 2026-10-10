@@ -235,7 +235,7 @@ export const useLibrary = create<Library>()(
         })),
     }),
     {
-      name: "flow.library.v1",
+      name: "pawse.library.v1",
       storage: createJSONStorage(() => kv),
       version: 2,
       partialize: (s): LibraryData => ({

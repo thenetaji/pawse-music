@@ -9,7 +9,7 @@ import { chromium } from "playwright";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const out = path.join(
   here,
-  "../modules/flow-island-android/android/src/main/res/drawable-xxhdpi",
+  "../modules/pawse-island-android/android/src/main/res/drawable-xxhdpi",
 );
 mkdirSync(out, { recursive: true });
 const PX = 240;
@@ -66,18 +66,18 @@ const svg = (inner) =>
 
 const files = {
   // Pill layers: the body animates (rotation/hop/breath), the accessory floats on top.
-  flow_cat_body_open: svg(body({ face: "open" })),
-  flow_cat_body_curious: svg(body({ face: "open", look: 3 })),
-  flow_cat_body_sleep: svg(body({ face: "sleep" })),
-  flow_cat_body_happy: svg(body({ face: "happy", blush: 0.6 })),
-  flow_cat_acc_note: svg(acc.note),
-  flow_cat_acc_zz: svg(acc.zz),
-  flow_cat_acc_heart: svg(acc.heart),
+  pawse_cat_body_open: svg(body({ face: "open" })),
+  pawse_cat_body_curious: svg(body({ face: "open", look: 3 })),
+  pawse_cat_body_sleep: svg(body({ face: "sleep" })),
+  pawse_cat_body_happy: svg(body({ face: "happy", blush: 0.6 })),
+  pawse_cat_acc_note: svg(acc.note),
+  pawse_cat_acc_zz: svg(acc.zz),
+  pawse_cat_acc_heart: svg(acc.heart),
   // Widget: one static frame per mood.
-  flow_cat_groove: svg(body({ face: "open", tilt: -7 }) + acc.note),
-  flow_cat_sleep: svg(body({ face: "sleep" }) + acc.zz),
-  flow_cat_happy: svg(body({ face: "happy", blush: 0.6 }) + acc.heart),
-  flow_cat_curious: svg(body({ face: "open", look: 3, tilt: 9 })),
+  pawse_cat_groove: svg(body({ face: "open", tilt: -7 }) + acc.note),
+  pawse_cat_sleep: svg(body({ face: "sleep" }) + acc.zz),
+  pawse_cat_happy: svg(body({ face: "happy", blush: 0.6 }) + acc.heart),
+  pawse_cat_curious: svg(body({ face: "open", look: 3, tilt: 9 })),
 };
 
 const browser = await chromium.launch({

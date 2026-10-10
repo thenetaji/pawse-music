@@ -12,7 +12,9 @@ import {
 } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
+import { askText } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
+import { ChevronRight, ImportGlyph, PlusGlyph } from "../../components/glyphs";
 import { useTabRoot } from "../../components/page";
 import { Card } from "../../components/shelf";
 import { TrackRow } from "../../components/track-row";
@@ -291,17 +293,22 @@ export default function LibraryPage() {
             {filter === "playlists" ? (
               <>
                 <PressScale
-                  onPress={() => {
-                    const id = useLibrary
-                      .getState()
-                      .createPlaylist("New playlist");
-                    go(`/playlist/${id}`);
-                  }}
+                  onPress={() =>
+                    askText({
+                      title: "New playlist",
+                      placeholder: "My playlist",
+                      confirm: "Create",
+                      onSubmit: (name) =>
+                        go(
+                          `/playlist/${useLibrary.getState().createPlaylist(name)}`,
+                        ),
+                    })
+                  }
                   scaleTo={0.98}
                   style={styles.row}
                 >
                   <View style={styles.plus}>
-                    <Text style={styles.plusText}>+</Text>
+                    <PlusGlyph size={22} />
                   </View>
                   <Text style={styles.rowTitle}>New playlist</Text>
                 </PressScale>
@@ -311,7 +318,7 @@ export default function LibraryPage() {
                   style={styles.row}
                 >
                   <View style={styles.plus}>
-                    <Text style={styles.plusText}>↓</Text>
+                    <ImportGlyph size={22} />
                   </View>
                   <Text style={styles.rowTitle}>Import playlists</Text>
                 </PressScale>
@@ -526,7 +533,7 @@ function Row({
           {sub}
         </Text>
       </View>
-      <Text style={styles.chev}>›</Text>
+      <ChevronRight size={16} color="rgba(255,255,255,0.3)" />
     </PressScale>
   );
 }
@@ -677,7 +684,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.09)",
   },
-  plusText: { color: "#fff", fontSize: 24, fontWeight: "500" },
   hint: {
     color: "rgba(255,255,255,0.45)",
     fontSize: 15,
@@ -698,5 +704,4 @@ const styles = StyleSheet.create({
   },
   rowTitle: { color: "#fff", fontSize: 16, fontWeight: "500" },
   rowSub: { color: "rgba(255,255,255,0.5)", fontSize: 13.5, marginTop: 2 },
-  chev: { color: "rgba(255,255,255,0.3)", fontSize: 22 },
 });

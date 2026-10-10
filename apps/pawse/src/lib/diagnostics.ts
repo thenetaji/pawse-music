@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import { kv } from "../data/storage";
 
 // The last few hundred playback moments, kept on the phone so a bug report can include them.
-const KEY = "flow.diagnostics.v1";
+const KEY = "pawse.diagnostics.v1";
 const MAX = 300;
 let lines: string[] = [];
 try {

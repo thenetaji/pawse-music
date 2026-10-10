@@ -9,7 +9,7 @@ const SYNC_EVERY_MS = 6 * 3600_000;
 const PAGE_GAP_MS = 400;
 const LIKE_GAP_MS = 600;
 const MIX_TTL_MS = 86400_000;
-const MIX_KEY = "flow.mixes.v1";
+const MIX_KEY = "pawse.mixes.v1";
 // Liked music and episodes are not real library playlists.
 const SKIP_PLAYLISTS = new Set(["LM", "SE"]);
 
@@ -103,7 +103,7 @@ export async function importPlaylist(urlOrId: string): Promise<string> {
   return upsertSourcePlaylist(id, title || "Imported", tracks);
 }
 
-/** Copies the account's liked songs and library playlists into Flow's own library, so they stay after sign-out. */
+/** Copies the account's liked songs and library playlists into Pawse's own library, so they stay after sign-out. */
 export async function importFromYouTubeAccount(
   onProgress?: (label: string) => void,
 ): Promise<{ liked: number; playlists: number }> {

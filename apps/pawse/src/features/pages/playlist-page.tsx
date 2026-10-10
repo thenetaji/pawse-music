@@ -103,7 +103,7 @@ function SmartPlaylist({ id }: { id: string }) {
   );
 }
 
-// Downloads and the songs Flow kept from your listening: everything that plays with no internet.
+// Downloads and the songs Pawse kept from your listening: everything that plays with no internet.
 function OfflineSongs() {
   const tracks = useOfflineTracks();
   return (

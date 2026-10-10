@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
+import { CheckGlyph } from "../../components/glyphs";
 import { Chip, PressScale } from "../../components/ui";
 import {
   commitImport,
@@ -420,7 +421,9 @@ function PickLists({
                 stage.on[i] && { backgroundColor: accent, borderColor: accent },
               ]}
             >
-              {stage.on[i] ? <Text style={styles.checkMark}>✓</Text> : null}
+              {stage.on[i] ? (
+                <CheckGlyph size={14} weight={3.2} color="#000" />
+              ) : null}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle} numberOfLines={1}>
@@ -680,7 +683,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  checkMark: { color: "#000", fontSize: 14, ...display("900") },
   rowTitle: { color: "#fff", fontSize: 16, fontWeight: "600" },
   rowSub: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 2 },
   chips: { flexDirection: "row", gap: 8, marginTop: 14, marginBottom: 6 },

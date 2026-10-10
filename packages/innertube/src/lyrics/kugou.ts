@@ -8,7 +8,7 @@ import {
   titleMatches,
 } from "./match";
 
-// Metrolist's KuGou flow (song search → lyrics by hash → keyword fallback → download), with every candidate validated.
+// Metrolist's KuGou steps (song search → lyrics by hash → keyword fallback → download), with every candidate validated.
 const HEAD_CUT_LIMIT = 30;
 const HEAD_TITLE_MAX_SEC = 1;
 const MAX_HASH_LOOKUPS = 3;

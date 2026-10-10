@@ -156,6 +156,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.4,
     shadowRadius: 6,
+    elevation: 6,
   },
   text: {
     maxWidth: "62%",

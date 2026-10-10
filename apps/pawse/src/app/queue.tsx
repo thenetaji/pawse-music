@@ -404,6 +404,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.5,
     shadowRadius: 12,
+    elevation: 8,
   },
   text: { flex: 1, minWidth: 0 },
   title: { color: "#fff", fontSize: 16, fontWeight: "500" },

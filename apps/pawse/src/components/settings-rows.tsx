@@ -5,6 +5,10 @@ import { haptic } from "../lib/haptics";
 import { setSetting, useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
+import { ChevronRight } from "./glyphs";
+import { RIPPLE } from "./ui";
+
+const CHEV = "rgba(255,255,255,0.35)";
 
 // Grouped settings rows shared by Settings and Downloads.
 export function Section({
@@ -88,10 +92,15 @@ export function Pick<T extends string | number>({
           })),
         })
       }
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      android_ripple={RIPPLE}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && !RIPPLE && styles.pressed,
+      ]}
     >
       <Text style={[styles.label, { flex: 1 }]}>{label}</Text>
-      <Text style={styles.value}>{shown} ›</Text>
+      <Text style={styles.value}>{shown}</Text>
+      <ChevronRight size={16} color={CHEV} />
     </Pressable>
   );
 }
@@ -110,7 +119,11 @@ export function Link({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      android_ripple={RIPPLE}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && !RIPPLE && styles.pressed,
+      ]}
     >
       <Text
         style={[
@@ -121,7 +134,7 @@ export function Link({
       >
         {label}
       </Text>
-      {!danger && !tint ? <Text style={styles.value}>›</Text> : null}
+      {!danger && !tint ? <ChevronRight size={16} color={CHEV} /> : null}
     </Pressable>
   );
 }

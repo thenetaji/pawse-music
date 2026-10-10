@@ -9,6 +9,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ChevronRight } from "../components/glyphs";
+import { RIPPLE } from "../components/ui";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { useSetting } from "../lib/settings";
 import { display } from "../lib/type";
@@ -77,13 +79,14 @@ function Row({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
+      android_ripple={RIPPLE}
       style={({ pressed }) => [
         styles.row,
-        pressed && { backgroundColor: "rgba(255,255,255,0.06)" },
+        pressed && !RIPPLE && { backgroundColor: "rgba(255,255,255,0.06)" },
       ]}
     >
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.value}>›</Text>
+      <ChevronRight size={16} color="rgba(255,255,255,0.35)" />
     </Pressable>
   );
 }

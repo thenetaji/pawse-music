@@ -1,0 +1,22 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- The cat pill around the camera cutout ("Display over other apps", opt-in). -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+  <application>
+    <receiver
+      android:name="expo.modules.pawseisland.PawseWidgetProvider"
+      android:exported="true"
+      android:label="@string/pawse_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/pawse_widget_info" />
+    </receiver>
+    <!-- Play/pause and next from the widget; only our own PendingIntents reach it. -->
+    <receiver
+      android:name="expo.modules.pawseisland.PawseActionReceiver"
+      android:exported="false" />
+  </application>
+</manifest>

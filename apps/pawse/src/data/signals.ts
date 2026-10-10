@@ -58,7 +58,7 @@ export const useSignals = create<SignalsState>()(
       clear: () => set({ tracks: {} }),
     }),
     {
-      name: "flow.signals.v1",
+      name: "pawse.signals.v1",
       storage: createJSONStorage(() => kv),
       version: 1,
       partialize: (s) => ({ tracks: s.tracks }),

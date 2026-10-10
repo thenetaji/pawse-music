@@ -18,7 +18,7 @@ const MAX_BYTES = 20 << 20;
 /** Writes likes, playlists, history, saves and settings (no cookies) to JSON and opens the share sheet. */
 export async function exportLibrary(): Promise<void> {
   const day = new Date().toISOString().slice(0, 10);
-  const file = new File(Paths.cache, `flow-library-${day}.json`);
+  const file = new File(Paths.cache, `pawse-library-${day}.json`);
   if (file.exists) file.delete();
   file.create();
   file.write(JSON.stringify(makeBackup(useLibrary.getState())));

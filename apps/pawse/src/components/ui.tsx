@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { type ReactNode, useEffect } from "react";
 import {
   type GestureResponderEvent,
+  Platform,
   Pressable,
   type PressableProps,
   RefreshControl,
@@ -28,6 +29,12 @@ import { Cat, type CatColor, type CatMood } from "../features/cat/cat";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
 import { display } from "../lib/type";
+import { ChevronLeft } from "./glyphs";
+
+const ANDROID = Platform.OS === "android";
+/** Android press ripple for flat, square-cornered surfaces; RN's ripple ignores borderRadius. */
+export const RIPPLE = ANDROID ? { color: "rgba(255,255,255,0.08)" } : undefined;
+const LAYER = "rgba(255,255,255,0.08)";
 
 // Pressable that springs down and gives a light tap. One element, so layout styles (flex, padding) apply directly.
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -45,20 +52,42 @@ export function PressScale({
   children: ReactNode;
 }) {
   const s = useSharedValue(1);
+  const p = useSharedValue(0);
   const a = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  const layer = useAnimatedStyle(() => ({ opacity: p.value }));
+  // Android: surfaces get a ripple, rounded ones a fading state layer so nothing pokes past the corners.
+  const flat = ANDROID ? StyleSheet.flatten(style) : undefined;
+  const surface =
+    !!flat?.backgroundColor && flat.backgroundColor !== "transparent";
+  const radius = surface ? flat?.borderRadius : undefined;
   return (
     <AnimatedPressable
+      android_ripple={surface && !radius ? RIPPLE : undefined}
       {...rest}
-      onPressIn={() =>
-        s.set(withSpring(scaleTo, { damping: 16, stiffness: 420 }))
-      }
-      onPressOut={() => s.set(withSpring(1, { damping: 11, stiffness: 300 }))}
+      onPressIn={() => {
+        s.set(withSpring(scaleTo, { damping: 16, stiffness: 420 }));
+        if (radius) p.set(withTiming(1, { duration: 90 }));
+      }}
+      onPressOut={() => {
+        s.set(withSpring(1, { damping: 11, stiffness: 300 }));
+        if (radius) p.set(withTiming(0, { duration: 220 }));
+      }}
       onPress={(e: GestureResponderEvent) => {
         if (!quiet) haptic.tick();
         onPress?.(e);
       }}
       style={[style, a]}
     >
+      {radius ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            { borderRadius: radius, backgroundColor: LAYER },
+            layer,
+          ]}
+        />
+      ) : null}
       {children}
     </AnimatedPressable>
   );
@@ -145,9 +174,12 @@ export function Screen({
           <Pressable
             hitSlop={12}
             onPress={() => router.back()}
-            style={styles.back}
+            style={({ pressed }) => [
+              styles.back,
+              ANDROID && pressed && styles.backPressed,
+            ]}
           >
-            <Text style={styles.backText}>‹</Text>
+            <ChevronLeft size={20} weight={2.6} />
           </Pressable>
         ) : null}
         <View style={styles.titleRow}>
@@ -162,11 +194,15 @@ export function Screen({
         pointerEvents="none"
         style={[styles.bar, { height: insets.top + 44 }, bar]}
       >
-        <BlurView
-          intensity={50}
-          tint="systemChromeMaterialDark"
-          style={StyleSheet.absoluteFill}
-        />
+        {ANDROID ? (
+          <View style={[StyleSheet.absoluteFill, styles.barSolid]} />
+        ) : (
+          <BlurView
+            intensity={50}
+            tint="systemChromeMaterialDark"
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <View style={styles.hairline} />
         <Text style={[styles.barTitle, { marginTop: insets.top + 12 }]}>
           {title}
@@ -336,6 +372,7 @@ export function Chip({
   return (
     <PressScale
       onPress={onPress}
+      hitSlop={ANDROID ? { top: 7, bottom: 7 } : undefined}
       style={[
         styles.chip,
         on ? { backgroundColor: accent, borderColor: accent } : {},
@@ -359,7 +396,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.12)",
   },
-  backText: { color: "#fff", fontSize: 28, fontWeight: "400", marginTop: -3 },
+  backPressed: { backgroundColor: "rgba(255,255,255,0.2)" },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -383,6 +420,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     overflow: "hidden",
   },
+  // Android's BlurView is a flat translucent wash without a blur target, so it gets a solid surface.
+  barSolid: { backgroundColor: "#141418" },
   hairline: {
     position: "absolute",
     left: 0,
@@ -440,5 +479,15 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(255,255,255,0.14)",
   },
-  chipText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  chipText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    ...Platform.select({
+      android: {
+        includeFontPadding: false,
+        textAlignVertical: "center" as const,
+      },
+    }),
+  },
 });

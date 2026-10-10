@@ -43,7 +43,7 @@ const settings = () => useLibrary.getState().settings;
 
 const index = create<IndexState>()(
   persist(() => ({ entries: {} }), {
-    name: "flow.downloads.v1",
+    name: "pawse.downloads.v1",
     storage: createJSONStorage(() => kv),
     version: 1,
   }),
@@ -52,7 +52,7 @@ const live = create<LiveState>()(() => ({ progress: {} }));
 // Played songs kept for offline play: same manager, own index and folder, never mixed with user downloads.
 const cacheIndex = create<IndexState>()(
   persist(() => ({ entries: {} }), {
-    name: "flow.cache.v1",
+    name: "pawse.cache.v1",
     storage: createJSONStorage(() => kv),
     version: 1,
   }),
@@ -215,11 +215,47 @@ const isCached = (id: string) =>
 export const isAvailableOffline = (id: string) =>
   isDownloaded(id) || isCached(id);
 
+/** Roughly 128 kbps and up: good enough to keep when High quality is asked for. */
+const HIGH_KBPS = 100;
+
+// A song auto cache already kept moves into downloads instead of downloading again.
+function adoptCached(track: Track): boolean {
+  const e = cacheIndex.getState().entries[track.id];
+  if (e?.state !== "done" || !e.file || index.getState().entries[track.id])
+    return false;
+  const sec = track.durationSec ?? e.track.durationSec ?? 0;
+  const kbps = sec > 0 ? (e.bytes * 8) / sec / 1000 : 0;
+  if (settings().downloadQuality === "high" && kbps < HIGH_KBPS) return false;
+  try {
+    const audio = new File(cacheDir(), e.file);
+    if (!audio.exists) return false;
+    audio.moveSync(new File(downloadsDir(), e.file));
+    let art: string | undefined;
+    if (e.art) {
+      const pic = new File(cacheDir(), e.art);
+      if (pic.exists) {
+        pic.moveSync(new File(downloadsDir(), e.art));
+        art = e.art;
+      }
+    }
+    index.setState((s) => ({
+      entries: { ...s.entries, [e.id]: { ...e, art, addedAt: Date.now() } },
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function download(track: Track): void {
-  if (native && track.source !== "local") manager.download(track);
+  if (native && track.source !== "local" && !adoptCached(track))
+    manager.download(track);
 }
 export function downloadMany(tracks: Track[]): void {
-  if (native) manager.downloadMany(tracks.filter((t) => t.source !== "local"));
+  if (!native) return;
+  manager.downloadMany(
+    tracks.filter((t) => t.source !== "local" && !adoptCached(t)),
+  );
 }
 export const removeDownload = (id: string) => manager.remove(id);
 export function removeAllDownloads(): void {

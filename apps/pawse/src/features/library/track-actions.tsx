@@ -3,13 +3,14 @@ import { emitPlayerEvent, player } from "@pawse/player";
 import { router } from "expo-router";
 import { Share, StyleSheet, Text, View } from "react-native";
 
-import { showSheet } from "../../components/action-sheet";
+import { askText, showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
 import { download, isDownloaded, removeDownload } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { removeSong } from "../../lib/remove-song";
+import { getSetting } from "../../lib/settings";
 import { useShareCard } from "../../lib/share-card-store";
 import { openAlbum, openArtist } from "../../lib/song-links";
 
@@ -122,14 +123,33 @@ function showPlaylistPicker(track: Track) {
     actions: [
       {
         label: "New playlist",
-        onPress: () => lib.createPlaylist(track.title, [track]),
+        keepOpen: true,
+        onPress: () =>
+          askText({
+            title: "New playlist",
+            placeholder: "My playlist",
+            confirm: "Create",
+            onSubmit: (name) => {
+              useLibrary.getState().createPlaylist(name, [track]);
+              afterAdd(track);
+            },
+          }),
       },
       ...lib.playlists.map((p) => ({
         label: p.title,
-        onPress: () => lib.addToPlaylist(p.id, track),
+        onPress: () => {
+          lib.addToPlaylist(p.id, track);
+          afterAdd(track);
+        },
       })),
     ],
   });
+}
+
+// "Download songs I add to playlists" in Settings.
+function afterAdd(track: Track) {
+  if (getSetting("autoDownloadPlaylists", false) && !isDownloaded(track.id))
+    download(track);
 }
 
 const s = StyleSheet.create({

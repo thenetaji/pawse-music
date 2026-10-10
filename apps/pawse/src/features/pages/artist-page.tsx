@@ -3,7 +3,7 @@ import { player } from "@pawse/player";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated, {
   FadeInDown,
   interpolate,
@@ -204,7 +204,8 @@ const styles = StyleSheet.create({
     fontSize: 46,
     ...display("900"),
     letterSpacing: -1.6,
-    lineHeight: 50,
+    // Inter's taller ascent clips caps at 50 on Android.
+    lineHeight: Platform.OS === "android" ? 56 : 50,
   },
   subs: {
     color: "rgba(255,255,255,0.65)",

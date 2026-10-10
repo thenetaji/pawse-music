@@ -8,15 +8,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
 import {
-  Foot,
-  Link,
-  Pick,
-  Section,
-  Toggle,
-} from "../../components/settings-rows";
+  DownloadOptions,
+  formatBytes,
+} from "../../components/download-options";
 import { CatState, Chip, PressScale } from "../../components/ui";
 import {
-  clearCache,
   removeAllDownloads,
   removeDownload,
   retryDownloads,
@@ -86,7 +82,7 @@ export default function DownloadsPage() {
               message="Nothing kept yet. Finish a few songs on Wi-Fi."
             />
           }
-          ListFooterComponent={<Options keptBytes={cached.bytes} />}
+          ListFooterComponent={<DownloadOptions />}
           renderItem={({ item, index }) => (
             <Pressable
               onPress={() =>
@@ -158,7 +154,7 @@ export default function DownloadsPage() {
           data={list}
           keyExtractor={(d) => d.id}
           contentContainerStyle={{ paddingBottom: 60 }}
-          ListFooterComponent={<Options keptBytes={cached.bytes} />}
+          ListFooterComponent={<DownloadOptions />}
           ListEmptyComponent={
             <CatState
               kind="empty"
@@ -230,70 +226,6 @@ export default function DownloadsPage() {
       ) : null}
     </View>
   );
-}
-
-// Everything about keeping music on the phone, moved here from Settings.
-function Options({ keptBytes }: { keptBytes: number }) {
-  return (
-    <View style={{ marginTop: 8 }}>
-      <Section title="Downloads">
-        <Pick
-          k="downloadQuality"
-          label="Download quality"
-          def="high"
-          options={[
-            ["high", "High"],
-            ["saver", "Low · smaller files"],
-          ]}
-        />
-        <Toggle k="wifiOnly" label="Download on Wi-Fi only" def={false} />
-        <Toggle
-          k="autoDownloadLiked"
-          label="Download songs I like"
-          def={false}
-        />
-      </Section>
-      <Section title="Kept offline">
-        <Toggle k="autoCache" label="Keep songs I play" def />
-        <Pick
-          k="cacheLimitMb"
-          label="Space for kept songs"
-          def={500}
-          options={[
-            [250, "250 MB"],
-            [500, "500 MB"],
-            [1000, "1 GB"],
-            [4000, "4 GB"],
-          ]}
-        />
-        <Link
-          label={`Clear kept songs (${formatBytes(keptBytes)})`}
-          danger
-          onPress={() =>
-            showSheet({
-              actions: [
-                {
-                  label: "Clear kept songs",
-                  destructive: true,
-                  onPress: clearCache,
-                },
-              ],
-            })
-          }
-        />
-      </Section>
-      <Foot>
-        Kept songs are saved on Wi-Fi only when Data saver is on. Downloads stay
-        until you delete them.
-      </Foot>
-    </View>
-  );
-}
-
-export function formatBytes(b: number) {
-  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
-  if (b < 1024 ** 3) return `${(b / 1024 / 1024).toFixed(1)} MB`;
-  return `${(b / 1024 ** 3).toFixed(2)} GB`;
 }
 
 const styles = StyleSheet.create({

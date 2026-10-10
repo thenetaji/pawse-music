@@ -5,6 +5,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
+import Animated, {
+  type SharedValue,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 
 import { useDownload } from "../data/downloads";
@@ -38,10 +42,12 @@ export const TrackRow = memo(function TrackRow({
   swipeable = true,
   removable,
 }: Props) {
+  // Narrow selectors: a song change or play/pause re-renders only the rows it touches.
   const current = usePlayerSelect((s) => s.current?.id === track.id);
-  const playing = usePlayerSelect((s) => s.status === "playing");
+  const playing = usePlayerSelect(
+    (s) => s.current?.id === track.id && s.status === "playing",
+  );
   const dl = useDownload(track.id);
-  const accent = useAccent();
   const swipe = useRef<SwipeableMethods>(null);
   const sub =
     subtitle ??
@@ -68,27 +74,21 @@ export const TrackRow = memo(function TrackRow({
       ) : (
         <View style={styles.num}>
           {current ? (
-            <EqBars color={accent} playing={playing} />
+            <AccentEq playing={playing} />
           ) : (
             <Text style={styles.numText}>{index}</Text>
           )}
         </View>
       )}
       <View style={styles.text}>
-        <Text
-          style={[styles.title, current && { color: accent }]}
-          numberOfLines={1}
-        >
-          {track.explicit ? <Text style={styles.e}>E </Text> : null}
+        <Title current={current} explicit={!!track.explicit}>
           {track.title}
-        </Text>
+        </Title>
         <View style={styles.subRow}>
           {dl.state === "done" ? (
-            <DownloadedDot color={accent} />
+            <DownloadedDot />
           ) : dl.state === "downloading" ? (
-            <Text style={[styles.pct, { color: accent }]}>
-              {Math.round(dl.progress * 100)}%
-            </Text>
+            <Percent value={dl.progress} />
           ) : null}
           <Text style={styles.sub} numberOfLines={1}>
             {sub}
@@ -113,17 +113,15 @@ export const TrackRow = memo(function TrackRow({
       rightThreshold={70}
       overshootLeft={false}
       overshootRight={false}
-      renderLeftActions={() => (
-        <View style={[styles.action, { backgroundColor: accent }]}>
-          <Text style={styles.actionText}>Play next</Text>
-        </View>
-      )}
-      renderRightActions={() => (
-        <View style={[styles.action, styles.right]}>
-          <Text style={[styles.actionText, { color: "#fff" }]}>
-            Add to queue
-          </Text>
-        </View>
+      renderLeftActions={(_, t) => <PlayNextAction translation={t} />}
+      renderRightActions={(_, t) => (
+        <SwipeAction
+          translation={t}
+          side="right"
+          color="#2B2B34"
+          textColor="#fff"
+          label="Add to queue"
+        />
       )}
       onSwipeableWillOpen={(dir) => {
         haptic.medium();
@@ -137,7 +135,111 @@ export const TrackRow = memo(function TrackRow({
   );
 });
 
-function DownloadedDot({ color }: { color: string }) {
+// The accent changes with every song; only these small pieces read it, not every row.
+function Title({
+  current,
+  explicit,
+  children,
+}: {
+  current: boolean;
+  explicit: boolean;
+  children: string;
+}) {
+  const body = (
+    <>
+      {explicit ? <Text style={styles.e}>E </Text> : null}
+      {children}
+    </>
+  );
+  return current ? (
+    <AccentTitle>{body}</AccentTitle>
+  ) : (
+    <Text style={styles.title} numberOfLines={1}>
+      {body}
+    </Text>
+  );
+}
+
+function AccentTitle({ children }: { children: React.ReactNode }) {
+  const accent = useAccent();
+  return (
+    <Text style={[styles.title, { color: accent }]} numberOfLines={1}>
+      {children}
+    </Text>
+  );
+}
+
+function AccentEq({ playing }: { playing: boolean }) {
+  return <EqBars color={useAccent()} playing={playing} />;
+}
+
+function Percent({ value }: { value: number }) {
+  const accent = useAccent();
+  return (
+    <Text style={[styles.pct, { color: accent }]}>
+      {Math.round(value * 100)}%
+    </Text>
+  );
+}
+
+function PlayNextAction({ translation }: { translation: SharedValue<number> }) {
+  return (
+    <SwipeAction
+      translation={translation}
+      side="left"
+      color={useAccent()}
+      textColor="#000"
+      label="Play next"
+    />
+  );
+}
+
+// Rows are see-through so page colours show behind them; the colour fills only the gap the row slid away from.
+function SwipeAction({
+  translation,
+  side,
+  color,
+  textColor,
+  label,
+}: {
+  translation: SharedValue<number>;
+  side: "left" | "right";
+  color: string;
+  textColor: string;
+  label: string;
+}) {
+  const strip = useAnimatedStyle(() => ({
+    width: Math.max(
+      0,
+      side === "left" ? translation.value : -translation.value,
+    ),
+  }));
+  return (
+    <View style={styles.action}>
+      <Animated.View
+        style={[
+          styles.strip,
+          side === "left" ? styles.stripLeft : styles.stripRight,
+          { backgroundColor: color },
+          strip,
+        ]}
+      >
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.actionText,
+            { color: textColor, textAlign: side === "left" ? "left" : "right" },
+          ]}
+        >
+          {label}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+function DownloadedDot() {
+  const color = useAccent();
   return (
     <Svg width={13} height={13} viewBox="0 0 24 24">
       <Path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" fill={color} />
@@ -160,9 +262,8 @@ const styles = StyleSheet.create({
     gap: 13,
     paddingHorizontal: 20,
     paddingVertical: 7,
-    backgroundColor: "#000",
   },
-  pressed: { backgroundColor: "#111114" },
+  pressed: { backgroundColor: "rgba(255,255,255,0.06)" },
   overlay: {
     ...StyleSheet.absoluteFill,
     borderRadius: 7,
@@ -188,7 +289,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  action: { flex: 1, justifyContent: "center", paddingHorizontal: 22 },
-  right: { backgroundColor: "#2B2B34", alignItems: "flex-end" },
-  actionText: { color: "#000", fontSize: 15, ...display("800") },
+  action: { flex: 1 },
+  strip: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  stripLeft: { left: 0, alignItems: "flex-start" },
+  stripRight: { right: 0, alignItems: "flex-end" },
+  actionText: {
+    width: 150,
+    paddingHorizontal: 22,
+    fontSize: 15,
+    ...display("800"),
+  },
 });

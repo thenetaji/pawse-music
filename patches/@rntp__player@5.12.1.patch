@@ -14,7 +14,7 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..9025b6a3301b8704cac7d84cda346f22
    }
  }
  
-+// Flow patch: "Source error" alone hides the cause, so name the error code and any HTTP status.
++// Pawse patch: "Source error" alone hides the cause, so name the error code and any HTTP status.
 +@OptIn(UnstableApi::class)
 +internal fun describePlaybackError(error: PlaybackException): String {
 +  var cause: Throwable? = error.cause

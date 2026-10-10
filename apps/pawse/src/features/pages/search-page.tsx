@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
   Keyboard,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,6 +29,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path } from "react-native-svg";
 
 import { Artwork } from "../../components/artwork";
+import { CloseGlyph } from "../../components/glyphs";
 import { MoodTile } from "../../components/mood-tile";
 import { useBottomSpace, useTabRoot } from "../../components/page";
 import { openItem, Shelf } from "../../components/shelf";
@@ -36,6 +38,7 @@ import {
   CatState,
   Chip,
   PressScale,
+  RIPPLE,
   SectionTitle,
   SkeletonRows,
 } from "../../components/ui";
@@ -146,13 +149,16 @@ export default function SearchPage() {
                 }}
                 style={styles.clear}
               >
-                <Text style={styles.clearText}>×</Text>
+                <CloseGlyph size={10} weight={3.2} color="#000" />
               </Pressable>
             ) : null}
           </Pressable>
           {focused || query ? (
             <Animated.View entering={FadeIn.duration(150)}>
-              <Pressable hitSlop={8} onPress={cancel}>
+              <Pressable
+                hitSlop={Platform.OS === "android" ? 14 : 8}
+                onPress={cancel}
+              >
                 <Text style={[styles.cancel, { color: accent }]}>Cancel</Text>
               </Pressable>
             </Animated.View>
@@ -187,7 +193,11 @@ export default function SearchPage() {
             <Pressable
               key={s}
               onPress={() => submit(s)}
-              style={({ pressed }) => [styles.sugg, pressed && styles.pressed]}
+              android_ripple={RIPPLE}
+              style={({ pressed }) => [
+                styles.sugg,
+                pressed && !RIPPLE && styles.pressed,
+              ]}
             >
               <Svg
                 width={15}
@@ -270,7 +280,11 @@ function EmptySearch({
             <Pressable
               key={s}
               onPress={() => onPick(s)}
-              style={({ pressed }) => [styles.sugg, pressed && styles.pressed]}
+              android_ripple={RIPPLE}
+              style={({ pressed }) => [
+                styles.sugg,
+                pressed && !RIPPLE && styles.pressed,
+              ]}
             >
               <Text style={styles.recentIcon}>↺</Text>
               <Text style={styles.suggText} numberOfLines={1}>
@@ -517,7 +531,11 @@ function ItemRow({ item }: { item: CatalogItem }) {
   return (
     <Pressable
       onPress={() => openItem(item)}
-      style={({ pressed }) => [styles.itemRow, pressed && styles.pressed]}
+      android_ripple={RIPPLE}
+      style={({ pressed }) => [
+        styles.itemRow,
+        pressed && !RIPPLE && styles.pressed,
+      ]}
     >
       <Artwork
         thumbnails={item.thumbnails}
@@ -564,10 +582,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    height: 44,
-    borderRadius: 13,
-    paddingLeft: 12,
-    paddingRight: 8,
+    height: Platform.OS === "android" ? 48 : 44,
+    borderRadius: Platform.OS === "android" ? 24 : 13,
+    paddingLeft: Platform.OS === "android" ? 16 : 12,
+    paddingRight: Platform.OS === "android" ? 12 : 8,
     backgroundColor: "rgba(255,255,255,0.1)",
   },
   fieldOn: { backgroundColor: "rgba(255,255,255,0.14)" },
@@ -577,6 +595,15 @@ const styles = StyleSheet.create({
     fontSize: 17,
     paddingVertical: 0,
     height: 44,
+    // Android TextInput adds font padding and top-aligns its text inside the taller field.
+    ...Platform.select({
+      android: {
+        height: 48,
+        fontSize: 16,
+        includeFontPadding: false,
+        textAlignVertical: "center" as const,
+      },
+    }),
   },
   clear: {
     width: 20,
@@ -586,7 +613,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.3)",
   },
-  clearText: { color: "#000", fontSize: 15, ...display("800"), marginTop: -1 },
   cancel: { fontSize: 17, fontWeight: "500" },
   filterRow: { marginTop: 12, marginHorizontal: -16 },
   filters: { gap: 8, paddingHorizontal: 20 },

@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { TrackArt } from "../../components/artwork";
+import { Spinner, useBusy } from "../../components/spinner";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { NextGlyph, PauseGlyph, PlayGlyph } from "./icons";
@@ -22,6 +23,7 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
   const { current, status } = usePlayerState();
   const { position, duration } = useProgress();
   const accent = useAccent();
+  const busy = useBusy(status);
   const x = useSharedValue(0);
   const press = useSharedValue(1);
 
@@ -86,19 +88,24 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
             </Text>
             {!inline && (
               <Text style={styles.sub} numberOfLines={1}>
-                {artistLine(current.artists)}
+                {busy === "slow"
+                  ? "Still loading, the connection is slow…"
+                  : artistLine(current.artists)}
               </Text>
             )}
           </View>
           <Pressable
             hitSlop={10}
+            accessibilityLabel={playing ? "Pause" : "Play"}
             onPress={() => {
               haptic.light();
               player.toggle();
             }}
             style={styles.btn}
           >
-            {playing ? (
+            {busy !== "no" ? (
+              <Spinner size={inline ? 18 : 22} />
+            ) : playing ? (
               <PauseGlyph size={inline ? 22 : 26} />
             ) : (
               <PlayGlyph size={inline ? 22 : 26} />
@@ -107,6 +114,7 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
           {!inline && (
             <Pressable
               hitSlop={10}
+              accessibilityLabel="Next"
               onPress={() => {
                 haptic.light();
                 player.next();

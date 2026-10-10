@@ -73,17 +73,30 @@ describe("backup", () => {
 
   it("rejects foreign files and drops malformed rows", () => {
     expect(() => parseBackup({ liked: [] })).toThrow(BackupError);
-    expect(() => parseBackup({ format: "flow.library", version: 99 })).toThrow(
+    expect(() => parseBackup({ format: "pawse.library", version: 99 })).toThrow(
       /newer/,
     );
     const b = parseBackup({
-      format: "flow.library",
+      format: "pawse.library",
       version: 1,
       liked: [t("ok"), { id: 5 }, { ...t("bad"), source: "spotify" }, null],
       history: [{ track: t("x") }, { track: { nope: 1 }, at: 3 }],
     });
     expect(b.liked.map((x) => x.id)).toEqual(["ok"]);
     expect(b.history).toEqual([]);
+  });
+
+  it("reads backups exported before the rename and writes the new format", () => {
+    const b = parseBackup({
+      format: "flow.library",
+      version: 1,
+      liked: [t("old")],
+    });
+    expect(b.format).toBe("pawse.library");
+    expect(b.liked.map((x) => x.id)).toEqual(["old"]);
+    expect(() => parseBackup({ format: "other.library", version: 1 })).toThrow(
+      BackupError,
+    );
   });
 });
 

@@ -4,6 +4,7 @@ import {
   type Lyrics,
   type Track,
 } from "@pawse/music-core";
+import { usePlayerSelect, useProgress } from "@pawse/player";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
@@ -31,6 +32,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { Artwork } from "../../components/artwork";
+import { Spinner, useBusy } from "../../components/spinner";
 import { useDataSaverActive } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
@@ -55,7 +57,7 @@ import {
   QueueGlyph,
 } from "./icons";
 import { LyricsView } from "./lyrics-view";
-import { useArtworkPalette } from "./use-artwork-palette";
+import { useNowPalette } from "./now-palette";
 
 export type NowPlayingStatus =
   | "idle"
@@ -67,9 +69,6 @@ export type NowPlayingStatus =
 
 export type NowPlayingProps = {
   track?: Track;
-  status: NowPlayingStatus;
-  position: number;
-  duration: number;
   lyrics?: Lyrics | null;
   lyricsLoading?: boolean;
   mode?: "art" | "lyrics";
@@ -102,16 +101,20 @@ export function NowPlayingView(p: NowPlayingProps) {
   const thumbs = useSongArt(p.track);
   const art = p.track ? bestThumbnail(thumbs, saver ? 544 : 1080) : undefined;
   const hero = useHeroArt(p.track?.id, art, saver);
-  const palette = useArtworkPalette(
-    p.track ? bestThumbnail(thumbs, 120) : undefined,
-  );
+  // The app-wide palette: it changes once per song, after the skip has settled.
+  const palette = useNowPalette((s) => s.palette);
   const background = useSetting<"field" | "blur" | "black">(
     "npBackground",
     "field",
   );
   const showLine = useSetting("lyricsLine", true);
-  const playing = p.status === "playing" || p.status === "buffering";
-  const mood = useCatMood(p.status, p.liked, p.track, p.context?.title);
+  // Loading counts as live, so a skip doesn't dim the art or re-render this screen twice.
+  const playing = usePlayerSelect(
+    (s) =>
+      s.status === "playing" ||
+      s.status === "buffering" ||
+      s.status === "loading",
+  );
   const lyricsMode = p.mode === "lyrics";
 
   // Paused: the artwork dims and settles back a touch.
@@ -178,10 +181,6 @@ export function NowPlayingView(p: NowPlayingProps) {
     );
     p.onLike();
   };
-
-  const lines = p.lyrics?.synced ? p.lyrics.lines : [];
-  const li = activeLine(lines, p.position * 1000);
-  const singing = showLine && li >= 0 ? lines[li].text : "";
 
   const likeButton = (
     <Pressable
@@ -278,20 +277,18 @@ export function NowPlayingView(p: NowPlayingProps) {
                   </Pressable>
                   <Pressable onPress={p.onArtist} style={styles.link}>
                     <Text style={styles.artist} numberOfLines={1}>
-                      {p.track ? artistLine(p.track.artists) : " "}
+                      <ArtistText track={p.track} />
                     </Text>
                   </Pressable>
                 </View>
                 {likeButton}
               </View>
               <View style={{ width: side }}>
-                <CatScrubber
-                  position={p.position}
-                  duration={p.duration}
-                  mood={mood}
+                <Scrubber
+                  track={p.track}
+                  liked={p.liked}
+                  sourceTitle={p.context?.title}
                   cups={[palette.accent, palette.accentDeep]}
-                  playing={playing}
-                  trackId={p.track?.id}
                   onSeek={p.onSeek}
                   onLike={() => !p.liked && like()}
                 />
@@ -300,13 +297,7 @@ export function NowPlayingView(p: NowPlayingProps) {
                     <PrevGlyph size={38} />
                   </Btn>
                   <Btn onPress={p.onToggle} big>
-                    {p.status === "loading" ? (
-                      <Loader />
-                    ) : playing ? (
-                      <PauseGlyph size={46} />
-                    ) : (
-                      <PlayGlyph size={46} />
-                    )}
+                    <PlayIcon size={46} />
                   </Btn>
                   <Btn onPress={p.onNext}>
                     <NextGlyph size={38} />
@@ -318,7 +309,6 @@ export function NowPlayingView(p: NowPlayingProps) {
               <LyricsView
                 lyrics={p.lyrics}
                 loading={!!p.lyricsLoading}
-                position={p.position}
                 onSeek={p.onSeek}
                 onShare={p.onShareLyric}
               />
@@ -435,7 +425,6 @@ export function NowPlayingView(p: NowPlayingProps) {
               <LyricsView
                 lyrics={p.lyrics}
                 loading={!!p.lyricsLoading}
-                position={p.position}
                 onSeek={p.onSeek}
                 onShare={p.onShareLyric}
               />
@@ -500,7 +489,7 @@ export function NowPlayingView(p: NowPlayingProps) {
                     style={styles.artist}
                     numberOfLines={1}
                   >
-                    {p.track ? artistLine(p.track.artists) : " "}
+                    <ArtistText track={p.track} />
                   </Animated.Text>
                 </Pressable>
               </View>
@@ -508,28 +497,16 @@ export function NowPlayingView(p: NowPlayingProps) {
             </View>
 
             <Pressable onPress={p.onLyrics} style={styles.singing}>
-              {singing ? (
-                <Animated.Text
-                  key={li}
-                  entering={FadeInDown.duration(380)}
-                  exiting={FadeOut.duration(200)}
-                  style={styles.singingText}
-                  numberOfLines={1}
-                >
-                  {singing}
-                </Animated.Text>
-              ) : null}
+              {showLine ? <SingingLine lyrics={p.lyrics} /> : null}
             </Pressable>
           </>
         )}
 
-        <CatScrubber
-          position={p.position}
-          duration={p.duration}
-          mood={mood}
+        <Scrubber
+          track={p.track}
+          liked={p.liked}
+          sourceTitle={p.context?.title}
           cups={[palette.accent, palette.accentDeep]}
-          playing={playing}
-          trackId={p.track?.id}
           onSeek={p.onSeek}
           onLike={() => !p.liked && like()}
         />
@@ -550,13 +527,7 @@ export function NowPlayingView(p: NowPlayingProps) {
             }}
             big
           >
-            {p.status === "loading" ? (
-              <Loader />
-            ) : playing ? (
-              <PauseGlyph size={52} />
-            ) : (
-              <PlayGlyph size={52} />
-            )}
+            <PlayIcon size={52} />
           </Btn>
           <Btn
             onPress={() => {
@@ -626,6 +597,79 @@ export function NowPlayingView(p: NowPlayingProps) {
   );
 }
 
+// Status and progress are read here, so their frequent changes re-render only the wire and its cat.
+function Scrubber({
+  track,
+  liked,
+  sourceTitle,
+  cups,
+  onSeek,
+  onLike,
+}: {
+  track?: Track;
+  liked: boolean;
+  sourceTitle?: string;
+  cups: [string, string];
+  onSeek: (sec: number) => void;
+  onLike: () => void;
+}) {
+  const status = usePlayerSelect((s) => s.status);
+  const { position, duration } = useProgress();
+  const mood = useCatMood(status, liked, track, sourceTitle);
+  return (
+    <CatScrubber
+      position={position}
+      duration={duration || track?.durationSec || 0}
+      mood={mood}
+      cups={cups}
+      playing={status === "playing" || status === "buffering"}
+      trackId={track?.id}
+      onSeek={onSeek}
+      onLike={onLike}
+    />
+  );
+}
+
+// Spinner once loading lasts a moment, otherwise play or pause.
+function PlayIcon({ size }: { size: number }) {
+  const status = usePlayerSelect((s) => s.status);
+  const busy = useBusy(status);
+  if (busy !== "no") return <Spinner size={40} width={4} />;
+  return status === "playing" || status === "buffering" ? (
+    <PauseGlyph size={size} />
+  ) : (
+    <PlayGlyph size={size} />
+  );
+}
+
+// The artist line, or a note when loading drags on.
+function ArtistText({ track }: { track?: Track }) {
+  const busy = useBusy(usePlayerSelect((s) => s.status));
+  if (!track) return " ";
+  return busy === "slow"
+    ? "Still loading, the connection is slow…"
+    : artistLine(track.artists);
+}
+
+// The line being sung, under the title; it follows progress on its own.
+function SingingLine({ lyrics }: { lyrics?: Lyrics | null }) {
+  const { position } = useProgress();
+  const lines = lyrics?.synced ? lyrics.lines : [];
+  const li = activeLine(lines, position * 1000);
+  if (li < 0 || !lines[li].text) return null;
+  return (
+    <Animated.Text
+      key={li}
+      entering={FadeInDown.duration(380)}
+      exiting={FadeOut.duration(200)}
+      style={styles.singingText}
+      numberOfLines={1}
+    >
+      {lines[li].text}
+    </Animated.Text>
+  );
+}
+
 function ExpandGlyph() {
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24">
@@ -681,17 +725,6 @@ function deepen(color: string): string {
     )
     .join("");
   return `#${hex}`;
-}
-
-function Loader() {
-  const spin = useSharedValue(0);
-  useEffect(() => {
-    spin.set(withTiming(360 * 50, { duration: 40000 }));
-  }, [spin]);
-  const style = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${spin.value}deg` }],
-  }));
-  return <Animated.View style={[styles.loader, style]} />;
 }
 
 function Btn({
@@ -840,14 +873,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   btnBig: { width: 88, height: 88, borderRadius: 44 },
-  loader: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 4,
-    borderColor: "rgba(255,255,255,0.25)",
-    borderTopColor: "#fff",
-  },
   bottom: {
     flexDirection: "row",
     justifyContent: "space-around",

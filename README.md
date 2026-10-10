@@ -52,7 +52,32 @@ Also: word-by-word lyrics, a sleep timer, the same loudness for every song, song
 
 ## Install
 
+Pick your device below. Every release is on the [releases page](https://github.com/thenetaji/pawse-music/releases/latest).
+
+### Which file do I need?
+
+| File | For | Size |
+| --- | --- | --- |
+| [Pawse.ipa](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa) | iPhone. You install it with SideStore, AltStore or Sideloadly. | 24 MB |
+| [Pawse.apk](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk) | Android. One file for all phones. | 66 MB |
+| [Pawse-mac-arm64.dmg](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-arm64.dmg) | Macs with Apple silicon (M1 and newer). | 128 MB |
+| [Pawse-mac-x64.dmg](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-x64.dmg) | Intel Macs. | 135 MB |
+| [Pawse-Setup.exe](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-Setup.exe) | Windows 10 and 11, 64-bit. | 112 MB |
+| [Pawse-linux-x86_64.AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage) | Any 64-bit Linux. | 126 MB |
+| [Pawse-linux-amd64.deb](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-amd64.deb) | Ubuntu, Debian, Mint and Pop!_OS. | 100 MB |
+
+Sizes are from version 0.6.0. The computer apps are big because each one carries its own copy of Chromium (they are built with Electron).
+
+**Two names for every file.** Each release has every file twice: with the version in the name (`Pawse-0.6.0.apk`) and without it (`Pawse.apk`). They are the same file.
+
+- The plain names are what the download buttons use. They always mean the newest version.
+- The versioned names are for when you want to keep an exact version, or install it again later.
+
+Not sure which Mac you have? Open the Apple menu, then **About This Mac**. If you see **Chip** (Apple M…), you have Apple silicon. If you see **Processor** (Intel…), you have an Intel Mac.
+
 ### iPhone
+You need iOS 16.4 or newer. The Dynamic Island and the Lock Screen card need iOS 17 or newer.
+
 1. Install **SideStore** on your iPhone, once: follow [this guide](https://docs.sidestore.io/docs/installation/prerequisites) (you need a computer one time).
 2. In SideStore, open **Sources** → tap **+** → paste:
    ```
@@ -61,30 +86,95 @@ Also: word-by-word lyrics, a sleep timer, the same loudness for every song, song
 3. Tap **Pawse** → **Install**.
 4. In SideStore settings, turn on **Background Refresh**, so the app keeps working past 7 days (a free Apple ID limit).
 
+**Other ways.** Download **[Pawse.ipa](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa)** and install it with **AltStore** or **Sideloadly**. Both let you pick an IPA file from your computer.
+
+**The 7-day limit.** A free Apple ID lets an app run for 7 days, then it stops opening. When that happens, open SideStore and refresh Pawse. Your library stays.
+
+**The Dynamic Island.** The cat lives in the Dynamic Island on iPhones that have one (iPhone 14 Pro and newer). Other iPhones get the Lock Screen card instead. Pick its look in **Settings → Cat → Dynamic Island style**: the cat with sound bars, sound bars only, or the time left.
+
 ### Android
+You need Android 7.0 or newer.
+
 1. Download **[Pawse.apk](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk)**.
 2. Open it. If Android asks, allow your browser to **install unknown apps**.
-3. Done. Pawse tells you when a new version is out.
+3. If Play Protect warns you, tap **More details → Install anyway**.
+4. Done. Pawse tells you when a new version is out. Updates install over the app, and your library stays.
+
+**The cat pill around the camera.** In Pawse, go to **Settings → Android** and turn on the pill. Android asks for **Display over other apps**. Allow it for Pawse.
+
+**Music stops in the background?** Some phones (Samsung, Xiaomi, Oppo, Vivo and others) close music apps to save battery. Open **Settings → Android → Keep Pawse running** and allow Pawse there.
 
 ### Mac
+You need the file for your chip. See "Which file do I need?" above.
+
 1. Download **[Pawse for Apple silicon](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-arm64.dmg)** (M1 and newer) or **[for Intel Macs](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-x64.dmg)**.
 2. Open it and drag **Pawse** into **Applications**.
 3. The first time, macOS says it can't check the app. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. You only do this once.
+
+If **Open Anyway** doesn't show up, open **Terminal**, run this, then open Pawse again:
+
+```
+xattr -dr com.apple.quarantine /Applications/Pawse.app
+```
 
 ### Windows
 1. Download **[Pawse-Setup.exe](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-Setup.exe)** and open it.
 2. If Windows shows "Windows protected your PC", click **More info → Run anyway**. You only do this once.
 3. Pawse installs and opens. It's in the Start menu from then on.
 
-### Linux
-- **[AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage)**: make it executable (`chmod +x Pawse-linux-x86_64.AppImage`) and run it.
-- **[.deb](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-amd64.deb)** for Ubuntu, Debian and Mint: `sudo apt install ./Pawse-linux-amd64.deb`.
+To remove it, open **Settings → Apps → Installed apps**, find **Pawse** and click **Uninstall**.
 
-On a computer, the keyboard works too: **Space** plays and pauses, **← →** jump 10 seconds, **Shift ← →** skip songs, **Ctrl/⌘ F** searches. Media keys and the system's Now Playing controls work as well.
+### Linux
+- **[AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage)**: make it executable (`chmod +x Pawse-linux-x86_64.AppImage`) and run it. On Ubuntu 22.04 and newer it also needs FUSE: `sudo apt install libfuse2` (on Ubuntu 24.04 the name is `libfuse2t64`).
+- **[.deb](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-amd64.deb)** for Ubuntu, Debian, Mint and Pop!_OS: `sudo apt install ./Pawse-linux-amd64.deb`. To remove it: `sudo apt remove pawse`.
+
+### On a computer
+The keyboard works too: **Space** plays and pauses, **← →** jump 10 seconds, **Shift ← →** skip songs, **Ctrl/⌘ F** searches. Media keys and the system's Now Playing controls work as well.
+
+Removing the app doesn't remove your library. For a clean uninstall, also delete the Pawse folder:
+
+| System | Folder |
+| --- | --- |
+| Mac | `~/Library/Application Support/Pawse` |
+| Windows | `%APPDATA%\Pawse` |
+| Linux | `~/.config/Pawse` |
 
 ### Updates
 - Pawse checks once a day and asks before updating. On a computer it opens the download page for the new version.
 - Or open **Settings → About → Check for updates**.
+
+## Keep your library safe
+
+Open **Settings → Backup → Export library**. Pawse saves everything below into one file:
+
+- your likes and playlists
+- your play history (the last 1,000 plays, which is what your listening stats are made from)
+- saved albums and followed artists
+- your settings
+
+Save the file somewhere safe, like Files or Google Drive. To get it all back, even on another phone, open **Settings → Backup → Import library** and pick the file.
+
+A backup does not hold:
+
+- downloaded songs (download them again)
+- your YouTube sign-in (sign in again)
+- what Pawse has learned for your recommendations
+
+Deleting the app deletes its data. Export first.
+
+## Moving to the new Pawse app (iPhone and Android)
+
+From version 0.7.0, Pawse has its own app ID on iPhone and Android. That means it installs as a separate app next to the old one, instead of updating it. Your library doesn't move by itself, so bring it over with a backup:
+
+1. In the old app, open **Settings → Backup → Export library** and save the file.
+2. Install the new Pawse.
+   - iPhone: add the SideStore source again (or refresh it), then install **Pawse**.
+   - Android: download **[Pawse.apk](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk)**.
+3. Open the new Pawse and import your file with **Settings → Backup → Import library**. The new app also offers this the first time you open it.
+4. Check that your likes, playlists and stats are there.
+5. Delete the old app.
+
+Sign in to YouTube Music again, and download your offline songs again. Desktop users don't need to do anything.
 
 ## Good to know
 

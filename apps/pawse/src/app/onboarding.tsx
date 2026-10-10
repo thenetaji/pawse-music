@@ -1,7 +1,14 @@
 import type { ArtistSummary, SearchResults } from "@pawse/music-core";
 import { router } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import Animated, { FadeIn, FadeInDown, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,6 +19,7 @@ import { Cat, type CatColor } from "../features/cat/cat";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
 import { useRegion } from "../lib/locale";
+import { count } from "../lib/plural";
 import { setSetting, useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import { useResource } from "../lib/use-resource";
@@ -76,6 +84,19 @@ export default function Onboarding() {
     if (router.canGoBack()) router.back();
     else router.replace("/");
   };
+  // Moving from the old app: bring the library, history and settings over, then skip the rest.
+  const restore = () =>
+    void import("../data/backup")
+      .then((m) => m.importLibrary())
+      .then((r) => {
+        if (!r) return;
+        Alert.alert(
+          "Welcome back",
+          `${count(r.liked, "like")}, ${count(r.playlists, "playlist")} and ${count(r.plays, "play")} are back.`,
+        );
+        finish();
+      })
+      .catch((e: Error) => Alert.alert("Couldn't restore", e.message));
   const next = () => {
     haptic.light();
     if (step < 3) setStep(step + 1);
@@ -264,6 +285,14 @@ export default function Onboarding() {
         )}
       </Animated.View>
 
+      {step === 0 ? (
+        <PressScale onPress={restore} style={styles.restore}>
+          <Text style={styles.restoreText}>
+            Used Pawse before?{" "}
+            <Text style={styles.restoreLink}>Restore a backup</Text>
+          </Text>
+        </PressScale>
+      ) : null}
       <PressScale onPress={next} style={[styles.cta, { marginHorizontal: 24 }]}>
         <Text style={styles.ctaText}>
           {step === 3
@@ -386,4 +415,7 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
   ctaText: { color: "#000", fontSize: 17, ...display("800") },
+  restore: { alignSelf: "center", paddingVertical: 12, marginBottom: 6 },
+  restoreText: { color: "rgba(255,255,255,0.55)", fontSize: 15 },
+  restoreLink: { color: "#fff", ...display("700") },
 });

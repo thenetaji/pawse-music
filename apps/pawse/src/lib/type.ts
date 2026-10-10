@@ -10,5 +10,10 @@ const INTER = {
 /** Heading weight: SF Pro on iOS, Inter on Android (the family carries the weight there). */
 export function display(weight: keyof typeof INTER): TextStyle {
   if (Platform.OS !== "android") return { fontWeight: weight };
-  return { fontFamily: INTER[weight], fontWeight: "normal" };
+  // Android's extra font padding pushes Inter headings off-centre next to icons and chips.
+  return {
+    fontFamily: INTER[weight],
+    fontWeight: "normal",
+    includeFontPadding: false,
+  };
 }

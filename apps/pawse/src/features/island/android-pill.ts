@@ -10,10 +10,10 @@ import {
 import { AppState, Platform } from "react-native";
 
 import {
-  FlowIsland,
+  PawseIsland,
   type PillMood,
   type PillState,
-} from "../../../modules/flow-island-android";
+} from "../../../modules/pawse-island-android";
 import { useLibrary } from "../../data/library";
 import { onArtworkReady, readyArtwork } from "../../lib/artwork";
 import { getSetting } from "../../lib/settings";
@@ -44,7 +44,7 @@ let stopController: (() => void) | null = null;
 /** Call once from the app root. Returns a stop function (handy for fast refresh). */
 export function startAndroidPill(): () => void {
   if (stopController) return stopController;
-  if (Platform.OS !== "android" || !FlowIsland.available) return () => {};
+  if (Platform.OS !== "android" || !PawseIsland.available) return () => {};
 
   let shown = false;
   let lastKey = "";
@@ -96,11 +96,11 @@ export function startAndroidPill(): () => void {
       ? compose(track, live && isPlaying(s.status))
       : last && { ...last, isPlaying: false, mood: "sleep" };
     const want =
-      live && pillPrefs().enabled && FlowIsland.hasOverlayPermission();
+      live && pillPrefs().enabled && PawseIsland.hasOverlayPermission();
 
     if (!want && shown) {
       shown = false;
-      call(() => FlowIsland.hide());
+      call(() => PawseIsland.hide());
     }
     if (!state) return;
     last = state;
@@ -109,10 +109,10 @@ export function startAndroidPill(): () => void {
     lastKey = key;
     if (want && !shown) {
       shown = true;
-      call(() => FlowIsland.show(state));
+      call(() => PawseIsland.show(state));
     } else {
       // Also keeps the home-screen widget current when the pill is off.
-      call(() => FlowIsland.update(state));
+      call(() => PawseIsland.update(state));
     }
   }
 
@@ -144,7 +144,7 @@ export function startAndroidPill(): () => void {
   const unsubSkipped = onPlayerEvent("skipped", () =>
     setFlash("curious", CURIOUS_MS),
   );
-  const unsubAction = FlowIsland.onAction((action) =>
+  const unsubAction = PawseIsland.onAction((action) =>
     action === "next" ? player.next() : player.toggle(),
   );
   const unsubArt = onArtworkReady((id) => {

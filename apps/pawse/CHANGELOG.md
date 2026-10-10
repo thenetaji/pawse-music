@@ -2,6 +2,33 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [0.7.0] - 2026-10-10
+
+### Important: Pawse is a new app on iPhone and Android
+- Pawse now has its own app ID, so this version installs as a **new app next to the old one** instead of updating it. Your library doesn't move by itself:
+  1. In the old app, open **Settings → Backup → Export library** and save the file.
+  2. Install the new Pawse and choose **Restore a backup** on the first screen (or **Settings → Backup → Import library**).
+  3. Check your likes, playlists and stats, then delete the old app.
+- The backup holds your likes, playlists, play history (your stats), saved albums, followed artists and settings. Sign in again and download offline songs again. On Mac, Windows and Linux nothing changes.
+
+### Added
+- Dynamic Island styles in **Settings → Cat → Dynamic Island style**: the cat with sound bars, sound bars only, or the time left. The island is wider and roomier, like Apple Music's, with a bigger player when you hold it.
+- A loading spinner on the play button while a song starts or buffers, and a "connection is slow" note when it takes a while, instead of looking frozen.
+- Download settings are in **Settings** now (they were hidden on the Downloads page), plus **Download songs I add to playlists** and an 8 GB option for kept songs.
+- **Also after playlists and albums** in Settings → Playback: choose whether similar songs keep playing when a playlist or album ends.
+- **Restore a backup** on the first screen, and Settings → Backup shows what your backup holds.
+
+### Changed
+- Android has a new bottom bar: the mini player and the tabs sit together in one dock that fades into the page, with Pawse's own icons.
+- Playlists and albums now stop at their last song instead of adding similar songs, unless you turn that on.
+- "New playlist" asks for a name, instead of naming the playlist after the song.
+
+### Fixed
+- Changing songs no longer freezes the app for a moment on slower phones; colours change after the song has started.
+- Play/pause in the Dynamic Island no longer flips back or sticks on the wrong icon.
+- Downloading a playlist no longer downloads songs again that Pawse already kept offline; they move to Downloads instead.
+- Icons that looked off or were missing on some Android phones (back, add, import, checkmarks, arrows) are drawn the same everywhere now.
+
 ## [0.6.0] - 2026-10-10
 
 ### Added
@@ -119,6 +146,9 @@ Flow is now **Pawse** (say it like "pause"), and it's open source.
 - Signing in takes effect immediately and is verified in Settings.
 - Background audio safeguards; Settings → About → Show onboarding again.
 
+[0.7.0]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.0
+[0.6.0]: https://github.com/thenetaji/pawse-music/releases/tag/v0.6.0
+[0.5.0]: https://github.com/thenetaji/pawse-music/releases/tag/v0.5.0
 [0.4.0]: https://github.com/thenetaji/pawse-music/releases/tag/v0.4.0
 [0.3.0]: https://github.com/thenetaji/studio/releases/tag/flow-v0.3.0
 [0.2.0]: https://github.com/thenetaji/studio/releases/tag/flow-v0.2.0
