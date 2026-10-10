@@ -181,7 +181,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     this.cookies = options.cookies;
     this.visitorData = options.visitorData;
     this.verify = options.verifyStream ?? true;
-    this.verifyBudgetMs = options.verifyBudgetMs ?? 400;
+    this.verifyBudgetMs = options.verifyBudgetMs ?? 1500;
     this.opus = options.platform === "android";
     this.onRequestError = options.onRequestError;
     const url =

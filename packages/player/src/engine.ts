@@ -537,8 +537,11 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
   const position = TrackPlayer.getProgress().position || savedPos;
   const last = retried.get(key);
   // A source error (HTTP status, unreadable file) blames the stream's source, so the next source gets a turn.
+  // A YouTube URL that never starts counts too: AVPlayer just buffers on a refused URL.
+  const deadStart =
+    (e.code as string) === "stalled" && position < 1 && !!via?.startsWith("youtube:");
   const switched =
-    e.code === "source" &&
+    (e.code === "source" || deadStart) &&
     !!via &&
     blame(track.id, via) &&
     (failedVia.get(track.id)?.size ?? 0) <= MAX_SOURCE_SWITCHES;

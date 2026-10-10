@@ -4,6 +4,11 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-10
+
+### Fixed
+- A YouTube song that gets stuck before it starts no longer stalls: Pawse checks its link longer on slow connections and moves on to the next way of asking YouTube.
+
 ## [0.8.1] - 2026-10-10
 
 ### Changed
