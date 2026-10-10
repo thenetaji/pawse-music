@@ -9,7 +9,6 @@ import {
 } from "expo-router/ui";
 import { type ComponentType, forwardRef, useEffect, useState } from "react";
 import {
-  Platform,
   Pressable,
   type PressableStateCallbackType,
   StyleSheet,
@@ -33,6 +32,7 @@ import { PlayerBar } from "./player-bar";
 
 // React Native Web adds hover to the pressable state.
 type Hover = PressableStateCallbackType & { hovered?: boolean };
+
 /** Windows at least this wide get the sidebar and player bar instead of tabs. */
 export const DESKTOP_MIN_WIDTH = 900;
 
@@ -42,16 +42,6 @@ const NAV = [
   { name: "search", href: "/search", label: "Search", Icon: SearchIcon },
   { name: "library", href: "/library", label: "Library", Icon: LibraryIcon },
 ] as const;
-
-// The Mac app hides its title bar; this strip leaves room for the window buttons and drags the window.
-const macApp =
-  Platform.OS === "web" &&
-  typeof navigator !== "undefined" &&
-  /Macintosh/.test(navigator.userAgent) &&
-  /Electron/.test(navigator.userAgent);
-
-// React Native Web turns dataSet into data-* attributes; the Mac app makes [data-drag] a drag handle.
-const DRAG = { dataSet: { drag: "1" } } as object;
 
 export function DesktopShell() {
   useDesktopKeys();
@@ -83,7 +73,7 @@ function Sidebar() {
   const accent = useAccent();
   return (
     <View style={styles.sidebar}>
-      <View style={[styles.brand, macApp && styles.brandMac]} {...DRAG}>
+      <View style={styles.brand}>
         <Text style={styles.wordmark}>Pawse</Text>
       </View>
       <View style={styles.nav}>
@@ -199,7 +189,6 @@ const styles = StyleSheet.create({
     borderRightColor: "rgba(255,255,255,0.08)",
   },
   brand: { height: 64, justifyContent: "flex-end", paddingHorizontal: 12 },
-  brandMac: { height: 84 },
   wordmark: { color: "#fff", fontSize: 24, ...display("800") },
   nav: { marginTop: 18, gap: 2 },
   item: {

@@ -4,7 +4,14 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { app, BrowserWindow, Menu, protocol, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  nativeTheme,
+  protocol,
+  shell,
+} from "electron";
 
 import { relay } from "./relay.mjs";
 
@@ -77,7 +84,6 @@ function createWindow() {
     backgroundColor: "#000000",
     title: "Pawse",
     show: false,
-    titleBarStyle: mac ? "hiddenInset" : "default",
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,
@@ -86,11 +92,9 @@ function createWindow() {
     },
   });
   win.once("ready-to-show", () => win.show());
-  // Slim dark scrollbars; on a Mac the sidebar's top strip ([data-drag]) also moves the window.
+  // Slim dark scrollbars, like the rest of the app.
   win.webContents.on("did-finish-load", () => {
-    void win.webContents.insertCSS(
-      `${SCROLLBARS}${mac ? "[data-drag]{-webkit-app-region:drag}" : ""}`,
-    );
+    void win.webContents.insertCSS(SCROLLBARS);
   });
   // Links to GitHub, YouTube and the like open in the browser.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -135,6 +139,8 @@ else {
   app.on("activate", () => win?.show());
 
   app.whenReady().then(() => {
+    // A dark title bar and window chrome to match the app.
+    nativeTheme.themeSource = "dark";
     protocol.handle("pawse", (request) => {
       const url = new URL(request.url);
       if (url.host !== "app") return new Response("", { status: 404 });
