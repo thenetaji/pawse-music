@@ -115,6 +115,11 @@ public class PawseActivityModule: Module {
       }
     }
 
+    // Read by the patched AVPlayerEngine when an audio interruption ends.
+    Function("setResumeAfterInterruption") { (on: Bool) in
+      UserDefaults.standard.set(on, forKey: "pawse.resumeAfterInterruption")
+    }
+
     // Downloads a small square JPEG into the App Group and returns its file name, or nil.
     AsyncFunction("setArtwork") { (url: String) async -> String? in
       await PawseArtwork.store(url)

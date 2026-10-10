@@ -1,5 +1,5 @@
 diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
-index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..9025b6a3301b8704cac7d84cda346f221f8fc0d3 100644
+index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..9aafdb0c0f0e5a85923ac51313621748feee31e5 100644
 --- a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
 +++ b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
 @@ -34,6 +34,7 @@ import androidx.media3.datasource.DataSource
@@ -41,3 +41,40 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..9025b6a3301b8704cac7d84cda346f22
            )
          )
        }
+diff --git a/ios/player/AVPlayerEngine.swift b/ios/player/AVPlayerEngine.swift
+index d58a7df934eb1866152e3df15931bb63fd6354be..eff930be39d0a196b1bc4d1a2c26bfd5648aebbd 100644
+--- a/ios/player/AVPlayerEngine.swift
++++ b/ios/player/AVPlayerEngine.swift
+@@ -29,6 +29,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+ 
+   // Whether to resume playback after an audio interruption ends.
+   private var wasPlayingBeforeInterruption = false
++  private var interruptionBeganAt: Date?
+ 
+   // Caching
+   private let cache: AudioCache?
+@@ -671,17 +672,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+     switch type {
+     case .began:
+       wasPlayingBeforeInterruption = isPlaying
++      interruptionBeganAt = Date()
+       if isPlaying {
+         pause()
+       }
+ 
+     case .ended:
+-      guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
++      // Pawse patch: also resume after short interruptions iOS doesn't flag (videos, other apps' music).
++      let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+       let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+-      if options.contains(.shouldResume) && wasPlayingBeforeInterruption {
++      let wasShort = interruptionBeganAt.map { Date().timeIntervalSince($0) < 600 } ?? false
++      let enabled = UserDefaults.standard.object(forKey: "pawse.resumeAfterInterruption") as? Bool ?? true
++      if wasPlayingBeforeInterruption && enabled && (options.contains(.shouldResume) || wasShort) {
+         play()
+       }
+       wasPlayingBeforeInterruption = false
++      interruptionBeganAt = nil
+ 
+     @unknown default:
+       break

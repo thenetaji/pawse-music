@@ -44,6 +44,8 @@ export type Settings = {
   resume: boolean;
   /** Read when the player starts; a change applies on the next launch. */
   pauseOnDisconnect: boolean;
+  /** Play again once a call, video or other app's audio ends, if Pawse was playing before. */
+  resumeAfterInterruption: boolean;
   /** Sleep timer fade-out, seconds. */
   sleepFade: number;
   // Downloads
@@ -104,6 +106,7 @@ export const DEFAULT_SETTINGS: Settings = {
   listsContinue: false,
   resume: true,
   pauseOnDisconnect: true,
+  resumeAfterInterruption: true,
   sleepFade: 10,
   downloadQuality: "high",
   wifiOnly: false,

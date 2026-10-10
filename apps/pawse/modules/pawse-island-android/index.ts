@@ -20,7 +20,16 @@ export interface PillState {
   offsetY?: number;
 }
 
-type Events = { onAction(event: { action: PillAction }): void };
+/** Active media players on the device, Pawse's own included; playing is count > 0. */
+export interface OtherAudioEvent {
+  playing: boolean;
+  count: number;
+}
+
+type Events = {
+  onAction(event: { action: PillAction }): void;
+  onOtherAudio(event: OtherAudioEvent): void;
+};
 
 declare class PawseIslandNative extends NativeModule<Events> {
   hasOverlayPermission(): boolean;
@@ -31,6 +40,9 @@ declare class PawseIslandNative extends NativeModule<Events> {
   hide(): Promise<void>;
   openBatterySettings(): Promise<boolean>;
   squareArtwork(urls: string[], px: number): Promise<string | null>;
+  startOtherAudioWatch(): void;
+  stopOtherAudioWatch(): void;
+  otherAudioCount(): number;
 }
 
 const native =
@@ -120,6 +132,38 @@ export const PawseIsland = {
     return native
       ? native.squareArtwork(urls, px).catch(() => null)
       : Promise.resolve(null);
+  },
+
+  /** Starts onOtherAudio events (Android 8+); a no-op elsewhere. */
+  startOtherAudioWatch(): void {
+    try {
+      native?.startOtherAudioWatch();
+    } catch {
+      // Older native build without the watcher.
+    }
+  },
+
+  stopOtherAudioWatch(): void {
+    try {
+      native?.stopOtherAudioWatch();
+    } catch {
+      // Older native build without the watcher.
+    }
+  },
+
+  /** Active media players right now, Pawse's own included; 0 off Android. */
+  otherAudioCount(): number {
+    try {
+      return native?.otherAudioCount() ?? 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  /** Fires when the number of active media players changes; returns an unsubscribe. */
+  onOtherAudio(cb: (e: OtherAudioEvent) => void): () => void {
+    const sub = native?.addListener("onOtherAudio", cb);
+    return () => sub?.remove();
   },
 
   /** Play/pause and next taps from the widget; returns an unsubscribe. */

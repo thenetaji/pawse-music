@@ -187,6 +187,13 @@ export default function Settings() {
           label="Pause when headphones disconnect"
           def
         />
+        {Platform.OS !== "web" ? (
+          <Toggle
+            k="resumeAfterInterruption"
+            label="Resume after other audio"
+            def
+          />
+        ) : null}
         <Pick
           k="sleepFade"
           label="Sleep timer fade-out"

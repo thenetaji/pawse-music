@@ -19,16 +19,19 @@ class PawseIslandModule : Module() {
     get() = appContext.reactContext?.applicationContext ?: throw Exceptions.ReactContextLost()
 
   @Volatile private var listening = false
+  private var otherAudio: OtherAudioWatch? = null
 
   override fun definition() = ModuleDefinition {
     Name("PawseIsland")
 
-    Events("onAction")
+    Events("onAction", "onOtherAudio")
 
     OnCreate { instance = WeakReference(this@PawseIslandModule) }
 
     OnDestroy {
       if (instance?.get() === this@PawseIslandModule) instance = null
+      otherAudio?.stop()
+      otherAudio = null
     }
 
     OnStartObserving("onAction") { listening = true }
@@ -52,11 +55,25 @@ class PawseIslandModule : Module() {
 
     AsyncFunction<Boolean>("openBatterySettings") { openBatterySettings() }.runOnQueue(Queues.MAIN)
 
+    // Emits onOtherAudio { playing, count } whenever the number of active media players changes (Pawse's own included).
+    Function<Unit>("startOtherAudioWatch") { otherAudioWatch().start() }
+
+    Function<Unit>("stopOtherAudioWatch") { otherAudio?.stop() }
+
+    Function<Int>("otherAudioCount") { otherAudioWatch().count() }
+
     // Square, bar-free JPEG in the cache dir for the Now Playing art; works off the shared module queue.
     AsyncFunction("squareArtwork") { urls: List<String>, px: Int, promise: Promise ->
       Artwork.square(context, urls, px) { promise.resolve(it) }
     }
   }
+
+  private fun otherAudioWatch(): OtherAudioWatch =
+    otherAudio ?: OtherAudioWatch(context) { n ->
+      try {
+        sendEvent("onOtherAudio", mapOf("playing" to (n > 0), "count" to n))
+      } catch (_: Throwable) {}
+    }.also { otherAudio = it }
 
   /** Opens the vendor autostart screen where there is one, else the system battery list. */
   private fun openBatterySettings(): Boolean {

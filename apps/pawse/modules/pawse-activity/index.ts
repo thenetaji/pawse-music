@@ -51,6 +51,7 @@ declare class PawseActivityNative extends NativeModule<Events> {
   end(): Promise<void>;
   setArtwork(url: string): Promise<string | null>;
   squareArtwork(urls: string[], px: number): Promise<string | null>;
+  setResumeAfterInterruption(on: boolean): void;
 }
 
 const native =
@@ -101,6 +102,15 @@ export const PawseActivity = {
     return native
       ? native.squareArtwork(urls, px).catch(() => null)
       : Promise.resolve(null);
+  },
+
+  /** Lets the player resume by itself once a call, video or other app's audio ends. */
+  setResumeAfterInterruption(on: boolean): void {
+    try {
+      native?.setResumeAfterInterruption(on);
+    } catch {
+      // Older native build without the function.
+    }
   },
 
   /** Play/pause and next taps from the island; returns an unsubscribe. */

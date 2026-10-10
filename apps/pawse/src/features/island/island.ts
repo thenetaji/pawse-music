@@ -18,6 +18,7 @@ import {
 } from "../../../modules/pawse-activity";
 import { useLibrary } from "../../data/library";
 import { prepareArtwork } from "../../lib/artwork";
+import { getSetting } from "../../lib/settings";
 import { songVibe } from "../../lib/vibe";
 import { readable, useNowPalette } from "../now-playing/now-palette";
 
@@ -181,7 +182,12 @@ export function startIslandController(): () => void {
       color: prefs.color,
       mouse: showing ? (CAMEO_FRAMES[cameo.step] ?? 0) : 0,
       name: prefs.name,
-      tint: tintHex(useNowPalette.getState().palette.accent),
+      // Follows Settings → Appearance → Accent colour, like the rest of the app.
+      tint: tintHex(
+        getSetting<string>("accentMode", "artwork") === "fixed"
+          ? getSetting("accentColor", "#8B7CFF")
+          : useNowPalette.getState().palette.accent,
+      ),
       staleAt: staleAt(playing, startMs + duration * 1000),
       style: prefs.style,
     };

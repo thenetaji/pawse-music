@@ -13,6 +13,7 @@ import { useLibrary } from "../data/library";
 import { startAndroidPill } from "../features/island/android-pill";
 import { startIslandController } from "../features/island/island";
 import { NowPaletteSync } from "../features/now-playing/now-palette";
+import { startResumeController } from "../features/playback/resume-after-interruption";
 import { startEngine } from "../lib/engine";
 import { getSetting, useSetting } from "../lib/settings";
 import { checkOnLaunch } from "../lib/updates";
@@ -30,6 +31,7 @@ export default function RootLayout() {
     void startEngine();
     const stopIsland = startIslandController();
     const stopPill = startAndroidPill();
+    const stopResume = startResumeController();
     // First launch: meet the cat once the persisted library has loaded.
     const onboard = () => {
       if (!getSetting("onboarded", false))
@@ -41,6 +43,7 @@ export default function RootLayout() {
     return () => {
       stopIsland();
       stopPill?.();
+      stopResume();
       unsub();
     };
   }, []);
