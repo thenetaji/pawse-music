@@ -44,7 +44,7 @@ type Events = { onAction(event: { action: ActivityAction }): void };
 declare class FlowActivityNative extends NativeModule<Events> {
   isSupported(): boolean;
   start(state: ActivityState): Promise<boolean>;
-  update(state: ActivityState): Promise<void>;
+  update(state: ActivityState): Promise<boolean | undefined>;
   end(): Promise<void>;
   setArtwork(url: string): Promise<string | null>;
   squareArtwork(urls: string[], px: number): Promise<string | null>;
@@ -73,10 +73,14 @@ export const FlowActivity = {
       : Promise.resolve(false);
   },
 
-  update(state: ActivityState): Promise<void> {
+  /** False when no activity was left to update (iOS ended it, or it was swiped away). */
+  update(state: ActivityState): Promise<boolean> {
     return native
-      ? native.update(state).catch(() => undefined)
-      : Promise.resolve();
+      ? native
+          .update(state)
+          .then((alive) => alive !== false)
+          .catch(() => true)
+      : Promise.resolve(false);
   },
 
   end(): Promise<void> {

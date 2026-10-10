@@ -39,6 +39,7 @@ func deepAccent(_ state: FlowState) -> Color {
 }
 
 // Sized for the HIG metrics: compact and minimal are 36.67 pt tall, expanded and lock screen stay under 160 pt.
+// Expanded: art and cat beside the camera, two text lines under it, then the bar and controls (about 145 pt).
 struct FlowLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: FlowActivityAttributes.self) { context in
@@ -49,18 +50,22 @@ struct FlowLiveActivity: Widget {
       let state = activity.shown
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          ArtworkView(name: state.artwork, size: 58, radius: 14)
-            .shadow(color: accent(state).opacity(0.55), radius: 10)
+          ArtworkView(name: state.artwork, size: 52, radius: 13)
+            .overlay(
+              RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
+            )
+            .shadow(color: accent(state).opacity(0.45), radius: 8)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          CatStage(state: state, size: 50)
+          CatStage(state: state, size: 46)
         }
         DynamicIslandExpandedRegion(.center) {
           TitleView(state: state)
         }
         DynamicIslandExpandedRegion(.bottom) {
           PlayerBar(state: state)
-            .padding(.top, 8)
+            .padding(.top, 6)
         }
       } compactLeading: {
         // During an episode the mouse peeks out from behind the camera where the artwork sits.
@@ -89,7 +94,7 @@ struct FlowLiveActivity: Widget {
 }
 
 extension ActivityViewContext where Attributes == FlowActivityAttributes {
-  /// Out of date (Flow was likely closed): the cat naps instead of showing a frozen song.
+  /// Out of date (Pawse was likely closed): the cat naps instead of showing a frozen song.
   var shown: FlowState {
     guard isStale else { return state }
     var s = state
@@ -100,7 +105,7 @@ extension ActivityViewContext where Attributes == FlowActivityAttributes {
   }
 }
 
-/// iOS already shows its own player with controls on the lock screen, so Flow's card is a slim companion.
+/// iOS already shows its own player with controls on the lock screen, so Pawse's card is a slim companion.
 struct LockScreenView: View {
   let state: FlowState
   let stale: Bool
@@ -113,7 +118,7 @@ struct LockScreenView: View {
           .font(.system(size: 12, weight: .semibold))
           .foregroundStyle(accent(state))
           .lineLimit(1)
-        Text(verbatim: stale ? "Open Flow to keep listening" : "\(state.title) · \(state.artist)")
+        Text(verbatim: stale ? "Open Pawse to keep listening" : "\(state.title) · \(state.artist)")
           .font(.system(size: 14, weight: .medium))
           .foregroundStyle(.white)
           .lineLimit(1)
@@ -141,8 +146,13 @@ func catLine(_ state: FlowState) -> String {
   }
 }
 
+/// Title and artist; for a cat moment (a mouse, a like, a skip) the artist line becomes the cat's line.
 struct TitleView: View {
   let state: FlowState
+
+  private var catMoment: Bool {
+    (state.mouse ?? 0) > 0 || state.mood == "happy" || state.mood == "curious"
+  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
@@ -150,15 +160,19 @@ struct TitleView: View {
         .font(.system(size: 15, weight: .semibold))
         .foregroundStyle(.white)
         .lineLimit(1)
-      Text(state.artist)
-        .font(.system(size: 13))
-        .foregroundStyle(FlowTheme.secondary)
-        .lineLimit(1)
-      Text(verbatim: catLine(state))
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(accent(state))
-        .lineLimit(1)
-        .padding(.top, 1)
+      Group {
+        if catMoment {
+          Text(verbatim: catLine(state))
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(accent(state))
+        } else {
+          Text(state.artist)
+            .font(.system(size: 13))
+            .foregroundStyle(FlowTheme.secondary)
+        }
+      }
+      .lineLimit(1)
+      .contentTransition(.opacity)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
@@ -175,11 +189,11 @@ struct PlayerBar: View {
         SlimProgress(state: state)
         TimeLabel(state: state, remaining: true)
       }
-      HStack(spacing: 40) {
-        ControlButton(intent: FlowPreviousIntent(), symbol: "backward.fill", size: 18)
+      HStack(spacing: 36) {
+        ControlButton(intent: FlowPreviousIntent(), symbol: "backward.fill", size: 17)
         ControlButton(
-          intent: FlowToggleIntent(), symbol: state.isPlaying ? "pause.fill" : "play.fill", size: 24)
-        ControlButton(intent: FlowNextIntent(), symbol: "forward.fill", size: 18)
+          intent: FlowToggleIntent(), symbol: state.isPlaying ? "pause.fill" : "play.fill", size: 23)
+        ControlButton(intent: FlowNextIntent(), symbol: "forward.fill", size: 17)
       }
     }
     .foregroundStyle(.white)
@@ -195,7 +209,8 @@ struct ControlButton<I: LiveActivityIntent>: View {
     Button(intent: intent) {
       Image(systemName: symbol)
         .font(.system(size: size, weight: .semibold))
-        .frame(width: 40, height: 34)
+        .contentTransition(.symbolEffect(.replace))
+        .frame(width: 44, height: 30)
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
@@ -219,7 +234,7 @@ struct TimeLabel: View {
     .foregroundStyle(FlowTheme.secondary)
     .lineLimit(1)
     .multilineTextAlignment(remaining ? .trailing : .leading)
-    .frame(width: 38, alignment: remaining ? .trailing : .leading)
+    .frame(width: 42, alignment: remaining ? .trailing : .leading)
   }
 
   private var timer: Text {

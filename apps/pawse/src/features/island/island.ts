@@ -26,6 +26,9 @@ export const BEAT_MS = 2000;
 export const BACKGROUND_BEAT_BUDGET_MS = 10 * 60_000;
 const HAPPY_MS = 1500;
 const SEND_TIMEOUT_MS = 4000;
+/** While playing, re-check this often that the island's timeline still matches the song. */
+const DRIFT_CHECK_MS = 15_000;
+const SEEK_SETTLE_MS = 400;
 /** If Flow is closed mid-song, iOS marks the activity stale this long after the song should end. */
 const STALE_AFTER_END_MS = 90_000;
 /** A paused activity goes stale after this, in case Flow is closed while paused. */
@@ -114,6 +117,7 @@ export function startIslandController(): () => void {
     timer: ReturnType<typeof setTimeout>;
   } | null = null;
   let beat: ReturnType<typeof setInterval> | undefined;
+  let drift: ReturnType<typeof setInterval> | undefined;
   let backgroundSince = AppState.currentState === "active" ? 0 : Date.now();
   let art: { id: string; file: string | null } = { id: "", file: null };
   let startMs = 0;
@@ -159,7 +163,11 @@ export function startIslandController(): () => void {
       frame,
       start: Math.round(startMs),
       end: Math.round(startMs + duration * 1000),
-      progress: duration ? Math.min(1, position / duration) : 0,
+      // Playing bars move on their own from start/end; a fixed value keeps the state from changing every read.
+      progress:
+        duration && !(playing && duration > 0)
+          ? Math.min(1, position / duration)
+          : 0,
       color: prefs.color,
       mouse: showing ? (CAMEO_FRAMES[cameo.step] ?? 0) : 0,
       name: prefs.name,
@@ -187,7 +195,21 @@ export function startIslandController(): () => void {
       if (next && active) send(next);
     };
     const timer = setTimeout(release, SEND_TIMEOUT_MS);
-    void FlowActivity.update(state).finally(release);
+    void FlowActivity.update(state)
+      .then((alive) => {
+        if (!alive && active) lost();
+      })
+      .finally(release);
+  }
+
+  // iOS ended the activity (its time limit) or it was swiped away: start again when we next can.
+  function lost() {
+    active = false;
+    lastKey = "";
+    queued = null;
+    syncBeat();
+    syncDrift();
+    if (AppState.currentState === "active") onChange();
   }
 
   function push() {
@@ -221,6 +243,7 @@ export function startIslandController(): () => void {
     lastKey = JSON.stringify(state);
     push();
     syncBeat();
+    syncDrift();
   }
 
   function finish() {
@@ -228,7 +251,18 @@ export function startIslandController(): () => void {
     lastKey = "";
     queued = null;
     syncBeat();
+    syncDrift();
     void FlowActivity.end();
+  }
+
+  // Buffering and seeks shift the song's timeline; compose only sends a new state when it moved.
+  function syncDrift() {
+    const want = active && isPlaying(usePlayerStore.getState().status);
+    if (want && !drift) drift = setInterval(push, DRIFT_CHECK_MS);
+    else if (!want && drift) {
+      clearInterval(drift);
+      drift = undefined;
+    }
   }
 
   // The bar-free square from the Now Playing art when there is one, else the thumbnail.
@@ -351,6 +385,7 @@ export function startIslandController(): () => void {
       push();
     }
     syncBeat();
+    syncDrift();
   }
 
   const unsubStore = usePlayerStore.subscribe((s, prev) => {
@@ -366,13 +401,18 @@ export function startIslandController(): () => void {
   const unsubSkipped = onPlayerEvent("skipped", () =>
     setFlash("curious", CURIOUS_MS),
   );
-  const unsubAction = FlowActivity.onAction((action) =>
-    action === "next"
-      ? player.next()
-      : action === "previous"
-        ? player.previous()
-        : player.toggle(),
-  );
+  // Native already flipped play/pause on the island, so the next real state must always be sent.
+  const unsubAction = FlowActivity.onAction((action) => {
+    lastKey = "";
+    if (action === "next") player.next();
+    else if (action === "previous") player.previous();
+    else player.toggle();
+  });
+  let seekTimer: ReturnType<typeof setTimeout> | undefined;
+  const unsubSeeked = onPlayerEvent("seeked", () => {
+    clearTimeout(seekTimer);
+    seekTimer = setTimeout(push, SEEK_SETTLE_MS);
+  });
   // The artwork colour arrives a moment after the song changes.
   const unsubPalette = useNowPalette.subscribe(() => push());
   const unsubSettings = useLibrary.subscribe((s, prev) => {
@@ -407,6 +447,9 @@ export function startIslandController(): () => void {
     unsubLiked();
     unsubSkipped();
     unsubAction();
+    unsubSeeked();
+    clearTimeout(seekTimer);
+    if (drift) clearInterval(drift);
     unsubPalette();
     unsubSettings();
     appState.remove();

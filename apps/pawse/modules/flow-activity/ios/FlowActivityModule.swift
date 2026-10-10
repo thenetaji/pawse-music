@@ -94,12 +94,15 @@ public class FlowActivityModule: Module {
       }
     }
 
-    AsyncFunction("update") { (record: FlowActivityStateRecord) async in
-      guard #available(iOS 17.0, *) else { return }
+    // False when nothing was running, so JS knows to start a new activity.
+    AsyncFunction("update") { (record: FlowActivityStateRecord) async -> Bool in
+      guard #available(iOS 17.0, *) else { return false }
       let content = ActivityContent(state: record.contentState, staleDate: record.staleDate)
-      for activity in FlowActivityModule.running() {
+      let running = FlowActivityModule.running()
+      for activity in running {
         await activity.update(content)
       }
+      return !running.isEmpty
     }
 
     AsyncFunction("end") { () async in
@@ -137,9 +140,33 @@ public class FlowActivityModule: Module {
           guard let observer, let name else { return }
           let module = Unmanaged<FlowActivityModule>.fromOpaque(observer).takeUnretainedValue()
           let action = (name.rawValue as String).components(separatedBy: ".").last ?? ""
+          if action == "toggle", #available(iOS 17.0, *) { FlowActivityModule.flipPlaying() }
           module.sendEvent("onAction", ["action": action])
         },
         "com.thenetaji.flow.activity.\(action)" as CFString, nil, .deliverImmediately)
+    }
+  }
+
+  // The island's play/pause flips at once; JS sends the real state right after.
+  @available(iOS 17.0, *)
+  private static func flipPlaying() {
+    Task {
+      let now = Date()
+      for activity in running() {
+        var s = activity.content.state
+        let length = s.end.timeIntervalSince(s.start)
+        if s.isPlaying {
+          if length > 0 { s.progress = min(max(now.timeIntervalSince(s.start) / length, 0), 1) }
+          s.isPlaying = false
+          s.mood = "sleep"
+        } else {
+          s.start = now.addingTimeInterval(-length * s.progress)
+          s.end = s.start.addingTimeInterval(length)
+          s.isPlaying = true
+          s.mood = "groove"
+        }
+        await activity.update(ActivityContent(state: s, staleDate: activity.content.staleDate))
+      }
     }
   }
 
