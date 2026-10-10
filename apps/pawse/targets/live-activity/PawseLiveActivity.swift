@@ -39,6 +39,7 @@ func deepAccent(_ state: PawseState) -> Color {
 }
 
 // Sized for the HIG metrics: compact and minimal are 36.67 pt tall, expanded and lock screen stay under 160 pt.
+// Expanded fills that height like Apple Music: 64 pt art, then the bar (16) and 40 pt controls, about 150 pt.
 // Compact is roomy like Apple Music: the artwork on the left, the chosen style (cat, sound bars or time left) on the right.
 struct PawseLiveActivity: Widget {
   var body: some WidgetConfiguration {
@@ -50,28 +51,29 @@ struct PawseLiveActivity: Widget {
       let state = activity.shown
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          ArtworkView(name: state.artwork, size: 56, radius: 13)
+          ArtworkView(name: state.artwork, size: 64, radius: 14)
             .overlay(
-              RoundedRectangle(cornerRadius: 13, style: .continuous)
+              RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5)
             )
             .shadow(color: accent(state).opacity(0.5), radius: 10)
         }
         DynamicIslandExpandedRegion(.trailing) {
           if islandStyle(state) == "cat" {
-            CatStage(state: state, size: 48)
+            CatStage(state: state, size: 52)
           } else {
-            WaveBars(state: state, height: 22)
-              .frame(width: 48, height: 56)
+            WaveBars(state: state, height: 24)
+              .frame(width: 52, height: 64)
           }
         }
         DynamicIslandExpandedRegion(.center) {
           TitleView(state: state)
-            .padding(.leading, 4)
+            .padding(.leading, 6)
+            .frame(maxHeight: .infinity)
         }
         DynamicIslandExpandedRegion(.bottom) {
           PlayerBar(state: state)
-            .padding(.top, 6)
+            .padding(.top, 8)
         }
       } compactLeading: {
         // Fixed-width sides, art at the far left and the style at the far right, make the island long like Apple Music's.
@@ -100,7 +102,7 @@ struct PawseLiveActivity: Widget {
         }
       }
       .contentMargins(.horizontal, 20, for: .expanded)
-      .contentMargins(.bottom, 14, for: .expanded)
+      .contentMargins(.bottom, 12, for: .expanded)
       .keylineTint(accent(state))
     }
   }
@@ -238,19 +240,19 @@ struct TitleView: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: 3) {
       Text(state.title)
-        .font(.system(size: 16, weight: .semibold))
+        .font(.system(size: 17, weight: .semibold))
         .foregroundStyle(.white)
         .lineLimit(1)
       Group {
         if catMoment {
           Text(verbatim: catLine(state))
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(accent(state))
         } else {
           Text(state.artist)
-            .font(.system(size: 14))
+            .font(.system(size: 15))
             .foregroundStyle(PawseTheme.secondary)
         }
       }
@@ -266,17 +268,17 @@ struct PlayerBar: View {
   let state: PawseState
 
   var body: some View {
-    VStack(spacing: 6) {
-      HStack(spacing: 8) {
+    VStack(spacing: 8) {
+      HStack(spacing: 10) {
         TimeLabel(state: state, remaining: false)
         SlimProgress(state: state)
         TimeLabel(state: state, remaining: true)
       }
-      HStack(spacing: 44) {
-        ControlButton(intent: PawsePreviousIntent(), symbol: "backward.fill", size: 19)
+      HStack(spacing: 50) {
+        ControlButton(intent: PawsePreviousIntent(), symbol: "backward.fill", size: 24)
         ControlButton(
-          intent: PawseToggleIntent(), symbol: state.isPlaying ? "pause.fill" : "play.fill", size: 26)
-        ControlButton(intent: PawseNextIntent(), symbol: "forward.fill", size: 19)
+          intent: PawseToggleIntent(), symbol: state.isPlaying ? "pause.fill" : "play.fill", size: 32)
+        ControlButton(intent: PawseNextIntent(), symbol: "forward.fill", size: 24)
       }
     }
     .foregroundStyle(.white)
@@ -293,7 +295,7 @@ struct ControlButton<I: LiveActivityIntent>: View {
       Image(systemName: symbol)
         .font(.system(size: size, weight: .semibold))
         .contentTransition(.symbolEffect(.replace))
-        .frame(width: 48, height: 32)
+        .frame(width: 56, height: 40)
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
@@ -313,11 +315,11 @@ struct TimeLabel: View {
         Text(verbatim: remaining ? "" : "0:00")
       }
     }
-    .font(.system(size: 11, weight: .medium).monospacedDigit())
+    .font(.system(size: 13, weight: .medium).monospacedDigit())
     .foregroundStyle(PawseTheme.secondary)
     .lineLimit(1)
     .multilineTextAlignment(remaining ? .trailing : .leading)
-    .frame(width: 42, alignment: remaining ? .trailing : .leading)
+    .frame(width: 46, alignment: remaining ? .trailing : .leading)
   }
 
   private var timer: Text {
