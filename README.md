@@ -68,10 +68,7 @@ Pick your device below. Every release is on the [releases page](https://github.c
 
 Sizes are from version 0.6.0. The computer apps are big because each one carries its own copy of Chromium (they are built with Electron).
 
-**Two names for every file.** Each release has every file twice: with the version in the name (`Pawse-0.6.0.apk`) and without it (`Pawse.apk`). They are the same file.
-
-- The plain names are what the download buttons use. They always mean the newest version.
-- The versioned names are for when you want to keep an exact version, or install it again later.
+**One file per device.** Each release has one file for each kind of device, named the same every time (`Pawse.apk`, `Pawse.ipa` and so on). The version is in the release's title. Older versions stay on the [releases page](https://github.com/thenetaji/pawse-music/releases).
 
 Not sure which Mac you have? Open the Apple menu, then **About This Mac**. If you see **Chip** (Apple M…), you have Apple silicon. If you see **Processor** (Intel…), you have an Intel Mac.
 

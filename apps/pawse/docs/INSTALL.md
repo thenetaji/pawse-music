@@ -8,7 +8,7 @@ This page only holds the extra notes for sideloading.
 
 Pushing a `v1.2.3` tag runs the **Apps** workflow. It builds the iPhone, Android, Mac, Windows and Linux apps and attaches them to a GitHub Release. It also adds the IPA to the SideStore source.
 
-Every file is attached twice, with the version (`Pawse-1.2.3.apk`) and without it (`Pawse.apk`), so these links always point at the newest release:
+Each release has one file per device with the same name every time, so these links always point at the newest release:
 
 - https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa
 - https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk

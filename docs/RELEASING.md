@@ -13,8 +13,8 @@ GitHub Actions builds every release: an unsigned IPA for SideStore, a signed APK
 4. Wait about 15 minutes. The **Apps** workflow:
    - builds the iPhone and Android apps, and the desktop app on Mac, Windows and Linux runners,
    - publishes a GitHub Release with the changelog notes,
-   - attaches `Pawse-0.4.1.ipa`, `Pawse-0.4.1.apk`, `Pawse.ipa` and `Pawse.apk`,
-   - attaches the desktop installers (`.dmg` for Apple silicon and Intel, `Pawse-Setup.exe`, `.AppImage`, `.deb`), with and without the version in the name,
+   - attaches one file per device, without the version in the name: `Pawse.ipa`, `Pawse.apk`, `Pawse-mac-arm64.dmg`, `Pawse-mac-x64.dmg`, `Pawse-Setup.exe`, `Pawse-linux-x86_64.AppImage` and `Pawse-linux-amd64.deb`,
+   - adds a "Which file do I need?" table that says who each file is for and how to install it,
    - adds the new version to `sources/sidestore.json`.
 
 Installed apps see the new version within a day, or right away from **Settings → About → Check for updates**.
