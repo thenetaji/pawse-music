@@ -11,6 +11,14 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "0.7.2",
+          "buildVersion": "702",
+          "date": "2026-10-10",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v0.7.2/Pawse-0.7.2.ipa",
+          "size": 21804199,
+          "minOSVersion": "16.4"
+        },
+        {
           "version": "0.7.1",
           "buildVersion": "701",
           "date": "2026-10-10",
