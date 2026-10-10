@@ -98,19 +98,27 @@ export async function checkForUpdate(): Promise<Update | null> {
   }
 }
 
-// iOS: SideStore installs the IPA from its deep link. Android: download the APK and hand it to the installer.
+// iOS: SideStore updates Pawse from its source. Android: download the APK and hand it to the installer.
 export async function installUpdate(update: Update) {
   if (desktopVersion) {
     await Linking.openURL(update.file);
     return;
   }
+  // SideStore's install link can hang on its download; its own My Apps update from the source is reliable.
   if (Platform.OS === "ios") {
-    const link = `sidestore://install?url=${encodeURIComponent(update.file)}`;
-    await Linking.openURL(link).catch(() =>
-      Alert.alert(
-        "SideStore not found",
-        "Open SideStore and update Pawse from My Apps.",
-      ),
+    Alert.alert(
+      `Update to ${update.version} in SideStore`,
+      "In SideStore, open My Apps, pull down to refresh, then tap Update next to Pawse.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Open SideStore",
+          onPress: () =>
+            void Linking.openURL("sidestore://").catch(() =>
+              Alert.alert("SideStore not found", "Open SideStore yourself."),
+            ),
+        },
+      ],
     );
     return;
   }

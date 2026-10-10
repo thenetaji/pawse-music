@@ -20,6 +20,7 @@ import {
   refreshNetworkKind,
 } from "../lib/net";
 import { isLowData, useLowData } from "../lib/quality";
+import { autoDownloadMode } from "../lib/settings";
 import { resolver, setLocalLookup } from "./clients";
 import {
   createDownloadManager,
@@ -378,7 +379,7 @@ export function useOfflineTracks(): Track[] {
 /** Keeps a song the user just finished, if auto cache and the network allow it. */
 function maybeCache(track?: Track): void {
   const s = settings();
-  if (!track || track.source === "local" || !s.autoCache) return;
+  if (!track || track.source === "local") return;
   if (s.cacheLimitMb <= 0) return;
   const id = track.id;
   if (index.getState().entries[id] || cacheIndex.getState().entries[id]) return;
@@ -389,6 +390,8 @@ function maybeCache(track?: Track): void {
 
 /** Deletes the lowest scored cached songs until the cache fits its limit. */
 function evictCache(): void {
+  // Off only stops keeping new songs; Clear kept songs deletes them.
+  if (settings().cacheLimitMb <= 0) return;
   const items = Object.values(cacheIndex.getState().entries)
     .filter((e) => e.state === "done")
     .map((e) => ({ id: e.id, bytes: e.bytes, at: e.addedAt }));
@@ -402,9 +405,12 @@ const applyPrefetch = () =>
   setPrefetchAhead(isDataSaverActive() ? 1 : undefined);
 
 if (native) {
+  // "Keep songs I play" was a separate switch; now Off is a 0 MB limit.
+  if (settings().autoCache === false && settings().cacheLimitMb > 0)
+    useLibrary.getState().setSettings({ cacheLimitMb: 0, autoCache: true });
   setLocalLookup(localStream);
   onLike((track, on) => {
-    if (on && settings().autoDownloadLiked) download(track);
+    if (on && autoDownloadMode() !== "off") download(track);
   });
   onPlayerEvent("finished", maybeCache);
   // A cache job that failed is dropped; a finished one may push the cache over its limit.

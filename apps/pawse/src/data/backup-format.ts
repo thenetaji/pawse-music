@@ -6,8 +6,10 @@ import type {
   Track,
 } from "@pawse/music-core";
 
+import type { JournalData, JournalEvent, JournalPlay } from "./journal-types";
 import {
   DEFAULT_SETTINGS,
+  DISLIKED_MAX,
   type LibraryData,
   type LocalPlaylist,
   type Play,
@@ -31,7 +33,11 @@ export type Backup = {
   history: Play[];
   savedAlbums: AlbumSummary[];
   followedArtists: ArtistSummary[];
+  /** Thumbs-down songs; empty for older backups. */
+  disliked: Track[];
   settings: Partial<Settings>;
+  /** Every play kept by the listening journal; missing in older backups. */
+  journal?: JournalData;
 };
 
 export class BackupError extends Error {
@@ -132,6 +138,75 @@ function toSettings(v: unknown): Partial<Settings> {
   return out as Partial<Settings>;
 }
 
+const PLAY_SOURCES = new Set(["youtube", "saavn", "local", "import"]);
+const ORIGINS = new Set(["pawse", "ytm-takeout", "apple-music"]);
+const ENDED = new Set(["finished", "skipped", "stopped"]);
+const num = (v: unknown) =>
+  typeof v === "number" && Number.isFinite(v) ? v : undefined;
+const strs = (v: unknown) =>
+  list(v)
+    .filter((x): x is string => str(x) !== undefined)
+    .slice(0, 20);
+
+/** A clean journal play or undefined; unknown fields are dropped. */
+export function toJournalPlay(v: unknown): JournalPlay | undefined {
+  if (!isObj(v)) return undefined;
+  const title = str(v.title);
+  const startedAt = num(v.startedAt);
+  const listenedMs = num(v.listenedMs);
+  if (
+    !title ||
+    !startedAt ||
+    startedAt < 0 ||
+    listenedMs === undefined ||
+    listenedMs < 0 ||
+    !PLAY_SOURCES.has(v.source as string) ||
+    !ORIGINS.has(v.origin as string)
+  )
+    return undefined;
+  const dur = num(v.durationSec);
+  const opt = (k: "album" | "albumId" | "context" | "contextTitle") =>
+    str(v[k]) !== undefined ? { [k]: v[k] as string } : {};
+  return {
+    trackId: str(v.trackId, 100) ?? "",
+    source: v.source as JournalPlay["source"],
+    title,
+    artists: strs(v.artists),
+    ...(Array.isArray(v.artistIds) ? { artistIds: strs(v.artistIds) } : {}),
+    ...opt("album"),
+    ...opt("albumId"),
+    ...(dur && dur > 0 && dur < 86400 ? { durationSec: dur } : {}),
+    ...(str(v.art, 2000)?.startsWith("http") ? { art: v.art as string } : {}),
+    startedAt,
+    listenedMs,
+    ended: ENDED.has(v.ended as string)
+      ? (v.ended as JournalPlay["ended"])
+      : "stopped",
+    ...opt("context"),
+    ...opt("contextTitle"),
+    origin: v.origin as JournalPlay["origin"],
+  };
+}
+
+function toJournal(v: unknown): JournalData | undefined {
+  if (!isObj(v)) return undefined;
+  const events = list(v.events)
+    .filter(
+      (e) =>
+        isObj(e) &&
+        (num(e.at) ?? 0) > 0 &&
+        (e.kind === "like" || e.kind === "unlike") &&
+        str(e.trackId, 100),
+    )
+    .map(
+      (e) => ({ at: e.at, kind: e.kind, trackId: e.trackId }) as JournalEvent,
+    );
+  const plays = list(v.plays)
+    .map(toJournalPlay)
+    .filter((p): p is JournalPlay => !!p);
+  return { plays, events };
+}
+
 /** Validates a parsed backup file; throws BackupError when it is not one. */
 export function parseBackup(json: unknown): Backup {
   if (
@@ -178,6 +253,7 @@ export function parseBackup(json: unknown): Backup {
       ...(str(a.subtitle) ? { subtitle: a.subtitle as string } : {}),
       thumbnails: thumbs(a.thumbnails),
     }));
+  const journal = toJournal(json.journal);
   return {
     format: BACKUP_FORMAT,
     version: json.version,
@@ -187,12 +263,14 @@ export function parseBackup(json: unknown): Backup {
     history,
     savedAlbums,
     followedArtists,
+    disliked: tracks(json.disliked).slice(0, DISLIKED_MAX),
     settings: toSettings(json.settings),
+    ...(journal ? { journal } : {}),
   };
 }
 
 /** The exported file body: no cookies or account name. */
-export function makeBackup(s: LibraryData): Backup {
+export function makeBackup(s: LibraryData, journal?: JournalData): Backup {
   const settings: Partial<Settings> = { ...s.settings };
   for (const k of PRIVATE) delete settings[k];
   return {
@@ -204,7 +282,9 @@ export function makeBackup(s: LibraryData): Backup {
     history: s.history,
     savedAlbums: s.savedAlbums,
     followedArtists: s.followedArtists,
+    disliked: s.disliked,
     settings,
+    ...(journal ? { journal } : {}),
   };
 }
 
@@ -213,14 +293,30 @@ const unionById = <T extends { id: string }>(mine: T[], theirs: T[]) => {
   return [...mine, ...theirs.filter((x) => !have.has(x.id))];
 };
 
-export type MergeSummary = { liked: number; playlists: number; plays: number };
+export type MergeSummary = {
+  liked: number;
+  playlists: number;
+  plays: number;
+  /** New listening-journal plays; set by importLibrary. */
+  journal?: number;
+};
 
 /** Adds what the backup has and the library lacks; the newer copy of a playlist wins; settings apply. */
 export function mergeBackup(
   s: LibraryData,
   b: Backup,
 ): { data: Partial<LibraryData>; added: MergeSummary } {
-  const liked = unionById(s.liked, b.liked);
+  // A like or dislike already in the library wins over the backup's opposite one.
+  const mineLiked = new Set(s.liked.map((t) => t.id));
+  const mineDisliked = new Set((s.disliked ?? []).map((t) => t.id));
+  const liked = unionById(
+    s.liked,
+    b.liked.filter((t) => !mineDisliked.has(t.id)),
+  );
+  const disliked = unionById(
+    s.disliked ?? [],
+    (b.disliked ?? []).filter((t) => !mineLiked.has(t.id)),
+  ).slice(0, DISLIKED_MAX);
   const byId = new Map(s.playlists.map((p) => [p.id, p]));
   let newPlaylists = 0;
   for (const p of b.playlists) {
@@ -244,6 +340,7 @@ export function mergeBackup(
       history,
       savedAlbums: unionById(s.savedAlbums, b.savedAlbums),
       followedArtists: unionById(s.followedArtists, b.followedArtists),
+      disliked,
       settings: { ...s.settings, ...b.settings },
     },
     added: {

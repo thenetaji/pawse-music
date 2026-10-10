@@ -31,7 +31,7 @@ import { listeningStats, useLibrary } from "../../data/library";
 import { useSmartPlaylists } from "../../data/recommend";
 import { go, push } from "../../lib/nav";
 import { count } from "../../lib/plural";
-import { getSetting, useSetting } from "../../lib/settings";
+import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
@@ -376,7 +376,7 @@ export default function LibraryPage() {
                   onPress={() =>
                     void player.play(songs, i, {
                       source: { type: "library", title: "Your songs" },
-                      radio: getSetting("radioContinue", true),
+                      radio: autoplayMode() !== "off",
                     })
                   }
                 />

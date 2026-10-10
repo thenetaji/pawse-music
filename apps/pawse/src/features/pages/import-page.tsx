@@ -30,6 +30,13 @@ import {
   matchTracks,
   parseImportFile,
 } from "../../data/import";
+import {
+  type PastKind,
+  parsePastPlays,
+  playYears,
+  savePastPlays,
+} from "../../data/import/past-plays";
+import { addPlays } from "../../data/journal";
 import { importPlaylist, useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
@@ -40,6 +47,8 @@ import { Cat, type CatColor } from "../cat/cat";
 import { useAccent } from "../now-playing/now-palette";
 
 type List = ImportSource["lists"][number];
+const thousands = (n: number) =>
+  String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 type Reviewed = { list: List; results: MatchResult[] };
 type Stage =
   | { kind: "start" }
@@ -57,6 +66,9 @@ export default function ImportPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
+  const [past, setPast] = useState<{ kind: PastKind; label: string } | null>(
+    null,
+  );
 
   const run = async (label: string, fn: () => Promise<string>) => {
     setBusy(label);
@@ -104,6 +116,53 @@ export default function ImportPage() {
       source: { kind, lists },
       on: lists.map(() => true),
     });
+  };
+
+  const importPast = async (kind: PastKind) => {
+    if (past) return;
+    setMsg(null);
+    const res = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      type: ["application/json", "text/html", "text/csv", "*/*"],
+    });
+    if (res.canceled) return;
+    const a = res.assets[0];
+    if (/\.zip$/i.test(a.name)) {
+      setMsg(
+        "Unzip it first and pick watch-history.json/html or the Play Activity CSV.",
+      );
+      return;
+    }
+    setPast({ kind, label: "Reading…" });
+    try {
+      const text =
+        Platform.OS === "web"
+          ? await (await fetch(a.uri)).text()
+          : await new File(a.uri).text();
+      const { plays } = await parsePastPlays(kind, a.name, text);
+      if (!plays.length)
+        throw new Error(
+          kind === "youtube"
+            ? "No YouTube Music plays in that file."
+            : "No plays in that file.",
+        );
+      const added = await savePastPlays(plays, addPlays, (done) =>
+        setPast({
+          kind,
+          label: `Saving ${thousands(done)} of ${thousands(plays.length)}`,
+        }),
+      );
+      haptic.success();
+      setMsg(
+        added
+          ? `Added ${thousands(added)} ${added === 1 ? "play" : "plays"} from ${playYears(plays)}.`
+          : "Those plays are already in your history.",
+      );
+    } catch (e) {
+      setMsg((e as Error).message || "Couldn't read that file.");
+    } finally {
+      setPast(null);
+    }
   };
 
   const match = async (lists: List[]) => {
@@ -223,7 +282,7 @@ export default function ImportPage() {
         >
           <View style={styles.center}>
             <Cat
-              mood={busy ? "chase" : msg ? "happy" : "curious"}
+              mood={busy || past ? "chase" : msg ? "happy" : "curious"}
               size={96}
               color={color}
             />
@@ -290,6 +349,24 @@ export default function ImportPage() {
                 How do I get these files?
               </Text>
             </Pressable>
+          </Card>
+
+          <Card
+            title="Past listening history"
+            body="Plays from before Pawse, for your stats and Wrapped."
+          >
+            <PastChoice
+              label="YouTube Music (Google Takeout)"
+              how="takeout.google.com → YouTube and YouTube Music → History, JSON."
+              busy={past?.kind === "youtube" ? past.label : null}
+              onPress={() => void importPast("youtube")}
+            />
+            <PastChoice
+              label="Apple Music (privacy.apple.com)"
+              how="privacy.apple.com → Request a copy → Apple Media Services. Pick Play Activity CSV."
+              busy={past?.kind === "apple" ? past.label : null}
+              onPress={() => void importPast("apple")}
+            />
           </Card>
 
           <Card
@@ -360,6 +437,36 @@ function Card({
       <Text style={styles.cardBody}>{body}</Text>
       {children}
     </Animated.View>
+  );
+}
+
+function PastChoice({
+  label,
+  how,
+  busy,
+  onPress,
+}: {
+  label: string;
+  how: string;
+  busy: string | null;
+  onPress: () => void;
+}) {
+  return (
+    <View>
+      <PressScale onPress={onPress} style={[styles.cta, styles.ghost]}>
+        {busy ? (
+          <View style={styles.busyRow}>
+            <ActivityIndicator color="#fff" />
+            <Text style={[styles.ctaText, { color: "#fff" }]} numberOfLines={1}>
+              {busy}
+            </Text>
+          </View>
+        ) : (
+          <Text style={[styles.ctaText, { color: "#fff" }]}>{label}</Text>
+        )}
+      </PressScale>
+      <Text style={styles.pastHow}>{how}</Text>
+    </View>
   );
 }
 
@@ -639,6 +746,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     paddingHorizontal: 16,
+  },
+  pastHow: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 12.5,
+    lineHeight: 17,
+    marginTop: 6,
+    textAlign: "center",
   },
   how: { fontSize: 14, ...display("700"), marginTop: 12, textAlign: "center" },
   msg: {

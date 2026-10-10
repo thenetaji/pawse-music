@@ -9,7 +9,7 @@ import { captureRef } from "react-native-view-shot";
 import { Artwork } from "../../components/artwork";
 import { Chip, PressScale } from "../../components/ui";
 import { listeningStats, useLibrary } from "../../data/library";
-import { getSetting, useSetting } from "../../lib/settings";
+import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { Cat, type CatColor } from "../cat/cat";
 import { useAccent, useNowPalette } from "../now-playing/now-palette";
@@ -130,7 +130,7 @@ export default function StatsPage() {
                   stats.topSongs.map((x) => x.track),
                   i,
                   {
-                    radio: getSetting("radioContinue", true),
+                    radio: autoplayMode() !== "off",
                     source: { type: "library", title: "Your top songs" },
                   },
                 )

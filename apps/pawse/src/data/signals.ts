@@ -3,7 +3,7 @@ import { getProgress, onPlayerEvent, usePlayerStore } from "@pawse/player";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import { onLike, useLibrary } from "./library";
+import { onDislike, onLike, useLibrary } from "./library";
 import { kv } from "./storage";
 
 // Per-track listening signals for recommendations: counts only, track metadata stays in the library.
@@ -14,6 +14,8 @@ export type TrackSignal = {
   skips: number;
   lastPlayed: number;
   likedAt?: number;
+  /** Thumbs-down time; recommendations drop the song and weigh its artist down. */
+  dislikedAt?: number;
   /** Only for pruning: skips must not refresh a track's recency. */
   lastSkipped?: number;
 };
@@ -30,7 +32,12 @@ export function pruneSignals(map: SignalMap, max = SIGNALS_MAX): SignalMap {
   const ids = Object.keys(map);
   if (ids.length <= max) return map;
   const touched = (s: TrackSignal) =>
-    Math.max(s.lastPlayed, s.likedAt ?? 0, s.lastSkipped ?? 0);
+    Math.max(
+      s.lastPlayed,
+      s.likedAt ?? 0,
+      s.dislikedAt ?? 0,
+      s.lastSkipped ?? 0,
+    );
   const keep = ids
     .sort((a, b) => touched(map[b]) - touched(map[a]))
     .slice(0, Math.floor(max * 0.9));
@@ -159,6 +166,12 @@ export function startSignals(): void {
     useSignals
       .getState()
       .bump(track.id, () => ({ likedAt: on ? Date.now() : undefined }));
+  });
+
+  onDislike((track, on) => {
+    useSignals
+      .getState()
+      .bump(track.id, () => ({ dislikedAt: on ? Date.now() : undefined }));
   });
 }
 

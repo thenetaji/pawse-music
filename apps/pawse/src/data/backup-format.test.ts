@@ -31,6 +31,7 @@ const lib = (p: Partial<LibraryData> = {}): LibraryData => ({
   ytPlaylists: [],
   likedRemoteIds: [],
   syncedAt: 0,
+  disliked: [],
   ...p,
 });
 

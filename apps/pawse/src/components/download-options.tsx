@@ -2,6 +2,7 @@ import { View } from "react-native";
 
 import { clearCache, useCached } from "../data/downloads";
 import { push } from "../lib/nav";
+import { autoDownloadMode } from "../lib/settings";
 import { showSheet } from "./action-sheet";
 import { Foot, Link, Pick, Section, Toggle } from "./settings-rows";
 
@@ -20,33 +21,31 @@ export function DownloadOptions({ manage }: { manage?: boolean }) {
           def="high"
           options={[
             ["high", "High"],
-            ["saver", "Low · smaller files"],
+            ["saver", "Low"],
           ]}
         />
-        <Toggle k="wifiOnly" label="Download on Wi-Fi only" def={false} />
-        <Toggle
-          k="autoDownloadLiked"
-          label="Download songs I like"
-          def={false}
+        <Toggle k="wifiOnly" label="Only on Wi-Fi" def={false} />
+        <Pick
+          k="autoDownload"
+          label="Download automatically"
+          def={autoDownloadMode()}
+          options={[
+            ["off", "Off"],
+            ["liked", "Liked songs"],
+            ["all", "Liked and playlist songs"],
+          ]}
         />
-        <Toggle
-          k="autoDownloadPlaylists"
-          label="Download songs I add to playlists"
-          def={false}
-        />
-      </Section>
-      <Section title="Kept offline">
-        <Toggle k="autoCache" label="Keep songs I play" def />
         <Pick
           k="cacheLimitMb"
-          label="Space for kept songs"
+          label="Keep played songs offline"
           def={500}
           options={[
-            [250, "250 MB"],
-            [500, "500 MB"],
-            [1000, "1 GB"],
-            [4000, "4 GB"],
-            [8000, "8 GB"],
+            [0, "Off"],
+            [250, "Up to 250 MB"],
+            [500, "Up to 500 MB"],
+            [1000, "Up to 1 GB"],
+            [4000, "Up to 4 GB"],
+            [8000, "Up to 8 GB"],
           ]}
         />
         <Link
@@ -65,11 +64,7 @@ export function DownloadOptions({ manage }: { manage?: boolean }) {
           }
         />
       </Section>
-      <Foot>
-        Kept songs are saved on Wi-Fi only when Data saver is on. Downloads stay
-        until you delete them. Downloading a song you already kept moves it over
-        instead of downloading it again.
-      </Foot>
+      <Foot>Played songs make room for new ones when space runs out.</Foot>
     </View>
   );
 }

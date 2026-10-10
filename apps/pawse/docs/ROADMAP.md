@@ -236,11 +236,28 @@ Work top to bottom, one item at a time. Tick an item (`[x]`) in the same commit 
 - [x] 80. Shared CI caches through main.
 - [ ] 81. Android: songs skipping, and the pill (waiting for a screenshot and diagnostics).
 
+## Your listening, kept and wrapped (approved 2026-10-10)
+
+The goal: a yearly Wrapped and a monthly recap, like YouTube Music Recap and Apple Music Replay, built from data that is never lost.
+
+### Step 1: collect (next release)
+- [ ] 82. Listening journal: every play kept forever on the device (song, artists, album, when it started, how long it played, finished or skipped, and the playlist, album, radio or search it came from), plus likes with times. About 2 MB a year. Pause listening history stops it.
+- [ ] 83. Backups carry the journal; restoring merges it without duplicates.
+
+### Step 2: keep it safe (next release)
+- [ ] 84. Automatic backup once a day to a folder you pick (iCloud Drive, Google Drive or Files), plus one dated copy per week. No Pawse server.
+- [ ] 85. Past plays: import YouTube Music history from Google Takeout and Apple Music play activity from privacy.apple.com, so Wrapped covers the years before Pawse.
+
+### Step 3: Wrapped (later)
+- [ ] 86. Yearly Wrapped each December: story cards for minutes listened, top songs, artists and albums, peak hour and day, longest streak, new artists found, mood mix, and the cat's personality from how you listen.
+- [ ] 87. Monthly recap at the start of each month: a short version of the same cards.
+- [ ] 88. Every card can be shared as an image (reuse the share card).
+- [ ] 89. "Your story so far": the same view for any date range, from Library.
+
 ## Later
 - Lyrics in the Dynamic Island and the Live Activity. Left out of v1 on purpose.
 - Video mode (music videos), with a careful lock-screen handoff (react-native-video takes over Now Playing; see RNTP #2679).
 - StandBy view, and lock-screen widgets on iOS.
-- Listening stats and Wrapped-style share cards.
 - yt-dlp fallback on the VPS for when on-device stream clients fail (YouTube bot-checks datacenter IPs).
 - Local files.
 - CarPlay. It needs the entitlement, so a paid Apple account.

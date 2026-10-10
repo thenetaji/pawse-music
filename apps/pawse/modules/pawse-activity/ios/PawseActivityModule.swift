@@ -129,6 +129,31 @@ public class PawseActivityModule: Module {
     AsyncFunction("squareArtwork") { (urls: [String], px: Int) async -> String? in
       await PawseArtwork.square(urls, side: px)
     }
+
+    // Auto-backup folder: bookmarked at pick time so writes still work after a relaunch.
+    Function("saveBackupFolder") { (uri: String) -> Bool in
+      BackupFolder.save(uri)
+    }
+
+    Function("clearBackupFolder") {
+      BackupFolder.clear()
+    }
+
+    AsyncFunction("writeBackupFile") { (name: String, text: String) async -> Bool in
+      await BackupFolder.write(name, text)
+    }
+
+    AsyncFunction("listBackupFiles") { () async -> [String] in
+      await BackupFolder.list()
+    }
+
+    AsyncFunction("readBackupFileHead") { (name: String, bytes: Int) async -> String? in
+      await BackupFolder.head(name, bytes)
+    }
+
+    AsyncFunction("deleteBackupFile") { (name: String) async -> Bool in
+      await BackupFolder.delete(name)
+    }
   }
 
   @available(iOS 17.0, *)

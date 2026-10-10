@@ -102,7 +102,7 @@ You need Android 7.0 or newer.
 
 **The cat pill around the camera.** In Pawse, go to **Settings → Android** and turn on the pill. Android asks for **Display over other apps**. Allow it for Pawse.
 
-**Music stops in the background?** Some phones (Samsung, Xiaomi, Oppo, Vivo and others) close music apps to save battery. Open **Settings → Android → Keep Pawse running** and allow Pawse there.
+**Music stops in the background?** Some phones (Samsung, Xiaomi, Oppo, Vivo and others) close music apps to save battery. Open **Settings → Android → Keep playing in the background** and allow Pawse there.
 
 ### Mac
 You need the file for your chip. See "Which file do I need?" above.
@@ -145,14 +145,14 @@ Removing the app doesn't remove your library. For a clean uninstall, also delete
 
 ## Keep your library safe
 
-Open **Settings → Backup → Export library**. Pawse saves everything below into one file:
+Open **Settings → Library → Back up library**. Pawse saves everything below into one file:
 
 - your likes and playlists
 - your play history (the last 1,000 plays, which is what your listening stats are made from)
 - saved albums and followed artists
 - your settings
 
-Save the file somewhere safe, like Files or Google Drive. To get it all back, even on another phone, open **Settings → Backup → Import library** and pick the file.
+Save the file somewhere safe, like Files or Google Drive. To get it all back, even on another phone, open **Settings → Library → Restore backup** and pick the file.
 
 A backup does not hold:
 
@@ -170,7 +170,7 @@ From version 0.7.0, Pawse has its own app ID on iPhone and Android. That means i
 2. Install the new Pawse.
    - iPhone: add the SideStore source again (or refresh it), then install **Pawse**.
    - Android: download **[Pawse.apk](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk)**.
-3. Open the new Pawse and import your file with **Settings → Backup → Import library**. The new app also offers this the first time you open it.
+3. Open the new Pawse and tap **Restore a backup** on the first screen (or later, **Settings → Library → Restore backup**).
 4. Check that your likes, playlists and stats are there.
 5. Delete the old app.
 

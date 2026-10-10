@@ -2,14 +2,25 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
-## [0.7.4] - 2026-10-10
+## [Unreleased]
+
+## [0.8.0] - 2026-10-10
+
+### Added
+- **Dislike** a song from its menu. Pawse skips it, keeps it out of radio, autoplay, Home and your mixes, and plays less from that artist. If you're signed in, it's sent to YouTube Music too.
+- **Song info** in the song menu: title, artists, album, length, IDs and link with copy buttons, and for the playing song the audio format, bitrate, size, where it streams from and the quality in use.
+- Long titles slide sideways on Now Playing, the mini player, the desktop player bar and the song menu instead of being cut off.
+- Pawse keeps a full **listening journal**: every song, when, how long and from where. Backups carry it, so it survives a reinstall. It's the base for a yearly and monthly Wrapped.
+- **Settings → Library → Automatic backup** saves your library to a folder you pick (iCloud Drive, Files or a phone folder) once a day, with a weekly copy kept for 8 weeks.
+- **Import → Past listening history** reads your plays from Google Takeout (YouTube Music) and Apple Music's Play Activity file into the journal.
 
 ### Changed
-- Settings says **Import music library** instead of "Import my YouTube Music library", since it also imports from Apple Music, Google Takeout and CSV files.
-
-## [0.7.3] - 2026-10-10
+- The song menu has a new look: quick Like, Dislike, Download and Share buttons, and icons on every row.
+- Settings is shorter and clearer. Related options are merged into one choice each: **Autoplay similar songs** (off, not after albums, or always), **Download automatically** (off, liked songs, or liked and playlist songs) and **Keep played songs offline** (off or a size). Long explanations are gone.
+- **Settings → Library** holds **Import music library** (YouTube Music, Apple Music, Google Takeout or a CSV file), **Back up library** and **Restore backup**.
 
 ### Fixed
+- iPhone: **Update** no longer hangs in SideStore. It opens SideStore, where you refresh **My Apps** and tap **Update** next to Pawse.
 - The Dynamic Island's big player (hold the island) fills its space like Apple Music's: bigger artwork, title and artist, a clearer progress bar with larger times, and bigger play, previous and next buttons.
 
 ## [0.7.2] - 2026-10-10
@@ -169,7 +180,6 @@ Flow is now **Pawse** (say it like "pause"), and it's open source.
 - Signing in takes effect immediately and is verified in Settings.
 - Background audio safeguards; Settings → About → Show onboarding again.
 
-[0.7.4]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.4
 [0.7.3]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.3
 [0.7.2]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.2
 [0.7.1]: https://github.com/thenetaji/pawse-music/releases/tag/v0.7.1

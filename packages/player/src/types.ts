@@ -19,6 +19,8 @@ export interface SetupOptions {
   pauseOnDisconnect?: boolean;
   /** When true, any queue keeps going with radio from its last track once it runs low. */
   radioContinue?: () => boolean;
+  /** True for a song radio and autoplay should never add (e.g. disliked); explicit queues are untouched. */
+  skipTrack?: (track: Track) => boolean;
   /** Seconds the sleep timer fades the volume over before it stops (default 10). */
   sleepFadeSec?: () => number;
   /** A ready artwork URI (e.g. a local square file) for the system Now Playing; undefined uses the best thumbnail. */

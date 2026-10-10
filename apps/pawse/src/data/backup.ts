@@ -9,11 +9,28 @@ import {
   mergeBackup,
   parseBackup,
 } from "./backup-format";
+import { exportJournal, importJournal } from "./journal";
 import { useLibrary } from "./library";
 
 export { BackupError, type MergeSummary } from "./backup-format";
 
-const MAX_BYTES = 20 << 20;
+// Room for years of listening-journal plays.
+const MAX_BYTES = 64 << 20;
+
+/** The backup file body, shared by the manual export and the automatic backup. */
+export async function buildBackupJson(): Promise<string> {
+  const backup = makeBackup(useLibrary.getState(), await exportJournal());
+  // The backup folder only means something on this device.
+  const settings = backup.settings as Record<string, unknown>;
+  for (const k of [
+    "backupFolder",
+    "backupFolderName",
+    "backupAt",
+    "backupError",
+  ])
+    delete settings[k];
+  return JSON.stringify(backup);
+}
 
 /** Writes likes, playlists, history, saves and settings (no cookies) to JSON and opens the share sheet. */
 export async function exportLibrary(): Promise<void> {
@@ -21,7 +38,7 @@ export async function exportLibrary(): Promise<void> {
   const file = new File(Paths.cache, `pawse-library-${day}.json`);
   if (file.exists) file.delete();
   file.create();
-  file.write(JSON.stringify(makeBackup(useLibrary.getState())));
+  file.write(await buildBackupJson());
   if (!(await Sharing.isAvailableAsync()))
     throw new BackupError("Sharing is not available on this device");
   await Sharing.shareAsync(file.uri, {
@@ -50,5 +67,6 @@ export async function importLibrary(): Promise<MergeSummary | null> {
   const backup = parseBackup(json);
   const { data, added } = mergeBackup(useLibrary.getState(), backup);
   useLibrary.setState(data);
-  return added;
+  const journal = backup.journal ? await importJournal(backup.journal) : 0;
+  return { ...added, journal };
 }

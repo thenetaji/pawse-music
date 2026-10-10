@@ -3,16 +3,38 @@ import { emitPlayerEvent, player } from "@pawse/player";
 import { router } from "expo-router";
 import { Share, StyleSheet, Text, View } from "react-native";
 
-import { askText, showSheet } from "../../components/action-sheet";
+import { askText, SheetNote, showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
+import { Marquee } from "../../components/marquee";
+import {
+  AlbumGlyph,
+  ArtistGlyph,
+  CardGlyph,
+  DownloadGlyph,
+  HeartIcon,
+  InfoGlyph,
+  PlaylistGlyph,
+  PlayNextGlyph,
+  QueueAddGlyph,
+  RadioGlyph,
+  ShareGlyph,
+  ThumbsDown,
+  TrashGlyph,
+} from "../../components/glyphs";
 import { download, isDownloaded, removeDownload } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { removeSong } from "../../lib/remove-song";
-import { getSetting } from "../../lib/settings";
+import { autoDownloadMode } from "../../lib/settings";
 import { useShareCard } from "../../lib/share-card-store";
 import { openAlbum, openArtist } from "../../lib/song-links";
+import { display } from "../../lib/type";
+import { showSongInfo } from "./song-info";
+
+// Menu icons share one size and a lighter stroke than the 18 px glyphs.
+const I = 22;
+const W = 1.8;
 
 export function showTrackActions(
   track: Track,
@@ -20,6 +42,7 @@ export function showTrackActions(
 ) {
   const lib = useLibrary.getState();
   const liked = lib.isLiked(track.id);
+  const disliked = lib.isDisliked(track.id);
   const saved = isDownloaded(track.id);
   const leave = (fn: () => void) => {
     if (opts?.fromPlayer) router.back();
@@ -29,56 +52,89 @@ export function showTrackActions(
   showSheet({
     header: (
       <View style={s.head}>
-        <Artwork thumbnails={track.thumbnails} size={46} radius={7} />
+        <Artwork thumbnails={track.thumbnails} size={52} radius={8} />
         <View style={{ flex: 1 }}>
-          <Text style={s.title} numberOfLines={1}>
-            {track.title}
-          </Text>
+          <Marquee style={s.title}>{track.title}</Marquee>
           <Text style={s.sub} numberOfLines={1}>
             {artistLine(track.artists)}
           </Text>
         </View>
       </View>
     ),
-    actions: [
-      ...(opts?.removable
-        ? [
-            {
-              label: "Remove from Home & history",
-              destructive: true,
-              onPress: () => removeSong(track),
-            },
-          ]
-        : []),
-      ...(opts?.fromPlayer
-        ? []
-        : [
-            { label: "Play next", onPress: () => player.addNext(track) },
-            { label: "Add to queue", onPress: () => player.addToQueue(track) },
-          ]),
+    quick: [
       {
-        label: "Start radio",
-        onPress: () =>
-          void player.playRadio({ videoId: track.id, title: track.title }),
-      },
-      {
-        label: liked ? "Remove from liked" : "Like",
+        label: liked ? "Liked" : "Like",
+        active: liked,
+        icon: (c) => <HeartIcon size={I} weight={W} color={c} filled={liked} />,
         onPress: () => {
+          haptic.light();
           if (useLibrary.getState().toggleLike(track))
             emitPlayerEvent("liked", track);
         },
       },
       {
-        label: saved ? "Remove download" : "Download",
-        onPress: () => (saved ? removeDownload(track.id) : download(track)),
+        label: disliked ? "Disliked" : "Dislike",
+        active: disliked,
+        icon: (c) => (
+          <ThumbsDown size={I} weight={W} color={c} filled={disliked} />
+        ),
+        onPress: () => {
+          haptic.light();
+          useLibrary.getState().toggleDislike(track);
+        },
       },
+      {
+        label: saved ? "Downloaded" : "Download",
+        active: saved,
+        keepOpen: saved,
+        icon: (c) => (
+          <DownloadGlyph size={I} weight={W} color={c} done={saved} />
+        ),
+        onPress: () => (saved ? confirmRemoveDownload(track) : download(track)),
+      },
+      {
+        label: "Share",
+        icon: (c) => <ShareGlyph size={I} weight={W} color={c} />,
+        onPress: () =>
+          void Share.share({
+            message: `https://music.youtube.com/watch?v=${track.id}`,
+          }),
+      },
+    ],
+    actions: [
+      ...(opts?.fromPlayer
+        ? []
+        : [
+            {
+              label: "Play next",
+              icon: (c: string) => (
+                <PlayNextGlyph size={I} weight={W} color={c} />
+              ),
+              onPress: () => player.addNext(track),
+            },
+            {
+              label: "Add to queue",
+              icon: (c: string) => (
+                <QueueAddGlyph size={I} weight={W} color={c} />
+              ),
+              onPress: () => player.addToQueue(track),
+            },
+          ]),
       {
         label: "Add to playlist",
         keepOpen: true,
+        icon: (c) => <PlaylistGlyph size={I} weight={W} color={c} />,
         onPress: () => showPlaylistPicker(track),
       },
       {
+        label: "Start radio",
+        icon: (c) => <RadioGlyph size={I} weight={W} color={c} />,
+        onPress: () =>
+          void player.playRadio({ videoId: track.id, title: track.title }),
+      },
+      {
         label: "Go to album",
+        icon: (c) => <AlbumGlyph size={I} weight={W} color={c} />,
         onPress: () => void openAlbum(track, leave),
       },
       ...(track.artists.length
@@ -86,23 +142,54 @@ export function showTrackActions(
             {
               label:
                 track.artists.length > 1 ? "Go to artists" : "Go to artist",
+              icon: (c: string) => (
+                <ArtistGlyph size={I} weight={W} color={c} />
+              ),
               onPress: () => void openArtist(track, leave),
             },
           ]
         : []),
       {
+        label: "Song info",
+        keepOpen: true,
+        icon: (c) => <InfoGlyph size={I} weight={W} color={c} />,
+        onPress: () => showSongInfo(track),
+      },
+      {
         label: "Share card",
+        icon: (c) => <CardGlyph size={I} weight={W} color={c} />,
         onPress: () => {
           useShareCard.setState({ track, lyric: undefined });
           push("/share-card");
         },
       },
+      ...(opts?.removable
+        ? [
+            {
+              label: "Remove from Home & history",
+              destructive: true,
+              icon: (c: string) => <TrashGlyph size={I} weight={W} color={c} />,
+              onPress: () => removeSong(track),
+            },
+          ]
+        : []),
+    ],
+  });
+}
+
+function confirmRemoveDownload(track: Track) {
+  showSheet({
+    header: (
+      <SheetNote
+        title="Remove download?"
+        body={`${track.title} will play from the internet again.`}
+      />
+    ),
+    actions: [
       {
-        label: "Share link",
-        onPress: () =>
-          void Share.share({
-            message: `https://music.youtube.com/watch?v=${track.id}`,
-          }),
+        label: "Remove download",
+        destructive: true,
+        onPress: () => removeDownload(track.id),
       },
     ],
   });
@@ -146,14 +233,13 @@ function showPlaylistPicker(track: Track) {
   });
 }
 
-// "Download songs I add to playlists" in Settings.
+// Settings → Download automatically → Liked and playlist songs.
 function afterAdd(track: Track) {
-  if (getSetting("autoDownloadPlaylists", false) && !isDownloaded(track.id))
-    download(track);
+  if (autoDownloadMode() === "all" && !isDownloaded(track.id)) download(track);
 }
 
 const s = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 12 },
-  title: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  sub: { color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 1 },
+  title: { color: "#fff", fontSize: 17, ...display("700") },
+  sub: { color: "rgba(255,255,255,0.55)", fontSize: 14, marginTop: 2 },
 });

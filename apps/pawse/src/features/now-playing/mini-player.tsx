@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { TrackArt } from "../../components/artwork";
+import { Marquee } from "../../components/marquee";
 import { Spinner, useBusy } from "../../components/spinner";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
@@ -83,9 +84,7 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
             />
           </Animated.View>
           <View style={styles.text}>
-            <Text style={styles.title} numberOfLines={1}>
-              {current.title}
-            </Text>
+            <Marquee style={styles.title}>{current.title}</Marquee>
             {!inline && (
               <Text style={styles.sub} numberOfLines={1}>
                 {busy === "slow"

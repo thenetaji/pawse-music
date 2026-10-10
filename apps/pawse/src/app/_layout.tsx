@@ -9,6 +9,8 @@ import { ReducedMotionConfig, ReduceMotion } from "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ActionSheetHost } from "../components/action-sheet";
+import { startAutoBackup } from "../data/auto-backup";
+import { startJournalRecorder } from "../data/journal-recorder";
 import { useLibrary } from "../data/library";
 import { startAndroidPill } from "../features/island/android-pill";
 import { startIslandController } from "../features/island/island";
@@ -32,6 +34,8 @@ export default function RootLayout() {
     const stopIsland = startIslandController();
     const stopPill = startAndroidPill();
     const stopResume = startResumeController();
+    const stopBackup = startAutoBackup();
+    const stopJournal = startJournalRecorder();
     // First launch: meet the cat once the persisted library has loaded.
     const onboard = () => {
       if (!getSetting("onboarded", false))
@@ -44,6 +48,8 @@ export default function RootLayout() {
       stopIsland();
       stopPill?.();
       stopResume();
+      stopBackup();
+      stopJournal();
       unsub();
     };
   }, []);

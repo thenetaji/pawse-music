@@ -52,6 +52,12 @@ declare class PawseActivityNative extends NativeModule<Events> {
   setArtwork(url: string): Promise<string | null>;
   squareArtwork(urls: string[], px: number): Promise<string | null>;
   setResumeAfterInterruption(on: boolean): void;
+  saveBackupFolder(uri: string): boolean;
+  clearBackupFolder(): void;
+  writeBackupFile(name: string, text: string): Promise<boolean>;
+  listBackupFiles(): Promise<string[]>;
+  readBackupFileHead(name: string, bytes: number): Promise<string | null>;
+  deleteBackupFile(name: string): Promise<boolean>;
 }
 
 const native =
@@ -59,9 +65,25 @@ const native =
     ? requireOptionalNativeModule<PawseActivityNative>("PawseActivity")
     : null;
 
+// Older native builds lack newer functions, so a sync throw counts as failure too.
+function call<T>(
+  run: (n: PawseActivityNative) => Promise<T>,
+  fallback: T,
+): Promise<T> {
+  if (!native) return Promise.resolve(fallback);
+  try {
+    return run(native).catch(() => fallback);
+  } catch {
+    return Promise.resolve(fallback);
+  }
+}
+
 export const PawseActivity = {
   /** The native module is linked (an iOS dev or release build, not Expo Go or web). */
   available: native != null,
+
+  /** The native build can bookmark and write the auto-backup folder. */
+  backupFolder: typeof native?.saveBackupFolder === "function",
 
   isSupported(): boolean {
     try {
@@ -111,6 +133,41 @@ export const PawseActivity = {
     } catch {
       // Older native build without the function.
     }
+  },
+
+  /** Bookmarks the just-picked backup folder so it survives relaunches; false when it can't. */
+  saveBackupFolder(uri: string): boolean {
+    try {
+      return native?.saveBackupFolder(uri) ?? false;
+    } catch {
+      return false;
+    }
+  },
+
+  clearBackupFolder(): void {
+    try {
+      native?.clearBackupFolder();
+    } catch {
+      // Older native build without the function.
+    }
+  },
+
+  /** Coordinated atomic write of a UTF-8 file into the bookmarked folder. */
+  writeBackupFile(name: string, text: string): Promise<boolean> {
+    return call((n) => n.writeBackupFile(name, text), false);
+  },
+
+  /** File names in the bookmarked folder; empty when it can't be reached. */
+  listBackupFiles(): Promise<string[]> {
+    return call((n) => n.listBackupFiles(), [] as string[]);
+  },
+
+  readBackupFileHead(name: string, bytes: number): Promise<string | null> {
+    return call((n) => n.readBackupFileHead(name, bytes), null);
+  },
+
+  deleteBackupFile(name: string): Promise<boolean> {
+    return call((n) => n.deleteBackupFile(name), false);
   },
 
   /** Play/pause and next taps from the island; returns an unsubscribe. */

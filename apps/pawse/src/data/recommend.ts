@@ -35,6 +35,8 @@ export type Taste = {
   liked: Track[];
   signals: SignalMap;
   now: number;
+  /** Thumbs-down songs: never recommended, and their artists weigh less. */
+  disliked?: Track[];
 };
 export type Scored = { track: Track; score: number };
 export type Seed = { track: Track; weight: number };
@@ -60,6 +62,18 @@ export const artistKey = (a?: ArtistRef) => (a ? norm(a.name) : "");
 export const trackKey = (t: Track) =>
   `${norm(t.title)}|${artistKey(t.artists[0])}`;
 
+/** Disliked ids and song keys, plus dislikes per primary artist. */
+export function dislikes(disliked: Track[] = []) {
+  const ids = new Set<string>();
+  const artists = new Map<string, number>();
+  for (const t of disliked) {
+    ids.add(t.id).add(trackKey(t));
+    const a = artistKey(t.artists[0]);
+    if (a) artists.set(a, (artists.get(a) ?? 0) + 1);
+  }
+  return { ids, artists };
+}
+
 const playCounts = (history: Play[]) => {
   const n = new Map<string, number>();
   for (const p of history) n.set(p.track.id, (n.get(p.track.id) ?? 0) + 1);
@@ -67,7 +81,14 @@ const playCounts = (history: Play[]) => {
 };
 
 /** Affinity per track: plays, completes, likes and repeats, decayed by recency; skips subtract. */
-export function scoreTracks({ history, liked, signals, now }: Taste): Scored[] {
+export function scoreTracks({
+  history,
+  liked,
+  signals,
+  now,
+  disliked,
+}: Taste): Scored[] {
+  const bad = dislikes(disliked);
   const tracks = new Map<string, Track>();
   const last = new Map<string, number>();
   const recent = new Map<string, number>();
@@ -86,6 +107,7 @@ export function scoreTracks({ history, liked, signals, now }: Taste): Scored[] {
   const counts = playCounts(history);
   const out: Scored[] = [];
   for (const [id, track] of tracks) {
+    if (bad.ids.has(id) || bad.ids.has(trackKey(track))) continue;
     const s = signals[id];
     const plays = Math.max(s?.plays ?? 0, counts.get(id) ?? 0);
     const repeats = Math.max(0, (recent.get(id) ?? 0) - 1);
@@ -95,7 +117,8 @@ export function scoreTracks({ history, liked, signals, now }: Taste): Scored[] {
       1.5 * (s?.completes ?? 0) +
       (isLiked ? 4 : 0) +
       1.5 * repeats -
-      2 * (s?.skips ?? 0);
+      2 * (s?.skips ?? 0) -
+      3 * (bad.artists.get(artistKey(track.artists[0])) ?? 0);
     const at = Math.max(
       s?.lastPlayed ?? 0,
       last.get(id) ?? 0,
@@ -179,6 +202,8 @@ export function skipHeavy(signals: SignalMap): Set<string> {
 export function rankCandidates(
   sources: Source[],
   drop: Set<string> = new Set(),
+  /** Dislikes per artistKey; each one cuts that artist's songs further. */
+  penalty?: Map<string, number>,
 ): Candidate[] {
   const by = new Map<
     string,
@@ -200,7 +225,9 @@ export function rankCandidates(
     .map((e) => ({
       track: e.track,
       seeds: e.seeds.size,
-      score: e.seeds.size + e.score,
+      score:
+        (e.seeds.size + e.score) /
+        (1 + 2 * (penalty?.get(artistKey(e.track.artists[0])) ?? 0)),
     }))
     .sort((a, b) => b.score - a.score);
 }
@@ -308,7 +335,9 @@ export function buildSmartPlaylists(
     .map((p) => p.track)
     .slice(0, 50);
 
-  return [
+  const bad = dislikes(t.disliked);
+  const ok = (x: Track) => !bad.ids.has(x.id) && !bad.ids.has(trackKey(x));
+  const lists: SmartPlaylist[] = [
     {
       id: "top50",
       title: "Top 50",
@@ -346,6 +375,7 @@ export function buildSmartPlaylists(
       tracks: liked.slice(0, 50),
     },
   ];
+  return lists.map((p) => ({ ...p, tracks: p.tracks.filter(ok) }));
 }
 
 export type ForYouData = {
@@ -449,6 +479,7 @@ export function useSmartPlaylists(): SmartPlaylist[] {
   const history = useLibrary((s) => s.history);
   const liked = useLibrary((s) => s.liked);
   const playlists = useLibrary((s) => s.playlists);
+  const disliked = useLibrary((s) => s.disliked);
   const signals = useSignals((s) => s.tracks);
   const { now } = useClock();
   return useMemo(
@@ -458,19 +489,21 @@ export function useSmartPlaylists(): SmartPlaylist[] {
         liked,
         playlists,
         signals,
+        disliked,
         now: Math.max(now, history[0]?.at ?? 0),
       }),
-    [history, liked, playlists, signals, now],
+    [history, liked, playlists, signals, disliked, now],
   );
 }
 
 /** One smart playlist outside React, e.g. for a detail page loader. */
 export function smartPlaylist(id: string): SmartPlaylist | undefined {
-  const { history, liked, playlists } = useLibrary.getState();
+  const { history, liked, playlists, disliked } = useLibrary.getState();
   return buildSmartPlaylists({
     history,
     liked,
     playlists,
+    disliked,
     signals: useSignals.getState().tracks,
     now: Date.now(),
   }).find((p) => p.id === id);
@@ -565,6 +598,8 @@ type Inputs = {
   topArtists: ArtistRef[];
   known: Set<string>;
   drop: Set<string>;
+  /** Dislikes per artistKey. */
+  penalty: Map<string, number>;
   languages: string[];
   region: string;
   isNew: boolean;
@@ -687,7 +722,7 @@ async function loadForYou(
   );
   const drop = new Set(x.drop);
   for (const s of songs) drop.add(trackKey(s.track));
-  let quick = pickTracks(rankCandidates(sources, drop), {
+  let quick = pickTracks(rankCandidates(sources, drop, x.penalty), {
     n: QUICK_N + QUICK_SPARE,
     known: x.known,
   });
@@ -702,7 +737,7 @@ async function loadForYou(
       continue;
     const own = sources.filter((s) => s.artist === j.artist);
     const tracks = pickTracks(
-      rankCandidates(own, drop).filter(
+      rankCandidates(own, drop, x.penalty).filter(
         (c) => !c.track.artists.some((a) => artistKey(a) === j.artist),
       ),
       { n: 15, skip: taken },
@@ -742,6 +777,7 @@ export function useForYou(): {
   const region = useRegion();
   const explicit = useLibrary((s) => s.settings.explicitFilter);
   const hidden = useLibrary((s) => s.settings.hiddenFromHome);
+  const disliked = useLibrary((s) => s.disliked);
   const signals = useSignals((s) => s.tracks);
   const smart = useSmartPlaylists();
   const clock = useClock();
@@ -749,7 +785,7 @@ export function useForYou(): {
   const inputs = useMemo((): Inputs & { now: number } => {
     const now = Math.max(clock.now, history[0]?.at ?? 0);
     const plan = planSeeds(
-      pickSeeds(scoreTracks({ history, liked, signals, now })),
+      pickSeeds(scoreTracks({ history, liked, signals, now, disliked })),
       [...seedArtists, ...followed],
     );
     const stats = listeningStats(history, now - 90 * DAY, Infinity, 20);
@@ -772,9 +808,12 @@ export function useForYou(): {
     ]);
     const drop = recentlyPlayed(history, now);
     for (const id of skipHeavy(signals)) drop.add(id);
+    const bad = dislikes(disliked);
+    for (const id of bad.ids) drop.add(id);
     return {
       now,
       plan,
+      penalty: bad.artists,
       topArtists: topArtists.slice(0, 12),
       known,
       drop,
@@ -787,6 +826,7 @@ export function useForYou(): {
     liked,
     followed,
     signals,
+    disliked,
     seedArtists,
     languages,
     region,

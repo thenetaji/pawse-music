@@ -151,9 +151,12 @@ export type LibraryData = {
   /** Liked ids YouTube reported at the last sync, so remote unlikes can be told from local-only likes. */
   likedRemoteIds: string[];
   syncedAt: number;
+  /** Thumbs-down songs, newest first; kept out of radio, autoplay and recommendations. */
+  disliked: Track[];
 };
 
 export const HISTORY_MAX = 1000;
+export const DISLIKED_MAX = 2000;
 export const strip = (t: Track): Track => ({ ...t, setVideoId: undefined });
 
 export function moveItem<T>(list: T[], from: number, to: number): T[] {

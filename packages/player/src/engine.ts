@@ -1,3 +1,10 @@
+import {
+  artistLine,
+  bestThumbnail,
+  type ResolvedStream,
+  type ResolveOptions,
+  type Track,
+} from "@pawse/music-core";
 import TrackPlayer, {
   Event,
   type MediaItem,
@@ -6,13 +13,6 @@ import TrackPlayer, {
   PlaybackState,
   PlayerCommand,
 } from "@rntp/player";
-import {
-  artistLine,
-  bestThumbnail,
-  type ResolvedStream,
-  type ResolveOptions,
-  type Track,
-} from "@pawse/music-core";
 import { useEffect, useState } from "react";
 import { AppState, Platform } from "react-native";
 
@@ -253,6 +253,13 @@ export function refreshArtwork(trackId: string): void {
   });
 }
 
+/** The stream resolved for the current song (format, bitrate, source) for Song info; undefined until resolved. */
+export function currentStream(): ResolvedStream | undefined {
+  const { tracks, index } = get();
+  const t = tracks[index];
+  return t ? streams.get(t.id) : undefined;
+}
+
 /** How many upcoming songs get resolved ahead (data saver uses 1); no argument restores the default. */
 export function setPrefetchAhead(n?: number): void {
   ahead = n === undefined ? AHEAD : Math.max(0, Math.round(n));
@@ -410,7 +417,8 @@ async function refill(): Promise<void> {
     if (gen !== queueGen) return;
     radio.continuation = res.continuation;
     radio.playlistId = res.playlistId ?? radio.playlistId;
-    const fresh = Q.freshTracks(get(), res.tracks);
+    const skip = opts?.skipTrack;
+    const fresh = Q.freshTracks(get(), res.tracks).filter((t) => !skip?.(t));
     if (!fresh.length) {
       radio.done = !res.continuation;
       return;
@@ -805,8 +813,10 @@ export const player: Player = {
       });
       if (gen !== navGen) return;
       loading = false;
+      // The seed stays first; disliked songs drop from the rest of the station.
+      const skip = opts?.skipTrack;
       await start(
-        res.tracks,
+        res.tracks.filter((t, i) => i === 0 || !skip?.(t)),
         0,
         {
           source: {

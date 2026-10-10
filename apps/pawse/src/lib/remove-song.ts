@@ -1,5 +1,5 @@
-// Songs the listener removed (from history and every Home shelf), plus the "Hide explicit songs"
-// setting, applied to every Home shelf including ones built from history.
+// Songs the listener removed or disliked, plus the "Hide explicit songs" setting,
+// applied to every Home shelf including ones built from history.
 import type { CatalogItem, Shelf } from "@pawse/music-core";
 
 import { useLibrary } from "../data/library";
@@ -34,7 +34,9 @@ export function removeSong(track: Song) {
 export function useHomeKeep(): (t: Song) => boolean {
   const hidden = useLibrary((s) => s.settings.hiddenFromHome);
   const explicit = useLibrary((s) => s.settings.explicitFilter);
-  const set = new Set(hidden ?? []);
+  const disliked = useLibrary((s) => s.disliked);
+  // Disliked songs stay off Home too, including shelves built from history.
+  const set = new Set([...(hidden ?? []), ...disliked.map((t) => t.id)]);
   return (t) => !set.has(t.id) && !(explicit && t.explicit === true);
 }
 

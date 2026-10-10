@@ -28,7 +28,7 @@ import { useForYou } from "../../data/recommend";
 import { yt } from "../../lib/engine";
 import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
-import { getSetting, useSetting } from "../../lib/settings";
+import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
@@ -265,7 +265,7 @@ function JumpBackIn() {
             key={t.id}
             onPress={() =>
               void player.play(recent, i, {
-                radio: getSetting("radioContinue", true),
+                radio: autoplayMode() !== "off",
                 source: { type: "library", title: "Recently played" },
               })
             }

@@ -16,6 +16,7 @@ import {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { TrackArt } from "../../components/artwork";
+import { Marquee } from "../../components/marquee";
 import { useLibrary } from "../../data/library";
 import { push } from "../../lib/nav";
 import { openAlbum, openArtist } from "../../lib/song-links";
@@ -68,12 +69,12 @@ export function PlayerBar() {
             <View style={styles.meta}>
               <Pressable onPress={() => void openAlbum(current)}>
                 {({ hovered }: Hover) => (
-                  <Text
-                    numberOfLines={1}
+                  <Marquee
                     style={[styles.title, hovered && styles.underline]}
+                    fadeColor="#0B0B0E"
                   >
                     {current.title}
-                  </Text>
+                  </Marquee>
                 )}
               </Pressable>
               <Pressable onPress={() => void openArtist(current)}>

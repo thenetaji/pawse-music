@@ -27,7 +27,7 @@ import { PressScale } from "../../components/ui";
 import { downloadMany, useDownloads } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
-import { getSetting } from "../../lib/settings";
+import { autoplayMode } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { PlayGlyph } from "../now-playing/icons";
 import { readable } from "../now-playing/now-palette";
@@ -99,8 +99,7 @@ export function Collection({
     // Playlists and albums end where they end unless the user asked for more.
     void player.play(tracks, i, {
       source,
-      endless:
-        getSetting("radioContinue", true) && getSetting("listsContinue", false),
+      endless: autoplayMode() === "always",
     });
   };
 

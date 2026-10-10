@@ -92,7 +92,7 @@ export default function Onboarding() {
         if (!r) return;
         Alert.alert(
           "Welcome back",
-          `${count(r.liked, "like")}, ${count(r.playlists, "playlist")} and ${count(r.plays, "play")} are back.`,
+          `${count(r.liked, "like")}, ${count(r.playlists, "playlist")} and ${count(Math.max(r.plays, r.journal ?? 0), "play")} are back.`,
         );
         finish();
       })

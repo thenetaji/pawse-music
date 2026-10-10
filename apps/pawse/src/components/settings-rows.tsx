@@ -98,8 +98,10 @@ export function Pick<T extends string | number>({
         pressed && !RIPPLE && styles.pressed,
       ]}
     >
-      <Text style={[styles.label, { flex: 1 }]}>{label}</Text>
-      <Text style={styles.value}>{shown}</Text>
+      <Text style={[styles.label, styles.pickLabel]}>{label}</Text>
+      <Text style={[styles.value, styles.pickValue]} numberOfLines={1}>
+        {shown}
+      </Text>
       <ChevronRight size={16} color={CHEV} />
     </Pressable>
   );
@@ -168,6 +170,9 @@ export const styles = StyleSheet.create({
   pressed: { backgroundColor: "rgba(255,255,255,0.06)" },
   label: { color: "#fff", fontSize: 16 },
   value: { color: "rgba(255,255,255,0.5)", fontSize: 16 },
+  // The label keeps its line; a long value shortens with … instead.
+  pickLabel: { flexShrink: 0, marginRight: 12 },
+  pickValue: { flex: 1, flexShrink: 1, textAlign: "right" },
   foot: {
     color: "rgba(255,255,255,0.4)",
     fontSize: 13,

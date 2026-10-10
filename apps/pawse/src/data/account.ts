@@ -1,6 +1,6 @@
 import type { ArtistSummary, Track } from "@pawse/music-core";
 import { yt, ytAccount } from "./clients";
-import { onLike, useLibrary } from "./library";
+import { onDislike, onLike, useLibrary } from "./library";
 import { listeningStats, parsePlaylistId, strip } from "./library-model";
 import { kv } from "./storage";
 
@@ -195,8 +195,9 @@ export async function dailyMixes(): Promise<DailyMix[]> {
   );
 }
 
-// Likes mirror to YouTube one at a time; the latest toggle per song wins, failures stay local.
-const pendingRates = new Map<string, boolean>();
+// Likes and dislikes mirror to YouTube one at a time; the latest toggle per song wins, failures stay local.
+type Rating = "like" | "dislike" | "none";
+const pendingRates = new Map<string, Rating>();
 let rating = false;
 
 async function drainRates(): Promise<void> {
@@ -204,9 +205,9 @@ async function drainRates(): Promise<void> {
   rating = true;
   try {
     for (let next = pendingRates.entries().next(); !next.done; ) {
-      const [id, on] = next.value;
+      const [id, value] = next.value;
       pendingRates.delete(id);
-      await yt.rate(id, on ? "like" : "none").catch(() => {});
+      await yt.rate(id, value).catch(() => {});
       await sleep(LIKE_GAP_MS);
       next = pendingRates.entries().next();
     }
@@ -227,10 +228,12 @@ let started = false;
 export function startAccountSync(): void {
   if (started) return;
   started = true;
-  onLike((track, on) => {
+  const mirror = (track: Track, value: Rating) => {
     const s = useLibrary.getState().settings;
     if (!s.cookies || !s.syncLikes || track.source !== "youtube") return;
-    pendingRates.set(track.id, on);
+    pendingRates.set(track.id, value);
     void drainRates();
-  });
+  };
+  onLike((track, on) => mirror(track, on ? "like" : "none"));
+  onDislike((track, on) => mirror(track, on ? "dislike" : "none"));
 }

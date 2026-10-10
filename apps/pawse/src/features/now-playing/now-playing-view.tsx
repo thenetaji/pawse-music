@@ -32,6 +32,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { Artwork } from "../../components/artwork";
+import { Marquee } from "../../components/marquee";
 import { Spinner, useBusy } from "../../components/spinner";
 import { useDataSaverActive } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
@@ -271,14 +272,14 @@ export function NowPlayingView(p: NowPlayingProps) {
               <View style={[styles.meta, { width: side, marginTop: 22 }]}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Pressable onPress={p.onTitle} style={styles.link}>
-                    <Text style={styles.title} numberOfLines={1}>
+                    <Marquee style={styles.title}>
                       {p.track?.title ?? " "}
-                    </Text>
+                    </Marquee>
                   </Pressable>
                   <Pressable onPress={p.onArtist} style={styles.link}>
-                    <Text style={styles.artist} numberOfLines={1}>
+                    <Marquee style={styles.artist}>
                       <ArtistText track={p.track} />
-                    </Text>
+                    </Marquee>
                   </Pressable>
                 </View>
                 {likeButton}
@@ -412,12 +413,12 @@ export function NowPlayingView(p: NowPlayingProps) {
                 <Artwork thumbnails={thumbs} size={56} radius={8} />
               ) : null}
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.compactTitle} numberOfLines={1}>
+                <Marquee style={styles.compactTitle}>
                   {p.track?.title ?? ""}
-                </Text>
-                <Text style={styles.compactArtist} numberOfLines={1}>
+                </Marquee>
+                <Marquee style={styles.compactArtist}>
                   {p.track ? artistLine(p.track.artists) : ""}
-                </Text>
+                </Marquee>
               </View>
               {likeButton}
             </View>
@@ -465,14 +466,14 @@ export function NowPlayingView(p: NowPlayingProps) {
                   accessibilityRole="link"
                   accessibilityHint="Opens the album"
                 >
-                  <Animated.Text
+                  <Animated.View
                     key={`t${p.track?.id}`}
                     entering={FadeInDown.duration(320)}
-                    style={styles.title}
-                    numberOfLines={1}
                   >
-                    {p.track?.title ?? " "}
-                  </Animated.Text>
+                    <Marquee style={styles.title} fadeColor={tint}>
+                      {p.track?.title ?? " "}
+                    </Marquee>
+                  </Animated.View>
                 </Pressable>
                 <Pressable
                   onPress={p.onArtist}
@@ -483,14 +484,14 @@ export function NowPlayingView(p: NowPlayingProps) {
                   accessibilityRole="link"
                   accessibilityHint="Opens the artist"
                 >
-                  <Animated.Text
+                  <Animated.View
                     key={`a${p.track?.id}`}
                     entering={FadeInDown.duration(380).delay(40)}
-                    style={styles.artist}
-                    numberOfLines={1}
                   >
-                    <ArtistText track={p.track} />
-                  </Animated.Text>
+                    <Marquee style={styles.artist} fadeColor={tint}>
+                      <ArtistText track={p.track} />
+                    </Marquee>
+                  </Animated.View>
                 </Pressable>
               </View>
               {likeButton}

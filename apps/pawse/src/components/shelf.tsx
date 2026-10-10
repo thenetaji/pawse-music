@@ -7,9 +7,9 @@ import {
 import { player } from "@pawse/player";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { showTrackActions } from "../features/library/track-actions";
-import { go } from "../lib/nav";
 import { useContentWidth } from "../lib/layout";
-import { getSetting } from "../lib/settings";
+import { go } from "../lib/nav";
+import { autoplayMode } from "../lib/settings";
 import { display } from "../lib/type";
 import { Artwork } from "./artwork";
 import { TrackRow } from "./track-row";
@@ -31,7 +31,7 @@ export function openItem(item: CatalogItem, siblings?: CatalogItem[]) {
   if (tracks.length <= 1)
     return void player.playRadio({ videoId: item.id, title: item.title });
   void player.play(tracks as Track[], at, {
-    radio: getSetting("radioContinue", true),
+    radio: autoplayMode() !== "off",
     source: { type: "other" },
   });
 }

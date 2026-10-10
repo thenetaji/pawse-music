@@ -4,11 +4,13 @@ import type {
   PlaylistSummary,
   Track,
 } from "@pawse/music-core";
+import { player, usePlayerStore } from "@pawse/player";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
   DEFAULT_SETTINGS,
+  DISLIKED_MAX,
   HISTORY_MAX,
   type LibraryData,
   mergeLikes,
@@ -28,6 +30,9 @@ type Library = LibraryData & {
   clearSearches(): void;
   toggleLike(track: Track): boolean;
   isLiked(id: string): boolean;
+  /** Thumbs-down; true when the song is now disliked. Calling it again undoes it. */
+  toggleDislike(track: Track): boolean;
+  isDisliked(id: string): boolean;
   recordPlay(track: Track): void;
   removeFromHistory(at: number): void;
   clearHistory(): void;
@@ -62,6 +67,29 @@ export function onLike(cb: LikeListener): () => void {
   return () => void likeListeners.delete(cb);
 }
 
+type DislikeListener = (track: Track, on: boolean) => void;
+const dislikeListeners = new Set<DislikeListener>();
+
+/** Runs after a user dislike/undislike; returns an unsubscribe. */
+export function onDislike(cb: DislikeListener): () => void {
+  dislikeListeners.add(cb);
+  return () => void dislikeListeners.delete(cb);
+}
+
+function emit<T extends (track: Track, on: boolean) => void>(
+  listeners: Set<T>,
+  track: Track,
+  on: boolean,
+) {
+  for (const cb of listeners) {
+    try {
+      cb(track, on);
+    } catch {
+      // Side effects never break the toggle itself.
+    }
+  }
+}
+
 let legacyCookies = false;
 
 export const useLibrary = create<Library>()(
@@ -76,6 +104,7 @@ export const useLibrary = create<Library>()(
       ytPlaylists: [],
       likedRemoteIds: [],
       syncedAt: 0,
+      disliked: [],
       settings: { ...DEFAULT_SETTINGS, cookies: readSession() },
       addSearch: (q) =>
         set((s) => ({
@@ -89,21 +118,40 @@ export const useLibrary = create<Library>()(
       clearSearches: () => set({ recentSearches: [] }),
       toggleLike(track) {
         const on = !get().liked.some((t) => t.id === track.id);
+        // Liking a disliked song clears the dislike first.
+        const wasDisliked = on && get().isDisliked(track.id);
         set((s) => ({
           liked: on
             ? [strip(track), ...s.liked]
             : s.liked.filter((t) => t.id !== track.id),
+          ...(wasDisliked
+            ? { disliked: s.disliked.filter((t) => t.id !== track.id) }
+            : {}),
         }));
-        for (const cb of likeListeners) {
-          try {
-            cb(track, on);
-          } catch {
-            // Side effects never break the like itself.
-          }
-        }
+        if (wasDisliked) emit(dislikeListeners, track, false);
+        emit(likeListeners, track, on);
         return on;
       },
       isLiked: (id) => get().liked.some((t) => t.id === id),
+      toggleDislike(track) {
+        const on = !get().isDisliked(track.id);
+        const wasLiked = on && get().isLiked(track.id);
+        set((s) => ({
+          disliked: on
+            ? [strip(track), ...s.disliked].slice(0, DISLIKED_MAX)
+            : s.disliked.filter((t) => t.id !== track.id),
+          ...(wasLiked
+            ? { liked: s.liked.filter((t) => t.id !== track.id) }
+            : {}),
+        }));
+        if (wasLiked) emit(likeListeners, track, false);
+        emit(dislikeListeners, track, on);
+        // A thumbs-down on the playing song moves on, like YouTube Music.
+        const q = usePlayerStore.getState();
+        if (on && q.tracks[q.index]?.id === track.id) player.next();
+        return on;
+      },
+      isDisliked: (id) => (get().disliked ?? []).some((t) => t.id === id),
       recordPlay: (track) => {
         if (get().settings.pauseHistory) return;
         set((s) => ({
@@ -226,7 +274,10 @@ export const useLibrary = create<Library>()(
         set((s) => ({
           ...(liked
             ? {
-                liked: mergeLikes(s.liked, liked, s.likedRemoteIds),
+                // A song disliked here stays out even if YouTube still lists it as liked.
+                liked: mergeLikes(s.liked, liked, s.likedRemoteIds).filter(
+                  (t) => !s.disliked.some((d) => d.id === t.id),
+                ),
                 likedRemoteIds: liked.map((t) => t.id),
               }
             : {}),
@@ -249,6 +300,7 @@ export const useLibrary = create<Library>()(
         ytPlaylists: s.ytPlaylists,
         likedRemoteIds: s.likedRemoteIds,
         syncedAt: s.syncedAt,
+        disliked: s.disliked,
       }),
       migrate: (persisted, version) => {
         const s = (persisted ?? {}) as Partial<LibraryData>;

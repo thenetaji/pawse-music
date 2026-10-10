@@ -11,6 +11,7 @@ import { readyArtwork, startArtwork } from "./artwork";
 import { logEvent } from "./diagnostics";
 import { relayStream } from "./net";
 import { noteStall } from "./quality";
+import { autoplayMode } from "./settings";
 import { clearResources } from "./use-resource";
 
 export { lyricsService, saavn, yt } from "../data/clients";
@@ -41,7 +42,9 @@ export function startEngine() {
     catalog: yt,
     storage: playerStorage,
     pauseOnDisconnect: settings().pauseOnDisconnect,
-    radioContinue: () => settings().radioContinue,
+    radioContinue: () => autoplayMode() !== "off",
+    // Radio and autoplay never add a disliked song.
+    skipTrack: (t: Track) => useLibrary.getState().isDisliked(t.id),
     sleepFadeSec: () => settings().sleepFade,
     artwork: readyArtwork,
     streamUrl: relayStream,

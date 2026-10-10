@@ -27,7 +27,12 @@ import {
   Toggle,
 } from "../components/settings-rows";
 import { PressScale } from "../components/ui";
-import { listeningStats, useLibrary } from "../data/library";
+import {
+  pickBackupFolder,
+  runAutoBackup,
+  turnOffAutoBackup,
+} from "../data/auto-backup";
+import { useLibrary } from "../data/library";
 import { signOut } from "../features/account/sign-out";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { useAccent } from "../features/now-playing/now-palette";
@@ -52,7 +57,7 @@ import {
 import { push } from "../lib/nav";
 import { count } from "../lib/plural";
 import { useAutoQuality } from "../lib/quality";
-import { setSetting, useSetting } from "../lib/settings";
+import { autoplayMode, setSetting, useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import {
   checkForUpdate,
@@ -84,6 +89,8 @@ export default function Settings() {
   const accountName = useLibrary((s) => s.settings.accountName);
   const catName = useSetting("catName", "Mochi");
   const catColor = useSetting<CatColor>("catColor", "orange");
+  const catIsland = useSetting("catIsland", true);
+  const androidPill = useSetting("androidPill", false);
 
   return (
     <ScrollView
@@ -132,16 +139,8 @@ export default function Settings() {
         {signedIn ? (
           <>
             <AccountRow fallback={accountName} />
-            <Toggle
-              k="syncLikes"
-              label="Sync likes and follows to YouTube"
-              def
-            />
-            <Toggle k="reportPlays" label="Send plays to YouTube history" def />
-            <Link
-              label="Import music library"
-              onPress={() => push("/import")}
-            />
+            <Toggle k="syncLikes" label="Sync likes and follows" def />
+            <Toggle k="reportPlays" label="Add plays to YouTube history" def />
             <Link label="Sign out" danger onPress={() => void signOut()} />
           </>
         ) : (
@@ -152,16 +151,13 @@ export default function Settings() {
           />
         )}
       </Section>
-      <Foot>
-        Signing in only personalises home, likes and playlists. Music always
-        streams signed out.
-      </Foot>
+      <Foot>Optional. Music plays without signing in.</Foot>
 
       <Section title="Playback">
-        <QualityRow k="quality" label="Wi-Fi streaming" network="wifi" />
+        <QualityRow k="quality" label="Quality on Wi-Fi" network="wifi" />
         <QualityRow
           k="qualityCellular"
-          label="Mobile data streaming"
+          label="Quality on mobile data"
           network="cellular"
         />
         <Toggle k="preferSaavn" label="Prefer JioSaavn 320 kbps" def={false} />
@@ -171,17 +167,17 @@ export default function Settings() {
           def
           onChange={(v) => player.setNormalize(v)}
         />
-        <Toggle
-          k="radioContinue"
-          label="Play similar songs when the queue ends"
-          def
+        <Pick
+          k="autoplay"
+          label="Autoplay similar songs"
+          def={autoplayMode()}
+          options={[
+            ["off", "Off"],
+            ["songs", "Not after albums"],
+            ["always", "Always"],
+          ]}
         />
-        <Toggle
-          k="listsContinue"
-          label="Also after playlists and albums"
-          def={false}
-        />
-        <Toggle k="resume" label="Resume where I left off" def />
+        <Toggle k="resume" label="Open on the last song" def />
         <Toggle
           k="pauseOnDisconnect"
           label="Pause when headphones disconnect"
@@ -190,7 +186,7 @@ export default function Settings() {
         {Platform.OS !== "web" ? (
           <Toggle
             k="resumeAfterInterruption"
-            label="Resume after other audio"
+            label="Resume after calls and videos"
             def
           />
         ) : null}
@@ -207,16 +203,12 @@ export default function Settings() {
         />
       </Section>
 
-      <Foot>
-        Automatic plays High on Wi-Fi, 5G and 4G, and Low on slower connections
-        or when songs keep stalling. Low on mobile data also loads smaller
-        artwork, keeps no songs offline and prepares only the next song.
-      </Foot>
+      <Foot>Automatic picks the quality from your connection.</Foot>
 
       {Platform.OS !== "web" ? <DownloadOptions manage /> : null}
 
       <Section title="Lyrics">
-        <Toggle k="lyricsLine" label="Show the live line on Now Playing" def />
+        <Toggle k="lyricsLine" label="Lyric line under the title" def />
         <Pick
           k="lyricsSize"
           label="Text size"
@@ -257,13 +249,13 @@ export default function Settings() {
       <Section title="Cat">
         <Toggle k="catWire" label={`${catName} on the progress bar`} def />
         <Toggle k="catIsland" label={`${catName} in the Dynamic Island`} def />
-        {Platform.OS === "ios" ? (
+        {Platform.OS === "ios" && catIsland ? (
           <Pick
             k="islandStyle"
             label="Dynamic Island style"
             def="cat"
             options={[
-              ["cat", `${catName} and sound bars`],
+              ["cat", catName],
               ["music", "Sound bars"],
               ["time", "Time left"],
             ]}
@@ -271,7 +263,7 @@ export default function Settings() {
         ) : null}
         <Pick
           k="catEpisodes"
-          label="Mouse episodes"
+          label="Mouse visits"
           def="rare"
           options={[
             ["off", "Off"],
@@ -319,7 +311,12 @@ export default function Settings() {
                 {
                   label: "Clear listening history",
                   destructive: true,
-                  onPress: () => useLibrary.setState({ history: [] }),
+                  onPress: () => {
+                    useLibrary.setState({ history: [] });
+                    void import("../data/journal").then((m) =>
+                      m.clearJournal(),
+                    );
+                  },
                 },
               ],
             })
@@ -338,36 +335,40 @@ export default function Settings() {
                 PawseIsland.requestOverlayPermission();
             }}
           />
-          <Pick
-            k="androidPillOffset"
-            label="Pill position"
-            def={0}
-            options={[
-              [-6, "Higher"],
-              [0, "Centred on camera"],
-              [6, "Lower"],
-            ]}
-          />
+          {androidPill ? (
+            <Pick
+              k="androidPillOffset"
+              label="Pill position"
+              def={0}
+              options={[
+                [-6, "Higher"],
+                [0, "Centred on camera"],
+                [6, "Lower"],
+              ]}
+            />
+          ) : null}
           {PawseIsland.needsBatteryTip() ? (
             <Link
-              label="Keep Pawse running (battery settings)"
+              label="Keep playing in the background"
               onPress={() => PawseIsland.openBatterySettings()}
             />
           ) : null}
         </Section>
       ) : null}
 
-      <Section title="Backup">
+      <Section title="Library">
+        <Link label="Import music library" onPress={() => push("/import")} />
         <Link
-          label="Export library"
+          label="Back up library"
           onPress={() =>
             void import("../data/backup")
               .then((m) => m.exportLibrary())
-              .catch((e: Error) => Alert.alert("Export failed", e.message))
+              .catch((e: Error) => Alert.alert("Backup failed", e.message))
           }
         />
+        {Platform.OS !== "web" ? <AutoBackupRow /> : null}
         <Link
-          label="Import library"
+          label="Restore backup"
           onPress={() =>
             void import("../data/backup")
               .then((m) => m.importLibrary())
@@ -375,11 +376,11 @@ export default function Settings() {
                 (r) =>
                   r &&
                   Alert.alert(
-                    "Library imported",
-                    `${count(r.liked, "like")}, ${count(r.playlists, "playlist")}, ${count(r.plays, "play")}`,
+                    "Backup restored",
+                    `${count(r.liked, "like")}, ${count(r.playlists, "playlist")}, ${count(Math.max(r.plays, r.journal ?? 0), "play")}`,
                   ),
               )
-              .catch((e: Error) => Alert.alert("Import failed", e.message))
+              .catch((e: Error) => Alert.alert("Restore failed", e.message))
           }
         />
       </Section>
@@ -493,19 +494,68 @@ function QualityRow({
   );
 }
 
+// Daily backup to a folder the user picks; the sheet manages it once it's on.
+function AutoBackupRow() {
+  const on = !!useSetting<string | null>("backupFolder", null);
+  const folder = useSetting<string | null>("backupFolderName", null) ?? "On";
+  const at = useSetting("backupAt", 0);
+  const pick = () =>
+    void pickBackupFolder()
+      .then((ok) => ok && runAutoBackup(true))
+      .catch((e: Error) => Alert.alert("Backup failed", e.message));
+  const onPress = () =>
+    on
+      ? showSheet({
+          actions: [
+            {
+              label: "Back up now",
+              onPress: () => void runAutoBackup(true),
+            },
+            { label: "Change folder", onPress: pick },
+            {
+              label: "Turn off",
+              destructive: true,
+              onPress: turnOffAutoBackup,
+            },
+          ],
+        })
+      : pick();
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+    >
+      <Text style={styles.label}>Automatic backup</Text>
+      <Text style={[styles.value, { flexShrink: 1 }]} numberOfLines={1}>
+        {on ? (at ? `${folder} · ${daysAgo(at)}` : folder) : "Off"} ›
+      </Text>
+    </Pressable>
+  );
+}
+
+function daysAgo(at: number): string {
+  const day = (t: number) => new Date(t).setHours(0, 0, 0, 0);
+  const n = Math.round((day(Date.now()) - day(at)) / 86_400_000);
+  return n <= 0 ? "Today" : n === 1 ? "Yesterday" : `${n} days ago`;
+}
+
 // Copies the playback log so a bug report says what actually happened.
 // What a backup holds, so it's clear the stats travel with it.
 function BackupNote() {
   const liked = useLibrary((s) => s.liked.length);
   const lists = useLibrary((s) => s.playlists.length);
-  const history = useLibrary((s) => s.history);
-  const hours = Math.round(listeningStats(history, 0).minutes / 60);
+  const plays = useLibrary((s) => s.history.length);
+  const error = useSetting<string | null>("backupError", null);
+  if (error)
+    return (
+      <Foot>
+        <Text style={{ color: "#FF5A6A" }}>{error}</Text>
+      </Foot>
+    );
   return (
     <Foot>
-      A backup holds your {count(liked, "like")}, {count(lists, "playlist")} and
-      your last {count(history.length, "play")} (about {count(hours, "hour")} of
-      listening, which your stats come from). Deleting the app deletes all of
-      this, so export first.
+      A backup has your {count(liked, "like")}, {count(lists, "playlist")} and{" "}
+      {count(plays, "play")}. Deleting the app deletes them.
     </Foot>
   );
 }
