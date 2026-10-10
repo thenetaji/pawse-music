@@ -39,7 +39,7 @@ func deepAccent(_ state: PawseState) -> Color {
 }
 
 // Sized for the HIG metrics: compact and minimal are 36.67 pt tall, expanded and lock screen stay under 160 pt.
-// Expanded has no buttons (iOS's own player has them): ringed art, the cat, the bar and its mood line, about 120 pt.
+// Expanded skips play/next (iOS's own player has them): ringed art, the cat, the bar, then like, mood line, dislike; about 140 pt.
 // Compact (only when iOS's own player isn't showing): the artwork on the left, the cat or time left on the right.
 struct PawseLiveActivity: Widget {
   var body: some WidgetConfiguration {
@@ -215,28 +215,40 @@ extension ActivityViewContext where Attributes == PawseActivityAttributes {
   }
 }
 
-/// iOS already shows its own player with controls on the lock screen, so Pawse's card is a slim companion.
+/// iOS shows its own player above, so this card adds what it lacks: the cat's take, like/dislike and a song-coloured bar.
 struct LockScreenView: View {
   let state: PawseState
   let stale: Bool
 
   var body: some View {
-    HStack(spacing: 12) {
-      CatStage(state: state, size: 40)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(verbatim: stale ? "\(state.name ?? "Mochi") is napping" : catLine(state))
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(accent(state))
-          .lineLimit(1)
-        Text(verbatim: stale ? "Open Pawse to keep listening" : "\(state.title) · \(state.artist)")
-          .font(.system(size: 14, weight: .medium))
-          .foregroundStyle(.white)
-          .lineLimit(1)
+    VStack(spacing: 8) {
+      HStack(spacing: 12) {
+        CatStage(state: state, size: 44)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(verbatim: stale ? "\(state.name ?? "Mochi") is napping" : catLine(state))
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(accent(state))
+            .lineLimit(1)
+          Text(verbatim: stale ? "Open Pawse to keep listening" : "\(state.title) · \(state.artist)")
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        if !stale && state.rate != false {
+          RateButton(
+            intent: PawseLikeIntent(), on: state.liked == true, symbol: "heart", tint: accent(state))
+          RateButton(
+            intent: PawseDislikeIntent(), on: state.disliked == true, symbol: "hand.thumbsdown",
+            tint: accent(state))
+        }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      if !stale {
+        SlimProgress(state: state)
+      }
     }
     .padding(.horizontal, 16)
-    .padding(.vertical, 10)
+    .padding(.vertical, 12)
     .environment(\.colorScheme, .dark)
   }
 }
@@ -275,7 +287,7 @@ struct TitleView: View {
   }
 }
 
-/// A tinted progress row, then the cat's line about the song.
+/// A tinted progress row, then like, the cat's line about the song, and dislike.
 struct PlayerBar: View {
   let state: PawseState
 
@@ -286,13 +298,45 @@ struct PlayerBar: View {
         SlimProgress(state: state)
         TimeLabel(state: state, remaining: true)
       }
-      Text(verbatim: catLine(state))
-        .font(.system(size: 12, weight: .semibold))
-        .foregroundStyle(accent(state).opacity(0.9))
-        .lineLimit(1)
-        .contentTransition(.opacity)
+      HStack(spacing: 0) {
+        if state.rate != false {
+          RateButton(
+            intent: PawseLikeIntent(), on: state.liked == true, symbol: "heart", tint: accent(state))
+        }
+        Text(verbatim: catLine(state))
+          .font(.system(size: 12, weight: .semibold))
+          .foregroundStyle(accent(state).opacity(0.9))
+          .lineLimit(1)
+          .contentTransition(.opacity)
+          .frame(maxWidth: .infinity)
+        if state.rate != false {
+          RateButton(
+            intent: PawseDislikeIntent(), on: state.disliked == true, symbol: "hand.thumbsdown",
+            tint: accent(state))
+        }
+      }
     }
     .foregroundStyle(.white)
+  }
+}
+
+/// Like or dislike: outline when off, filled in the song's colour when on.
+struct RateButton<I: LiveActivityIntent>: View {
+  let intent: I
+  let on: Bool
+  let symbol: String
+  let tint: Color
+
+  var body: some View {
+    Button(intent: intent) {
+      Image(systemName: on ? "\(symbol).fill" : symbol)
+        .font(.system(size: 18, weight: .semibold))
+        .foregroundStyle(on ? tint : Color.white.opacity(0.75))
+        .contentTransition(.symbolEffect(.replace))
+        .frame(width: 44, height: 30)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
   }
 }
 

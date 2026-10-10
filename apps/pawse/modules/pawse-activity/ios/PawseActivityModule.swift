@@ -21,6 +21,9 @@ struct PawseActivityStateRecord: Record {
   @Field var staleAt: Double = 0
   /// cat | music | time: what the compact island shows.
   @Field var style: String = "cat"
+  @Field var liked: Bool = false
+  @Field var disliked: Bool = false
+  @Field var rate: Bool = true
 
   var staleDate: Date? {
     staleAt > 0 ? Date(timeIntervalSince1970: staleAt / 1000) : nil
@@ -41,13 +44,16 @@ struct PawseActivityStateRecord: Record {
       mouse: min(max(mouse, 0), 2),
       name: name,
       tint: tint,
-      style: style
+      style: style,
+      liked: liked,
+      disliked: disliked,
+      rate: rate
     )
   }
 }
 
 public class PawseActivityModule: Module {
-  private static let actions = ["toggle", "next", "previous"]
+  private static let actions = ["toggle", "next", "previous", "like", "dislike"]
   private var terminateObserver: NSObjectProtocol?
 
   public func definition() -> ModuleDefinition {

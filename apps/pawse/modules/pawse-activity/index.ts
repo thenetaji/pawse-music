@@ -11,7 +11,12 @@ export type ActivityMood =
   | "vibe"
   | "love"
   | "sad";
-export type ActivityAction = "toggle" | "next" | "previous";
+export type ActivityAction =
+  | "toggle"
+  | "next"
+  | "previous"
+  | "like"
+  | "dislike";
 export type ActivityCatColor = "orange" | "black" | "white" | "grey";
 /** What the compact island shows beside the artwork: the cat, sound bars, or the time left. */
 export type IslandStyle = "cat" | "time";
@@ -40,6 +45,10 @@ export interface ActivityState {
   /** ms since epoch after which iOS treats the activity as out of date (Pawse may have been closed). */
   staleAt: number;
   style: IslandStyle;
+  liked: boolean;
+  disliked: boolean;
+  /** Like and dislike buttons on the big island player and the Lock Screen. */
+  rate: boolean;
 }
 
 type Events = { onAction(event: { action: ActivityAction }): void };

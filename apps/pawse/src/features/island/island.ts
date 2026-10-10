@@ -191,6 +191,9 @@ export function startIslandController(): () => void {
       ),
       staleAt: staleAt(playing, startMs + duration * 1000),
       style: prefs.style,
+      liked: useLibrary.getState().isLiked(track.id),
+      disliked: useLibrary.getState().isDisliked(track.id),
+      rate: getSetting<boolean>("islandRate", true) !== false,
     };
   }
 
@@ -429,6 +432,11 @@ export function startIslandController(): () => void {
     lastKey = "";
     if (action === "next") return player.next();
     if (action === "previous") return player.previous();
+    const track = current();
+    if (action === "like")
+      return void (track && useLibrary.getState().toggleLike(track));
+    if (action === "dislike")
+      return void (track && useLibrary.getState().toggleDislike(track));
     const playing = !isPlaying(usePlayerStore.getState().status);
     if (hold) clearTimeout(hold.timer);
     hold = {
@@ -448,6 +456,10 @@ export function startIslandController(): () => void {
   });
   // The artwork colour arrives a moment after the song changes.
   const unsubPalette = useNowPalette.subscribe(() => push());
+  // A like or dislike (from the island or the app) shows on the island's buttons.
+  const unsubLikes = useLibrary.subscribe((s, prev) => {
+    if (s.liked !== prev.liked || s.disliked !== prev.disliked) push();
+  });
   const unsubSettings = useLibrary.subscribe((s, prev) => {
     if (s.settings === prev.settings) return;
     if (!catPrefs().island) {
@@ -485,6 +497,7 @@ export function startIslandController(): () => void {
     if (drift) clearInterval(drift);
     unsubPalette();
     unsubSettings();
+    unsubLikes();
     appState.remove();
     if (flash) clearTimeout(flash.timer);
     if (beat) clearInterval(beat);

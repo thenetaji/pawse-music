@@ -33,6 +33,26 @@ struct PawsePreviousIntent: LiveActivityIntent {
   }
 }
 
+@available(iOS 17.0, *)
+struct PawseLikeIntent: LiveActivityIntent {
+  static let title: LocalizedStringResource = "Like Song"
+
+  func perform() async throws -> some IntentResult {
+    await PawseIntentSignal.send("like")
+    return .result()
+  }
+}
+
+@available(iOS 17.0, *)
+struct PawseDislikeIntent: LiveActivityIntent {
+  static let title: LocalizedStringResource = "Dislike Song"
+
+  func perform() async throws -> some IntentResult {
+    await PawseIntentSignal.send("dislike")
+    return .result()
+  }
+}
+
 enum PawseIntentSignal {
   static func send(_ action: String) async {
     let name = CFNotificationName("com.thenetaji.pawse.activity.\(action)" as CFString)

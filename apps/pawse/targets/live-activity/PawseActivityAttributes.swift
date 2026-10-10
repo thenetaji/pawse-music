@@ -26,5 +26,10 @@ struct PawseActivityAttributes: ActivityAttributes {
     var tint: String?
     /// cat | music | time: what the compact island shows. Optional so an activity from an older build still decodes.
     var style: String?
+    /// The song is liked / disliked in Pawse; the big island player's buttons show it.
+    var liked: Bool?
+    var disliked: Bool?
+    /// Show the like and dislike buttons (Settings → Cat).
+    var rate: Bool?
   }
 }

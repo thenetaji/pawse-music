@@ -4,11 +4,15 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
-## [0.8.2] - 2026-10-10
+## [1.0.0] - 2026-10-10
+
+Pawse's first stable release.
 
 ### Changed
 - The island shows the **time left** by default: a ring in the song's colour that fills as it plays, with the time counting down inside. Pick the cat instead in **Settings → Cat → Bubble shows**.
-- The cat's big island player (press and hold) has no buttons any more, since iOS's own player has them. Instead: bigger artwork in a glowing ring of the song's colour, the cat or a big time ring, the time bar and the cat's mood line.
+- The cat's big island player (press and hold) drops play and skip, since iOS's own player has them. Instead: bigger artwork in a glowing ring of the song's colour, the cat or a big time ring, the time bar, and **Like** and **Dislike** around the cat's mood line.
+- The Lock Screen card is useful now: the cat's take on the song, **Like** and **Dislike** buttons, and a bar in the song's colour.
+- **Settings → Cat → Like and dislike on the island** turns those buttons off.
 
 ### Fixed
 - A YouTube song that gets stuck before it starts no longer stalls: Pawse checks its link longer on slow connections and moves on to the next way of asking YouTube.

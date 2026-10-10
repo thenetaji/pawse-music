@@ -260,6 +260,9 @@ export default function Settings() {
             ]}
           />
         ) : null}
+        {Platform.OS === "ios" && catIsland ? (
+          <Toggle k="islandRate" label="Like and dislike on the island" def />
+        ) : null}
         <Pick
           k="catEpisodes"
           label="Mouse visits"
