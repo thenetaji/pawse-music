@@ -107,6 +107,23 @@
           "minOSVersion": "16.4"
         }
       ]
+    },
+    {
+      "name": "Pawse",
+      "bundleIdentifier": "com.thenetaji.pawse",
+      "developerName": "thenetaji",
+      "localizedDescription": "A free music player for YouTube Music, with a cat in your Dynamic Island.",
+      "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
+      "versions": [
+        {
+          "version": "0.7.0",
+          "buildVersion": "700",
+          "date": "2026-10-10",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v0.7.0/Pawse-0.7.0.ipa",
+          "size": 21802489,
+          "minOSVersion": "16.4"
+        }
+      ]
     }
   ],
   "news": []
