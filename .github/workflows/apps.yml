@@ -345,8 +345,6 @@ jobs:
         run: node -e "const f='apps/desktop/package.json',fs=require('fs'),p=JSON.parse(fs.readFileSync(f));p.version=process.env.VERSION;fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
       - name: Package
         working-directory: apps/desktop
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: pnpm exec electron-builder --publish never
       - name: List installers
         run: ls -lh apps/desktop/dist

@@ -43,7 +43,8 @@
         }
       ],
       "identity": "-",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "hardenedRuntime": false
     },
     "dmg": {
       "artifactName": "Pawse-${version}-mac-${arch}.${ext}"
@@ -92,7 +93,12 @@
     },
     "deb": {
       "artifactName": "Pawse-${version}-linux-amd64.${ext}"
-    }
+    },
+    "publish": null
   },
-  "desktopName": "pawse.desktop"
+  "desktopName": "pawse.desktop",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thenetaji/pawse-music.git"
+  }
 }
