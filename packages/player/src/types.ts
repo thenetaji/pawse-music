@@ -1,4 +1,9 @@
-import type { Catalog, StreamResolver, Track } from "@pawse/music-core";
+import type {
+  Catalog,
+  ResolvedStream,
+  StreamResolver,
+  Track,
+} from "@pawse/music-core";
 
 export interface KeyValueStore {
   get(key: string): Promise<string | null>;
@@ -20,6 +25,8 @@ export interface SetupOptions {
   artwork?: (track: Track) => string | undefined;
   /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */
   onDiagnostic?: (kind: string, detail?: string) => void;
+  /** Web and desktop: a header-free URL for a stream; a local relay adds its headers. */
+  streamUrl?: (stream: ResolvedStream) => string;
 }
 
 export type RepeatMode = "off" | "all" | "one";

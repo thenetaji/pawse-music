@@ -1,8 +1,14 @@
 import * as Network from "expo-network";
 import { create } from "zustand";
 
+import type { ResolvedStream } from "@pawse/music-core";
+
 // Native fetch talks to YouTube directly.
 export const appFetch: typeof fetch = (input, init) => fetch(input, init);
+
+/** Native players send stream headers themselves; only web and desktop relay. */
+export const relayStream: ((st: ResolvedStream) => string) | undefined =
+  undefined;
 
 export type NetworkKind = "wifi" | "cellular" | "offline" | "unknown";
 

@@ -1,7 +1,7 @@
 name: Apps
 
-# Builds Pawse for sideloading: an unsigned IPA (SideStore) and a release-signed APK.
-# Tag `v1.2.3` builds both platforms, publishes a GitHub Release and updates sources/sidestore.json.
+# Builds Pawse for sideloading: an unsigned IPA (SideStore) and a release-signed APK, plus the
+# desktop app (Mac, Windows, Linux). Tag `v1.2.3` publishes a GitHub Release and updates sources/sidestore.json.
 on:
   workflow_dispatch:
     inputs:
@@ -28,6 +28,10 @@ on:
 
 permissions:
   contents: write
+
+# electron-builder fetches its own Electron for each target, so installs skip the dev binary.
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
 concurrency:
   group: apps-${{ github.ref }}-${{ inputs.app }}
@@ -289,10 +293,77 @@ jobs:
           path: apps/${{ env.APP }}/build/${{ env.APP_NAME }}-${{ env.VERSION }}.apk
           if-no-files-found: error
 
+  # The desktop app wraps one web export; it is built once and packaged on each system.
+  desktop-web:
+    needs: meta
+    if: needs.meta.outputs.app == 'pawse'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter pawse-desktop run web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-web
+          path: apps/desktop/web
+          if-no-files-found: error
+
+  desktop:
+    needs: [meta, desktop-web]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      # No Apple or Windows certificates: the Mac app is ad-hoc signed, Windows unsigned.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-web
+          path: apps/desktop/web
+      - name: Stamp version
+        run: node -e "const f='apps/desktop/package.json',fs=require('fs'),p=JSON.parse(fs.readFileSync(f));p.version=process.env.VERSION;fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+      - name: Package
+        working-directory: apps/desktop
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm exec electron-builder --publish never
+      - name: List installers
+        run: ls -lh apps/desktop/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ runner.os }}
+          path: |
+            apps/desktop/dist/*.dmg
+            apps/desktop/dist/*.exe
+            apps/desktop/dist/*.AppImage
+            apps/desktop/dist/*.deb
+          if-no-files-found: error
+
   release:
-    needs: [meta, ios, android]
-    # A release ships both apps or neither, so nobody gets a half release.
-    if: needs.meta.outputs.release == 'true' && needs.ios.result == 'success' && needs.android.result == 'success'
+    needs: [meta, ios, android, desktop]
+    # A release ships both phone apps or neither; desktop installers join only when their builds pass.
+    if: always() && needs.meta.outputs.release == 'true' && needs.ios.result == 'success' && needs.android.result == 'success'
     runs-on: ubuntu-latest
     env:
       APP: ${{ needs.meta.outputs.app }}
@@ -308,6 +379,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
+          pattern: '{ipa,apk,installer-*}'
           path: dist
           merge-multiple: true
 
@@ -332,6 +404,11 @@ jobs:
       - name: Stable copies
         run: |
           for f in dist/${APP_NAME}-*.ipa dist/${APP_NAME}-*.apk; do [ -e "$f" ] || continue; cp "$f" "dist/${APP_NAME}.${f##*.}"; done
+          # Desktop: drop the version, e.g. Pawse-mac-arm64.dmg, Pawse-Setup.exe, Pawse-linux-x86_64.AppImage.
+          for f in dist/${APP_NAME}-*-mac-*.dmg dist/${APP_NAME}-Setup-*.exe dist/${APP_NAME}-*-linux-*; do
+            [ -e "$f" ] || continue
+            cp "$f" "$(echo "$f" | sed -E "s/-${VERSION//./\\.}//")"
+          done
           ls dist
 
       - uses: softprops/action-gh-release@v2
@@ -342,6 +419,10 @@ jobs:
           files: |
             dist/*.ipa
             dist/*.apk
+            dist/*.dmg
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
           fail_on_unmatched_files: false
 
       - name: Update the SideStore source

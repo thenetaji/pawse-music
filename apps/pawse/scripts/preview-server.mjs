@@ -1,7 +1,10 @@
-// Serves a web export and proxies YouTube/JioSaavn calls for tunnel previews. Usage: node preview-server.mjs <dir> <port>
+// Serves a web export and relays YouTube/JioSaavn calls and audio for tunnel previews. Usage: node preview-server.mjs <dir> <port>
 import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize } from "node:path";
+import { Readable } from "node:stream";
+
+import { relay } from "../../desktop/src/relay.mjs";
 
 const root = process.argv[2];
 const port = Number(process.argv[3] ?? 8733);
@@ -17,55 +20,29 @@ const types = {
   ".wasm": "application/wasm",
   ".ico": "image/x-icon",
 };
-const allowed =
-  /^https:\/\/([a-z0-9-]+\.)*(youtube\.com|googlevideo\.com|jiosaavn\.com|kugou\.com|boidu\.dev)\//;
-
 createServer(async (req, res) => {
   const u = new URL(req.url, "http://x");
   if (u.pathname === "/__proxy") {
-    const target = u.searchParams.get("u") ?? "";
-    if (!allowed.test(target)) return void res.writeHead(403).end();
     const body =
-      req.method === "POST"
-        ? await new Promise((r) => {
+      req.method === "GET" || req.method === "HEAD"
+        ? undefined
+        : await new Promise((r) => {
             const c = [];
             req.on("data", (d) => c.push(d));
             req.on("end", () => r(Buffer.concat(c)));
-          })
-        : undefined;
-    const headers = {};
+          });
+    const headers = new Headers();
     for (const [k, v] of Object.entries(req.headers))
-      if (
-        ![
-          "host",
-          "origin",
-          "referer",
-          "cookie",
-          "accept-encoding",
-          "connection",
-          "content-length",
-        ].includes(k) &&
-        !k.startsWith("cf-") &&
-        !k.startsWith("x-forwarded")
-      )
-        headers[k] = v;
-    if (/music\.youtube\.com/.test(target))
-      Object.assign(headers, {
-        origin: "https://music.youtube.com",
-        referer: "https://music.youtube.com/",
-      });
-    try {
-      const r = await fetch(target, { method: req.method, headers, body });
-      const out = Buffer.from(await r.arrayBuffer());
-      res
-        .writeHead(r.status, {
-          "content-type":
-            r.headers.get("content-type") ?? "application/octet-stream",
-        })
-        .end(out);
-    } catch (e) {
-      res.writeHead(502).end(String(e));
-    }
+      if (typeof v === "string") headers.set(k, v);
+    const out = await relay(
+      new Request(`http://x${req.url}`, { method: req.method, headers, body }),
+    );
+    res.writeHead(out.status, Object.fromEntries(out.headers));
+    if (!out.body) return void res.end();
+    // A seek or skip drops the connection; stop reading upstream too.
+    const stream = Readable.fromWeb(out.body).on("error", () => res.destroy());
+    res.on("close", () => stream.destroy());
+    stream.pipe(res);
     return;
   }
   let p = normalize(join(root, decodeURIComponent(u.pathname)));

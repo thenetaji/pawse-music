@@ -2,6 +2,18 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [0.6.0] - 2026-10-10
+
+### Added
+- **Pawse for Mac, Windows and Linux.** A sidebar, a player bar along the bottom, and a two-column Now Playing with the artwork on the left and live lyrics on the right. Media keys and the system's Now Playing controls work, and the keyboard does too: Space, arrows, Shift+arrows, Ctrl/⌘ F. Downloads are on the releases page and in the README.
+
+### Fixed
+- Smoother playback: each song is saved to the phone as it plays and the next one loads ahead, so songs start straight away and stop pausing to buffer.
+- A song that failed to load in the background no longer shows an error on the song you're listening to; it's tried again before it's due.
+- The player and the app's colours no longer flash grey between songs.
+- Dynamic Island: it comes back by itself after iOS ends it, keeps time after seeking, looping and buffering, and play/pause responds the moment you tap.
+- Dynamic Island: the expanded view no longer cuts off the controls, and the time fits songs over 10 minutes. The cat's line shows when something happens, like spotting a mouse.
+
 ## [0.5.0] - 2026-10-09
 
 ### Added

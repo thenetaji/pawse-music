@@ -13,6 +13,13 @@ function createMetroConfig(projectRoot, uniwind) {
   config.resolver.assetExts.push("wasm");
   config.resolver.sourceExts.push("sql");
 
+  // @rntp/player's web build may import shaka-player for DASH/HLS; Pawse plays plain files, so it stays out.
+  const resolve = config.resolver.resolveRequest;
+  config.resolver.resolveRequest = (context, name, platform) =>
+    name === "shaka-player"
+      ? { type: "empty" }
+      : (resolve ?? context.resolveRequest)(context, name, platform);
+
   // expo-sqlite web needs SharedArrayBuffer, which needs cross-origin isolation.
   config.server.enhanceMiddleware = (middleware) => (req, res, next) => {
     res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");

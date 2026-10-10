@@ -5,16 +5,10 @@ import {
   type Track,
 } from "@pawse/music-core";
 import { player } from "@pawse/player";
-import {
-  Dimensions,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { showTrackActions } from "../features/library/track-actions";
 import { go } from "../lib/nav";
+import { useContentWidth } from "../lib/layout";
 import { getSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import { Artwork } from "./artwork";
@@ -98,6 +92,9 @@ function TrackGrid({
 }) {
   const pages: CatalogItem[][] = [];
   for (let i = 0; i < items.length; i += 4) pages.push(items.slice(i, i + 4));
+  // One page per screen width with the next peeking in; wide windows show columns side by side.
+  const width = useContentWidth();
+  const PAGE_W = width > 700 ? Math.min(420, (width - 40) / 2) : width - 44;
   return (
     <FlatList
       horizontal
@@ -123,8 +120,6 @@ function TrackGrid({
     />
   );
 }
-// One page per screen width, with the next page peeking in.
-const PAGE_W = Dimensions.get("window").width - 44;
 
 function Cards({
   items,

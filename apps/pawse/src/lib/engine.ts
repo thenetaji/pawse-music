@@ -9,6 +9,7 @@ import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
 import { readyArtwork, startArtwork } from "./artwork";
 import { logEvent } from "./diagnostics";
+import { relayStream } from "./net";
 import { noteStall } from "./quality";
 import { clearResources } from "./use-resource";
 
@@ -43,6 +44,7 @@ export function startEngine() {
     radioContinue: () => settings().radioContinue,
     sleepFadeSec: () => settings().sleepFade,
     artwork: readyArtwork,
+    streamUrl: relayStream,
     onDiagnostic: (kind, detail) => {
       logEvent(kind, detail);
       // Automatic quality steps down when streams keep stalling.

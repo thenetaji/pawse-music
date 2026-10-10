@@ -4,6 +4,7 @@ import { startActivityAsync } from "expo-intent-launcher";
 import { Alert, Linking, Platform } from "react-native";
 import { create } from "zustand";
 
+import { SheetNote, showSheet } from "../components/action-sheet";
 import { getSetting, setSetting } from "./settings";
 
 const RELEASES =
@@ -14,8 +15,24 @@ const TAG = /^(?:flow-)?v(\d+\.\d+\.\d+)$/;
 
 export type Update = { version: string; file: string; notes: string };
 
-const EXT = Platform.OS === "ios" ? ".ipa" : ".apk";
-const supported = Platform.OS === "android" || Platform.OS === "ios";
+// The desktop app names itself in its user agent ("Pawse/0.6.0 ... Electron/...").
+const desktopVersion =
+  Platform.OS === "web" &&
+  typeof navigator !== "undefined" &&
+  /\bElectron\//.test(navigator.userAgent)
+    ? /\bPawse\/(\d+\.\d+\.\d+)/.exec(navigator.userAgent)?.[1]
+    : undefined;
+const EXT = desktopVersion
+  ? /Mac/.test(navigator.userAgent)
+    ? ".dmg"
+    : /Windows/.test(navigator.userAgent)
+      ? ".exe"
+      : ".AppImage"
+  : Platform.OS === "ios"
+    ? ".ipa"
+    : ".apk";
+const supported =
+  Platform.OS === "android" || Platform.OS === "ios" || !!desktopVersion;
 type State =
   | { kind: "idle" }
   | { kind: "checking" }
@@ -28,7 +45,7 @@ export const useUpdate = create<State>(() => ({ kind: "idle" }));
 const set = (s: State) => useUpdate.setState(s, true);
 
 export const currentVersion = () =>
-  Application.nativeApplicationVersion ?? "0.0.0";
+  desktopVersion ?? Application.nativeApplicationVersion ?? "0.0.0";
 
 const newer = (a: string, b: string) => {
   const x = a.split(".").map(Number);
@@ -43,6 +60,7 @@ type Release = {
   draft: boolean;
   prerelease: boolean;
   body?: string;
+  html_url: string;
   assets: { name: string; browser_download_url: string }[];
 };
 
@@ -68,7 +86,8 @@ export async function checkForUpdate(): Promise<Update | null> {
     }
     const update = {
       version: rel.v,
-      file: asset.browser_download_url,
+      // Desktop opens the release page, where the right download for the Mac's chip is listed.
+      file: desktopVersion ? rel.r.html_url : asset.browser_download_url,
       notes: rel.r.body ?? "",
     };
     set({ kind: "available", update });
@@ -81,6 +100,10 @@ export async function checkForUpdate(): Promise<Update | null> {
 
 // iOS: SideStore installs the IPA from its deep link. Android: download the APK and hand it to the installer.
 export async function installUpdate(update: Update) {
+  if (desktopVersion) {
+    await Linking.openURL(update.file);
+    return;
+  }
   if (Platform.OS === "ios") {
     const link = `sidestore://install?url=${encodeURIComponent(update.file)}`;
     await Linking.openURL(link).catch(() =>
@@ -122,11 +145,30 @@ export async function checkOnLaunch() {
   if (Date.now() - getSetting("updateCheckedAt", 0) < DAY) return;
   const u = await checkForUpdate();
   if (!u || getSetting("updateSkipped", "") === u.version) return;
+  const news = highlights(u.notes);
+  // Alerts don't show on desktop, so the app's own sheet asks instead.
+  if (desktopVersion) {
+    showSheet({
+      header: (
+        <SheetNote
+          title={`Pawse ${u.version} is out`}
+          body={news || "A new version is ready to download."}
+        />
+      ),
+      actions: [
+        { label: "Download", onPress: () => void installUpdate(u) },
+        {
+          label: "Skip this version",
+          onPress: () => setSetting("updateSkipped", u.version),
+        },
+      ],
+    });
+    return;
+  }
   const how =
     Platform.OS === "ios"
       ? "Install it now through SideStore?"
       : "Download and install it now?";
-  const news = highlights(u.notes);
   Alert.alert(`Pawse ${u.version} is out`, news ? `${news}\n\n${how}` : how, [
     {
       text: "Skip this version",

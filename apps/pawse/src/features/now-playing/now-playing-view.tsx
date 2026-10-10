@@ -91,6 +91,8 @@ export type NowPlayingProps = {
 };
 
 const SPRING = { damping: 13, stiffness: 140, mass: 0.9 };
+/** Windows at least this wide (the desktop app) get the two-column player. */
+const WIDE_MIN = 900;
 
 export function NowPlayingView(p: NowPlayingProps) {
   const insets = useSafeAreaInsets();
@@ -204,6 +206,128 @@ export function NowPlayingView(p: NowPlayingProps) {
   );
   const base = deepen(palette.colors[0]);
   const tint = background === "black" ? "#000000" : base;
+
+  // Desktop: artwork and controls on the left, lyrics always open on the right; Esc closes.
+  const wide = win.width >= WIDE_MIN;
+  useEffect(() => {
+    if (!wide || typeof document === "undefined" || !p.onClose) return;
+    const close = p.onClose;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [wide, p.onClose]);
+  if (wide) {
+    const side = Math.max(
+      220,
+      Math.min(win.height - 340, win.width / 2 - 150, 520),
+    );
+    return (
+      <View style={styles.root}>
+        {background === "black" ? null : (
+          <ColorField palette={palette} playing={playing} />
+        )}
+        <View style={[styles.body, styles.wideBody]}>
+          <View style={styles.header}>
+            <Pressable
+              hitSlop={12}
+              onPress={p.onClose}
+              style={styles.headerBtn}
+              accessibilityLabel="Close"
+            >
+              <ChevronDown color="rgba(255,255,255,0.8)" />
+            </Pressable>
+            <View style={styles.context}>
+              <Text style={styles.contextLabel} numberOfLines={1}>
+                {p.context?.label ?? "Now playing"}
+              </Text>
+              {p.context?.title ? (
+                <Text style={styles.contextTitle} numberOfLines={1}>
+                  {p.context.title}
+                </Text>
+              ) : null}
+            </View>
+            <Pressable hitSlop={12} onPress={p.onMore} style={styles.headerBtn}>
+              <MoreGlyph color="rgba(255,255,255,0.8)" />
+            </Pressable>
+          </View>
+          <View style={styles.wideMain}>
+            <View style={styles.wideLeft}>
+              <Animated.View
+                style={[
+                  styles.wideArt,
+                  { width: side, height: side },
+                  artStyle,
+                ]}
+              >
+                {art ? (
+                  <Image
+                    source={art}
+                    style={StyleSheet.absoluteFill}
+                    contentFit="cover"
+                    transition={300}
+                    recyclingKey={p.track?.id}
+                  />
+                ) : null}
+              </Animated.View>
+              <View style={[styles.meta, { width: side, marginTop: 22 }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Pressable onPress={p.onTitle} style={styles.link}>
+                    <Text style={styles.title} numberOfLines={1}>
+                      {p.track?.title ?? " "}
+                    </Text>
+                  </Pressable>
+                  <Pressable onPress={p.onArtist} style={styles.link}>
+                    <Text style={styles.artist} numberOfLines={1}>
+                      {p.track ? artistLine(p.track.artists) : " "}
+                    </Text>
+                  </Pressable>
+                </View>
+                {likeButton}
+              </View>
+              <View style={{ width: side }}>
+                <CatScrubber
+                  position={p.position}
+                  duration={p.duration}
+                  mood={mood}
+                  cups={[palette.accent, palette.accentDeep]}
+                  playing={playing}
+                  trackId={p.track?.id}
+                  onSeek={p.onSeek}
+                  onLike={() => !p.liked && like()}
+                />
+                <View style={styles.transport}>
+                  <Btn onPress={p.onPrev}>
+                    <PrevGlyph size={38} />
+                  </Btn>
+                  <Btn onPress={p.onToggle} big>
+                    {p.status === "loading" ? (
+                      <Loader />
+                    ) : playing ? (
+                      <PauseGlyph size={46} />
+                    ) : (
+                      <PlayGlyph size={46} />
+                    )}
+                  </Btn>
+                  <Btn onPress={p.onNext}>
+                    <NextGlyph size={38} />
+                  </Btn>
+                </View>
+              </View>
+            </View>
+            <View style={styles.wideRight}>
+              <LyricsView
+                lyrics={p.lyrics}
+                loading={!!p.lyricsLoading}
+                position={p.position}
+                onSeek={p.onSeek}
+                onShare={p.onShareLyric}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -738,6 +862,16 @@ const styles = StyleSheet.create({
   },
   bottomOn: { backgroundColor: "rgba(255,255,255,0.16)" },
   lyricsArea: { flex: 1, marginTop: 6 },
+  wideBody: { paddingTop: 14, paddingBottom: 24, paddingHorizontal: 36 },
+  wideMain: { flex: 1, flexDirection: "row", gap: 48, minHeight: 0 },
+  wideLeft: { flex: 1, alignItems: "center", justifyContent: "center" },
+  wideArt: {
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+  },
+  wideRight: { flex: 1, maxWidth: 620, paddingVertical: 12 },
   expand: {
     position: "absolute",
     right: 0,

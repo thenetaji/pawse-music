@@ -3,7 +3,7 @@ import { player } from "@pawse/player";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams } from "expo-router";
-import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import Animated, {
   FadeInDown,
   interpolate,
@@ -20,6 +20,7 @@ import { mirrorFollow } from "../../data/account";
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
+import { useContentWidth } from "../../lib/layout";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { PlayGlyph } from "../now-playing/icons";
@@ -28,7 +29,7 @@ import { BackButton, ShuffleGlyph } from "./collection";
 
 export default function ArtistPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { width } = useWindowDimensions();
+  const width = useContentWidth();
   const insets = useSafeAreaInsets();
   const bottom = useBottomSpace();
   const artist = useResource<ArtistDetail>(`artist:${id}`, () => yt.artist(id));
@@ -39,7 +40,8 @@ export default function ArtistPage() {
   const onScroll = useAnimatedScrollHandler((e) => {
     y.value = e.contentOffset.y;
   });
-  const heroH = Math.round(Math.max(width, 360) * 1.05);
+  // Near-square on phones; capped so a wide desktop window still shows the songs.
+  const heroH = Math.round(Math.min(Math.max(width, 360) * 1.05, 460));
   // Stretch on pull, parallax on scroll.
   const heroStyle = useAnimatedStyle(() => ({
     transform: [

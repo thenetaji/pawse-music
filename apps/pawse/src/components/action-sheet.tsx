@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, {
@@ -39,11 +40,24 @@ const Overlay = Platform.OS === "ios" ? FullWindowOverlay : Fragment;
 const ENTER = FadeInDown.duration(200).easing(Easing.out(Easing.cubic));
 const EXIT = FadeOutDown.duration(130);
 
+/** A sheet header with a title and a short paragraph. */
+export function SheetNote({ title, body }: { title: string; body: string }) {
+  return (
+    <View>
+      <Text style={styles.noteTitle}>{title}</Text>
+      <Text style={styles.noteBody}>{body}</Text>
+    </View>
+  );
+}
+
 // One app-wide action sheet: frosted glass panel over a dimmed screen.
 export function ActionSheetHost() {
   const sheet = useSheet((s) => s.sheet);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   if (!sheet) return null;
+  // Wide windows (desktop) get a centred panel instead of one stretched edge to edge.
+  const side = width > 700 ? (width - 440) / 2 : 10;
   return (
     <Overlay>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -57,7 +71,11 @@ export function ActionSheetHost() {
         <Animated.View
           entering={ENTER}
           exiting={EXIT}
-          style={[styles.wrap, { paddingBottom: insets.bottom + 8 }]}
+          style={[
+            styles.wrap,
+            { left: side, right: side, paddingBottom: insets.bottom + 8 },
+            width > 700 && styles.wrapWide,
+          ]}
         >
           <BlurView
             intensity={40}
@@ -105,6 +123,20 @@ export function ActionSheetHost() {
 const styles = StyleSheet.create({
   dim: { backgroundColor: "rgba(0,0,0,0.5)" },
   wrap: { position: "absolute", left: 10, right: 10, bottom: 0, gap: 8 },
+  wrapWide: { bottom: 24 },
+  noteTitle: {
+    color: "#fff",
+    fontSize: 17,
+    textAlign: "center",
+    ...display("800"),
+  },
+  noteBody: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginTop: 6,
+  },
   panel: {
     borderRadius: 22,
     overflow: "hidden",

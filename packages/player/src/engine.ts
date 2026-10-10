@@ -193,9 +193,12 @@ function mediaItem(key: string, track: Track): MediaItem {
   if (ok) live.set(key, st.expiresAt);
   else live.delete(key);
   const headers = ok ? headersOf(st) : undefined;
+  const relayed = ok && opts?.streamUrl ? opts.streamUrl(st) : undefined;
   return {
     mediaId: key,
-    url: ok ? (headers ? { uri: st.url, headers } : st.url) : PLACEHOLDER + key,
+    url: !ok
+      ? PLACEHOLDER + key
+      : (relayed ?? (headers ? { uri: st.url, headers } : st.url)),
     mimeType: ok ? st.mimeType.split(";")[0] : undefined,
     title: track.title,
     artist: artistLine(track.artists),
@@ -241,7 +244,8 @@ async function ensureReady(
 
 /** Re-reads setup's artwork() for every queued entry of the track; updates metadata only, playback is untouched. */
 export function refreshArtwork(trackId: string): void {
-  if (!nativeLoaded) return;
+  // The web player has no metadata update; its Media Session art is set per item.
+  if (!nativeLoaded || Platform.OS === "web") return;
   get().tracks.forEach((t, i) => {
     const url = t.id === trackId ? artworkOf(t) : undefined;
     if (url) TrackPlayer.updateMetadata(i, { artworkUrl: url });

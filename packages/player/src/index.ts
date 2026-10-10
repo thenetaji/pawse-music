@@ -1,4 +1,4 @@
-// Playback engine over @rntp/player v5. Metro picks engine.web.ts on web (in-memory fake).
+// Playback engine over @rntp/player v5, on phones and (with its HTML audio engine) on web and desktop.
 export {
   getProgress,
   normalizeVolume,

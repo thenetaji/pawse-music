@@ -29,10 +29,16 @@ pnpm format      # format with Biome
 ```
 
 ## Working on screens in a browser
-Audio only plays on a phone, but screens render in a browser:
+Screens render in a browser, and songs play in Chrome or Edge:
 1. `pnpm --filter pawse bundle:web`
 2. `node apps/pawse/scripts/preview-server.mjs apps/pawse/.export-web 8733`
 3. Open http://localhost:8733. The server also passes YouTube requests through, which browsers would block.
+
+## The desktop app
+The Mac, Windows and Linux app (`apps/desktop`) wraps the web build in Electron, and plays real audio:
+1. `pnpm --filter pawse-desktop run web` builds the web export into `apps/desktop/web`.
+2. `pnpm --filter pawse-desktop start` opens it.
+3. `pnpm --filter pawse-desktop run dist` makes an installer for the system you're on, in `apps/desktop/dist`.
 
 ## Where things live
 - `apps/pawse/src/app`: screens (Expo Router)

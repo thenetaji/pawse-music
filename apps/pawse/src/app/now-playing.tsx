@@ -5,7 +5,7 @@ import {
   usePlayerState,
   useProgress,
 } from "@pawse/player";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import { CatState } from "../components/ui";
@@ -42,7 +42,11 @@ export default function NowPlaying() {
   const liked = useLibrary((s) =>
     current ? s.liked.some((t) => t.id === current.id) : false,
   );
-  const [mode, setMode] = useState<"art" | "lyrics">("art");
+  // The desktop player bar can open straight into lyrics.
+  const start = useLocalSearchParams<{ mode?: string }>().mode;
+  const [mode, setMode] = useState<"art" | "lyrics">(
+    start === "lyrics" ? "lyrics" : "art",
+  );
   const lyrics = useResource<Lyrics | null>(
     current ? `lyrics:${current.id}` : null,
     () => lyricsService.lyrics(current!),

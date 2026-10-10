@@ -1,6 +1,6 @@
 import type { CatalogItem, Shelf as ShelfT, Track } from "@pawse/music-core";
 import { useLocalSearchParams } from "expo-router";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { Card, openItem } from "../../components/shelf";
 import { TrackRow } from "../../components/track-row";
@@ -11,6 +11,7 @@ import {
   SkeletonRows,
 } from "../../components/ui";
 import { yt } from "../../lib/engine";
+import { useContentWidth } from "../../lib/layout";
 import { useResource } from "../../lib/use-resource";
 import { TopGlow } from "./top-glow";
 
@@ -27,8 +28,10 @@ export default function MorePage() {
   const { id, title } = useLocalSearchParams<{ id: string; title?: string }>();
   const token = decode(id);
   const page = useResource<ShelfT[]>(`more:${token}`, () => yt.browse(token));
-  const { width } = useWindowDimensions();
-  const card = Math.floor((width - 20 * 2 - 16) / 2);
+  const width = useContentWidth();
+  // Two columns on phones; wide windows fit as many ~190 pt cards as there is room for.
+  const cols = Math.max(2, Math.floor((width - 40 + 16) / (190 + 16)));
+  const card = Math.floor((width - 20 * 2 - 16 * (cols - 1)) / cols);
   const shelves = (page.data ?? []).filter((s) => s.items.length);
   return (
     <Screen

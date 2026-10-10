@@ -1,6 +1,6 @@
 # Releasing Pawse
 
-GitHub Actions builds every release: an unsigned IPA for SideStore and a signed APK.
+GitHub Actions builds every release: an unsigned IPA for SideStore, a signed APK, and the desktop app for Mac, Windows and Linux.
 
 ## Make a release
 1. Add your changes to `apps/pawse/CHANGELOG.md` under a new heading, e.g. `## [0.4.1] - 2026-10-20`.
@@ -11,9 +11,10 @@ GitHub Actions builds every release: an unsigned IPA for SideStore and a signed 
    git push origin v0.4.1
    ```
 4. Wait about 15 minutes. The **Apps** workflow:
-   - builds the iPhone and Android apps,
+   - builds the iPhone and Android apps, and the desktop app on Mac, Windows and Linux runners,
    - publishes a GitHub Release with the changelog notes,
    - attaches `Pawse-0.4.1.ipa`, `Pawse-0.4.1.apk`, `Pawse.ipa` and `Pawse.apk`,
+   - attaches the desktop installers (`.dmg` for Apple silicon and Intel, `Pawse-Setup.exe`, `.AppImage`, `.deb`), with and without the version in the name,
    - adds the new version to `sources/sidestore.json`.
 
 Installed apps see the new version within a day, or right away from **Settings → About → Check for updates**.
@@ -45,6 +46,9 @@ Without these secrets the workflow still builds, but the APK is debug-signed.
 
 ## iPhone builds
 The IPA is unsigned on purpose: SideStore signs it with each person's own Apple ID. No Apple secrets are needed.
+
+## Desktop builds
+The Mac app is ad-hoc signed and Windows is unsigned, so each asks once before the first launch (see the README). No secrets are needed. A phone release still goes out if a desktop build fails; the installers come with the next release.
 
 ## Test build without a release
 **Actions → Apps → Run workflow** builds either platform and keeps the files as workflow artifacts.
