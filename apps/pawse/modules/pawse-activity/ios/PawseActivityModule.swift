@@ -90,7 +90,11 @@ public class PawseActivityModule: Module {
         return true
       }
       do {
-        _ = try Activity.request(attributes: PawseActivityAttributes(), content: content, pushType: nil)
+        let started = try Activity.request(attributes: PawseActivityAttributes(), content: content, pushType: nil)
+        // Never two of ours: one that slipped past the check above (a start racing an end) goes now.
+        for extra in PawseActivityModule.running() where extra.id != started.id {
+          await extra.end(nil, dismissalPolicy: .immediate)
+        }
         return true
       } catch {
         return false

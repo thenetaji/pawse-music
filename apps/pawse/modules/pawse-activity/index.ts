@@ -14,7 +14,7 @@ export type ActivityMood =
 export type ActivityAction = "toggle" | "next" | "previous";
 export type ActivityCatColor = "orange" | "black" | "white" | "grey";
 /** What the compact island shows beside the artwork: the cat, sound bars, or the time left. */
-export type IslandStyle = "cat" | "music" | "time";
+export type IslandStyle = "cat" | "time";
 
 export interface ActivityState {
   title: string;

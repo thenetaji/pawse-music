@@ -40,7 +40,7 @@ func deepAccent(_ state: PawseState) -> Color {
 
 // Sized for the HIG metrics: compact and minimal are 36.67 pt tall, expanded and lock screen stay under 160 pt.
 // Expanded fills that height like Apple Music: 64 pt art, then the bar (16) and 40 pt controls, about 150 pt.
-// Compact is roomy like Apple Music: the artwork on the left, the chosen style (cat, sound bars or time left) on the right.
+// Compact (only when iOS's own player isn't showing): the artwork on the left, the cat or time left on the right.
 struct PawseLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: PawseActivityAttributes.self) { context in
@@ -95,10 +95,11 @@ struct PawseLiveActivity: Widget {
         CompactTrailing(state: state)
           .frame(width: compactSide, alignment: .trailing)
       } minimal: {
-        if islandStyle(state) == "cat" {
-          CatRing(state: state, size: 24)
+        // iOS's own Now Playing island sits next to this bubble while music plays, so it never repeats the artwork.
+        if islandStyle(state) == "time" {
+          TimeLeft(state: state, size: 10, width: 28, align: .center)
         } else {
-          ArtworkView(name: state.artwork, size: 24, radius: 12)
+          CatRing(state: state, size: 24)
         }
       }
       .contentMargins(.horizontal, 20, for: .expanded)
@@ -112,21 +113,15 @@ struct PawseLiveActivity: Widget {
 let compactSide: CGFloat = 60
 
 func islandStyle(_ state: PawseState) -> String {
-  switch state.style {
-  case "music", "time": return state.style!
-  default: return "cat"
-  }
+  state.style == "time" ? "time" : "cat"
 }
 
-/// Cat: sound bars and the cat in its ring. Music: wider sound bars. Time: the time left, ticking on its own.
+/// Cat: sound bars and the cat in its ring. Time: the time left, ticking on its own.
 struct CompactTrailing: View {
   let state: PawseState
 
   var body: some View {
     switch islandStyle(state) {
-    case "music":
-      WaveBars(state: state, height: 18)
-        .frame(width: 38)
     case "time":
       TimeLeft(state: state)
     default:
@@ -160,6 +155,9 @@ struct WaveBars: View {
 /// The time left in the song, counting down by itself while playing.
 struct TimeLeft: View {
   let state: PawseState
+  var size: CGFloat = 14
+  var width: CGFloat = 44
+  var align: Alignment = .trailing
 
   var body: some View {
     Group {
@@ -171,10 +169,11 @@ struct TimeLeft: View {
         Text(verbatim: "--:--")
       }
     }
-    .font(.system(size: 14, weight: .semibold).monospacedDigit())
+    .font(.system(size: size, weight: .semibold).monospacedDigit())
     .foregroundStyle(accent(state))
-    .multilineTextAlignment(.trailing)
-    .frame(width: 44, alignment: .trailing)
+    .multilineTextAlignment(align == .center ? .center : .trailing)
+    .lineLimit(1)
+    .frame(width: width, alignment: align)
   }
 }
 

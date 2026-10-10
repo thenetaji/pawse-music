@@ -252,11 +252,10 @@ export default function Settings() {
         {Platform.OS === "ios" && catIsland ? (
           <Pick
             k="islandStyle"
-            label="Dynamic Island style"
+            label="Bubble shows"
             def="cat"
             options={[
               ["cat", catName],
-              ["music", "Sound bars"],
               ["time", "Time left"],
             ]}
           />
@@ -272,6 +271,11 @@ export default function Settings() {
           ]}
         />
       </Section>
+      {Platform.OS === "ios" && catIsland ? (
+        <Foot>
+          {`While music plays, the island's player is iOS's own and ${catName} sits in a small bubble beside it.`}
+        </Foot>
+      ) : null}
 
       <Section title="Content">
         <Pick

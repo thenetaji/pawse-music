@@ -104,8 +104,20 @@ export function setLocalLookup(fn: (id: string) => ResolvedStream | undefined) {
   localLookup = fn;
 }
 
+// A failed YouTube resolve logs each client's answer, so a bug report shows where it broke.
+const youtube = {
+  resolve: (t: Parameters<typeof raw.resolve>[0], o?: ResolveOptions) =>
+    raw.resolve(t, o).catch((e: unknown) => {
+      const tried = raw.lastResolveAttempts
+        .map((a) => `${a.client} ${a.error ?? "ok"} ${a.ms}ms`)
+        .join("; ");
+      if (tried) logEvent("youtube-attempts", `${t.id}: ${tried}`);
+      throw e;
+    }),
+};
+
 const base = {
-  youtube: raw,
+  youtube,
   saavn,
   local: (id: string) => localLookup?.(id),
   // Streaming quality follows the network; downloads pass their own.

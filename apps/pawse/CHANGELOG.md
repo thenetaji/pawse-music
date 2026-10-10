@@ -4,6 +4,18 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-10
+
+### Changed
+- Switching songs fades the old one out and the new one in, like Apple Music, instead of cutting off.
+
+### Fixed
+- Tapping a song that's still loading no longer leaves the previous song playing under the new title.
+- Moving the cat on the progress bar while a song loads no longer snaps back when it starts.
+- Songs YouTube refuses get more chances: Pawse also asks the ways NewPipe and Metrolist do, and once more without its saved visitor id, before skipping. The diagnostics log shows what each attempt got.
+- iPhone: the Dynamic Island no longer looks doubled. While music plays, iOS shows its own player in the island and Pawse's bubble sits next to it. That bubble now shows the cat or the time left, never a second copy of the artwork. **Settings → Cat → Bubble shows** picks which; "Sound bars" is gone because iOS's player already has them.
+- Pawse's island and Lock Screen card use less battery. The cat no longer dances frame by frame in the background; the card only updates when the song changes, you pause, or a mouse visits.
+
 ## [0.8.0] - 2026-10-10
 
 ### Added

@@ -33,7 +33,10 @@ function mockFetch(
     if (url.includes("/youtubei/v1/player"))
       return reply(players[Math.min(i++, players.length - 1)]);
     if (url.includes("googlevideo.com")) return media(url, init) as Response;
-    if (config && url.includes("innertube-clients.json"))
+    if (
+      config &&
+      (url.includes("innertube-clients.json") || url.includes("latest_version"))
+    )
       return config(url, init) as Response;
     return reply({}, 404);
   });
@@ -135,6 +138,8 @@ describe("client fallback chain", () => {
       "1.02",
       "1.03",
       "1.01",
+      "1.04",
+      "1.02",
     ]);
   });
 
@@ -185,6 +190,39 @@ describe("client fallback chain", () => {
     );
   });
 
+  it("asks again without the saved visitor id when every media URL answers 403", async () => {
+    // Media URLs only work once the player was asked without a visitor id.
+    const m = mockFetch([player], () =>
+      reply({}, clientOf(m.players().at(-1)!).visitorData ? 403 : 206),
+    );
+    const s = await yt(m.fetch, { visitorData: "Cgt2aXNpdG9y" }).resolve(track);
+    expect(s.via).toBe("youtube:visionos-1.02");
+    expect(m.players().map((c) => clientOf(c).visitorData)).toEqual([
+      ...Array(DEFAULT_STREAM_CLIENTS.length).fill("Cgt2aXNpdG9y"),
+      undefined,
+    ]);
+  });
+
+  it("falls back to the native VISIONOS profile with a cpn", async () => {
+    const native = DEFAULT_STREAM_CLIENTS.findIndex((c) => c.cpn);
+    let n = 0;
+    const m = mockFetch([player], () => reply({}, n++ < native ? 403 : 206));
+    const s = await yt(m.fetch).resolve(track);
+    expect(s.via).toBe("youtube:visionos_app-1.04");
+    const call = m.players().at(-1)!;
+    expect(call.url).toMatch(
+      /^https:\/\/youtubei\.googleapis\.com\/youtubei\/v1\/player\?prettyPrint=false&t=[\w-]{12}&id=dQw4w9WgXcQ$/,
+    );
+    const cpn = JSON.parse(String(call.init.body)).cpn;
+    expect(cpn).toMatch(/^[\w-]{16}$/);
+    expect(s.url.endsWith(`&cpn=${cpn}`)).toBe(true);
+    expect(
+      (call.init.headers as Record<string, string>)[
+        "X-Goog-Api-Format-Version"
+      ],
+    ).toBe("2");
+  });
+
   it("returns unverified when the range check exceeds its budget", async () => {
     const m = mockFetch([player], () => new Promise(() => undefined));
     const t0 = Date.now();
@@ -221,6 +259,8 @@ describe("client fallback chain", () => {
       "1.02",
       "1.03",
       "1.01",
+      "1.04",
+      "1.02",
     ]);
   });
 
@@ -252,9 +292,7 @@ describe("Android and failed clients", () => {
     expect(m.players().map((c) => clientOf(c).clientName)).toEqual([
       "ANDROID_VR",
       "ANDROID_VR",
-      "VISIONOS",
-      "VISIONOS",
-      "VISIONOS",
+      ...Array(DEFAULT_STREAM_CLIENTS.length).fill("VISIONOS"),
     ]);
 
     const remote = {

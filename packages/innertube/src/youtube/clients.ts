@@ -9,6 +9,12 @@ export interface StreamClient {
   userAgent: string;
   /** Extra `context.client` fields (device, OS). */
   context: Record<string, string | number>;
+  /** Player endpoint; default www.youtube.com. */
+  url?: string;
+  /** Extra player request headers. */
+  headers?: Record<string, string>;
+  /** Native-app shape: a cpn in the body and on the media URL, plus `t`/`id` on the player URL. */
+  cpn?: boolean;
 }
 
 export const VISIONOS_UA =
@@ -44,11 +50,42 @@ const androidVr = (clientVersion: string, cronet: string): StreamClient => ({
   },
 });
 
+// NewPipe's VISIONOS profile: native app identity on the googleapis host.
+const visionosApp: StreamClient = {
+  name: "visionos_app-1.04",
+  clientName: "VISIONOS",
+  clientNameId: 101,
+  clientVersion: "1.04",
+  userAgent:
+    "com.google.visionos.youtube/1.04(RealityDevice17,1; U; CPU visionOS 26_6_0 like Mac OS X; US)",
+  context: {
+    clientScreen: "WATCH",
+    platform: "MOBILE",
+    deviceMake: "Apple",
+    deviceModel: "RealityDevice17,1",
+    osName: "visionOS",
+    osVersion: "26.6.0.23O770",
+  },
+  url: "https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false",
+  headers: { "X-Goog-Api-Format-Version": "2" },
+  cpn: true,
+};
+
+// Metrolist's VISIONOS: same identity, music.youtube.com player host.
+const visionosMusic: StreamClient = {
+  ...visionos("1.02"),
+  name: "visionos_music-1.02",
+  url: "https://music.youtube.com/youtubei/v1/player?prettyPrint=false",
+  cpn: true,
+};
+
 /** Built-in order; mirrored in sources/innertube-clients.json at the repo root. */
 export const DEFAULT_STREAM_CLIENTS: StreamClient[] = [
   visionos("1.02"),
   visionos("1.03"),
   visionos("1.01"),
+  visionosApp,
+  visionosMusic,
 ];
 
 /** Android order (ExoPlayer), mirrored under `android` in the remote config. */
@@ -100,6 +137,13 @@ export function parseClientsConfig(
     clientVersion: c.clientVersion,
     userAgent: c.userAgent,
     context: c.context && typeof c.context === "object" ? c.context : {},
+    ...(typeof c.url === "string" && /^https:\/\//.test(c.url)
+      ? { url: c.url }
+      : {}),
+    ...(c.headers && typeof c.headers === "object"
+      ? { headers: c.headers }
+      : {}),
+    ...(c.cpn === true ? { cpn: true } : {}),
   }));
 }
 

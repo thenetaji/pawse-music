@@ -23,6 +23,17 @@ const PLAYER_URL =
 const DEFAULT_TTL_SEC = 300;
 const PLAYER_TIMEOUT_MS = 8000;
 const viaOf = (c: StreamClient) => `youtube:${c.name}`;
+const NONCE_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const nonce = (n: number) =>
+  Array.from(
+    { length: n },
+    () => NONCE_ALPHABET[Math.floor(Math.random() * 64)],
+  ).join("");
+const ipFamily = (url: string) => {
+  const ip = /[?&]ip=([^&]*)/.exec(url)?.[1];
+  return ip ? (decodeURIComponent(ip).includes(":") ? "v6" : "v4") : "none";
+};
 
 const isDirect = (f: AdaptiveFormat): boolean =>
   !!f.url && !f.signatureCipher && !f.cipher;
@@ -114,7 +125,12 @@ export interface ResolveAttempt {
   error?: string;
 }
 
-function playerBody(c: StreamClient, videoId: string, o: ResolveOptions) {
+function playerBody(
+  c: StreamClient,
+  videoId: string,
+  o: ResolveOptions,
+  cpn?: string,
+) {
   return {
     context: {
       client: {
@@ -128,6 +144,7 @@ function playerBody(c: StreamClient, videoId: string, o: ResolveOptions) {
       },
     },
     videoId,
+    ...(cpn ? { cpn } : {}),
     contentCheckOk: true,
     racyCheckOk: true,
   };
@@ -144,17 +161,22 @@ async function tryClient(
     "User-Agent": c.userAgent,
     "X-YouTube-Client-Name": String(c.clientNameId),
     "X-YouTube-Client-Version": c.clientVersion,
+    ...c.headers,
   };
   if (o.visitorData) headers["X-Goog-Visitor-Id"] = o.visitorData;
+  const cpn = c.cpn ? nonce(16) : undefined;
+  const playerUrl = cpn
+    ? `${c.url ?? PLAYER_URL}&t=${nonce(12)}&id=${videoId}`
+    : (c.url ?? PLAYER_URL);
   let data: any;
   try {
     const res = await fetchWithTimeout(
       o.fetch,
-      PLAYER_URL,
+      playerUrl,
       {
         method: "POST",
         headers,
-        body: JSON.stringify(playerBody(c, videoId, o)),
+        body: JSON.stringify(playerBody(c, videoId, o, cpn)),
         credentials: "omit",
       },
       PLAYER_TIMEOUT_MS,
@@ -181,23 +203,28 @@ async function tryClient(
       "no_audio",
       `no ${o.opus ? "AAC or Opus" : "AAC"} format with a direct url`,
     );
+  const url = cpn ? `${format.url}&cpn=${cpn}` : format.url;
   const length = Number(format.contentLength);
   if (
     o.verify &&
     (await probe(
       o.fetch,
-      format.url,
+      url,
       c.userAgent,
       o.verifyBudgetMs,
       length > 0 ? length : undefined,
     )) === "forbidden"
   ) {
-    throw new StreamError("blocked", "media url answered 403");
+    // An ip family other than the device's own points at a dual-stack mismatch.
+    throw new StreamError(
+      "blocked",
+      `media url answered 403 (ip ${ipFamily(url)})`,
+    );
   }
   const ttl = Number(sd?.expiresInSeconds);
   const ms = Number(format.approxDurationMs);
   return {
-    url: format.url,
+    url,
     mimeType: format.mimeType ?? "audio/mp4",
     bitrate: format.bitrate ?? 0,
     contentLength: length > 0 ? length : undefined,
@@ -263,7 +290,7 @@ export function orderClients(
 export async function resolveYouTubeStream(
   videoId: string,
   o: ResolveOptions,
-  attempts: ResolveAttempt[] = [],
+  attempts: ResolveAttempt[],
 ): Promise<ResolvedStream> {
   const clients = orderClients(o.clients, o.exclude, o.avoid);
   if (o.clients.length && !clients.length)
@@ -292,5 +319,12 @@ export async function resolveYouTubeStream(
       if (err.code === "unplayable") break;
     }
   }
+  // A saved visitor id can be in a YouTube experiment that refuses every URL; yt-dlp starts fresh, so try that once.
+  if (worst?.code === "blocked" && o.visitorData)
+    return resolveYouTubeStream(
+      videoId,
+      { ...o, visitorData: undefined },
+      attempts,
+    );
   throw worst ?? new StreamError("unplayable", "no stream clients configured");
 }

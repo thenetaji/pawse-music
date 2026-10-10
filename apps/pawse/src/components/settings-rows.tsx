@@ -80,7 +80,9 @@ export function Pick<T extends string | number>({
   def: T;
   options: [T, string][];
 }) {
-  const value = useSetting<T>(k, def);
+  const saved = useSetting<T>(k, def);
+  // A value no longer offered (an option that was removed) reads as the default.
+  const value = options.some(([v]) => v === saved) ? saved : def;
   const shown = options.find(([v]) => v === value)?.[1] ?? "";
   return (
     <Pressable

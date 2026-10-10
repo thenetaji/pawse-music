@@ -37,6 +37,10 @@ const TICK_MS = 5_000;
 const SAVE_MS = 1_000;
 const POS_EVERY_SEC = 15;
 const MAX_SKIPS = 5;
+/** A song you switch away from fades out this fast, like Apple Music, instead of cutting off. */
+const FADE_OUT_MS = 250;
+const FADE_IN_MS = 400;
+const FADE_STEP_MS = 25;
 const MAX_SOURCE_SWITCHES = 3;
 const ARTWORK_PX = 544;
 // Played songs are written to disk and the next one preloads once the current is fully cached.
@@ -67,6 +71,8 @@ const failedVia = new Map<string, Set<string>>(); // track id -> stream sources 
 const avoidVia: string[] = []; // stream sources that failed on this device this session, tried last
 let nativeLoaded = false;
 let pendingSeek: { key: string; position: number } | undefined;
+/** goTo is loading a different song: seeks wait for it instead of moving the old one. */
+let switching = false;
 let navGen = 0;
 let queueGen = 0;
 let radio = {
@@ -284,15 +290,55 @@ function loadNative(i: number): void {
   pendingSeek = undefined;
 }
 
+let volume = 1;
+let fadeGen = 0;
+/** The last switch faded the old song out, so the next one fades in. */
+let fadedOut = false;
+
+function setVolume(v: number): void {
+  volume = v;
+  TrackPlayer.setVolume(v);
+}
+
+/** Moves the volume to `to` in small steps; a newer ramp or a direct set cancels it. */
+function ramp(to: number, ms: number): Promise<void> {
+  const gen = ++fadeGen;
+  const from = volume;
+  const steps = Math.max(1, Math.round(ms / FADE_STEP_MS));
+  return new Promise((done) => {
+    let n = 0;
+    const next = () => {
+      if (gen !== fadeGen) return done();
+      n += 1;
+      setVolume(from + ((to - from) * n) / steps);
+      if (n >= steps) return done();
+      setTimeout(next, FADE_STEP_MS);
+    };
+    setTimeout(next, FADE_STEP_MS);
+  });
+}
+
+/** Starts fading out the playing song; the switch waits for it. Undefined when nothing plays. */
+function fadeOutCurrent(): Promise<void> | undefined {
+  if (!playing || !nativeLoaded) return undefined;
+  fadedOut = true;
+  return ramp(0, FADE_OUT_MS);
+}
+
 function applyVolume(): void {
   const s = get();
   const t = s.tracks[s.index];
   if (!nativeLoaded || !t) return;
-  TrackPlayer.setVolume(
-    s.normalize
-      ? normalizeVolume(streams.get(t.id)?.loudnessDb ?? t.loudnessDb)
-      : 1,
-  );
+  const target = s.normalize
+    ? normalizeVolume(streams.get(t.id)?.loudnessDb ?? t.loudnessDb)
+    : 1;
+  if (fadedOut) {
+    fadedOut = false;
+    void ramp(target, FADE_IN_MS);
+    return;
+  }
+  fadeGen++;
+  setVolume(target);
 }
 
 /** Bookkeeping when entry `key` becomes current (from our navigation or a native transition). */
@@ -325,9 +371,17 @@ async function goTo(
   target: number,
   gen: number,
   autoplay = true,
+  fade = fadeOutCurrent(),
 ): Promise<void> {
   let i = target;
   loading = true;
+  switching = true;
+  // The old song fades out; if the new one still has to load, it then pauses instead of playing on under the new title.
+  const next = get().tracks[target];
+  if (fade && next && !isFresh(streams.get(next.id)?.expiresAt))
+    void fade.then(() => {
+      if (switching && gen === navGen) TrackPlayer.pause();
+    });
   syncStatus();
   for (
     let tries = 0;
@@ -337,8 +391,16 @@ async function goTo(
     const ok = await ensureReady(i);
     if (gen !== navGen) return;
     if (!ok) continue;
-    if (nativeLoaded) TrackPlayer.skipToIndex(i);
-    else loadNative(i);
+    if (fade) await fade;
+    if (gen !== navGen) return;
+    if (nativeLoaded) {
+      TrackPlayer.skipToIndex(i);
+      // A drag made while this song loaded lands now, so the cat doesn't snap back.
+      if (pendingSeek?.key === get().keys[i] && pendingSeek.position > 0)
+        TrackPlayer.seekTo(pendingSeek.position);
+      pendingSeek = undefined;
+    } else loadNative(i);
+    switching = false;
     set({ index: i });
     wantPlay = autoplay;
     if (autoplay) TrackPlayer.play();
@@ -348,7 +410,11 @@ async function goTo(
     return;
   }
   loading = false;
+  switching = false;
+  pendingSeek = undefined;
   nativeState = PlaybackState.Error;
+  // Nothing could play: bring the volume back for whatever plays next.
+  applyVolume();
   syncStatus();
 }
 
@@ -372,6 +438,7 @@ async function start(
   };
   retried.clear();
   failedVia.clear();
+  const fade = fadeOutCurrent();
   nativeLoaded = false;
   pendingSeek = undefined;
   currentKey = undefined;
@@ -381,7 +448,7 @@ async function start(
     TrackPlayer.clear();
     return syncStatus();
   }
-  await goTo(q.index, gen);
+  await goTo(q.index, gen, true, fade);
 }
 
 function need(): SetupOptions {
@@ -770,6 +837,7 @@ async function swapCurrent(force: boolean): Promise<void> {
   const s = get();
   const position = TrackPlayer.getProgress().position;
   const gen = ++navGen;
+  switching = false;
   loading = true;
   syncStatus();
   const ok = await ensureReady(s.index, force);
@@ -785,7 +853,7 @@ function seekTo(sec: number): void {
   const s = get();
   const real = trustedDuration(s.tracks[s.index]);
   if (real) sec = Math.min(sec, Math.max(0, real - 1));
-  if (nativeLoaded) TrackPlayer.seekTo(sec);
+  if (nativeLoaded && !switching) TrackPlayer.seekTo(sec);
   else if (s.keys[s.index])
     pendingSeek = { key: s.keys[s.index], position: sec };
   savePosition(sec);
@@ -804,6 +872,8 @@ export const player: Player = {
     const catalog = need().catalog;
     if (!catalog) throw new Error("playRadio needs a catalog");
     const gen = ++navGen;
+    // Supersedes any song switch; start() opens a new one.
+    switching = false;
     loading = true;
     syncStatus();
     try {
@@ -931,7 +1001,7 @@ export const player: Player = {
 };
 
 function readProgress(): Progress {
-  if (nativeLoaded) {
+  if (nativeLoaded && !switching) {
     const { position, duration, buffered } = TrackPlayer.getProgress();
     const track = get().tracks[get().index];
     const dur = chooseDuration(duration, track);
@@ -943,7 +1013,7 @@ function readProgress(): Progress {
   }
   const s = get();
   return {
-    position: pendingSeek?.position ?? 0,
+    position: pendingSeek?.key === s.keys[s.index] ? pendingSeek.position : 0,
     duration: s.tracks[s.index]?.durationSec ?? 0,
     buffered: 0,
   };
@@ -988,6 +1058,7 @@ export function __resetForTests(): void {
   avoidVia.length = 0;
   nativeLoaded = false;
   pendingSeek = undefined;
+  switching = false;
   navGen = 0;
   queueGen = 0;
   radio = {

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-10-09",
+  "updated": "2026-10-10",
   "note": "Signed-out player clients for @pawse/innertube, tried in order. `clients` is the iOS (and default) order; `android` is the Android (ExoPlayer) order. Apps cache this for 6 h and fall back to their built-in lists.",
   "clients": [
     {
@@ -26,6 +26,27 @@
       "clientVersion": "1.01",
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
       "context": { "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.5.23O471" }
+    },
+    {
+      "name": "visionos_app-1.04",
+      "clientName": "VISIONOS",
+      "clientNameId": 101,
+      "clientVersion": "1.04",
+      "userAgent": "com.google.visionos.youtube/1.04(RealityDevice17,1; U; CPU visionOS 26_6_0 like Mac OS X; US)",
+      "context": { "clientScreen": "WATCH", "platform": "MOBILE", "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.6.0.23O770" },
+      "url": "https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false",
+      "headers": { "X-Goog-Api-Format-Version": "2" },
+      "cpn": true
+    },
+    {
+      "name": "visionos_music-1.02",
+      "clientName": "VISIONOS",
+      "clientNameId": 101,
+      "clientVersion": "1.02",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+      "context": { "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.5.23O471" },
+      "url": "https://music.youtube.com/youtubei/v1/player?prettyPrint=false",
+      "cpn": true
     }
   ],
   "android": [
@@ -68,6 +89,27 @@
       "clientVersion": "1.01",
       "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
       "context": { "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.5.23O471" }
+    },
+    {
+      "name": "visionos_app-1.04",
+      "clientName": "VISIONOS",
+      "clientNameId": 101,
+      "clientVersion": "1.04",
+      "userAgent": "com.google.visionos.youtube/1.04(RealityDevice17,1; U; CPU visionOS 26_6_0 like Mac OS X; US)",
+      "context": { "clientScreen": "WATCH", "platform": "MOBILE", "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.6.0.23O770" },
+      "url": "https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false",
+      "headers": { "X-Goog-Api-Format-Version": "2" },
+      "cpn": true
+    },
+    {
+      "name": "visionos_music-1.02",
+      "clientName": "VISIONOS",
+      "clientNameId": 101,
+      "clientVersion": "1.02",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+      "context": { "deviceMake": "Apple", "deviceModel": "RealityDevice17,1", "osName": "visionOS", "osVersion": "26.5.23O471" },
+      "url": "https://music.youtube.com/youtubei/v1/player?prettyPrint=false",
+      "cpn": true
     }
   ]
 }

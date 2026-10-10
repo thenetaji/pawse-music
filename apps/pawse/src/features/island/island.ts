@@ -22,9 +22,9 @@ import { getSetting } from "../../lib/settings";
 import { songVibe } from "../../lib/vibe";
 import { readable, useNowPalette } from "../now-playing/now-palette";
 
-/** Groove frame swap period. Each swap is one ActivityKit update, so stay well under 1/s. */
-export const BEAT_MS = 2000;
-/** Stop swapping after this long in the background; the cat rests on one frame. */
+/** Mouse visit frame period. The cat no longer dances frame by frame: every update costs battery, and iOS throttles them. */
+export const BEAT_MS = 8000;
+/** No mouse visits after this long in the background. */
 export const BACKGROUND_BEAT_BUDGET_MS = 10 * 60_000;
 const HAPPY_MS = 1500;
 const SEND_TIMEOUT_MS = 4000;
@@ -62,10 +62,11 @@ const CAT_COLORS: readonly ActivityCatColor[] = [
 const CAMEO_CHANCE = { rare: 0.8, often: 1 };
 /** Long songs get another visit this many seconds after the last one. */
 const CAMEO_AGAIN_SEC: [number, number] = [60, 90];
-/** Mouse frame per beat tick: peek, head out, peek, head out, peek; the cat is pleased after. */
-const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1, 2, 1];
+/** Mouse frame per beat tick: peek, head out, peek; the cat is pleased after. */
+const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1];
 
-const ISLAND_STYLES: readonly IslandStyle[] = ["cat", "music", "time"];
+// "music" (sound bars) is gone: iOS's own player beside the bubble already has them.
+const ISLAND_STYLES: readonly IslandStyle[] = ["cat", "time"];
 
 type CatPrefs = {
   island: boolean;
@@ -243,7 +244,7 @@ export function startIslandController(): () => void {
   async function begin() {
     if (starting || active) return;
     const state = compose();
-    // Island cat off: no activity at all, so the system's Now Playing island shows instead.
+    // Island cat off: no activity at all, so iOS's own Now Playing island is the only one.
     if (!state || !catPrefs().island || !PawseActivity.isSupported()) return;
     starting = true;
     // iOS refuses to start an activity from the background; we retry when the app is active again.
@@ -344,16 +345,18 @@ export function startIslandController(): () => void {
   }
 
   function syncBeat() {
+    // Only ticks while a mouse visit is still due for this song; otherwise nothing changes between songs.
     const want =
       active &&
+      cameo.trackId === current()?.id &&
+      cameo.step < CAMEO_FRAMES.length &&
       isPlaying(usePlayerStore.getState().status) &&
       backgroundSince > 0 &&
       Date.now() - backgroundSince < BACKGROUND_BEAT_BUDGET_MS;
     if (want && !beat) {
       beat = setInterval(() => {
         const spent = Date.now() - backgroundSince;
-        if (spent >= BACKGROUND_BEAT_BUDGET_MS) frame = 0;
-        else if (!stepCameo(spent)) frame ^= 1;
+        if (spent < BACKGROUND_BEAT_BUDGET_MS) stepCameo(spent);
         push();
         syncBeat();
       }, BEAT_MS);
