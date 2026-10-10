@@ -51,6 +51,7 @@ export type PlayerEventName =
   | "liked"
   | "skipped"
   | "paused"
+  | "seeked"
   | "finished";
 
 export interface PlayOptions {

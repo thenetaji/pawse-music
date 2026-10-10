@@ -1,4 +1,5 @@
 import { AlphaType, ColorType, Skia } from "@shopify/react-native-skia";
+import { useState } from "react";
 
 import { createAsyncCache } from "../../lib/async-cache";
 import { FALLBACK_PALETTE, type Palette, pickPalette } from "./palette";
@@ -29,6 +30,10 @@ async function extract(url: string): Promise<Palette> {
   return px ? pickPalette(px as Uint8Array) : FALLBACK_PALETTE;
 }
 
+// While the next artwork loads, the last palette stays, so colours don't flash grey between songs.
 export function useArtworkPalette(url?: string): Palette {
-  return cache.use(url ?? null, () => extract(url!)).data ?? FALLBACK_PALETTE;
+  const { data, loading } = cache.use(url ?? null, () => extract(url!));
+  const [held, setHeld] = useState(FALLBACK_PALETTE);
+  if (data && data !== held) setHeld(data);
+  return data ?? (loading ? held : FALLBACK_PALETTE);
 }

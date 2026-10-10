@@ -364,3 +364,24 @@ test("artwork() feeds the native items and refreshArtwork updates only that trac
   ]);
   expect(tp.replaceMediaItem).not.toHaveBeenCalled();
 });
+
+test("setup turns on the disk cache with one song preloaded", async () => {
+  await setupPlayer({ resolver: { resolve } });
+  expect(tp.setupPlayer).toHaveBeenCalledWith(
+    expect.objectContaining({
+      cache: expect.objectContaining({ preloading: { window: 1 } }),
+    }),
+  );
+});
+
+test("a failed prefetch of a later song leaves the playing one without an error", async () => {
+  const flaky = jest.fn(async (t: Pick<Track, "id">) => {
+    if (t.id === "b") throw new Error("offline");
+    return resolve(t);
+  });
+  await setupPlayer({ resolver: { resolve: flaky } });
+  await player.play(tracks("a", "b"));
+  await flush();
+  expect(usePlayerStore.getState().error).toBeUndefined();
+  expect(urlAt(1)).toMatch("flow.invalid");
+});

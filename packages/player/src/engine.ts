@@ -39,6 +39,11 @@ const POS_EVERY_SEC = 15;
 const MAX_SKIPS = 5;
 const MAX_SOURCE_SWITCHES = 3;
 const ARTWORK_PX = 544;
+// Played songs are written to disk and the next one preloads once the current is fully cached.
+const CACHE_BYTES = 256 * 1024 * 1024;
+const PRELOAD_WINDOW = 1;
+// Near the end of a song, retry a next-song prefetch that failed earlier.
+const NEAR_END_SEC = 30;
 
 export { POS_KEY, QUEUE_KEY };
 
@@ -204,7 +209,11 @@ function mediaItem(key: string, track: Track): MediaItem {
 const itemAt = (i: number) => mediaItem(get().keys[i], get().tracks[i]);
 
 /** Makes entry i playable: resolved into the cache, and swapped into the native queue when loaded. */
-async function ensureReady(i: number, force = false): Promise<boolean> {
+async function ensureReady(
+  i: number,
+  force = false,
+  quiet = false,
+): Promise<boolean> {
   const { keys, tracks } = get();
   const key = keys[i];
   const track = tracks[i];
@@ -223,7 +232,9 @@ async function ensureReady(i: number, force = false): Promise<boolean> {
       TrackPlayer.replaceMediaItem(at, mediaItem(key, track));
     return true;
   } catch (e) {
-    set({ error: errorText(e) });
+    // A failed prefetch of a later song must not show as an error on the one playing.
+    if (quiet) diag("prefetch-failed", `${track.id}: ${errorText(e)}`);
+    else set({ error: errorText(e) });
     return false;
   }
 }
@@ -245,7 +256,7 @@ export function setPrefetchAhead(n?: number): void {
 function ensureAhead(): void {
   const { index, tracks } = get();
   for (let i = index + 1; i <= index + ahead && i < tracks.length; i++)
-    void ensureReady(i);
+    void ensureReady(i, false, true);
 }
 
 function loadNative(i: number): void {
@@ -493,6 +504,7 @@ function tick(): void {
     emitPlayerEvent("finished", track);
   }
   if (Math.abs(position - savedPos) >= POS_EVERY_SEC) savePosition(position);
+  if (dur > 0 && dur - position < NEAR_END_SEC) ensureAhead();
   guardEnd(position, duration, track);
 }
 
@@ -614,6 +626,10 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     contentType: "music",
     handleAudioBecomingNoisy: o.pauseOnDisconnect ?? true,
     android: { wakeMode: "network" },
+    cache: {
+      maxSizeBytes: CACHE_BYTES,
+      preloading: { window: PRELOAD_WINDOW },
+    },
   });
   TrackPlayer.setCommands({
     capabilities: [
@@ -634,8 +650,11 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     Event.MediaItemTransition,
     ({ item, reason }) => {
       if (!item?.mediaId) return;
-      if (reason === "repeat") playedFired = finishedFired = false;
       entered(item.mediaId, reason === "seek" || reason === "playlistChanged");
+      if (reason === "repeat") {
+        playedFired = finishedFired = false;
+        emitPlayerEvent("seeked", get().tracks[get().index]);
+      }
     },
   );
   TrackPlayer.addEventListener(Event.PlaybackStateChanged, ({ state }) => {
@@ -747,6 +766,7 @@ function seekTo(sec: number): void {
   else if (s.keys[s.index])
     pendingSeek = { key: s.keys[s.index], position: sec };
   savePosition(sec);
+  emitPlayerEvent("seeked", s.tracks[s.index]);
 }
 
 function mutate(q: Q.Queue): void {
