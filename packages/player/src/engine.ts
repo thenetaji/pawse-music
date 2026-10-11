@@ -539,7 +539,9 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
   // A source error (HTTP status, unreadable file) blames the stream's source, so the next source gets a turn.
   // A YouTube URL that never starts counts too: AVPlayer just buffers on a refused URL.
   const deadStart =
-    (e.code as string) === "stalled" && position < 1 && !!via?.startsWith("youtube:");
+    (e.code as string) === "stalled" &&
+    position < 1 &&
+    !!via?.startsWith("youtube:");
   const switched =
     (e.code === "source" || deadStart) &&
     !!via &&
@@ -1016,7 +1018,10 @@ function readProgress(): Progress {
   }
   const s = get();
   return {
-    position: pendingSeek?.key === s.keys[s.index] ? pendingSeek.position : 0,
+    position:
+      pendingSeek && pendingSeek.key === s.keys[s.index]
+        ? pendingSeek.position
+        : 0,
     duration: s.tracks[s.index]?.durationSec ?? 0,
     buffered: 0,
   };

@@ -4,6 +4,11 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-11
+
+### Fixed
+- A fresh install no longer opens on "Something went sideways" (Cannot read properties of undefined). Pawse now starts cleanly before you've played anything.
+
 ## [1.0.0] - 2026-10-10
 
 Pawse's first stable release.
