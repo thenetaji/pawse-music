@@ -9,12 +9,14 @@ import { fileURLToPath } from "node:url";
 import {
   app,
   BrowserWindow,
+  ipcMain,
   Menu,
   nativeTheme,
   protocol,
   shell,
 } from "electron";
 
+import { readSession, signIn, signOut, writeSession } from "./google.mjs";
 import { relay } from "./relay.mjs";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
@@ -96,6 +98,7 @@ function createWindow() {
       icon: join(HERE, "..", "build", "icon.png"),
     }),
     webPreferences: {
+      preload: join(HERE, "preload.cjs"),
       contextIsolation: true,
       sandbox: true,
       autoplayPolicy: "no-user-gesture-required",
@@ -164,6 +167,14 @@ else {
         return r;
       });
     });
+    ipcMain.handle("pawse:sign-in", (e) =>
+      signIn(BrowserWindow.fromWebContents(e.sender)),
+    );
+    ipcMain.handle("pawse:sign-out", () => signOut());
+    ipcMain.on("pawse:session-read", (e) => {
+      e.returnValue = readSession();
+    });
+    ipcMain.on("pawse:session-write", (_e, cookies) => writeSession(cookies));
     if (!mac) Menu.setApplicationMenu(null);
     win = createWindow();
   });

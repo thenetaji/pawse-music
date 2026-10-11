@@ -4,6 +4,19 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-11
+
+### Added
+- **Sign in on Mac, Windows and Linux.** **Continue with Google** opens Google's own sign-in window; once YouTube Music opens there, Pawse brings in your feed, likes and playlists, just like on a phone.
+- On computers, your YouTube session is stored encrypted with the system's keychain (Keychain on Mac, Windows' built-in encryption, KWallet or GNOME Keyring on Linux). On a Linux computer without a keyring, you stay signed in until you quit Pawse.
+
+### Changed
+- Pawse uses your account more gently. Search, artist and album pages, charts and new releases load signed out, so your account is only used for your feed, library, likes and history.
+- Signed-in requests come at a person's pace: a few at once, then about one every 2 seconds.
+- Likes, dislikes and follows reach YouTube 2.5 to 4.5 seconds apart, and at most 40 an hour; the rest wait their turn.
+- Library sync runs every 6 to 9 hours instead of exactly every 6.
+- If YouTube pushes back on your account, Pawse stops using it for 30 minutes and never retries those requests. Music keeps playing, since it always plays signed out.
+
 ## [1.0.2] - 2026-10-11
 
 ### Added

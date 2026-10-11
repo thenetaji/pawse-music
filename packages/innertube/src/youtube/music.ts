@@ -99,6 +99,23 @@ export const SEARCH_PARAMS: Record<Exclude<SearchFilter, "all">, string> = {
 
 const TIMEOUT_MS = 12_000;
 // Reads safe to send twice; writes (like/like) and playback reporting are never retried.
+// Catalog lookups anyone can make go out signed out, so the account only shows up where it is needed.
+const CATALOG_BROWSE =
+  /^(UC|MPRE|MPLA|MPTR|MPLY|FEmusic_charts|FEmusic_moods_and_genres|FEmusic_new_releases)/;
+const isCatalogCall = (endpoint: string, body: Record<string, unknown>) =>
+  endpoint === "search" ||
+  endpoint === "music/get_search_suggestions" ||
+  (endpoint === "browse" &&
+    typeof body.browseId === "string" &&
+    CATALOG_BROWSE.test(body.browseId));
+// Signed-in calls come at a person's pace: a burst of 8, then one every 2 s.
+const ACCOUNT_BURST = 8;
+const ACCOUNT_REFILL_MS = 2000;
+// YouTube pushing back on the account (401/403/429) rests it for half an hour: no cookies, no writes.
+const ACCOUNT_PUSHBACK = new Set([401, 403, 429]);
+const ACCOUNT_REST_MS = 30 * 60_000;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 const IDEMPOTENT = new Set([
   "browse",
   "search",
@@ -173,6 +190,10 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   private webFailedAt = 0;
   private signedIn = false;
   private visitorData?: string;
+  private tokens = ACCOUNT_BURST;
+  private refilledAt = Date.now();
+  private paced: Promise<void> = Promise.resolve();
+  private restUntil = 0;
 
   constructor(options: YouTubeMusicOptions = {}) {
     this.f = options.fetch ?? defaultFetch;
@@ -220,7 +241,27 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   private async cookie(): Promise<string | null> {
     const c = (await this.cookies?.()) ?? null;
     this.signedIn = hasSapisid(c);
-    return this.signedIn ? c : null;
+    return this.signedIn && Date.now() >= this.restUntil ? c : null;
+  }
+
+  /** Waits for a turn in the signed-in budget; turns are handed out one at a time. */
+  private pace(): Promise<void> {
+    const turn = this.paced.then(async () => {
+      const now = Date.now();
+      this.tokens = Math.min(
+        ACCOUNT_BURST,
+        this.tokens + (now - this.refilledAt) / ACCOUNT_REFILL_MS,
+      );
+      this.refilledAt = now;
+      if (this.tokens < 1) {
+        await wait((1 - this.tokens) * ACCOUNT_REFILL_MS);
+        this.tokens = 1;
+        this.refilledAt = Date.now();
+      }
+      this.tokens -= 1;
+    });
+    this.paced = turn;
+    return turn;
   }
 
   private async config(): Promise<WebConfig> {
@@ -324,8 +365,9 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   async call(endpoint: string, body: Record<string, unknown>): Promise<any> {
     const [cfg, cookie] = await Promise.all([
       this.config(),
-      this.cookie().catch(() => null),
+      isCatalogCall(endpoint, body) ? null : this.cookie().catch(() => null),
     ]);
+    if (cookie) await this.pace();
     const headers = {
       ...(await this.webHeaders(cfg, cookie)),
       "Content-Type": "application/json",
@@ -342,8 +384,16 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
           credentials: "omit",
         },
         TIMEOUT_MS,
-        IDEMPOTENT.has(endpoint) ? 1 : 0,
+        // A signed-in call is never repeated: retrying a 429 is what gets accounts flagged.
+        !cookie && IDEMPOTENT.has(endpoint) ? 1 : 0,
       );
+      if (cookie && ACCOUNT_PUSHBACK.has(res.status)) {
+        this.restUntil = Date.now() + ACCOUNT_REST_MS;
+        this.onRequestError?.(
+          "account",
+          new Error(`resting 30 min after HTTP ${res.status} on ${endpoint}`),
+        );
+      }
       if (!res.ok)
         throw new InnerTubeError(
           res.status,
@@ -621,13 +671,18 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
         cver: cfg.clientVersion,
         cpn: cpn(),
       };
-      const get = (url: string, extra: Record<string, string | number>) =>
-        fetchWithTimeout(
+      const get = async (
+        url: string,
+        extra: Record<string, string | number>,
+      ) => {
+        await this.pace();
+        return fetchWithTimeout(
           this.f,
           `${url}${url.includes("?") ? "&" : "?"}${query({ ...base, ...extra })}`,
           { headers, credentials: "omit" },
           TIMEOUT_MS,
         );
+      };
       await get(playbackUrl, {});
       if (watchtimeUrl && playedSec > 0) {
         const et = Math.min(playedSec, lengthSec || playedSec).toFixed(3);

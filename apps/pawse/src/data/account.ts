@@ -5,9 +5,13 @@ import { listeningStats, parsePlaylistId, strip } from "./library-model";
 import { kv } from "./storage";
 
 const MAX_PAGES = 50;
-const SYNC_EVERY_MS = 6 * 3600_000;
+// Every 6 to 9 hours, so syncs never land on a fixed clock.
+const SYNC_EVERY_MS = (6 + Math.random() * 3) * 3600_000;
 const PAGE_GAP_MS = 400;
-const LIKE_GAP_MS = 600;
+// Likes and follows reach YouTube 2.5 to 4.5 s apart, 40 an hour at most; the rest wait their turn.
+const WRITE_GAP_MS = 2500;
+const WRITE_JITTER_MS = 2000;
+const WRITES_PER_HOUR = 40;
 const MIX_TTL_MS = 86400_000;
 const MIX_KEY = "pawse.mixes.v1";
 // Liked music and episodes are not real library playlists.
@@ -195,32 +199,47 @@ export async function dailyMixes(): Promise<DailyMix[]> {
   );
 }
 
-// Likes and dislikes mirror to YouTube one at a time; the latest toggle per song wins, failures stay local.
+// Likes, dislikes and follows mirror to YouTube one at a time; the latest change per song or artist wins, failures stay local.
 type Rating = "like" | "dislike" | "none";
-const pendingRates = new Map<string, Rating>();
-let rating = false;
+const pendingWrites = new Map<string, () => Promise<unknown>>();
+const recentWrites: number[] = [];
+let writing = false;
 
-async function drainRates(): Promise<void> {
-  if (rating) return;
-  rating = true;
+async function drainWrites(): Promise<void> {
+  if (writing) return;
+  writing = true;
   try {
-    for (let next = pendingRates.entries().next(); !next.done; ) {
-      const [id, value] = next.value;
-      pendingRates.delete(id);
-      await yt.rate(id, value).catch(() => {});
-      await sleep(LIKE_GAP_MS);
-      next = pendingRates.entries().next();
+    for (let next = pendingWrites.entries().next(); !next.done;) {
+      const hourAgo = Date.now() - 3600_000;
+      while (recentWrites.length && recentWrites[0] < hourAgo)
+        recentWrites.shift();
+      if (recentWrites.length >= WRITES_PER_HOUR) {
+        await sleep(recentWrites[0] - hourAgo + 1000);
+        continue;
+      }
+      const [key, write] = next.value;
+      pendingWrites.delete(key);
+      recentWrites.push(Date.now());
+      await write().catch(() => {});
+      await sleep(WRITE_GAP_MS + Math.random() * WRITE_JITTER_MS);
+      next = pendingWrites.entries().next();
     }
   } finally {
-    rating = false;
+    writing = false;
   }
+}
+
+function queueWrite(key: string, write: () => Promise<unknown>): void {
+  pendingWrites.delete(key);
+  pendingWrites.set(key, write);
+  void drainWrites();
 }
 
 /** Mirrors a follow to the YouTube account as a channel subscription, when signed in and syncing. */
 export function mirrorFollow(channelId: string, on: boolean): void {
   const s = useLibrary.getState().settings;
   if (!s.cookies || !s.syncLikes) return;
-  void ytAccount.subscribe(channelId, on).catch(() => {});
+  queueWrite(`follow:${channelId}`, () => ytAccount.subscribe(channelId, on));
 }
 
 let started = false;
@@ -231,8 +250,7 @@ export function startAccountSync(): void {
   const mirror = (track: Track, value: Rating) => {
     const s = useLibrary.getState().settings;
     if (!s.cookies || !s.syncLikes || track.source !== "youtube") return;
-    pendingRates.set(track.id, value);
-    void drainRates();
+    queueWrite(`rate:${track.id}`, () => yt.rate(track.id, value));
   };
   onLike((track, on) => mirror(track, on ? "like" : "none"));
   onDislike((track, on) => mirror(track, on ? "dislike" : "none"));

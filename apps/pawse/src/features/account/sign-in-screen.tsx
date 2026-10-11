@@ -1,0 +1,168 @@
+import { router } from "expo-router";
+import type { ReactNode } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { PressScale } from "../../components/ui";
+import { syncYouTubeLibrary, useLibrary } from "../../data/library";
+import { yt } from "../../lib/engine";
+import { haptic } from "../../lib/haptics";
+import { useSetting } from "../../lib/settings";
+import { display } from "../../lib/type";
+import { Cat, type CatColor } from "../cat/cat";
+import { useAccent } from "../now-playing/now-palette";
+
+export type SignInStep = "intro" | "web" | "done";
+
+const PERKS = [
+  "Your own home feed and mixes",
+  "Likes and playlists from YouTube Music",
+  "Plays saved to your history",
+];
+
+/** Keeps the YouTube Music cookie header, then pulls in the library and the account name. */
+export function saveSession(header: string) {
+  useLibrary
+    .getState()
+    .setSettings({ cookies: header, accountName: "YouTube Music" });
+  haptic.success();
+  syncYouTubeLibrary().catch(() => {});
+  yt.accountInfo()
+    .then(
+      (me) => me && useLibrary.getState().setSettings({ accountName: me.name }),
+    )
+    .catch(() => {});
+}
+
+/** The intro, Google's page (`web`) and the welcome, shared by phones and computers. */
+export function SignInScreen({
+  step,
+  onContinue,
+  web,
+}: {
+  step: SignInStep;
+  onContinue: () => void;
+  web: ReactNode;
+}) {
+  const insets = useSafeAreaInsets();
+  const accent = useAccent();
+  const color = useSetting<CatColor>("catColor", "orange");
+  const name = useSetting("catName", "Mochi");
+
+  return (
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <View style={styles.bar}>
+        <View style={{ width: 60 }} />
+        <Text style={styles.barTitle}>{step === "web" ? "Google" : ""}</Text>
+        <Pressable
+          hitSlop={10}
+          onPress={() => router.back()}
+          style={{ width: 60, alignItems: "flex-end" }}
+        >
+          <Text style={styles.cancel}>
+            {step === "done" ? "Done" : "Cancel"}
+          </Text>
+        </Pressable>
+      </View>
+
+      {step === "intro" ? (
+        <Animated.View entering={FadeIn} style={styles.center}>
+          <Cat mood="curious" size={130} color={color} />
+          <Text style={styles.title}>Bring your music</Text>
+          <Text style={styles.sub}>
+            Sign in to YouTube Music and {name} learns what you love.
+          </Text>
+          <View style={styles.perks}>
+            {PERKS.map((p, i) => (
+              <Animated.View
+                key={p}
+                entering={FadeInDown.delay(120 + i * 80)}
+                style={styles.perk}
+              >
+                <View style={[styles.dot, { backgroundColor: accent }]} />
+                <Text style={styles.perkText}>{p}</Text>
+              </Animated.View>
+            ))}
+          </View>
+          <Text style={styles.note}>
+            Your account is never used to stream. Music always plays signed out.
+          </Text>
+          <PressScale onPress={onContinue} style={styles.cta}>
+            <Text style={styles.ctaText}>Continue with Google</Text>
+          </PressScale>
+        </Animated.View>
+      ) : step === "web" ? (
+        web
+      ) : (
+        <Animated.View entering={FadeIn} style={styles.center}>
+          <Cat mood="excited" size={140} color={color} />
+          <Text style={styles.title}>You’re in</Text>
+          <Text style={styles.sub}>
+            {name} is pulling in your likes and playlists.
+          </Text>
+          <PressScale onPress={() => router.back()} style={styles.cta}>
+            <Text style={styles.ctaText}>Let’s listen</Text>
+          </PressScale>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#000" },
+  bar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    height: 50,
+  },
+  barTitle: { color: "#fff", fontSize: 17, ...display("700") },
+  cancel: { color: "rgba(255,255,255,0.75)", fontSize: 17 },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+    paddingBottom: 40,
+    width: "100%",
+    maxWidth: 460,
+    alignSelf: "center",
+  },
+  title: {
+    color: "#fff",
+    fontSize: 30,
+    ...display("900"),
+    letterSpacing: -0.8,
+    marginTop: 16,
+  },
+  sub: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 8,
+    lineHeight: 22,
+  },
+  perks: { alignSelf: "stretch", marginTop: 26, gap: 12 },
+  perk: { flexDirection: "row", alignItems: "center", gap: 12 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  perkText: { color: "#fff", fontSize: 16, fontWeight: "500" },
+  note: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 26,
+  },
+  cta: {
+    marginTop: 18,
+    alignSelf: "stretch",
+    height: 54,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  ctaText: { color: "#000", fontSize: 17, ...display("800") },
+});
