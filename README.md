@@ -60,15 +60,15 @@ Pick your device below. Every release is on the [releases page](https://github.c
 | --- | --- | --- |
 | [Pawse.ipa](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa) | iPhone. You install it with SideStore, AltStore or Sideloadly. | 24 MB |
 | [Pawse.apk](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk) | Android. One file for all phones. | 66 MB |
-| [Pawse-mac.dmg](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac.dmg) | Every Mac on macOS 12 or newer, Apple silicon and Intel. | 250 MB |
-| [Pawse-Setup.exe](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-Setup.exe) | Windows 10 and 11, on Intel, AMD and ARM (Snapdragon) PCs. | 220 MB |
-| [Pawse-linux-amd64.deb](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-amd64.deb) | Ubuntu, Debian, Mint and Pop!_OS. | 100 MB |
-| [Pawse-linux-x86_64.rpm](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.rpm) | Fedora, RHEL and openSUSE. | 100 MB |
-| [Pawse-linux-x86_64.AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage) | Any other Linux. | 126 MB |
+| [Pawse-mac.dmg](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac.dmg) | Every Mac on macOS 12 or newer, Apple silicon and Intel. | 218 MB |
+| [Pawse-Setup.exe](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-Setup.exe) | Windows 10 and 11, on Intel, AMD and ARM (Snapdragon) PCs. | 207 MB |
+| [Pawse-linux-amd64.deb](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-amd64.deb) | Ubuntu, Debian, Mint and Pop!_OS. | 95 MB |
+| [Pawse-linux-x86_64.rpm](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.rpm) | Fedora, RHEL and openSUSE. | 85 MB |
+| [Pawse-linux-x86_64.AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage) | Any other Linux. | 120 MB |
 
 On an ARM Linux computer (Raspberry Pi 4 and 5 on 64-bit, ARM laptops), take the `arm64.deb`, `aarch64.rpm` or `arm64.AppImage` from the [releases page](https://github.com/thenetaji/pawse-music/releases/latest) instead.
 
-Sizes are rough. The computer apps are big because each one carries its own copy of Chromium (they are built with Electron).
+Sizes are from version 1.0.2. The computer apps are big because each one carries its own copy of Chromium (they are built with Electron).
 
 **One file per device.** Each release has one file for each kind of device, named the same every time (`Pawse.apk`, `Pawse.ipa` and so on). The version is in the release's title. Older versions stay on the [releases page](https://github.com/thenetaji/pawse-music/releases).
 
