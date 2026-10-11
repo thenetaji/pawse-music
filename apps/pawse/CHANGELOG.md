@@ -4,6 +4,20 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-11
+
+### Added
+- **One download for every Mac**: Pawse-mac.dmg runs on Apple silicon and Intel Macs.
+- **Windows on ARM**: the same Setup.exe installs the right app on Intel, AMD and Snapdragon PCs.
+- **Fedora, RHEL and openSUSE** get an .rpm, and every Linux file now comes for ARM computers too.
+
+### Fixed
+- Computer: YouTube songs play again. Pawse asked YouTube over one kind of internet address and fetched the song over another, and YouTube refused it.
+- Computer: the visionOS app fallback reaches YouTube instead of failing with "Failed to fetch".
+- Linux: the window has Pawse's icon instead of a blank one.
+- The welcome screens stay phone-sized on a big window instead of stretching edge to edge.
+- Settings → About and the diagnostics log show the computer app's real version.
+
 ## [1.0.1] - 2026-10-11
 
 ### Fixed

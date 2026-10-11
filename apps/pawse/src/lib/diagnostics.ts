@@ -1,8 +1,8 @@
-import * as Application from "expo-application";
 import { useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 
 import { kv } from "../data/storage";
+import { appBuild, appVersion, desktopVersion } from "./app-version";
 
 // The last few hundred playback moments, kept on the phone so a bug report can include them.
 const KEY = "pawse.diagnostics.v1";
@@ -30,7 +30,10 @@ export function logEvent(kind: string, detail?: string): void {
 }
 
 export function getLogText(): string {
-  const head = `Pawse ${Application.nativeApplicationVersion ?? "?"} (${Application.nativeBuildVersion ?? "?"}) · ${Platform.OS} ${Platform.Version}`;
+  const where = desktopVersion
+    ? "desktop"
+    : `${Platform.OS} ${Platform.Version}`;
+  const head = `Pawse ${appVersion} (${appBuild}) · ${where}`;
   return [head, ...lines].join("\n");
 }
 

@@ -1,6 +1,8 @@
 // Pawse for Mac, Windows and Linux: the app's web build in a window, served from a private
 // pawse:// scheme so its storage persists, with YouTube and audio going through relay.mjs.
+import { setDefaultResultOrder } from "node:dns";
 import { readFile, stat } from "node:fs/promises";
+import { setDefaultAutoSelectFamily } from "node:net";
 import { extname, join, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -38,6 +40,10 @@ const SCROLLBARS =
   "::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:6px;border:2px solid transparent;background-clip:padding-box}" +
   "::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.26);background-clip:padding-box}" +
   "::-webkit-scrollbar-button{display:none}";
+
+// YouTube ties a stream to the address that asked for it, so every relayed request leaves over one family.
+setDefaultResultOrder("ipv4first");
+setDefaultAutoSelectFamily(false);
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -85,6 +91,10 @@ function createWindow() {
     title: "Pawse",
     show: false,
     autoHideMenuBar: true,
+    // Linux has no icon baked into the binary, so the window brings its own.
+    ...(process.platform === "linux" && {
+      icon: join(HERE, "..", "build", "icon.png"),
+    }),
     webPreferences: {
       contextIsolation: true,
       sandbox: true,

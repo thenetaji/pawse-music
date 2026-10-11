@@ -345,6 +345,10 @@ jobs:
           path: apps/desktop/web
       - name: Stamp version
         run: node -e "const f='apps/desktop/package.json',fs=require('fs'),p=JSON.parse(fs.readFileSync(f));p.version=process.env.VERSION;fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+      # electron-builder makes the Fedora package with rpmbuild.
+      - name: Install rpmbuild
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y --no-install-recommends rpm
       - name: Package
         working-directory: apps/desktop
         run: pnpm exec electron-builder --publish never
@@ -358,6 +362,7 @@ jobs:
             apps/desktop/dist/*.exe
             apps/desktop/dist/*.AppImage
             apps/desktop/dist/*.deb
+            apps/desktop/dist/*.rpm
           if-no-files-found: error
 
   release:
@@ -413,11 +418,14 @@ jobs:
             row() { [ -e "dist/$1" ] && printf '| %s | %s | %s |\n' "$1" "$2" "$3"; return 0; }
             row "${APP_NAME}.ipa" "iPhone, iOS 16.4 or newer" "Easiest: add the SideStore source from the install guide, and SideStore updates Pawse for you. Or open this file in AltStore or Sideloadly."
             row "${APP_NAME}.apk" "Android 7.0 or newer, every phone" "Open it on the phone and allow installs if asked. It installs over the old app and your library stays."
-            row "${APP_NAME}-mac-arm64.dmg" "Macs with Apple silicon (M1 and newer)" "Drag Pawse into Applications. The first time, open System Settings, Privacy & Security and click Open Anyway."
-            row "${APP_NAME}-mac-x64.dmg" "Intel Macs" "Same as the Apple silicon file."
-            row "${APP_NAME}-Setup.exe" "Windows 10 and 11, 64-bit" "Run it. If Windows warns you, click More info, then Run anyway."
-            row "${APP_NAME}-linux-x86_64.AppImage" "Any 64-bit Linux" "Make it executable (chmod +x) and run it. Needs libfuse2."
-            row "${APP_NAME}-linux-amd64.deb" "Ubuntu, Debian, Mint and Pop!_OS" "sudo apt install ./${APP_NAME}-linux-amd64.deb"
+            row "${APP_NAME}-mac.dmg" "Every Mac on macOS 12 or newer, Apple silicon and Intel" "Drag Pawse into Applications. The first time, open System Settings, Privacy & Security and click Open Anyway."
+            row "${APP_NAME}-Setup.exe" "Windows 10 and 11, Intel, AMD and ARM (Snapdragon) PCs" "Run it. If Windows warns you, click More info, then Run anyway."
+            row "${APP_NAME}-linux-amd64.deb" "Ubuntu, Debian, Mint and Pop!_OS on Intel or AMD" "sudo apt install ./${APP_NAME}-linux-amd64.deb"
+            row "${APP_NAME}-linux-x86_64.rpm" "Fedora, RHEL and openSUSE on Intel or AMD" "sudo dnf install ./${APP_NAME}-linux-x86_64.rpm (openSUSE: sudo zypper install)"
+            row "${APP_NAME}-linux-x86_64.AppImage" "Any other Linux on Intel or AMD" "Make it executable (chmod +x) and run it. Needs FUSE 2 (libfuse2, or fuse-libs on Fedora)."
+            row "${APP_NAME}-linux-arm64.deb" "Ubuntu, Debian and Raspberry Pi OS (64-bit) on ARM" "sudo apt install ./${APP_NAME}-linux-arm64.deb"
+            row "${APP_NAME}-linux-aarch64.rpm" "Fedora, RHEL and openSUSE on ARM" "sudo dnf install ./${APP_NAME}-linux-aarch64.rpm"
+            row "${APP_NAME}-linux-arm64.AppImage" "Any other Linux on ARM" "Same as the Intel AppImage."
             printf '\nYou need one file: the one for your device. The version is in the release title. Full steps: https://github.com/%s#install\n' "${GITHUB_REPOSITORY}"
           } >> notes.md
           cat notes.md
@@ -434,6 +442,7 @@ jobs:
             dist/*.exe
             dist/*.AppImage
             dist/*.deb
+            dist/*.rpm
           fail_on_unmatched_files: false
 
       - name: Update the SideStore source

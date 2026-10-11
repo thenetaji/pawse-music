@@ -29,6 +29,7 @@
     "files": [
       "src/**",
       "web/**",
+      "build/icon.png",
       "package.json"
     ],
     "mac": {
@@ -37,8 +38,7 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "universal"
           ]
         }
       ],
@@ -47,18 +47,19 @@
       "hardenedRuntime": false
     },
     "dmg": {
-      "artifactName": "Pawse-${version}-mac-${arch}.${ext}"
+      "artifactName": "Pawse-${version}-mac.${ext}"
     },
     "win": {
       "target": [
         {
           "target": "nsis",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
           ]
         }
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": true,
@@ -71,13 +72,22 @@
         {
           "target": "AppImage",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
           ]
         },
         {
           "target": "deb",
           "arch": [
-            "x64"
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64",
+            "arm64"
           ]
         }
       ],
@@ -89,12 +99,15 @@
       "executableName": "pawse"
     },
     "appImage": {
-      "artifactName": "Pawse-${version}-linux-x86_64.${ext}"
+      "artifactName": "Pawse-${version}-linux-${arch}.${ext}"
     },
     "deb": {
-      "artifactName": "Pawse-${version}-linux-amd64.${ext}"
+      "artifactName": "Pawse-${version}-linux-${arch}.${ext}"
     },
-    "publish": null
+    "publish": null,
+    "rpm": {
+      "artifactName": "Pawse-${version}-linux-${arch}.${ext}"
+    }
   },
   "desktopName": "pawse.desktop",
   "repository": {

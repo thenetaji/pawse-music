@@ -5,6 +5,7 @@ import { Alert, Linking, Platform } from "react-native";
 import { create } from "zustand";
 
 import { SheetNote, showSheet } from "../components/action-sheet";
+import { desktopOS, desktopVersion } from "./app-version";
 import { getSetting, setSetting } from "./settings";
 
 const RELEASES =
@@ -15,19 +16,8 @@ const TAG = /^v(\d+\.\d+\.\d+)$/;
 
 export type Update = { version: string; file: string; notes: string };
 
-// The desktop app names itself in its user agent ("Pawse/0.6.0 ... Electron/...").
-const desktopVersion =
-  Platform.OS === "web" &&
-  typeof navigator !== "undefined" &&
-  /\bElectron\//.test(navigator.userAgent)
-    ? /\bPawse\/(\d+\.\d+\.\d+)/.exec(navigator.userAgent)?.[1]
-    : undefined;
 const EXT = desktopVersion
-  ? /Mac/.test(navigator.userAgent)
-    ? ".dmg"
-    : /Windows/.test(navigator.userAgent)
-      ? ".exe"
-      : ".AppImage"
+  ? { mac: ".dmg", windows: ".exe", linux: ".AppImage" }[desktopOS]
   : Platform.OS === "ios"
     ? ".ipa"
     : ".apk";

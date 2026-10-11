@@ -3,7 +3,7 @@
 
 // Keep in step with RELAYED in apps/pawse/src/lib/net.web.ts.
 const ALLOWED =
-  /^https:\/\/([a-z0-9-]+\.)*(youtube\.com|googlevideo\.com|jiosaavn\.com|saavncdn\.com|kugou\.com|boidu\.dev|lrclib\.net|lyricsplus\.prjktla\.my\.id|lyricsplus\.binimum\.org|lyrics-plus-backend\.vercel\.app|lyricsplus\.atomix\.one)\//;
+  /^https:\/\/([a-z0-9-]+\.)*(youtube\.com|youtubei\.googleapis\.com|googlevideo\.com|jiosaavn\.com|saavncdn\.com|kugou\.com|boidu\.dev|lrclib\.net|lyricsplus\.prjktla\.my\.id|lyricsplus\.binimum\.org|lyrics-plus-backend\.vercel\.app|lyricsplus\.atomix\.one)\//;
 // Headers the browser adds that would give the app away or break the upstream request.
 const DROP = new Set([
   "host",

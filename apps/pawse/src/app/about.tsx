@@ -1,4 +1,3 @@
-import * as Application from "expo-application";
 import { router } from "expo-router";
 import {
   Linking,
@@ -12,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "../components/glyphs";
 import { RIPPLE } from "../components/ui";
 import { Cat, type CatColor } from "../features/cat/cat";
+import { appBuild, appVersion } from "../lib/app-version";
 import { useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 
@@ -26,8 +26,8 @@ const LICENSES = [
 export default function About() {
   const insets = useSafeAreaInsets();
   const color = useSetting<CatColor>("catColor", "orange");
-  const version = Application.nativeApplicationVersion ?? "0.1.0";
-  const build = Application.nativeBuildVersion ?? "dev";
+  const version = appVersion;
+  const build = appBuild;
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: "#000" }}

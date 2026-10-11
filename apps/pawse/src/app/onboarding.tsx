@@ -119,195 +119,202 @@ export default function Onboarding() {
         { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 16 },
       ]}
     >
-      <View style={styles.dots}>
-        {[0, 1, 2, 3].map((i) => (
-          <View key={i} style={[styles.dot, i === step && styles.dotOn]} />
-        ))}
-      </View>
+      <View style={styles.column}>
+        <View style={styles.dots}>
+          {[0, 1, 2, 3].map((i) => (
+            <View key={i} style={[styles.dot, i === step && styles.dotOn]} />
+          ))}
+        </View>
 
-      <Animated.View
-        key={step}
-        entering={FadeInDown.duration(380)}
-        exiting={FadeOut.duration(150)}
-        style={{ flex: 1 }}
-      >
-        {step === 0 ? (
-          <View style={styles.center}>
-            <Cat mood="excited" size={170} color={color} />
-            <Text style={styles.title}>Meet your cat</Text>
-            <Text style={styles.sub}>
-              It lives on your progress bar and in the Dynamic Island, and
-              dances to everything you play.
-            </Text>
-            <TextInput
-              value={name}
-              onChangeText={(v) => setSetting("catName", v.slice(0, 18))}
-              style={styles.nameInput}
-              placeholder="Give it a name"
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              selectionColor={ACCENT}
-              textAlign="center"
-            />
-            <View style={styles.colors}>
-              {COLORS.map((c) => (
-                <PressScale
-                  key={c.id}
-                  onPress={() => setSetting("catColor", c.id)}
-                  style={styles.colorItem}
-                >
-                  <View
-                    style={[
-                      styles.swatch,
-                      { backgroundColor: c.fur },
-                      color === c.id && styles.swatchOn,
-                    ]}
-                  />
-                  <Text
-                    style={[
-                      styles.colorLabel,
-                      color === c.id && { color: "#fff" },
-                    ]}
-                  >
-                    {c.label}
-                  </Text>
-                </PressScale>
-              ))}
-            </View>
-          </View>
-        ) : step === 1 ? (
-          <View style={styles.pad}>
-            <Text style={styles.title}>What do you listen to?</Text>
-            <Text style={styles.sub}>
-              Pick any languages. {name} will start there.
-            </Text>
-            <View style={styles.wrap}>
-              {LANGS.map((l) => (
-                <Chip
-                  key={l}
-                  label={l}
-                  on={langs.includes(l)}
-                  accent={ACCENT}
-                  onPress={() =>
-                    setSetting(
-                      "seedLanguages",
-                      langs.includes(l)
-                        ? langs.filter((x) => x !== l)
-                        : [...langs, l],
-                    )
-                  }
-                />
-              ))}
-            </View>
-          </View>
-        ) : step === 2 ? (
-          <View style={{ flex: 1 }}>
-            <View style={styles.pad}>
-              <Text style={styles.title}>A few favourites</Text>
+        <Animated.View
+          key={step}
+          entering={FadeInDown.duration(380)}
+          exiting={FadeOut.duration(150)}
+          style={{ flex: 1 }}
+        >
+          {step === 0 ? (
+            <View style={styles.center}>
+              <Cat mood="excited" size={170} color={color} />
+              <Text style={styles.title}>Meet your cat</Text>
               <Text style={styles.sub}>
-                Pick three or more. Your Home and mixes start from them.
+                It lives on your progress bar and in the Dynamic Island, and
+                dances to everything you play.
               </Text>
               <TextInput
-                value={q}
-                onChangeText={setQ}
-                placeholder="Search artists"
-                placeholderTextColor="rgba(255,255,255,0.4)"
-                style={styles.search}
+                value={name}
+                onChangeText={(v) => setSetting("catName", v.slice(0, 18))}
+                style={styles.nameInput}
+                placeholder="Give it a name"
+                placeholderTextColor="rgba(255,255,255,0.3)"
                 selectionColor={ACCENT}
+                textAlign="center"
               />
-            </View>
-            <ScrollView contentContainerStyle={styles.artists}>
-              {shown.map((a, i) => {
-                const on = artists.some((x) => x.id === a.id);
-                return (
-                  <Animated.View
-                    key={a.id}
-                    entering={FadeIn.delay(i * 30)}
-                    style={styles.artist}
+              <View style={styles.colors}>
+                {COLORS.map((c) => (
+                  <PressScale
+                    key={c.id}
+                    onPress={() => setSetting("catColor", c.id)}
+                    style={styles.colorItem}
                   >
-                    <PressScale
-                      onPress={() => toggleArtist(a)}
-                      style={{ alignItems: "center" }}
+                    <View
+                      style={[
+                        styles.swatch,
+                        { backgroundColor: c.fur },
+                        color === c.id && styles.swatchOn,
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.colorLabel,
+                        color === c.id && { color: "#fff" },
+                      ]}
                     >
-                      <View
-                        style={[styles.ring, on && { borderColor: ACCENT }]}
-                      >
-                        <Artwork thumbnails={a.thumbnails} size={92} round />
-                      </View>
-                      <Text
-                        style={[styles.artistName, on && { color: "#fff" }]}
-                        numberOfLines={1}
-                      >
-                        {a.name}
-                      </Text>
-                    </PressScale>
-                  </Animated.View>
-                );
-              })}
-            </ScrollView>
-          </View>
-        ) : (
-          <View style={styles.center}>
-            <Cat mood="happy" size={160} color={color} />
-            <Text style={styles.title}>All set</Text>
-            <Text style={styles.sub}>
-              Sign in to YouTube Music for your own feed and likes, or skip and
-              start listening.
-            </Text>
-            <PressScale
-              onPress={() => {
-                setSetting("onboarded", true);
-                router.replace("/sign-in");
-              }}
-              style={[
-                styles.cta,
-                { backgroundColor: "rgba(255,255,255,0.14)", marginTop: 28 },
-              ]}
-            >
-              <Text style={[styles.ctaText, { color: "#fff" }]}>
-                Sign in to YouTube Music
+                      {c.label}
+                    </Text>
+                  </PressScale>
+                ))}
+              </View>
+            </View>
+          ) : step === 1 ? (
+            <View style={styles.pad}>
+              <Text style={styles.title}>What do you listen to?</Text>
+              <Text style={styles.sub}>
+                Pick any languages. {name} will start there.
               </Text>
-            </PressScale>
-            <PressScale
-              onPress={() => {
-                setSetting("onboarded", true);
-                router.replace("/import");
-              }}
-              style={[
-                styles.cta,
-                { backgroundColor: "rgba(255,255,255,0.08)", marginTop: 10 },
-              ]}
-            >
-              <Text style={[styles.ctaText, { color: "#fff" }]}>
-                Import from Apple Music or a file
+              <View style={styles.wrap}>
+                {LANGS.map((l) => (
+                  <Chip
+                    key={l}
+                    label={l}
+                    on={langs.includes(l)}
+                    accent={ACCENT}
+                    onPress={() =>
+                      setSetting(
+                        "seedLanguages",
+                        langs.includes(l)
+                          ? langs.filter((x) => x !== l)
+                          : [...langs, l],
+                      )
+                    }
+                  />
+                ))}
+              </View>
+            </View>
+          ) : step === 2 ? (
+            <View style={{ flex: 1 }}>
+              <View style={styles.pad}>
+                <Text style={styles.title}>A few favourites</Text>
+                <Text style={styles.sub}>
+                  Pick three or more. Your Home and mixes start from them.
+                </Text>
+                <TextInput
+                  value={q}
+                  onChangeText={setQ}
+                  placeholder="Search artists"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  style={styles.search}
+                  selectionColor={ACCENT}
+                />
+              </View>
+              <ScrollView contentContainerStyle={styles.artists}>
+                {shown.map((a, i) => {
+                  const on = artists.some((x) => x.id === a.id);
+                  return (
+                    <Animated.View
+                      key={a.id}
+                      entering={FadeIn.delay(i * 30)}
+                      style={styles.artist}
+                    >
+                      <PressScale
+                        onPress={() => toggleArtist(a)}
+                        style={{ alignItems: "center" }}
+                      >
+                        <View
+                          style={[styles.ring, on && { borderColor: ACCENT }]}
+                        >
+                          <Artwork thumbnails={a.thumbnails} size={92} round />
+                        </View>
+                        <Text
+                          style={[styles.artistName, on && { color: "#fff" }]}
+                          numberOfLines={1}
+                        >
+                          {a.name}
+                        </Text>
+                      </PressScale>
+                    </Animated.View>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : (
+            <View style={styles.center}>
+              <Cat mood="happy" size={160} color={color} />
+              <Text style={styles.title}>All set</Text>
+              <Text style={styles.sub}>
+                Sign in to YouTube Music for your own feed and likes, or skip
+                and start listening.
               </Text>
-            </PressScale>
-          </View>
-        )}
-      </Animated.View>
+              <PressScale
+                onPress={() => {
+                  setSetting("onboarded", true);
+                  router.replace("/sign-in");
+                }}
+                style={[
+                  styles.cta,
+                  { backgroundColor: "rgba(255,255,255,0.14)", marginTop: 28 },
+                ]}
+              >
+                <Text style={[styles.ctaText, { color: "#fff" }]}>
+                  Sign in to YouTube Music
+                </Text>
+              </PressScale>
+              <PressScale
+                onPress={() => {
+                  setSetting("onboarded", true);
+                  router.replace("/import");
+                }}
+                style={[
+                  styles.cta,
+                  { backgroundColor: "rgba(255,255,255,0.08)", marginTop: 10 },
+                ]}
+              >
+                <Text style={[styles.ctaText, { color: "#fff" }]}>
+                  Import from Apple Music or a file
+                </Text>
+              </PressScale>
+            </View>
+          )}
+        </Animated.View>
 
-      {step === 0 ? (
-        <PressScale onPress={restore} style={styles.restore}>
-          <Text style={styles.restoreText}>
-            Used Pawse before?{" "}
-            <Text style={styles.restoreLink}>Restore a backup</Text>
+        {step === 0 ? (
+          <PressScale onPress={restore} style={styles.restore}>
+            <Text style={styles.restoreText}>
+              Used Pawse before?{" "}
+              <Text style={styles.restoreLink}>Restore a backup</Text>
+            </Text>
+          </PressScale>
+        ) : null}
+        <PressScale
+          onPress={next}
+          style={[styles.cta, { marginHorizontal: 24 }]}
+        >
+          <Text style={styles.ctaText}>
+            {step === 3
+              ? "Start listening"
+              : step === 2 && !artists.length
+                ? "Skip"
+                : "Continue"}
           </Text>
         </PressScale>
-      ) : null}
-      <PressScale onPress={next} style={[styles.cta, { marginHorizontal: 24 }]}>
-        <Text style={styles.ctaText}>
-          {step === 3
-            ? "Start listening"
-            : step === 2 && !artists.length
-              ? "Skip"
-              : "Continue"}
-        </Text>
-      </PressScale>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
+  // Phone-width on a desktop window, so fields and buttons don't stretch edge to edge.
+  column: { flex: 1, width: "100%", maxWidth: 460, alignSelf: "center" },
   dots: {
     flexDirection: "row",
     justifyContent: "center",
@@ -352,6 +359,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 24,
     ...display("800"),
+    textAlign: "center",
     backgroundColor: "rgba(255,255,255,0.08)",
   },
   colors: { flexDirection: "row", gap: 18, marginTop: 22 },

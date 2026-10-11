@@ -13,7 +13,7 @@
   <a href="https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa"><img alt="Download for iPhone" src="https://img.shields.io/badge/Download-iPhone-111111?style=for-the-badge&logo=apple&logoColor=white" /></a>
   <a href="https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk"><img alt="Download for Android" src="https://img.shields.io/badge/Download-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" /></a>
   <br />
-  <a href="https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-arm64.dmg"><img alt="Download for Mac" src="https://img.shields.io/badge/Download-Mac-111111?style=for-the-badge&logo=apple&logoColor=white" /></a>
+  <a href="https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac.dmg"><img alt="Download for Mac" src="https://img.shields.io/badge/Download-Mac-111111?style=for-the-badge&logo=apple&logoColor=white" /></a>
   <a href="https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-Setup.exe"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" /></a>
   <a href="https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage"><img alt="Download for Linux" src="https://img.shields.io/badge/Download-Linux-E95420?style=for-the-badge&logo=linux&logoColor=white" /></a>
 </p>
@@ -60,13 +60,15 @@ Pick your device below. Every release is on the [releases page](https://github.c
 | --- | --- | --- |
 | [Pawse.ipa](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa) | iPhone. You install it with SideStore, AltStore or Sideloadly. | 24 MB |
 | [Pawse.apk](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk) | Android. One file for all phones. | 66 MB |
-| [Pawse-mac-arm64.dmg](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-arm64.dmg) | Macs with Apple silicon (M1 and newer). | 128 MB |
-| [Pawse-mac-x64.dmg](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-x64.dmg) | Intel Macs. | 135 MB |
-| [Pawse-Setup.exe](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-Setup.exe) | Windows 10 and 11, 64-bit. | 112 MB |
-| [Pawse-linux-x86_64.AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage) | Any 64-bit Linux. | 126 MB |
+| [Pawse-mac.dmg](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac.dmg) | Every Mac on macOS 12 or newer, Apple silicon and Intel. | 250 MB |
+| [Pawse-Setup.exe](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-Setup.exe) | Windows 10 and 11, on Intel, AMD and ARM (Snapdragon) PCs. | 220 MB |
 | [Pawse-linux-amd64.deb](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-amd64.deb) | Ubuntu, Debian, Mint and Pop!_OS. | 100 MB |
+| [Pawse-linux-x86_64.rpm](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.rpm) | Fedora, RHEL and openSUSE. | 100 MB |
+| [Pawse-linux-x86_64.AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage) | Any other Linux. | 126 MB |
 
-Sizes are from version 0.6.0. The computer apps are big because each one carries its own copy of Chromium (they are built with Electron).
+On an ARM Linux computer (Raspberry Pi 4 and 5 on 64-bit, ARM laptops), take the `arm64.deb`, `aarch64.rpm` or `arm64.AppImage` from the [releases page](https://github.com/thenetaji/pawse-music/releases/latest) instead.
+
+Sizes are rough. The computer apps are big because each one carries its own copy of Chromium (they are built with Electron).
 
 **One file per device.** Each release has one file for each kind of device, named the same every time (`Pawse.apk`, `Pawse.ipa` and so on). The version is in the release's title. Older versions stay on the [releases page](https://github.com/thenetaji/pawse-music/releases).
 
@@ -102,9 +104,9 @@ You need Android 7.0 or newer.
 **Music stops in the background?** Some phones (Samsung, Xiaomi, Oppo, Vivo and others) close music apps to save battery. Open **Settings → Android → Keep playing in the background** and allow Pawse there.
 
 ### Mac
-You need the file for your chip. See "Which file do I need?" above.
+One file works on every Mac, Apple silicon and Intel, on macOS 12 or newer.
 
-1. Download **[Pawse for Apple silicon](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-arm64.dmg)** (M1 and newer) or **[for Intel Macs](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac-x64.dmg)**.
+1. Download **[Pawse-mac.dmg](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-mac.dmg)**.
 2. Open it and drag **Pawse** into **Applications**.
 3. The first time, macOS says it can't check the app. Open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**. You only do this once.
 
@@ -122,7 +124,8 @@ xattr -dr com.apple.quarantine /Applications/Pawse.app
 To remove it, open **Settings → Apps → Installed apps**, find **Pawse** and click **Uninstall**.
 
 ### Linux
-- **[AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage)**: make it executable (`chmod +x Pawse-linux-x86_64.AppImage`) and run it. On Ubuntu 22.04 and newer it also needs FUSE: `sudo apt install libfuse2` (on Ubuntu 24.04 the name is `libfuse2t64`).
+- **[.rpm](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.rpm)** for Fedora, RHEL and openSUSE: `sudo dnf install ./Pawse-linux-x86_64.rpm` (openSUSE: `sudo zypper install ./Pawse-linux-x86_64.rpm`). To remove it: `sudo dnf remove pawse`.
+- **[AppImage](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-x86_64.AppImage)**: make it executable (`chmod +x Pawse-linux-x86_64.AppImage`) and run it. On Ubuntu 22.04 and newer it also needs FUSE: `sudo apt install libfuse2` (on Ubuntu 24.04 the name is `libfuse2t64`, on Fedora `sudo dnf install fuse-libs`). To put it in your app menu, use [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever).
 - **[.deb](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse-linux-amd64.deb)** for Ubuntu, Debian, Mint and Pop!_OS: `sudo apt install ./Pawse-linux-amd64.deb`. To remove it: `sudo apt remove pawse`.
 
 ### On a computer
