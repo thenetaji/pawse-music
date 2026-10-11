@@ -162,20 +162,6 @@ A backup does not hold:
 
 Deleting the app deletes its data. Export first.
 
-## Moving to the new Pawse app (iPhone and Android)
-
-From version 0.7.0, Pawse has its own app ID on iPhone and Android. That means it installs as a separate app next to the old one, instead of updating it. Your library doesn't move by itself, so bring it over with a backup:
-
-1. In the old app, open **Settings → Backup → Export library** and save the file.
-2. Install the new Pawse.
-   - iPhone: add the SideStore source again (or refresh it), then install **Pawse**.
-   - Android: download **[Pawse.apk](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.apk)**.
-3. Open the new Pawse and tap **Restore a backup** on the first screen (or later, **Settings → Library → Restore backup**).
-4. Check that your likes, playlists and stats are there.
-5. Delete the old app.
-
-Sign in to YouTube Music again, and download your offline songs again. Desktop users don't need to do anything.
-
 ## Good to know
 
 - **No account needed.** Signing in to YouTube Music is optional. It only brings your own home feed, likes and playlists. (Signing in is phone-only for now.)

@@ -1,6 +1,6 @@
 # Install Pawse
 
-The steps for every device, the list of release files and what each one is for are in the [README](../../../README.md#install). Backups and moving to a new app are in [Keep your library safe](../../../README.md#keep-your-library-safe) and [Moving to the new Pawse app](../../../README.md#moving-to-the-new-pawse-app-iphone-and-android).
+The steps for every device, the list of release files and what each one is for are in the [README](../../../README.md#install). Backups are in [Keep your library safe](../../../README.md#keep-your-library-safe).
 
 This page only holds the extra notes for sideloading.
 
