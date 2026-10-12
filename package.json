@@ -11,7 +11,8 @@
     "verify": "turbo run typecheck lint test",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "commitlint": "commitlint --edit"
+    "commitlint": "commitlint --edit",
+    "sync:upstream": "node scripts/sync-upstream.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

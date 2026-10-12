@@ -16,11 +16,17 @@ import { logEvent } from "../lib/diagnostics";
 import { languageCode, regionCode } from "../lib/locale";
 import { appFetch } from "../lib/net";
 import { effectiveQuality } from "../lib/quality";
+import { poTokenProvider, prewarmPoToken } from "../lib/po-token";
+import { youtubeSandbox } from "../lib/youtube-sandbox";
 import { useLibrary } from "./library";
+import { kv } from "./storage";
 
 const settings = () => useLibrary.getState().settings;
 // "ZZ" (global) is a charts country, not a valid client region.
 const gl = (region: string) => (region === "ZZ" ? "US" : region);
+// One YouTube visitor id per install; the client swaps it only after a bot block.
+const VISITOR_KEY = "pawse.visitorData";
+const savedVisitor = kv.getItem(VISITOR_KEY);
 
 // One YouTube Music client for the app: cookies only when signed in, and only for catalog/account calls.
 const raw = new YouTubeMusic({
@@ -28,11 +34,19 @@ const raw = new YouTubeMusic({
   hl: languageCode(settings().language),
   gl: gl(regionCode(settings().region)),
   cookies: () => settings().cookies,
+  visitorData: typeof savedVisitor === "string" ? savedVisitor : undefined,
+  onVisitorData: (v) => void kv.set(VISITOR_KEY, v).catch(() => {}),
+  // JS-needing clients (n/sig solver) run in a hidden browser page; without one, only the older client list works.
+  sandbox: youtubeSandbox,
+  // BotGuard tokens for web_music, minted in that same page.
+  poToken: poTokenProvider,
+  clientsV2: !!youtubeSandbox,
   // Android (ExoPlayer) gets its own client order and accepts Opus.
   platform: Platform.OS,
   onRequestError: (endpoint, e) =>
     logEvent("request-failed", `${endpoint}: ${(e as Error)?.message ?? e}`),
 });
+prewarmPoToken();
 useLibrary.subscribe((s) =>
   raw.setLocale(
     languageCode(s.settings.language),

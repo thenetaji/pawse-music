@@ -1,8 +1,11 @@
 import TrackPlayer from "@rntp/player";
 import type { ResolvedStream, ResolveOptions, Track } from "@pawse/music-core";
 
+import { Platform } from "react-native";
+
 import {
   __resetForTests,
+  getProgress,
   POS_KEY,
   player,
   refreshArtwork,
@@ -157,17 +160,16 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks());
 
-test("play resolves the current track first and pre-resolves the next two into the native queue", async () => {
+test("play resolves the current track first and pre-resolves only the next one into the native queue", async () => {
   await setupPlayer({ resolver: { resolve } });
   await player.play(tracks("a", "b", "c", "d", "e"), 1);
   expect(resolvedIds()[0]).toBe("b");
   expect(tp.setMediaItems).toHaveBeenCalledWith(expect.any(Array), 1);
   expect(urlAt(1)).toMatch("https://a/b/");
   await flush();
-  expect(resolvedIds().sort()).toEqual(["b", "c", "d"]);
+  expect(resolvedIds().sort()).toEqual(["b", "c"]);
   expect(urlAt(2)).toMatch("https://a/c/");
-  expect(urlAt(3)).toMatch("https://a/d/");
-  expect(urlAt(4)).toMatch("pawse.invalid");
+  expect(urlAt(3)).toMatch("pawse.invalid");
   expect(usePlayerStore.getState().index).toBe(1);
 });
 
@@ -182,10 +184,8 @@ test("resume after a long pause swaps in fresh URLs for the current and queued i
   tp.replaceMediaItem.mockClear();
   player.resume();
   await flush();
-  expect(resolvedIds().sort()).toEqual(["a", "b", "c"]);
-  expect(tp.replaceMediaItem.mock.calls.map(([i]) => i).sort()).toEqual([
-    0, 1, 2,
-  ]);
+  expect(resolvedIds().sort()).toEqual(["a", "b"]);
+  expect(tp.replaceMediaItem.mock.calls.map(([i]) => i).sort()).toEqual([0, 1]);
   expect(urlAt(0)).toMatch(/^https:\/\/a\/a\/[4-9]/);
   expect(tp.seekTo).toHaveBeenLastCalledWith(95);
   expect(tp.play).toHaveBeenCalled();
@@ -400,4 +400,186 @@ test("a failed prefetch of a later song leaves the playing one without an error"
   await flush();
   expect(usePlayerStore.getState().error).toBeUndefined();
   expect(urlAt(1)).toMatch("pawse.invalid");
+});
+
+test("end of this song moves with a song you pick, and stops when playback moves on by itself", async () => {
+  await setupPlayer({ resolver: { resolve } });
+  await player.play(tracks("a", "b", "c"));
+  await flush();
+  player.setSleepTimer("endOfTrack");
+  expect(tp.sleepAfterMediaItemAtIndex).toHaveBeenLastCalledWith(0);
+
+  player.next();
+  await flush();
+  expect(tp.sleepAfterMediaItemAtIndex).toHaveBeenLastCalledWith(1);
+  expect(tp.pause).not.toHaveBeenCalled();
+
+  const { keys } = usePlayerStore.getState();
+  await rntp.__emit("event.media-item-transition", {
+    item: { mediaId: keys[2] },
+    reason: "auto",
+  });
+  expect(tp.pause).toHaveBeenCalled();
+  expect(usePlayerStore.getState().sleepAt).toBeUndefined();
+});
+
+const clientResolver = (clients: string[]) =>
+  jest.fn(
+    async (
+      t: Pick<Track, "id">,
+      o?: ResolveOptions,
+    ): Promise<ResolvedStream> => {
+      const left = clients.filter((c) => !o?.exclude?.includes(c));
+      const avoid = o?.avoid ?? [];
+      const via = [
+        ...left.filter((c) => !avoid.includes(c)),
+        ...avoid.filter((c) => left.includes(c)),
+      ][0];
+      if (!via) throw new Error("no client left");
+      return {
+        url: `https://a/${t.id}/${via}/${++version}`,
+        mimeType: "audio/mp4",
+        bitrate: 130_000,
+        expiresAt: now + 6 * HOUR,
+        via,
+      };
+    },
+  );
+
+test("a YouTube stream that stalls mid-song re-resolves at the same spot on the next client, which stays last for 30 min", async () => {
+  const byClient = clientResolver(["youtube:a", "youtube:b"]);
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve: byClient }, onDiagnostic: diag });
+  await player.play(tracks("x", "y"));
+  await flush();
+  native.position = 62;
+  await rntp.__emit("event.playback-error", {
+    code: "stalled",
+    message: "Playback stalled",
+  });
+  await flush();
+  expect(diag).toHaveBeenCalledWith("source-avoided", "youtube:a");
+  expect(urlAt(0)).toMatch("/x/youtube:b/");
+  expect(tp.seekTo).toHaveBeenLastCalledWith(62);
+  expect(urlAt(1)).toMatch("/y/youtube:b/");
+
+  now += 29 * 60_000;
+  await player.play(tracks("p"));
+  expect(byClient.mock.calls.at(-1)?.[1]?.avoid).toEqual(["youtube:a"]);
+  expect(urlAt(0)).toMatch("/p/youtube:b/");
+  now += 2 * 60_000;
+  await player.play(tracks("q"));
+  expect(urlAt(0)).toMatch("/q/youtube:a/");
+});
+
+test("three songs in a row that cannot resolve stop playback with the error instead of skipping the queue", async () => {
+  const resting = jest.fn(async (): Promise<ResolvedStream> => {
+    throw new Error("YouTube is resting after a bot check");
+  });
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve: resting }, onDiagnostic: diag });
+  await player.play(tracks("a", "b", "c", "d", "e", "f"));
+  await flush();
+  expect(resting).toHaveBeenCalledTimes(3);
+  expect(usePlayerStore.getState()).toMatchObject({
+    status: "error",
+    error: "YouTube is resting after a bot check",
+  });
+  expect(diag).toHaveBeenCalledWith("skip-guard", expect.any(String));
+
+  player.next();
+  await flush();
+  expect(resting).toHaveBeenCalledTimes(6);
+});
+
+test("three songs in a row that resolve but never start stop on the third", async () => {
+  await setupPlayer({ resolver: { resolve } });
+  await player.play(tracks("a", "b", "c", "d", "e", "f"));
+  await flush();
+  const fail = { code: "source", message: "refused" };
+  for (let n = 0; n < 6; n++) {
+    await rntp.__emit("event.playback-error", fail);
+    await flush();
+  }
+  expect(usePlayerStore.getState()).toMatchObject({
+    index: 2,
+    status: "error",
+  });
+  expect(tp.skipToIndex).not.toHaveBeenCalledWith(3);
+  expect(tp.pause).toHaveBeenCalled();
+});
+
+test("resolved streams survive a restart, and one restored that fails is fetched again before its client is blamed", async () => {
+  const storage = memory();
+  const diag = jest.fn();
+  const byClient = clientResolver(["youtube:a", "youtube:b"]);
+  await setupPlayer({ resolver: { resolve: byClient }, storage });
+  await player.play(tracks("a", "b", "c"));
+  await flush();
+  await new Promise((r) => setTimeout(r, 1100));
+  const saved = JSON.parse(storage.data.get("pawse.streams")!);
+  expect(saved.streams.map(([id]: [string]) => id)).toEqual(["a", "b"]);
+
+  __resetForTests();
+  usePlayerStore.setState(initialState(), true);
+  jest.clearAllMocks();
+  await setupPlayer({
+    resolver: { resolve: byClient },
+    storage,
+    onDiagnostic: diag,
+  });
+  player.resume();
+  await flush();
+  expect(byClient).not.toHaveBeenCalled();
+  expect(urlAt(0)).toBe(saved.streams[0][1].url);
+
+  await rntp.__emit("event.playback-error", { code: "source", message: "403" });
+  await flush();
+  expect(diag).not.toHaveBeenCalledWith("source-avoided", expect.anything());
+  expect(byClient.mock.calls.map(([t]) => t.id)).toEqual(["a"]);
+  expect(urlAt(0)).toMatch("/a/youtube:a/");
+
+  // A failure of the fresh URL blames the client, and its streams are no longer saved.
+  await rntp.__emit("event.playback-error", { code: "source", message: "403" });
+  await flush();
+  expect(diag).toHaveBeenCalledWith("source-avoided", "youtube:a");
+  await new Promise((r) => setTimeout(r, 1100));
+  const after = JSON.parse(storage.data.get("pawse.streams")!);
+  expect(
+    after.streams.every(
+      ([, st]: [string, ResolvedStream]) => st.via !== "youtube:a",
+    ),
+  ).toBe(true);
+  expect(after.avoid[0][0]).toBe("youtube:a");
+});
+
+test("a pause while the next song loads is not logged as a system pause", async () => {
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve }, onDiagnostic: diag });
+  await player.play(tracks("a", "b"));
+  await flush();
+  await rntp.__emit("event.playback-state-changed", { state: "buffering" });
+  await rntp.__emit("event.is-playing-changed", { playing: false });
+  expect(diag).not.toHaveBeenCalledWith("paused-by-system", expect.anything());
+
+  now += 60_000;
+  await rntp.__emit("event.playback-state-changed", { state: "ready" });
+  await rntp.__emit("event.is-playing-changed", { playing: false });
+  expect(diag).toHaveBeenCalledWith("paused-by-system", "ready");
+});
+
+test("on iOS an HE-AAC song saved with the doubled length plays to its real length", async () => {
+  jest.replaceProperty(Platform, "OS", "ios");
+  resolve.mockImplementationOnce(async (t) => ({
+    url: `https://a/${t.id}/he`,
+    mimeType: 'audio/mp4; codecs="mp4a.40.5"',
+    bitrate: 50_000,
+    expiresAt: now + 6 * HOUR,
+    via: "local",
+  }));
+  await setupPlayer({ resolver: { resolve } });
+  // The native player reports 200 s; history saved that misread as the song's length.
+  await player.play([{ ...track("a"), durationSec: 200 }, track("b")]);
+  await flush();
+  expect(getProgress().duration).toBe(100);
 });

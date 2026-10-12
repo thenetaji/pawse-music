@@ -23,11 +23,14 @@ export { desEcb } from "./util/des";
 export type { FetchLike } from "./util/http";
 export { sha1Hex } from "./util/sha1";
 export { sapisidAuthorization } from "./youtube/auth";
+export * from "./youtube/challenge";
 export {
   ClientsConfig,
   DEFAULT_ANDROID_STREAM_CLIENTS,
   DEFAULT_CLIENTS_CONFIG_URL,
+  DEFAULT_CLIENTS_V2_CONFIG_URL,
   DEFAULT_STREAM_CLIENTS,
+  DEFAULT_STREAM_CLIENTS_V2,
   defaultStreamClients,
   parseClientsConfig,
   type StreamClient,
@@ -43,7 +46,18 @@ export {
 } from "./youtube/music";
 export * from "./youtube/parse";
 export {
+  checkWebMusic,
+  SANDBOX_USER_AGENT,
+  WEB_MUSIC_CLIENT_VERSION,
+  type WebMusicCheck,
+  type WebMusicCheckOptions,
+  WebPoTokenProvider,
+} from "./youtube/potoken";
+export type { JsSandbox, PoTokenProvider } from "./youtube/sandbox";
+export {
   type AdaptiveFormat,
+  isBotAnswer,
+  isYouTubeResting,
   loudnessOf,
   orderClients,
   pickAudioFormat,

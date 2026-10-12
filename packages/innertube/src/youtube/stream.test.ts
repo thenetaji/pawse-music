@@ -6,10 +6,11 @@ import player from "../__fixtures__/player-visionos.json";
 import {
   DEFAULT_ANDROID_STREAM_CLIENTS,
   DEFAULT_STREAM_CLIENTS,
+  DEFAULT_STREAM_CLIENTS_V2,
   parseClientsConfig,
 } from "./clients";
 import { YouTubeMusic } from "./music";
-import { loudnessOf, pickAudioFormat } from "./stream";
+import { isYouTubeResting, loudnessOf, pickAudioFormat } from "./stream";
 
 type Handler = (url: string, init: RequestInit) => unknown;
 const reply = (body: unknown, status = 200) =>
@@ -125,12 +126,13 @@ describe("client fallback chain", () => {
     expect(call.init.credentials).toBe("omit");
   });
 
-  it("moves to the next client on a bot check and reports blocked when all fail", async () => {
-    const ok = mockFetch([botCheck, player]);
+  it("moves to the next client on a non-bot refusal and reports blocked when all fail", async () => {
+    const refused = { playabilityStatus: { status: "FOO", reason: "nope" } };
+    const ok = mockFetch([refused, player]);
     const s = await yt(ok.fetch).resolve(track);
     expect(s.via).toBe("youtube:visionos-1.03");
 
-    const bad = mockFetch([botCheck]);
+    const bad = mockFetch([refused]);
     await expect(yt(bad.fetch).resolve(track)).rejects.toMatchObject({
       code: "blocked",
     });
@@ -247,8 +249,10 @@ describe("client fallback chain", () => {
     }).resolve(track);
     expect(s.via).toBe("youtube:remote-x");
 
-    const broken = mockFetch([botCheck], undefined, () =>
-      reply({ clients: "nope" }),
+    const broken = mockFetch(
+      [{ playabilityStatus: { status: "FOO", reason: "nope" } }],
+      undefined,
+      () => reply({ clients: "nope" }),
     );
     await yt(broken.fetch, {
       clientsConfigUrl: "https://example.test/innertube-clients.json",
@@ -284,16 +288,14 @@ describe("Android and failed clients", () => {
     },
   };
 
-  it("starts Android on ANDROID_VR, reads the remote android list, and keeps iOS on VISIONOS", async () => {
-    const m = mockFetch([botCheck]);
+  it("starts Android on VISIONOS (no ANDROID_VR), reads the remote android list, and keeps iOS on VISIONOS", async () => {
+    const m = mockFetch([{ playabilityStatus: { status: "FOO" } }]);
     await yt(m.fetch, { platform: "android" })
       .resolve(track)
       .catch(() => undefined);
-    expect(m.players().map((c) => clientOf(c).clientName)).toEqual([
-      "ANDROID_VR",
-      "ANDROID_VR",
-      ...Array(DEFAULT_STREAM_CLIENTS.length).fill("VISIONOS"),
-    ]);
+    expect(m.players().map((c) => clientOf(c).clientName)).toEqual(
+      Array(DEFAULT_STREAM_CLIENTS.length).fill("VISIONOS"),
+    );
 
     const remote = {
       clients: [{ ...DEFAULT_STREAM_CLIENTS[0], name: "ios-x" }],
@@ -328,7 +330,7 @@ describe("Android and failed clients", () => {
           clientsConfigUrl: url,
         }).resolve(track)
       ).via,
-    ).toBe("youtube:android_vr-1.61.48");
+    ).toBe("youtube:visionos-1.02");
   });
 
   it("accepts Opus only on Android and only when no AAC is offered", async () => {
@@ -363,5 +365,126 @@ describe("Android and failed clients", () => {
       yt(none.fetch).resolve(track, { exclude: all }),
     ).rejects.toMatchObject({ code: "blocked" });
     expect(none.players()).toHaveLength(0);
+  });
+});
+
+describe("bot checks rest YouTube", () => {
+  const MIN = 60_000;
+  let now = Date.UTC(2026, 9, 12);
+  beforeEach(() => {
+    now = Date.UTC(2026, 9, 12);
+    jest.spyOn(Date, "now").mockImplementation(() => now);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("stops the chain on the first bot check and skips the retry without a visitor id", async () => {
+    const m = mockFetch([botCheck, player]);
+    const err = await yt(m.fetch, { visitorData: "Cgt2aXNpdG9y" })
+      .resolve(track)
+      .catch((e) => e);
+    expect(err).toMatchObject({ code: "blocked" });
+    expect(err.message).toMatch(/not a bot/);
+    expect(m.players()).toHaveLength(1);
+  });
+
+  it("rests 15, then 30, then 60 min without a network call, and a working resolve resets it", async () => {
+    let answer: unknown = botCheck;
+    const m = mockFetch([]);
+    m.fetch.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      m.calls.push({ url, init });
+      if (url.includes("/youtubei/v1/player")) return reply(answer);
+      return reply({}, 206);
+    });
+    const onRequestError = jest.fn();
+    const y = yt(m.fetch, { onRequestError });
+    const tryNow = () => y.resolve(track).catch((e) => e);
+
+    expect(isYouTubeResting(await tryNow())).toBe(false);
+    expect(onRequestError).toHaveBeenCalledWith(
+      "player",
+      expect.objectContaining({ message: expect.stringMatching(/15 min/) }),
+    );
+    now += 14 * MIN;
+    const resting = await tryNow();
+    expect(isYouTubeResting(resting)).toBe(true);
+    expect(resting).toMatchObject({ code: "blocked" });
+    expect(m.players()).toHaveLength(1);
+
+    now += 2 * MIN;
+    await tryNow();
+    expect(m.players()).toHaveLength(2);
+    now += 29 * MIN;
+    expect(isYouTubeResting(await tryNow())).toBe(true);
+    now += 2 * MIN;
+    await tryNow();
+    now += 59 * MIN;
+    expect(isYouTubeResting(await tryNow())).toBe(true);
+    now += 2 * MIN;
+    answer = player;
+    expect((await y.resolve(track)).via).toBe("youtube:visionos-1.02");
+
+    answer = botCheck;
+    await tryNow();
+    now += 16 * MIN;
+    expect(isYouTubeResting(await tryNow())).toBe(false);
+    expect(m.players()).toHaveLength(6);
+  });
+
+  it("treats an answer for a different video as a bot answer", async () => {
+    const decoy = {
+      ...player,
+      videoDetails: { ...player.videoDetails, videoId: "aaaaaaaaaaa" },
+    };
+    const m = mockFetch([decoy, player]);
+    const y = yt(m.fetch);
+    await expect(y.resolve(track)).rejects.toMatchObject({
+      code: "blocked",
+      message: "YouTube answered for a different video",
+    });
+    expect(m.players()).toHaveLength(1);
+    expect(isYouTubeResting(await y.resolve(track).catch((e) => e))).toBe(true);
+  });
+
+  it("keeps one saved visitor id and swaps it only after a bot block, at most hourly", async () => {
+    let answer: unknown = botCheck;
+    const players: string[] = [];
+    const fetch = jest.fn(async (url: string, init: RequestInit = {}) => {
+      if (url.includes("/youtubei/v1/player")) {
+        players.push(clientOf({ init }).visitorData);
+        return reply(answer);
+      }
+      if (url.includes("/youtubei/v1/search"))
+        return reply({ responseContext: { visitorData: "Fresh" } });
+      return reply({}, 404);
+    });
+    const onVisitorData = jest.fn();
+    const y = yt(fetch, { visitorData: "Saved", onVisitorData });
+    await y.search("x").catch(() => undefined);
+    expect(onVisitorData).not.toHaveBeenCalled();
+    await y.resolve(track).catch(() => undefined);
+    expect(players).toEqual(["Saved"]);
+
+    await y.search("x").catch(() => undefined);
+    expect(onVisitorData).toHaveBeenCalledWith("Fresh");
+    now += 16 * MIN;
+    await y.resolve(track).catch(() => undefined);
+    expect(players).toEqual(["Saved", "Fresh"]);
+    // A second block within the hour keeps the id.
+    now += 31 * MIN;
+    answer = player;
+    await y.resolve(track);
+    expect(players.at(-1)).toBe("Fresh");
+    expect(onVisitorData).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("client list v2", () => {
+  it("ships a v2 config file that matches the built-in v2 list", () => {
+    const remote = require("../../../../sources/innertube-clients-v2.json");
+    expect(remote.provenance.ejs.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(parseClientsConfig(remote)).toEqual(DEFAULT_STREAM_CLIENTS_V2);
+    expect(parseClientsConfig(remote, "android")).toEqual(
+      DEFAULT_STREAM_CLIENTS_V2,
+    );
   });
 });

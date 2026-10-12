@@ -48,7 +48,8 @@ export function startJournalRecorder(): () => void {
   const toPlay = (c: Current, final: boolean): JournalPlay | undefined => {
     const ms = listened(c);
     if (!c.startedAt || ms < MIN_MS) return undefined;
-    const dur = c.track.durationSec || c.durationSec;
+    // The player's length is checked against the stream; a saved one may hold an old misread.
+    const dur = c.durationSec || c.track.durationSec;
     const finished = c.finished || (!!dur && ms >= dur * 1000 * FINISHED_AT);
     const t = c.track;
     const art = bestThumbnail(t.thumbnails, ART_PX);

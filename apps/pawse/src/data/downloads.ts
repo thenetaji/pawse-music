@@ -189,6 +189,7 @@ function stream(
     contentLength: e.bytes || undefined,
     expiresAt: FAR_FUTURE,
     loudnessDb: e.loudnessDb,
+    durationSec: e.durationSec,
     via: "local",
   };
 }

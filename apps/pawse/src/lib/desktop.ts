@@ -7,6 +7,8 @@ type DesktopBridge = {
   /** The cookie header saved with the OS keychain, or null. */
   readSession(): string | null;
   writeSession(cookies: string | null): void;
+  /** Runs `code` as an async function body in a hidden youtube.com page of the main process (BotGuard, player challenges). */
+  sandboxRun(code: string, timeoutMs?: number): Promise<unknown>;
 };
 
 export const desktop = (globalThis as { pawseDesktop?: DesktopBridge })

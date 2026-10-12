@@ -192,6 +192,10 @@ Pawse is free and open source under the [GPL-3.0](LICENSE). It plays audio with 
 
 Pawse isn't affiliated with YouTube, Google, Apple or JioSaavn. Please use it for your own listening.
 
+## Credits
+
+YouTube playback follows [yt-dlp](https://github.com/yt-dlp/yt-dlp): its client list is synced from yt-dlp, and its [ejs](https://github.com/yt-dlp/ejs) solver (with meriyah and astring inside) is bundled. Licences and links are in [NOTICE.md](NOTICE.md).
+
 ## Thanks
 
 Pawse learned a lot from the open-source music apps before it: InnerTune, OuterTune, Metrolist, ViMusic and Echo Music, and from [YouTube.js](https://github.com/LuanRT/YouTube.js) and [ytmusicapi](https://github.com/sigma67/ytmusicapi). Lyrics come from [LRCLIB](https://lrclib.net), Lyrics+, BetterLyrics, KuGou and Unison.

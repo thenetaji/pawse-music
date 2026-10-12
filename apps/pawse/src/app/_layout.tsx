@@ -19,6 +19,7 @@ import { startResumeController } from "../features/playback/resume-after-interru
 import { startEngine } from "../lib/engine";
 import { getSetting, useSetting } from "../lib/settings";
 import { checkOnLaunch } from "../lib/updates";
+import { YouTubeSandboxHost } from "../lib/youtube-sandbox";
 
 export { ErrorScreen as ErrorBoundary } from "../components/error-screen";
 
@@ -90,6 +91,7 @@ export default function RootLayout() {
             />
           </Stack>
           <ActionSheetHost />
+          <YouTubeSandboxHost />
         </View>
       </SafeAreaProvider>
     </GestureHandlerRootView>

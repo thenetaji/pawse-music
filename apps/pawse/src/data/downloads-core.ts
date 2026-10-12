@@ -16,6 +16,8 @@ export type DownloadEntry = {
   art?: string;
   mimeType?: string;
   loudnessDb?: number;
+  /** Real length from the stream: iOS misreads some files' own. */
+  durationSec?: number;
   error?: string;
   /** Queued but held back by the Wi-Fi-only setting or no connection. */
   waiting?: "wifi" | "offline";
@@ -178,6 +180,7 @@ export function createDownloadManager(
         total: offset,
         mimeType: stream.mimeType,
         loudnessDb: stream.loudnessDb ?? e.track.loudnessDb,
+        durationSec: stream.durationSec,
       });
     } catch (err) {
       if (!cancelled.has(id))

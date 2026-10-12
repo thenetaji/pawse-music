@@ -15,6 +15,10 @@ export interface StreamClient {
   headers?: Record<string, string>;
   /** Native-app shape: a cpn in the body and on the media URL, plus `t`/`id` on the player URL. */
   cpn?: boolean;
+  /** js: formats are ciphered or carry an n challenge (needs a JsSandbox); pot: GVS PO token required. */
+  needs?: ("js" | "pot")[];
+  /** Extra `context.thirdParty` (web_embedded's embedUrl). */
+  thirdParty?: { embedUrl: string };
 }
 
 export const VISIONOS_UA =
@@ -31,22 +35,6 @@ const visionos = (clientVersion: string): StreamClient => ({
     deviceModel: "RealityDevice17,1",
     osName: "visionOS",
     osVersion: "26.5.23O471",
-  },
-});
-
-// 1.65.x URLs answer 403 past the first megabyte, so only older builds are listed.
-const androidVr = (clientVersion: string, cronet: string): StreamClient => ({
-  name: `android_vr-${clientVersion}`,
-  clientName: "ANDROID_VR",
-  clientNameId: 28,
-  clientVersion,
-  userAgent: `com.google.android.apps.youtube.vr.oculus/${clientVersion} (Linux; U; Android 12; en_US; Oculus Quest 3; Build/SQ3A.220605.009.A1; Cronet/${cronet})`,
-  context: {
-    deviceMake: "Oculus",
-    deviceModel: "Quest 3",
-    androidSdkVersion: 32,
-    osName: "Android",
-    osVersion: "12",
   },
 });
 
@@ -88,10 +76,67 @@ export const DEFAULT_STREAM_CLIENTS: StreamClient[] = [
   visionosMusic,
 ];
 
-/** Android order (ExoPlayer), mirrored under `android` in the remote config. */
+// Mirrors sources/innertube-clients-v2.json, generated from yt-dlp's INNERTUBE_CLIENTS by `pnpm sync:upstream`.
+// The sandbox is Safari on macOS; sync-upstream.mjs gives web_music the same UA.
+const WEB_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
+
+// YouTube Music's web client: needs a PO token (js + pot), served by the sandbox's PoTokenProvider.
+const webMusic: StreamClient = {
+  name: "web_music",
+  clientName: "WEB_REMIX",
+  clientNameId: 67,
+  clientVersion: "1.20260707.12.00",
+  userAgent: WEB_UA,
+  context: {},
+  url: "https://music.youtube.com/youtubei/v1/player?prettyPrint=false",
+  headers: {
+    Origin: "https://music.youtube.com",
+    Referer: "https://music.youtube.com/",
+  },
+  needs: ["js", "pot"],
+};
+
+const tvSamsung: StreamClient = {
+  name: "tv_samsung",
+  clientName: "TVHTML5",
+  clientNameId: 7,
+  clientVersion: "5.20260707",
+  userAgent:
+    "Mozilla/5.0 (SMART-TV; Linux; Tizen 2.4.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/2.4.0 TV Safari/538.1",
+  context: {
+    deviceMake: "Samsung",
+    deviceModel: "UKS9800",
+    osName: "Tizen",
+    osVersion: "2.4.0",
+  },
+  needs: ["js"],
+};
+
+const webEmbedded: StreamClient = {
+  name: "web_embedded",
+  clientName: "WEB_EMBEDDED_PLAYER",
+  clientNameId: 56,
+  clientVersion: "2.20260708.00.00",
+  userAgent:
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15,gzip(gfe)",
+  context: {},
+  thirdParty: { embedUrl: "https://www.reddit.com/" },
+  needs: ["js"],
+};
+
+/** Built-in order for builds that solve sig/n challenges; mirrored in sources/innertube-clients-v2.json. */
+export const DEFAULT_STREAM_CLIENTS_V2: StreamClient[] = [
+  webMusic,
+  tvSamsung,
+  { ...visionos("1.02"), name: "visionos", needs: [] },
+  { ...visionosApp, needs: [] },
+  { ...visionosMusic, needs: [] },
+  webEmbedded,
+];
+
+/** Android order (ExoPlayer), mirrored under `android` in the remote config. ANDROID_VR is gone: every format 403s since 2026-08-17. */
 export const DEFAULT_ANDROID_STREAM_CLIENTS: StreamClient[] = [
-  androidVr("1.61.48", "132.0.6808.3"),
-  androidVr("1.43.32", "107.0.5284.2"),
   ...DEFAULT_STREAM_CLIENTS,
 ];
 
@@ -99,13 +144,22 @@ export const DEFAULT_ANDROID_STREAM_CLIENTS: StreamClient[] = [
 export const clientsKeyFor = (platform?: string): string =>
   platform === "android" ? "android" : "clients";
 
-export const defaultStreamClients = (platform?: string): StreamClient[] =>
-  platform === "android"
-    ? DEFAULT_ANDROID_STREAM_CLIENTS
-    : DEFAULT_STREAM_CLIENTS;
+export const defaultStreamClients = (
+  platform?: string,
+  v2 = false,
+): StreamClient[] =>
+  v2
+    ? DEFAULT_STREAM_CLIENTS_V2
+    : platform === "android"
+      ? DEFAULT_ANDROID_STREAM_CLIENTS
+      : DEFAULT_STREAM_CLIENTS;
 
 export const DEFAULT_CLIENTS_CONFIG_URL =
   "https://raw.githubusercontent.com/thenetaji/pawse-music/main/sources/innertube-clients.json";
+
+/** Client list for builds that solve sig/n challenges (JS clients); older builds keep reading the file above. */
+export const DEFAULT_CLIENTS_V2_CONFIG_URL =
+  "https://raw.githubusercontent.com/thenetaji/pawse-music/main/sources/innertube-clients-v2.json";
 
 const CONFIG_TTL_MS = 6 * 3600_000;
 const ERROR_TTL_MS = 10 * 60_000;
@@ -144,6 +198,12 @@ export function parseClientsConfig(
       ? { headers: c.headers }
       : {}),
     ...(c.cpn === true ? { cpn: true } : {}),
+    ...(Array.isArray(c.needs)
+      ? { needs: c.needs.filter((n) => n === "js" || n === "pot") }
+      : {}),
+    ...(typeof c.thirdParty?.embedUrl === "string"
+      ? { thirdParty: { embedUrl: c.thirdParty.embedUrl } }
+      : {}),
   }));
 }
 

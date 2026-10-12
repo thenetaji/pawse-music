@@ -1,5 +1,24 @@
+diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt
+index 92c6b6371a115e3618b06de7d225f73c29eaf911..00725a2d1dc766db9024a0826e245163a21a5c9e 100644
+--- a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt
++++ b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt
+@@ -665,8 +665,13 @@ class TrackPlayerModule internal constructor(
+   @ReactMethod
+   override fun preload(item: ReadableMap, duration: Double) {
+     val url = resolveExplicitPreloadUri(item) { extractUrl(item) } ?: return
++    // Pawse patch: forward the item's cache key so the preload lands where playback reads.
++    val cacheKey = if (item.hasKey("cacheKey")) item.getString("cacheKey")?.takeIf { it.isNotEmpty() } else null
+     controller.enqueue("preload") { mc ->
+-      val args = Bundle().apply { putString("uri", url) }
++      val args = Bundle().apply {
++        putString("uri", url)
++        cacheKey?.let { putString("cacheKey", it) }
++      }
+       mc.sendCustomCommand(
+         SessionCommand(TrackPlayerPlaybackService.COMMAND_PRELOAD, Bundle.EMPTY),
+         args
 diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
-index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..9aafdb0c0f0e5a85923ac51313621748feee31e5 100644
+index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c6a88dd27 100644
 --- a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
 +++ b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
 @@ -34,6 +34,7 @@ import androidx.media3.datasource.DataSource
@@ -41,8 +60,224 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..9aafdb0c0f0e5a85923ac51313621748
            )
          )
        }
+@@ -889,7 +905,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+       }
+       COMMAND_PRELOAD -> {
+         val uri = args.getString("uri") ?: return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
+-        preloadUri(uri)
++        preloadUri(uri, args.getString("cacheKey"))
+         return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+       }
+       COMMAND_CANCEL_PRELOAD -> {
+@@ -1108,7 +1124,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+   }
+ 
+   private fun resolveBrowseMediaItem(browseTree: BrowseTree, requested: MediaItem): MediaItem {
+-    if (requested.localConfiguration != null) return requested
++    if (requested.localConfiguration != null) return withCustomCacheKey(requested)
+     val browseItem = browseTree.findItem(requested.mediaId)
+       ?: if (browseTree.findCategory(requested.mediaId) == null) {
+         BrowseTreeRepository.previousSnapshot()?.findItem(requested.mediaId)
+@@ -1116,6 +1132,15 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+     return browseItem?.toMediaItem(this) ?: requested
+   }
+ 
++  // Pawse patch: re-apply the app cache key if the controller-to-session hop dropped it.
++  @OptIn(UnstableApi::class)
++  private fun withCustomCacheKey(item: MediaItem): MediaItem {
++    val key = item.requestMetadata.extras?.getString(TrackPlayerMediaItem.CACHE_KEY_EXTRA) ?: return item
++    if (item.localConfiguration?.customCacheKey == key) return item
++    if (item.mediaMetadata.extras?.getBoolean("isLive", false) == true) return item
++    return item.buildUpon().setCustomCacheKey(key).build()
++  }
++
+   private fun browseRootItem(): MediaItem = MediaItem.Builder()
+     .setMediaId(BROWSE_ROOT_ID)
+     .setMediaMetadata(
+@@ -1366,7 +1391,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+   // region Preloading
+ 
+   @OptIn(UnstableApi::class)
+-  private fun preloadUri(uri: String) {
++  private fun preloadUri(uri: String, cacheKey: String? = null) {
+     val cache = simpleCache ?: return
+ 
+     val preloadUpstreamFactory = DefaultDataSource.Factory(this, DefaultHttpDataSource.Factory())
+@@ -1392,9 +1417,10 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+             .download(/* progressListener= */ null)
+         } else {
+           // Progressive media: a single CacheWriter pass caches the whole file.
++          // Pawse patch: key by the app cache key so playback (customCacheKey) hits this entry.
+           CacheWriter(
+             cacheDataSourceFactory.createDataSource(),
+-            DataSpec(Uri.parse(uri)),
++            DataSpec.Builder().setUri(Uri.parse(uri)).setKey(cacheKey).build(),
+             /* temporaryBuffer= */ null,
+             /* progressListener= */ null
+           ).cache()
+diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/models/TrackPlayerMediaItem.kt b/android/src/main/java/com/doublesymmetry/trackplayer/models/TrackPlayerMediaItem.kt
+index 43b2934f29be4a6ef6942f632c2090a36748f955..1bc33fe1cbff8d2e855ad6894dfd41dd1cc7df9f 100644
+--- a/android/src/main/java/com/doublesymmetry/trackplayer/models/TrackPlayerMediaItem.kt
++++ b/android/src/main/java/com/doublesymmetry/trackplayer/models/TrackPlayerMediaItem.kt
+@@ -9,8 +9,10 @@ import android.content.ContentResolver
+ import android.content.Context
+ import android.net.Uri
+ import android.os.Bundle
++import androidx.annotation.OptIn
+ import androidx.media3.common.MediaItem
+ import androidx.media3.common.MediaMetadata
++import androidx.media3.common.util.UnstableApi
+ import com.facebook.react.bridge.Arguments
+ import com.facebook.react.bridge.ReadableMap
+ import com.facebook.react.bridge.WritableMap
+@@ -27,7 +29,9 @@ data class TrackPlayerMediaItem(
+   val isLive: Boolean? = null,
+   val mimeType: String? = null,
+   val headers: Map<String, String>? = null,
+-  val extras: Bundle? = null
++  val extras: Bundle? = null,
++  // Pawse patch: stable cache identity; ExoPlayer's CacheDataSource keys by it instead of the URI.
++  val cacheKey: String? = null
+ ) {
+   /**
+    * Build a Media3 [MediaItem] from this descriptor.
+@@ -37,6 +41,7 @@ data class TrackPlayerMediaItem(
+    * we still build a valid [MediaItem], but `asset://` URLs are left
+    * untouched and will fail in ExoPlayer.
+    */
++  @OptIn(UnstableApi::class)
+   fun asMediaItem(context: Context? = null): MediaItem {
+     val resolvedUrl = context?.let { resolveAssetUrl(it, url) } ?: url
+     val resolvedArtwork = artworkUrl?.let { aw ->
+@@ -63,6 +68,7 @@ data class TrackPlayerMediaItem(
+       h.forEach { (k, v) -> headerBundle.putString(k, v) }
+       requestExtras.putBundle("headers", headerBundle)
+     }
++    cacheKey?.let { requestExtras.putString(CACHE_KEY_EXTRA, it) }
+ 
+     // Only set mediaUri for remote URLs — CastPlayer uses this to tell the
+     // Chromecast device what to stream. Local file://, android.resource://,
+@@ -79,6 +85,7 @@ data class TrackPlayerMediaItem(
+       .setMediaMetadata(metadata)
+       .setRequestMetadata(requestMetadataBuilder.build())
+       .apply { mimeType?.let { setMimeType(it) } }
++      .apply { if (isLive != true) cacheKey?.let { setCustomCacheKey(it) } }
+ 
+     if (isLive == true) {
+       builder.setLiveConfiguration(
+@@ -102,10 +109,14 @@ data class TrackPlayerMediaItem(
+     duration?.let { map.putDouble("duration", it) }
+     isLive?.let { map.putBoolean("isLive", it) }
+     extras?.let { map.putMap("extras", Arguments.fromBundle(it)) }
++    cacheKey?.let { map.putString("cacheKey", it) }
+     return map
+   }
+ 
+   companion object {
++    /** Pawse patch: request-metadata key that carries [cacheKey] across the session hop. */
++    const val CACHE_KEY_EXTRA = "rntp.cacheKey"
++
+     /**
+      * Resolve an `asset://<name>` URL into an Android resource URI by
+      * looking up `name` in the app's drawable and raw resources. Returns the
+@@ -177,9 +188,11 @@ data class TrackPlayerMediaItem(
+         mimeType = if (map.hasKey("mimeType")) map.getString("mimeType") else null,
+         headers = headers,
+         extras = extras,
++        cacheKey = if (map.hasKey("cacheKey")) map.getString("cacheKey")?.takeIf { it.isNotEmpty() } else null,
+       )
+     }
+ 
++    @OptIn(UnstableApi::class)
+     fun fromMediaItem(mediaItem: MediaItem): TrackPlayerMediaItem {
+       val metadata = mediaItem.mediaMetadata
+       val metadataExtras = metadata.extras
+@@ -193,6 +206,8 @@ data class TrackPlayerMediaItem(
+         duration = metadataExtras?.getDouble("duration"),
+         isLive = if (metadataExtras?.containsKey("isLive") == true) metadataExtras.getBoolean("isLive") else null,
+         extras = metadataExtras?.getBundle(MediaItemExtras.METADATA_KEY),
++        cacheKey = mediaItem.localConfiguration?.customCacheKey
++          ?: mediaItem.requestMetadata.extras?.getString(CACHE_KEY_EXTRA),
+       )
+     }
+   }
+diff --git a/ios/TrackPlayer.swift b/ios/TrackPlayer.swift
+index 61a7d64d4b1ad917633857a6bf0f0dc802f63fcf..e38710d259334f478407e923e9a11e3f9c5c2f1c 100644
+--- a/ios/TrackPlayer.swift
++++ b/ios/TrackPlayer.swift
+@@ -248,14 +248,15 @@ class TrackPlayer: RCTEventEmitter {
+           let url = URL(string: urlString) else { return }
+ 
+     let headers = item["headers"] as? [String: String]
+-    player.preloader?.preload(url: url, headers: headers, duration: duration)
++    // Pawse patch: preload under the item's cache key so playback hits it.
++    player.preloader?.preload(url: url, headers: headers, duration: duration, cacheKey: item["cacheKey"] as? String)
+   }
+ 
+   @objc(cancelPreload:)
+   func cancelPreload(item: [String: Any]) {
+     guard let urlString = extractUrl(from: item),
+           let url = URL(string: urlString) else { return }
+-    player.preloader?.cancel(url: url)
++    player.preloader?.cancel(url: url, cacheKey: item["cacheKey"] as? String)
+   }
+ 
+   private func extractUrl(from item: [String: Any]) -> String? {
+diff --git a/ios/models/MediaItem.swift b/ios/models/MediaItem.swift
+index c38942a31423e45f40ab8430345ca47ae65cc2d0..d3f408f36eb4a4a22ab13402cbd5409caf65bb04 100644
+--- a/ios/models/MediaItem.swift
++++ b/ios/models/MediaItem.swift
+@@ -17,8 +17,10 @@ struct MediaItem {
+   let duration: Double?
+   let isLiveStream: Bool?
+   let extras: [String: Any]?
++  // Pawse patch: stable disk-cache identity so re-resolved stream URLs reuse one cache entry.
++  let cacheKey: String?
+ 
+-  init(mediaId: String, url: MediaURL, title: String?, artist: String?, albumTitle: String?, artworkUrl: MediaURL?, duration: Double? = nil, isLiveStream: Bool? = nil, extras: [String: Any]? = nil) {
++  init(mediaId: String, url: MediaURL, title: String?, artist: String?, albumTitle: String?, artworkUrl: MediaURL?, duration: Double? = nil, isLiveStream: Bool? = nil, extras: [String: Any]? = nil, cacheKey: String? = nil) {
+     self.mediaId = mediaId
+     self.url = url
+     self.title = title
+@@ -28,6 +30,7 @@ struct MediaItem {
+     self.duration = duration
+     self.isLiveStream = isLiveStream
+     self.extras = extras
++    self.cacheKey = cacheKey
+   }
+ 
+   init(data: [String: Any]) {
+@@ -43,8 +46,9 @@ struct MediaItem {
+     let duration = data["duration"] as? Double
+     let isLiveStream = data["isLive"] as? Bool
+     let extras = data["extras"] as? [String: Any]
++    let cacheKey = (data["cacheKey"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+ 
+-    self.init(mediaId: mediaId, url: url, title: title, artist: artist, albumTitle: albumTitle, artworkUrl: artworkUrl, duration: duration, isLiveStream: isLiveStream, extras: extras)
++    self.init(mediaId: mediaId, url: url, title: title, artist: artist, albumTitle: albumTitle, artworkUrl: artworkUrl, duration: duration, isLiveStream: isLiveStream, extras: extras, cacheKey: cacheKey)
+   }
+ }
+ 
+@@ -64,7 +68,8 @@ extension MediaItem {
+       artworkUrl: artworkUrl ?? self.artworkUrl,
+       duration: self.duration,
+       isLiveStream: self.isLiveStream,
+-      extras: self.extras
++      extras: self.extras,
++      cacheKey: self.cacheKey
+     )
+   }
+ 
+@@ -82,6 +87,7 @@ extension MediaItem {
+     if let duration = duration { dict["duration"] = duration }
+     if let isLiveStream = isLiveStream { dict["isLive"] = isLiveStream }
+     if let extras = extras { dict["extras"] = extras }
++    if let cacheKey = cacheKey { dict["cacheKey"] = cacheKey }
+     return dict
+   }
+ }
 diff --git a/ios/player/AVPlayerEngine.swift b/ios/player/AVPlayerEngine.swift
-index d58a7df934eb1866152e3df15931bb63fd6354be..eff930be39d0a196b1bc4d1a2c26bfd5648aebbd 100644
+index d58a7df934eb1866152e3df15931bb63fd6354be..bfe779a6d4f2f973e197da2e5a8af12fc2806a39 100644
 --- a/ios/player/AVPlayerEngine.swift
 +++ b/ios/player/AVPlayerEngine.swift
 @@ -29,6 +29,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
@@ -53,7 +288,87 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..eff930be39d0a196b1bc4d1a2c26bfd5
  
    // Caching
    private let cache: AudioCache?
-@@ -671,17 +672,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+@@ -45,6 +46,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+     let rootID: UUID
+     let url: URL
+     let headers: [String: String]?
++    var customCacheKey: String? = nil
+   }
+ 
+   /// Origin context for one engine-owned direct fallback. Correlated upstream
+@@ -84,6 +86,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+     let url: URL
+     let headers: [String: String]?
+     let isLive: Bool
++    var cacheKey: String? = nil
+   }
+ 
+   private struct LiveRefresh {
+@@ -319,13 +322,13 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+     avPlayer.pause()
+   }
+ 
+-  func load(url: URL, headers: [String: String]? = nil, isLive: Bool = false) {
++  func load(url: URL, headers: [String: String]? = nil, isLive: Bool = false, cacheKey: String? = nil) {
+     cancelLiveRefresh()
+-    activeSource = SourceContext(url: url, headers: headers, isLive: isLive)
+-    loadSource(url: url, headers: headers, isLive: isLive)
++    activeSource = SourceContext(url: url, headers: headers, isLive: isLive, cacheKey: cacheKey)
++    loadSource(url: url, headers: headers, isLive: isLive, cacheKey: cacheKey)
+   }
+ 
+-  private func loadSource(url: URL, headers: [String: String]?, isLive: Bool) {
++  private func loadSource(url: URL, headers: [String: String]?, isLive: Bool, cacheKey customKey: String? = nil) {
+     if let testSourceLoader {
+       loadGeneration &+= 1
+       itemFailureEvidence = ItemFailureEvidence(
+@@ -339,18 +342,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+     if let proxy = proxyServer, let cache = cache,
+        url.scheme?.hasPrefix("http") == true {
+       // Live resources use the in-memory proxy relay; finite resources use disk.
++      // Pawse patch: finite items may carry an app cache key that survives URL re-resolves.
++      let appKey = isLive ? nil : customKey
+       let proxyRequest = proxy.rootProxyURL(
+         for: url,
+         headers: headers,
+         cacheable: !isLive,
+-        liveStream: isLive
++        liveStream: isLive,
++        cacheKey: appKey
+       )
+-      let cacheKey = cache.cacheKey(for: url)
++      let cacheKey = cache.cacheKey(for: url, customKey: appKey)
+       currentCacheKey = cacheKey
+       pendingDirectFallback = DirectFallbackContext(
+         rootID: proxyRequest.rootID,
+         url: url,
+-        headers: headers
++        headers: headers,
++        customCacheKey: appKey == nil ? nil : cacheKey
+       )
+ 
+       let asset = AVURLAsset(url: proxyRequest.url)
+@@ -469,7 +476,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+       return
+     }
+     liveRefresh = LiveRefresh(generation: -1, completions: [completion])
+-    loadSource(url: source.url, headers: source.headers, isLive: source.isLive)
++    loadSource(url: source.url, headers: source.headers, isLive: source.isLive, cacheKey: source.cacheKey)
+     liveRefresh?.generation = loadGeneration
+   }
+ 
+@@ -531,6 +538,10 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+        let ctx = pendingDirectFallback,
+        itemFailureEvidence?.proxyRootID == ctx.rootID {
+       pendingDirectFallback = nil
++      // Pawse patch: a complete app-keyed entry that failed is suspect; drop it so the next play refetches.
++      if let key = ctx.customCacheKey, let cache, cache.isFullyCached(key: key) {
++        cache.purge(key: key)
++      }
+       loadDirect(url: ctx.url, headers: ctx.headers)
+       return
+     }
+@@ -671,17 +682,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
      switch type {
      case .began:
        wasPlayingBeforeInterruption = isPlaying
@@ -78,3 +393,243 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..eff930be39d0a196b1bc4d1a2c26bfd5
  
      @unknown default:
        break
+diff --git a/ios/player/AudioCache.swift b/ios/player/AudioCache.swift
+index 874d7c37bfc084a53048962e00f87c59d87daffc..d86008026e0a1382f13ae298ee021d77052a53fd 100644
+--- a/ios/player/AudioCache.swift
++++ b/ios/player/AudioCache.swift
+@@ -76,6 +76,17 @@ final class AudioCache: @unchecked Sendable {
+     return hash.compactMap { String(format: "%02x", $0) }.joined()
+   }
+ 
++  /// Pawse patch: an app key (e.g. track id) replaces the URL hash so re-resolved URLs share an
++  /// entry. HLS playlists keep URL keys: a cached manifest would pin expired segment URLs.
++  func cacheKey(for url: URL, customKey: String?) -> String {
++    let ext = url.pathExtension.lowercased()
++    guard let customKey, !customKey.isEmpty, ext != "m3u8", ext != "m3u" else {
++      return cacheKey(for: url)
++    }
++    let hash = SHA256.hash(data: Data("custom:\(customKey)".utf8))
++    return hash.compactMap { String(format: "%02x", $0) }.joined()
++  }
++
+   // MARK: - Content Info
+ 
+   func contentInfo(for key: String) -> ContentInfo? {
+diff --git a/ios/player/AudioItem.swift b/ios/player/AudioItem.swift
+index c95d040c4a6d2908763ab189ba89722ac8bd4c43..1f62f9efbe7a965328fef2e5229ab45a8fc5913a 100644
+--- a/ios/player/AudioItem.swift
++++ b/ios/player/AudioItem.swift
+@@ -22,6 +22,8 @@ protocol AudioItem {
+   var albumTitle: String? { get }
+   /// App-provided duration in seconds, if known ahead of playback.
+   var duration: Double? { get }
++  /// Pawse patch: app-supplied disk-cache identity; nil keys the cache by URL.
++  var cacheKey: String? { get }
+   #if canImport(UIKit)
+   func getArtwork(_ handler: @escaping (UIImage?) -> Void)
+   #endif
+@@ -29,4 +31,5 @@ protocol AudioItem {
+ 
+ extension AudioItem {
+   var duration: Double? { nil }
++  var cacheKey: String? { nil }
+ }
+diff --git a/ios/player/AudioPlayer.swift b/ios/player/AudioPlayer.swift
+index 626e4a4a85347d894326965b6081c46ba7b1cd6e..ac5aca336a9ef619bf44081506ac4fa6e9341912 100644
+--- a/ios/player/AudioPlayer.swift
++++ b/ios/player/AudioPlayer.swift
+@@ -233,7 +233,7 @@ class AudioPlayer {
+ 
+     guard let itemUrl = url else { return }
+ 
+-    engine.load(url: itemUrl, headers: item.headers, isLive: item.isLive)
++    engine.load(url: itemUrl, headers: item.headers, isLive: item.isLive, cacheKey: item.cacheKey)
+     state = .loading
+   }
+ 
+@@ -485,7 +485,7 @@ class AudioPlayer {
+       artworkUri: nil,
+       genre: nil
+     )
+-    engine.load(url: itemUrl, headers: item.headers, isLive: item.isLive)
++    engine.load(url: itemUrl, headers: item.headers, isLive: item.isLive, cacheKey: item.cacheKey)
+     state = .loading
+     resetNowPlaying(for: item)
+     onCurrentItemChanged?(item, queue.currentIndex, reason)
+@@ -521,7 +521,7 @@ class AudioPlayer {
+       let item = queue.items[i]
+       guard !item.isLive, item.sourceType == .stream,
+             let url = URL(string: item.sourceUrl) else { continue }
+-      preloader.preload(url: url, headers: item.headers)
++      preloader.preload(url: url, headers: item.headers, cacheKey: item.cacheKey)
+     }
+   }
+ 
+diff --git a/ios/player/CacheProxyServer.swift b/ios/player/CacheProxyServer.swift
+index bd5a729d81f3a2c287c5a1a48ab1360a95907f8f..2dd7e014d4b42a29f614e00b4e03ca682f6ca1de 100644
+--- a/ios/player/CacheProxyServer.swift
++++ b/ios/player/CacheProxyServer.swift
+@@ -346,7 +346,8 @@ final class CacheProxyServer {
+     for url: URL,
+     headers: [String: String]?,
+     cacheable: Bool = true,
+-    liveStream: Bool = false
++    liveStream: Bool = false,
++    cacheKey: String? = nil
+   ) -> RootProxyRequest {
+     let rootID = UUID()
+     return RootProxyRequest(
+@@ -358,7 +359,8 @@ final class CacheProxyServer {
+         liveStream: liveStream,
+         parentManifestKey: nil,
+         rootID: rootID,
+-        role: .root
++        role: .root,
++        customKey: cacheKey
+       )
+     )
+   }
+@@ -370,9 +372,11 @@ final class CacheProxyServer {
+     liveStream: Bool,
+     parentManifestKey: String?,
+     rootID: UUID,
+-    role: ProxyResourceRole
++    role: ProxyResourceRole,
++    customKey: String? = nil
+   ) -> URL {
+-    let key = cache.cacheKey(for: url)
++    // Pawse patch: the path carries the app cache key, so every proxy lookup and write uses it.
++    let key = cache.cacheKey(for: url, customKey: customKey)
+     let ext = url.pathExtension
+     var components = URLComponents()
+     components.scheme = "http"
+diff --git a/ios/player/PlayerEngine.swift b/ios/player/PlayerEngine.swift
+index 3c9d17299d4effbf4bbd88a3c5ddb0efb10838ad..c7caa175ec745c444f9b863b3b1472febc877962 100644
+--- a/ios/player/PlayerEngine.swift
++++ b/ios/player/PlayerEngine.swift
+@@ -52,7 +52,7 @@ protocol PlayerEngine: AnyObject {
+ 
+   func play()
+   func pause()
+-  func load(url: URL, headers: [String: String]?, isLive: Bool)
++  func load(url: URL, headers: [String: String]?, isLive: Bool, cacheKey: String?)
+   func seek(to seconds: TimeInterval, completion: @escaping (Bool) -> Void)
+   func seekToLiveEdge(completion: @escaping (Bool) -> Void)
+   func reset()
+diff --git a/ios/player/Preloader.swift b/ios/player/Preloader.swift
+index 9b681649110986fe078535bce68c714685b698e8..b2fa7179a2e5a2bc1d78ea89093e85a9234b767f 100644
+--- a/ios/player/Preloader.swift
++++ b/ios/player/Preloader.swift
+@@ -52,8 +52,9 @@ final class Preloader {
+   /// other URL is downloaded as a single blob bounded by `maxBytes` (downloads
+   /// the entire file when `maxBytes` is nil). `duration` only bounds HLS: it is
+   /// ignored on the non-HLS path.
+-  func preload(url: URL, headers: [String: String]?, maxBytes: Int64? = nil, duration: Double = -1) {
+-    let rootKey = cache.cacheKey(for: url)
++  func preload(url: URL, headers: [String: String]?, maxBytes: Int64? = nil, duration: Double = -1, cacheKey: String? = nil) {
++    // Pawse patch: key the job and blob by the app cache key so playback finds the preloaded entry.
++    let rootKey = cache.cacheKey(for: url, customKey: cacheKey)
+ 
+     stateQueue.async { [weak self] in
+       guard let self = self else { return }
+@@ -66,7 +67,7 @@ final class Preloader {
+       } else {
+         // Non-HLS: single-blob download.
+         self.jobs[rootKey] = PreloadJob()
+-        self.startDownload(url: url, headers: headers, maxBytes: maxBytes, rootKey: rootKey)
++        self.startDownload(url: url, headers: headers, maxBytes: maxBytes, cacheKey: rootKey, rootKey: rootKey)
+       }
+     }
+   }
+@@ -74,8 +75,8 @@ final class Preloader {
+   /// Cancel preload for a specific URL. Removing the job from `jobs` is what
+   /// stops any in-flight callback from scheduling further downloads; cancelling
+   /// the recorded tokens tears down the downloads already dispatched.
+-  func cancel(url: URL) {
+-    let rootKey = cache.cacheKey(for: url)
++  func cancel(url: URL, cacheKey: String? = nil) {
++    let rootKey = cache.cacheKey(for: url, customKey: cacheKey)
+     stateQueue.async { [weak self] in
+       guard let self = self, let job = self.jobs.removeValue(forKey: rootKey) else { return }
+       for token in job.tokens {
+diff --git a/ios/player/SleepTimerController.swift b/ios/player/SleepTimerController.swift
+index e94e888be6609c25d6efcf35cb714ef1659a7936..eee78c3c0be3d76414b8e1e0eb8123b684dc597b 100644
+--- a/ios/player/SleepTimerController.swift
++++ b/ios/player/SleepTimerController.swift
+@@ -29,6 +29,8 @@ class SleepTimerController {
+     private(set) var sleepTimerPreviousIndex: Int?
+     private var sleepTimer: Timer?
+     private var sleepTimerPreFadeVolume: Float?
++    // Pawse patch: count down against a wall-clock deadline; 1 s ticks drift while suspended.
++    private var sleepTimerDeadline: Date?
+ 
+     init(player: SleepTimerPlayer) {
+         self.player = player
+@@ -41,6 +43,7 @@ class SleepTimerController {
+         sleepTimerType = "time"
+         sleepTimerRemainingSeconds = seconds
+         sleepTimerFadeOutSeconds = min(fadeOutSeconds, seconds)
++        sleepTimerDeadline = Date().addingTimeInterval(seconds)
+ 
+         if seconds <= 0 {
+             player?.pause()
+@@ -68,7 +71,7 @@ class SleepTimerController {
+         if type == "time" {
+             return [
+                 "type": "time",
+-                "remainingSeconds": sleepTimerRemainingSeconds,
++                "remainingSeconds": sleepTimerDeadline.map { max(0, $0.timeIntervalSinceNow) } ?? sleepTimerRemainingSeconds,
+                 "fadeOutSeconds": sleepTimerFadeOutSeconds
+             ]
+         } else {
+@@ -110,6 +113,7 @@ class SleepTimerController {
+         sleepTimerPreFadeVolume = nil
+         sleepTimerType = nil
+         sleepTimerRemainingSeconds = 0
++        sleepTimerDeadline = nil
+         sleepTimerFadeOutSeconds = 0
+         sleepTimerTargetIndex = nil
+         sleepTimerPreviousIndex = nil
+@@ -117,7 +121,11 @@ class SleepTimerController {
+ 
+     private func onSleepTimerTick() {
+         guard sleepTimerType == "time" else { return }
+-        sleepTimerRemainingSeconds -= 1
++        if let deadline = sleepTimerDeadline {
++            sleepTimerRemainingSeconds = deadline.timeIntervalSinceNow
++        } else {
++            sleepTimerRemainingSeconds -= 1
++        }
+ 
+         if sleepTimerFadeOutSeconds > 0 && sleepTimerRemainingSeconds < sleepTimerFadeOutSeconds {
+             if sleepTimerPreFadeVolume == nil {
+diff --git a/lib/typescript/src/interfaces/MediaItem.d.ts b/lib/typescript/src/interfaces/MediaItem.d.ts
+index 3689842ac4d0b39eaf347e4bace291d33f049379..a41adcbd940df4d6abd268b165ce8d449b192bf2 100644
+--- a/lib/typescript/src/interfaces/MediaItem.d.ts
++++ b/lib/typescript/src/interfaces/MediaItem.d.ts
+@@ -83,5 +83,10 @@ export interface MediaItem {
+      * @since 5.1.0
+      */
+     extras?: Record<string, unknown>;
++    /**
++     * Pawse patch: stable disk-cache identity (e.g. `${trackId}:${contentLength}`) used instead of
++     * the URL, so re-resolved URLs replay from cache. Progressive media only; ignored on web and HLS.
++     */
++    cacheKey?: string;
+ }
+ //# sourceMappingURL=MediaItem.d.ts.map
+\ No newline at end of file
+diff --git a/src/interfaces/MediaItem.ts b/src/interfaces/MediaItem.ts
+index 8d912aea555d5b15e864c5b76b245cc2e42083d4..2a180ef704e38157ce1dd4cbfe848417149c9542 100644
+--- a/src/interfaces/MediaItem.ts
++++ b/src/interfaces/MediaItem.ts
+@@ -88,4 +88,9 @@ export interface MediaItem {
+    * @since 5.1.0
+    */
+   extras?: Record<string, unknown>;
++  /**
++   * Pawse patch: stable disk-cache identity (e.g. `${trackId}:${contentLength}`) used instead of
++   * the URL, so re-resolved URLs replay from cache. Progressive media only; ignored on web and HLS.
++   */
++  cacheKey?: string;
+ }

@@ -18,6 +18,7 @@ import {
 
 import { readSession, signIn, signOut, writeSession } from "./google.mjs";
 import { relay } from "./relay.mjs";
+import { closeSandbox, sandboxRun } from "./sandbox.mjs";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const WEB = join(HERE, "..", "web");
@@ -126,6 +127,8 @@ function createWindow() {
       e.preventDefault();
       win.hide();
     });
+  // The hidden sandbox page would otherwise keep the app alive once this window is gone.
+  win.on("closed", closeSandbox);
   void win.loadURL(`${ORIGIN}/`);
   return win;
 }
@@ -175,6 +178,10 @@ else {
       e.returnValue = readSession();
     });
     ipcMain.on("pawse:session-write", (_e, cookies) => writeSession(cookies));
+    ipcMain.handle("pawse:sandbox-run", (e, code, timeoutMs) => {
+      if (!e.senderFrame?.url.startsWith(ORIGIN)) throw new Error("not allowed");
+      return sandboxRun(code, timeoutMs);
+    });
     if (!mac) Menu.setApplicationMenu(null);
     win = createWindow();
   });

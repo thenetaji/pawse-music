@@ -32,6 +32,7 @@ import {
   ClientsConfig,
   clientsKeyFor,
   DEFAULT_CLIENTS_CONFIG_URL,
+  DEFAULT_CLIENTS_V2_CONFIG_URL,
   defaultStreamClients,
   type StreamClient,
 } from "./clients";
@@ -60,7 +61,13 @@ import {
   parseSearch,
   parseSuggestions,
 } from "./parse";
-import { type ResolveAttempt, resolveYouTubeStream } from "./stream";
+import type { JsSandbox, PoTokenProvider } from "./sandbox";
+import {
+  isBotAnswer,
+  type ResolveAttempt,
+  resolveYouTubeStream,
+  restingError,
+} from "./stream";
 
 export interface YouTubeMusicOptions {
   fetch?: FetchLike;
@@ -68,11 +75,20 @@ export interface YouTubeMusicOptions {
   gl?: string;
   /** Cookie header for music.youtube.com when signed in; only catalog/account calls use it. */
   cookies?: () => Promise<string | null> | string | null;
+  /** The install's saved visitor id; YouTube sees one steady visitor instead of a new one per launch. */
   visitorData?: string;
+  /** Called with each visitor id learned or rotated in, for the app to save. */
+  onVisitorData?: (visitorData: string) => void;
   /** Remote stream-client list; null disables it. */
   clientsConfigUrl?: string | null;
-  /** Built-in stream clients (default VISIONOS 1.02, 1.03, 1.01; Android puts ANDROID_VR first). */
+  /** Built-in stream clients (default VISIONOS 1.02, 1.03, 1.01, then the native and music-host profiles). */
   streamClients?: StreamClient[];
+  /** Solves YouTube's sig/n challenges (yt-dlp/ejs); without it clients that need JS are skipped. */
+  sandbox?: JsSandbox;
+  /** BotGuard PO tokens (see WebPoTokenProvider); without it clients that need a token are skipped. */
+  poToken?: PoTokenProvider;
+  /** Use the yt-dlp-generated client list (sources/innertube-clients-v2.json) and its built-in fallback. Only for builds that pass a `sandbox`: older builds drop ciphered formats. */
+  clientsV2?: boolean;
   /** Platform.OS: picks the client list, and "android" also accepts WebM/Opus. */
   platform?: string;
   /** Range-check the media URL before returning it (default true). */
@@ -124,6 +140,9 @@ const IDEMPOTENT = new Set([
   "account/account_menu",
 ]);
 const BOOTSTRAP_RETRY_MS = 5 * 60_000;
+// A bot check rests stream resolving, longer each time in a row; a resolve that works resets it.
+const YT_REST_MS = [15 * 60_000, 30 * 60_000, 60 * 60_000];
+const VISITOR_ROTATE_MS = 3600_000;
 
 interface WebConfig {
   clientVersion: string;
@@ -171,7 +190,7 @@ const hasSapisid = (c: string | null | undefined) => {
   return !!(m.SAPISID || m["__Secure-3PAPISID"] || m["__Secure-1PAPISID"]);
 };
 
-/** YouTube Music over InnerTube: WEB_REMIX for catalog/account, a signed-out client chain (VISIONOS; ANDROID_VR first on Android) for streams. */
+/** YouTube Music over InnerTube: WEB_REMIX for catalog/account, a signed-out VISIONOS client chain for streams. */
 export class YouTubeMusic implements Catalog, Account, StreamResolver {
   hl: string;
   gl: string;
@@ -181,10 +200,13 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   private readonly f: FetchLike;
   private readonly cookies?: YouTubeMusicOptions["cookies"];
   private readonly clients: ClientsConfig;
+  private readonly sandbox?: JsSandbox;
+  private readonly poToken?: PoTokenProvider;
   private readonly verify: boolean;
   private readonly verifyBudgetMs: number;
   private readonly opus: boolean;
   private readonly onRequestError?: YouTubeMusicOptions["onRequestError"];
+  private readonly onVisitorData?: YouTubeMusicOptions["onVisitorData"];
   private web?: WebConfig;
   private webPending?: Promise<WebConfig>;
   private webFailedAt = 0;
@@ -194,6 +216,9 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   private refilledAt = Date.now();
   private paced: Promise<void> = Promise.resolve();
   private restUntil = 0;
+  private ytRestUntil = 0;
+  private ytRests = 0;
+  private visitorRotatedAt = 0;
 
   constructor(options: YouTubeMusicOptions = {}) {
     this.f = options.fetch ?? defaultFetch;
@@ -205,14 +230,20 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     this.verifyBudgetMs = options.verifyBudgetMs ?? 1500;
     this.opus = options.platform === "android";
     this.onRequestError = options.onRequestError;
+    this.onVisitorData = options.onVisitorData;
     const url =
       options.clientsConfigUrl === undefined
-        ? DEFAULT_CLIENTS_CONFIG_URL
+        ? options.clientsV2
+          ? DEFAULT_CLIENTS_V2_CONFIG_URL
+          : DEFAULT_CLIENTS_CONFIG_URL
         : options.clientsConfigUrl;
+    this.sandbox = options.sandbox;
+    this.poToken = options.poToken;
     this.clients = new ClientsConfig(
       this.f,
       url,
-      options.streamClients ?? defaultStreamClients(options.platform),
+      options.streamClients ??
+        defaultStreamClients(options.platform, options.clientsV2),
       clientsKeyFor(options.platform),
     );
     void this.cookie().catch(() => undefined);
@@ -300,10 +331,10 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
       if (!cfg.clientVersion) throw new Error("ytcfg missing");
       this.web = {
         clientVersion: cfg.clientVersion,
-        visitorData: this.visitorData ?? cfg.visitorData,
+        visitorData: this.visitorData,
         apiKey: cfg.apiKey,
       };
-      this.visitorData = this.web.visitorData;
+      this.learnVisitor(cfg.visitorData);
       return this.web;
     } catch {
       this.webFailedAt = Date.now();
@@ -404,9 +435,31 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
       this.onRequestError?.(endpoint, e);
       throw e;
     }
-    const vd = json?.responseContext?.visitorData;
-    if (!this.visitorData && typeof vd === "string") this.visitorData = vd;
+    this.learnVisitor(json?.responseContext?.visitorData);
     return json;
+  }
+
+  /** Takes YouTube's visitor id when none is held (first launch, or after a rotation). */
+  private learnVisitor(vd: unknown): void {
+    if (this.visitorData || typeof vd !== "string" || !vd) return;
+    this.visitorData = vd;
+    if (this.web) this.web = { ...this.web, visitorData: vd };
+    this.onVisitorData?.(vd);
+  }
+
+  /** After a bot block, drops the visitor id so the next answer brings a fresh one; at most once an hour. */
+  private rotateVisitor(): void {
+    const now = Date.now();
+    if (!this.visitorData || now - this.visitorRotatedAt < VISITOR_ROTATE_MS)
+      return;
+    this.visitorRotatedAt = now;
+    this.visitorData = undefined;
+    if (this.web) this.web = { ...this.web, visitorData: undefined };
+  }
+
+  /** True while stream resolving rests after a bot check. */
+  isYouTubeResting(): boolean {
+    return Date.now() < this.ytRestUntil;
   }
 
   private browseRaw(browseId: string, params?: string) {
@@ -711,24 +764,49 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
         "unplayable",
         `YouTube cannot resolve a ${track.source} track`,
       );
+    if (this.isYouTubeResting()) {
+      this.lastResolveAttempts = [];
+      throw restingError();
+    }
     const clients = await this.clients.get();
     this.lastResolveAttempts = [];
-    return resolveYouTubeStream(
-      track.id,
-      {
-        fetch: this.f,
-        clients,
-        hl: this.hl,
-        gl: this.gl,
-        visitorData: this.visitorData,
-        verify: this.verify,
-        verifyBudgetMs: this.verifyBudgetMs,
-        quality: options.quality,
-        opus: this.opus,
-        exclude: options.exclude,
-        avoid: options.avoid,
-      },
-      this.lastResolveAttempts,
-    );
+    try {
+      const stream = await resolveYouTubeStream(
+        track.id,
+        {
+          fetch: this.f,
+          clients,
+          hl: this.hl,
+          gl: this.gl,
+          visitorData: this.visitorData,
+          verify: this.verify,
+          verifyBudgetMs: this.verifyBudgetMs,
+          quality: options.quality,
+          opus: this.opus,
+          exclude: options.exclude,
+          avoid: options.avoid,
+          sandbox: this.sandbox,
+          poToken: this.poToken,
+        },
+        this.lastResolveAttempts,
+      );
+      this.ytRests = 0;
+      return stream;
+    } catch (e) {
+      // Parallel resolves (a prefetch) hitting the same check count once.
+      if (isBotAnswer(e) && !this.isYouTubeResting()) {
+        const ms = YT_REST_MS[Math.min(this.ytRests, YT_REST_MS.length - 1)];
+        this.ytRests += 1;
+        this.ytRestUntil = Date.now() + ms;
+        this.rotateVisitor();
+        this.onRequestError?.(
+          "player",
+          new Error(
+            `YouTube resting ${ms / 60_000} min: ${(e as Error).message}`,
+          ),
+        );
+      }
+      throw e;
+    }
   }
 }

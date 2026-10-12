@@ -30,18 +30,27 @@ import type {
 } from "./types";
 
 const REFRESH_MS = 10 * 60_000;
-const AHEAD = 2;
+// Each prefetch is a player call YouTube counts, so only the next song resolves early.
+const AHEAD = 1;
 const FINISHED_AT = 0.8;
 const RADIO_LOW = 3;
 const TICK_MS = 5_000;
 const SAVE_MS = 1_000;
 const POS_EVERY_SEC = 15;
-const MAX_SKIPS = 5;
 /** A song you switch away from fades out this fast, like Apple Music, instead of cutting off. */
 const FADE_OUT_MS = 250;
 const FADE_IN_MS = 400;
 const FADE_STEP_MS = 25;
 const MAX_SOURCE_SWITCHES = 3;
+// A source that failed on this device goes last for this long (YouTube's PO-token 403s are per client).
+const AVOID_MS = 30 * 60_000;
+// This many songs in a row that never start stop playback instead of skipping through the queue.
+const MAX_FAILED_STARTS = 3;
+// Resolved streams survive a restart, so reopening the app doesn't re-ask YouTube for the queue.
+const STREAMS_KEY = "pawse.streams";
+const STREAMS_MAX = 200;
+// A pause this soon after a song change is the item loading, not the system.
+const SETTLE_MS = 1500;
 const ARTWORK_PX = 544;
 // Played songs are written to disk and the next one preloads once the current is fully cached.
 const CACHE_BYTES = 256 * 1024 * 1024;
@@ -68,7 +77,11 @@ const inflight = new Map<string, Promise<ResolvedStream>>();
 const live = new Map<string, number>(); // entry key -> expiresAt of the URL the native queue holds
 const retried = new Map<string, number>(); // entry key -> position of the last error re-resolve
 const failedVia = new Map<string, Set<string>>(); // track id -> stream sources that failed for it
-const avoidVia: string[] = []; // stream sources that failed on this device this session, tried last
+const avoidVia = new Map<string, number>(); // source -> until; failed on this device, tried last (latest last)
+const fromDisk = new WeakSet<ResolvedStream>(); // streams restored from storage, maybe for another network
+let failedStarts = 0;
+let changedAt = 0;
+let streamsTimer: ReturnType<typeof setTimeout> | undefined;
 let nativeLoaded = false;
 let pendingSeek: { key: string; position: number } | undefined;
 /** goTo is loading a different song: seeks wait for it instead of moving the old one. */
@@ -98,14 +111,33 @@ const STALL_MS = 8000;
 const diag = (kind: string, detail?: string) =>
   opts?.onDiagnostic?.(kind, detail);
 let endTimer: ReturnType<typeof setTimeout> | undefined;
+// The song "end of this song" stops after; the engine checks it too, since its own song changes can outrun the native timer's pause.
+let sleepKey: string | undefined;
+const SLEEP_GRACE_MS = 15_000;
 
 // iOS can misread the length of YouTube's audio files and keep "playing" silence past the end.
-const trustedDuration = (track?: Track) =>
-  track ? (streams.get(track.id)?.durationSec ?? track.durationSec) : undefined;
+const isHeAac = (st?: ResolvedStream) =>
+  /mp4a\.40\.(5|29)\b/i.test(st?.mimeType ?? "");
+const nativeDuration = (track: Track) =>
+  nativeLoaded && get().tracks[get().index]?.id === track.id
+    ? TrackPlayer.getProgress().duration
+    : 0;
+// AVPlayer doubles HE-AAC (itag 139) lengths, and older builds saved that doubled length as the song's own.
+function trustedDuration(track?: Track, native?: number): number | undefined {
+  if (!track) return undefined;
+  const st = streams.get(track.id);
+  if (st?.durationSec) return st.durationSec;
+  const saved = track.durationSec;
+  native ??= nativeDuration(track);
+  if (Platform.OS === "ios" && native > 0 && isHeAac(st)) {
+    if (!saved || Math.abs(native - saved) < saved * 0.05) return native / 2;
+  }
+  return saved;
+}
 const disagrees = (native: number, trusted: number) =>
   !native || Math.abs(native - trusted) > Math.max(10, trusted * 0.15);
 function chooseDuration(native: number, track?: Track): number {
-  const trusted = trustedDuration(track);
+  const trusted = trustedDuration(track, native);
   return trusted && disagrees(native, trusted) ? trusted : native;
 }
 
@@ -132,11 +164,59 @@ function syncStatus(): void {
   if (status !== s.status) set({ status });
 }
 
+/** Sources still avoided, oldest failure first; expired ones drop out. */
+function avoided(): string[] {
+  const now = Date.now();
+  for (const [via, until] of avoidVia) if (until <= now) avoidVia.delete(via);
+  return [...avoidVia.keys()];
+}
+
 function resolveOptions(track: Track): ResolveOptions | undefined {
   const exclude = [...(failedVia.get(track.id) ?? [])];
-  return exclude.length || avoidVia.length
-    ? { exclude, avoid: [...avoidVia] }
-    : undefined;
+  const avoid = avoided();
+  return exclude.length || avoid.length ? { exclude, avoid } : undefined;
+}
+
+function remember(id: string, st: ResolvedStream): void {
+  streams.delete(id);
+  streams.set(id, st);
+  saveStreams();
+}
+
+function saveStreams(): void {
+  if (!opts?.storage) return;
+  clearTimeout(streamsTimer);
+  streamsTimer = setTimeout(() => {
+    const bad = new Set(avoided());
+    const keep = [...streams].filter(
+      ([id, st]) =>
+        st.via !== "local" &&
+        isFresh(st.expiresAt) &&
+        !bad.has(st.via) &&
+        !failedVia.get(id)?.has(st.via),
+    );
+    const data = { streams: keep.slice(-STREAMS_MAX), avoid: [...avoidVia] };
+    void opts?.storage?.set(STREAMS_KEY, JSON.stringify(data)).catch(() => {});
+  }, SAVE_MS);
+}
+
+async function loadStreams(): Promise<void> {
+  const raw = await opts?.storage?.get(STREAMS_KEY);
+  if (!raw) return;
+  const d = JSON.parse(raw) as {
+    streams?: [string, ResolvedStream][];
+    avoid?: [string, number][];
+  };
+  const now = Date.now();
+  for (const [via, until] of d.avoid ?? [])
+    if (typeof via === "string" && until > now && !avoidVia.has(via))
+      avoidVia.set(via, until);
+  for (const [id, st] of d.streams ?? []) {
+    if (streams.has(id) || typeof st?.url !== "string") continue;
+    if (!isFresh(st.expiresAt) || avoidVia.has(st.via)) continue;
+    streams.set(id, st);
+    fromDisk.add(st);
+  }
 }
 
 function resolveStream(track: Track, force = false): Promise<ResolvedStream> {
@@ -149,7 +229,7 @@ function resolveStream(track: Track, force = false): Promise<ResolvedStream> {
   if (!p) {
     const next = opts!.resolver
       .resolve(track, resolveOptions(track))
-      .then((st) => (streams.set(track.id, st), st))
+      .then((st) => (remember(track.id, st), st))
       .finally(() => {
         if (inflight.get(track.id) === next) inflight.delete(track.id);
       });
@@ -165,10 +245,15 @@ function blame(trackId: string, via: string): boolean {
   if (failed.has(via)) return false;
   failed.add(via);
   failedVia.set(trackId, failed);
-  if (via !== "local" && !avoidVia.includes(via)) {
-    avoidVia.push(via);
-    diag("source-avoided", via);
-    forgetVia(via);
+  if (via !== "local") {
+    const fresh = !avoided().includes(via);
+    avoidVia.delete(via);
+    avoidVia.set(via, Date.now() + AVOID_MS);
+    if (fresh) {
+      diag("source-avoided", via);
+      forgetVia(via);
+    }
+    saveStreams();
   }
   return true;
 }
@@ -207,6 +292,11 @@ function mediaItem(key: string, track: Track): MediaItem {
       ? PLACEHOLDER + key
       : (relayed ?? (headers ? { uri: st.url, headers } : st.url)),
     mimeType: ok ? st.mimeType.split(";")[0] : undefined,
+    // Keyed by song, not URL (which changes every resolve), so a replay plays from the disk cache.
+    cacheKey:
+      ok && st.via !== "local"
+        ? `${track.id}:${st.via.split(":")[0]}:${st.contentLength ?? st.bitrate}`
+        : undefined,
     title: track.title,
     artist: artistLine(track.artists),
     albumTitle: track.album?.title,
@@ -238,8 +328,10 @@ async function ensureReady(
   try {
     const st = await resolveStream(track, force);
     const at = get().keys.indexOf(key);
-    if (nativeLoaded && at >= 0 && live.get(key) !== st.expiresAt)
+    if (nativeLoaded && at >= 0 && live.get(key) !== st.expiresAt) {
+      if (at === get().index) changedAt = Date.now();
       TrackPlayer.replaceMediaItem(at, mediaItem(key, track));
+    }
     return true;
   } catch (e) {
     // A failed prefetch of a later song must not show as an error on the one playing.
@@ -283,6 +375,7 @@ function loadNative(i: number): void {
     s.tracks.map((t, j) => mediaItem(s.keys[j], t)),
     i,
   );
+  changedAt = Date.now();
   nativeLoaded = true;
   TrackPlayer.setRepeatMode(NATIVE_REPEAT[s.repeat]);
   if (pendingSeek?.key === s.keys[i] && pendingSeek.position > 0)
@@ -356,8 +449,13 @@ function entered(key: string, rearmSleep: boolean): void {
     const st = streams.get(s.tracks[i].id);
     diag("track", `${s.tracks[i].id} via=${st?.via ?? "?"}`);
   }
-  if (rearmSleep && s.sleepAt === "endOfTrack")
-    TrackPlayer.sleepAfterMediaItemAtIndex(i);
+  // Picking another song moves "end of this song" to it; playback moving on by itself stops.
+  if (s.sleepAt === "endOfTrack" && key !== sleepKey) {
+    if (rearmSleep || !sleepKey) {
+      sleepKey = key;
+      TrackPlayer.sleepAfterMediaItemAtIndex(i);
+    } else sleepNow("end of song");
+  }
   // Native advanced onto a URL that is about to expire: swap it now (placeholders are left to onError).
   if (nativeLoaded && !loading && live.has(key) && !isFresh(live.get(key)))
     void swapCurrent(true);
@@ -373,7 +471,6 @@ async function goTo(
   autoplay = true,
   fade = fadeOutCurrent(),
 ): Promise<void> {
-  let i = target;
   loading = true;
   switching = true;
   // The old song fades out; if the new one still has to load, it then pauses instead of playing on under the new title.
@@ -384,16 +481,20 @@ async function goTo(
     });
   syncStatus();
   for (
-    let tries = 0;
-    tries < MAX_SKIPS && i >= 0 && i < get().tracks.length;
-    tries++, i++
+    let i = target;
+    failedStarts < MAX_FAILED_STARTS && i >= 0 && i < get().tracks.length;
+    i++
   ) {
     const ok = await ensureReady(i);
     if (gen !== navGen) return;
-    if (!ok) continue;
+    if (!ok) {
+      failedStarts++;
+      continue;
+    }
     if (fade) await fade;
     if (gen !== navGen) return;
     if (nativeLoaded) {
+      changedAt = Date.now();
       TrackPlayer.skipToIndex(i);
       // A drag made while this song loaded lands now, so the cat doesn't snap back.
       if (pendingSeek?.key === get().keys[i] && pendingSeek.position > 0)
@@ -412,6 +513,7 @@ async function goTo(
   loading = false;
   switching = false;
   pendingSeek = undefined;
+  if (failedStarts >= MAX_FAILED_STARTS) stopFailing();
   nativeState = PlaybackState.Error;
   // Nothing could play: bring the volume back for whatever plays next.
   applyVolume();
@@ -438,6 +540,7 @@ async function start(
   };
   retried.clear();
   failedVia.clear();
+  failedStarts = 0;
   const fade = fadeOutCurrent();
   nativeLoaded = false;
   pendingSeek = undefined;
@@ -528,7 +631,8 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
   const s = get();
   const key = s.keys[s.index];
   const track = s.tracks[s.index];
-  const via = track && live.has(key) ? streams.get(track.id)?.via : undefined;
+  const st = track && live.has(key) ? streams.get(track.id) : undefined;
+  const via = st?.via;
   diag("error", `${e.code}: ${e.message}${via ? ` via=${via}` : ""}`);
   if (e.code === "controller-connection-failed")
     return set({ error: e.message });
@@ -537,24 +641,27 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
   const position = TrackPlayer.getProgress().position || savedPos;
   const last = retried.get(key);
   // A source error (HTTP status, unreadable file) blames the stream's source, so the next source gets a turn.
-  // A YouTube URL that never starts counts too: AVPlayer just buffers on a refused URL.
-  const deadStart =
-    (e.code as string) === "stalled" &&
-    position < 1 &&
-    !!via?.startsWith("youtube:");
+  // A YouTube URL that stalls counts too: at the start AVPlayer just buffers a refused URL, mid-song it is a PO-token 403.
+  const stalledYouTube =
+    (e.code as string) === "stalled" && !!via?.startsWith("youtube:");
+  // A URL saved before a restart may belong to another network: fetch a new one before blaming its client.
+  const stale = !!st && fromDisk.has(st);
   const switched =
-    (e.code === "source" || deadStart) &&
+    !stale &&
+    (e.code === "source" || stalledYouTube) &&
     !!via &&
     blame(track.id, via) &&
     (failedVia.get(track.id)?.size ?? 0) <= MAX_SOURCE_SWITCHES;
+  if (stale) fromDisk.delete(st);
   // Otherwise one re-resolve per incident; a track that played 30 s since the last retry earns another.
-  if (switched || last === undefined || position > last + 30) {
+  if (switched || stale || last === undefined || position > last + 30) {
     retried.set(key, position);
     loading = true;
     syncStatus();
     try {
       await resolveStream(track, switched || live.has(key));
       if (gen !== navGen || get().keys[get().index] !== key) return;
+      changedAt = Date.now();
       TrackPlayer.replaceMediaItem(get().index, mediaItem(key, track));
       if (position > 0) TrackPlayer.seekTo(position);
       if (wantPlay) TrackPlayer.play();
@@ -570,10 +677,25 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
   } else set({ error: e.message });
   loading = false;
   if (gen !== navGen) return;
+  if (sleepDue()) sleepNow("end of song (failed)");
+  failedStarts = position < 1 ? failedStarts + 1 : 0;
+  if (failedStarts >= MAX_FAILED_STARTS) {
+    stopFailing();
+    nativeState = PlaybackState.Error;
+    return syncStatus();
+  }
   const now = get();
   const n = Q.stepIndex(now.tracks.length, now.index, 1, now.repeat === "all");
   if (n !== null && n !== now.index) await goTo(n, ++navGen, wantPlay);
   else syncStatus();
+}
+
+/** Songs keep failing to start (e.g. YouTube resting with no other source): stop and leave the error showing. */
+function stopFailing(): void {
+  diag("skip-guard", `${failedStarts} songs in a row did not start`);
+  failedStarts = 0;
+  wantPlay = false;
+  if (nativeLoaded) TrackPlayer.pause();
 }
 
 function tick(): void {
@@ -581,6 +703,7 @@ function tick(): void {
   const track = s.tracks[s.index];
   if (!track || !nativeLoaded) return;
   const { position, duration } = TrackPlayer.getProgress();
+  if (position >= 1) failedStarts = 0;
   const dur = chooseDuration(duration, track) || 0;
   if (!playedFired && (position >= 30 || (dur > 0 && position >= dur / 2))) {
     playedFired = true;
@@ -592,14 +715,32 @@ function tick(): void {
     emitPlayerEvent("finished", track);
   }
   if (Math.abs(position - savedPos) >= POS_EVERY_SEC) savePosition(position);
+  // Backstop for a countdown the native timer let slip (it counts ticks, which stall when iOS pauses the app).
+  if (
+    playing &&
+    typeof s.sleepAt === "number" &&
+    Date.now() > s.sleepAt + SLEEP_GRACE_MS
+  )
+    return sleepNow("timer backstop");
   if (dur > 0 && dur - position < NEAR_END_SEC) ensureAhead();
   guardEnd(position, duration, track);
+}
+
+const sleepDue = () =>
+  get().sleepAt === "endOfTrack" && sleepKey === get().keys[get().index];
+
+function sleepNow(reason: string): void {
+  diag("sleep", reason);
+  sleepKey = undefined;
+  set({ sleepAt: undefined });
+  TrackPlayer.cancelSleepTimer();
+  pause();
 }
 
 // When the player's own length is wrong, end the song at its real length instead of playing silence.
 function guardEnd(position: number, native: number, track: Track): void {
   clearTimeout(endTimer);
-  const trusted = trustedDuration(track);
+  const trusted = trustedDuration(track, native);
   if (!playing || !trusted || !disagrees(native, trusted) || native < trusted)
     return;
   const left = trusted + 1.5 - position;
@@ -613,8 +754,14 @@ function guardEnd(position: number, native: number, track: Track): void {
         "duration-guard",
         `${track.id} native=${Math.round(native)}s real=${Math.round(trusted)}s`,
       );
-      if (s.repeat === "one") return void TrackPlayer.seekTo(0);
       const n = Q.stepIndex(s.tracks.length, s.index, 1, s.repeat === "all");
+      // "End of this song": stop, with the next song loaded for whenever play is pressed.
+      if (sleepDue()) {
+        sleepNow("end of song");
+        if (n !== null && n !== s.index) void goTo(n, ++navGen, false);
+        return;
+      }
+      if (s.repeat === "one") return void TrackPlayer.seekTo(0);
       if (n !== null && n !== s.index) void goTo(n, ++navGen, true);
       else {
         pause();
@@ -737,14 +884,15 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
   TrackPlayer.registerRemoteHandlers({
     play: () => resume(),
     pause: () => pause(),
-    next: () => (set({ error: undefined }), step(1)),
-    previous: () => (set({ error: undefined }), back()),
+    next: () => (userMove(), step(1)),
+    previous: () => (userMove(), back()),
     seek: ({ position }) => seekTo(position),
   });
   TrackPlayer.addEventListener(
     Event.MediaItemTransition,
     ({ item, reason }) => {
       if (!item?.mediaId) return;
+      changedAt = Date.now();
       entered(item.mediaId, reason === "seek" || reason === "playlistChanged");
       if (reason === "repeat") {
         playedFired = finishedFired = false;
@@ -775,8 +923,13 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     }
   });
   TrackPlayer.addEventListener(Event.IsPlayingChanged, ({ playing: on }) => {
-    // A pause nobody asked for: a call, Siri, another app or headphones unplugged.
-    if (!on && wantPlay && !loading) diag("paused-by-system", nativeState);
+    // A pause nobody asked for: a call, Siri, another app or headphones unplugged (not a song still loading).
+    const settling =
+      Date.now() - changedAt < SETTLE_MS &&
+      (nativeState === PlaybackState.Ready ||
+        nativeState === PlaybackState.Buffering);
+    if (!on && wantPlay && !loading && !settling)
+      diag("paused-by-system", nativeState);
     playing = on;
     clearInterval(ticker);
     ticker = on ? setInterval(tick, TICK_MS) : undefined;
@@ -786,10 +939,20 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
   TrackPlayer.addEventListener(Event.PlaybackError, (e) => onError(e));
   TrackPlayer.addEventListener(Event.SleepTimerTriggered, () => {
     wantPlay = false;
+    sleepKey = undefined;
     set({ sleepAt: undefined });
   });
-  setupPromise = restore().catch(() => {});
+  setupPromise = loadStreams()
+    .catch(() => {})
+    .then(restore)
+    .catch(() => {});
   return setupPromise;
+}
+
+/** A song change someone asked for: clears the error and gives the skip guard a fresh count. */
+function userMove(): void {
+  failedStarts = 0;
+  set({ error: undefined });
 }
 
 function step(dir: 1 | -1): Promise<void> {
@@ -824,6 +987,7 @@ function pause(): void {
 async function resume(): Promise<void> {
   const s = get();
   if (!s.tracks.length || !opts) return;
+  failedStarts = 0;
   if (!nativeLoaded) return goTo(s.index, ++navGen);
   wantPlay = true;
   const key = s.keys[s.index];
@@ -922,11 +1086,11 @@ export const player: Player = {
   next() {
     const s = get();
     emitPlayerEvent("skipped", s.tracks[s.index]);
-    set({ error: undefined });
+    userMove();
     void step(1);
   },
   previous() {
-    set({ error: undefined });
+    userMove();
     void back();
   },
   seekTo,
@@ -965,7 +1129,7 @@ export const player: Player = {
     else ensureAhead();
   },
   skipTo(index) {
-    set({ error: undefined });
+    userMove();
     void goTo(index, ++navGen);
   },
   setShuffle(on) {
@@ -983,10 +1147,12 @@ export const player: Player = {
     saveQueue();
   },
   setSleepTimer(value) {
+    sleepKey = undefined;
     if (value === null) {
       TrackPlayer.cancelSleepTimer();
       set({ sleepAt: undefined });
     } else if (value === "endOfTrack") {
+      sleepKey = get().keys[get().index];
       if (nativeLoaded) TrackPlayer.sleepAfterMediaItemAtIndex(get().index);
       set({ sleepAt: "endOfTrack" });
     } else {
@@ -1063,8 +1229,12 @@ export function __resetForTests(): void {
   live.clear();
   retried.clear();
   failedVia.clear();
-  avoidVia.length = 0;
+  avoidVia.clear();
+  failedStarts = 0;
+  changedAt = 0;
+  clearTimeout(streamsTimer);
   nativeLoaded = false;
+  sleepKey = undefined;
   pendingSeek = undefined;
   switching = false;
   navGen = 0;
