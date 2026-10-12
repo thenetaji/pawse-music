@@ -25,6 +25,11 @@ Pawse is not affiliated with, endorsed by or connected to YouTube, Google, Apple
 
   Full licence texts: `packages/innertube/vendor/ejs/LICENSE` and `THIRD_PARTY_LICENSES.txt`.
 
+## Desktop sign-in
+
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Unlicense). `apps/desktop/src/firefox.mjs` ports the Firefox part of `--cookies-from-browser` (`yt_dlp/cookies.py`): where Firefox keeps its profiles (including Flatpak and Snap), picking the most recently used one, reading a copy of `cookies.sqlite`, skipping containers, and the millisecond expiry Firefox 142 introduced.
+- **[Ferdium](https://github.com/ferdium/ferdium-app)** (Apache-2.0). The sign-in window's user agent without a Chrome version number (`userAgentWithoutChromeVersion`), which Google lets through where a full Chrome user agent from Electron is turned away.
+
 ## PO tokens
 
 BotGuard Proof-of-Origin tokens for YouTube's web clients are minted in `packages/innertube/src/youtube/potoken/` inside a hidden browser page (a WebView on phones, a hidden window on computers). The code is written for Pawse from these projects:

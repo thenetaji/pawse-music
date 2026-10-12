@@ -2,6 +2,16 @@
 type DesktopBridge = {
   /** Opens Google's sign-in window; the YouTube Music cookie header, or null if it was closed. */
   signIn(): Promise<string | null>;
+  /** Opens YouTube Music in the default browser. */
+  browserOpen(): Promise<void>;
+  /** Reads YouTube Music's sign-in from the newest signed-in Firefox profile. */
+  browserSignIn(): Promise<{
+    cookies?: string;
+    browser?: string;
+    error?: "no-firefox" | "signed-out";
+  }>;
+  /** Fresh cookies re-read from Firefox while the app runs; returns an unsubscribe. */
+  onSession(cb: (cookies: string) => void): () => void;
   /** Forgets the sign-in window's Google cookies and the saved session. */
   signOut(): Promise<void>;
   /** The cookie header saved with the OS keychain, or null. */

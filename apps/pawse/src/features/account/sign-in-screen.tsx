@@ -40,10 +40,15 @@ export function SignInScreen({
   step,
   onContinue,
   web,
+  actions,
+  webTitle = "Google",
 }: {
   step: SignInStep;
   onContinue: () => void;
   web: ReactNode;
+  /** Replaces the single "Continue with Google" button (computers offer two ways). */
+  actions?: ReactNode;
+  webTitle?: string;
 }) {
   const insets = useSafeAreaInsets();
   const accent = useAccent();
@@ -54,7 +59,7 @@ export function SignInScreen({
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.bar}>
         <View style={{ width: 60 }} />
-        <Text style={styles.barTitle}>{step === "web" ? "Google" : ""}</Text>
+        <Text style={styles.barTitle}>{step === "web" ? webTitle : ""}</Text>
         <Pressable
           hitSlop={10}
           onPress={() => router.back()}
@@ -88,9 +93,11 @@ export function SignInScreen({
           <Text style={styles.note}>
             Your account is never used to stream. Music always plays signed out.
           </Text>
-          <PressScale onPress={onContinue} style={styles.cta}>
-            <Text style={styles.ctaText}>Continue with Google</Text>
-          </PressScale>
+          {actions ?? (
+            <PressScale onPress={onContinue} style={styles.cta}>
+              <Text style={styles.ctaText}>Continue with Google</Text>
+            </PressScale>
+          )}
         </Animated.View>
       ) : step === "web" ? (
         web

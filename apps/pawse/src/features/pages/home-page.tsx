@@ -25,6 +25,7 @@ import {
 import type { DailyMix } from "../../data/account";
 import { dailyMixes, useLibrary } from "../../data/library";
 import { useForYou } from "../../data/recommend";
+import { rightClick } from "../../lib/context-menu";
 import { yt } from "../../lib/engine";
 import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
@@ -270,6 +271,7 @@ function JumpBackIn() {
               })
             }
             onLongPress={() => showTrackActions(t, { removable: true })}
+            {...rightClick(() => showTrackActions(t, { removable: true }))}
             style={styles.tile}
           >
             <Artwork thumbnails={t.thumbnails} size={52} radius={8} />

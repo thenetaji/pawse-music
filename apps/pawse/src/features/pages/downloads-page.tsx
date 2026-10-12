@@ -20,8 +20,11 @@ import {
   useDownloads,
   useOnline,
 } from "../../data/downloads";
+import { hasMouse, rightClick } from "../../lib/context-menu";
 import { haptic } from "../../lib/haptics";
 import { display } from "../../lib/type";
+import { showTrackActions } from "../library/track-actions";
+import { MoreGlyph } from "../now-playing/icons";
 import { useAccent } from "../now-playing/now-palette";
 
 export default function DownloadsPage() {
@@ -34,6 +37,42 @@ export default function DownloadsPage() {
   const done = list.filter((d) => d.state === "done");
   const failed = list.filter((d) => d.state === "error").length;
   const kept = cached.list.map((c) => c.track);
+  const playAt = (id: string) => {
+    const i = done.findIndex((d) => d.id === id);
+    if (i < 0) return;
+    void player.play(
+      done.map((d) => d.track),
+      i,
+      { source: { type: "library", title: "Downloads" } },
+    );
+  };
+  // The swipe-to-delete, as a menu: right-click or "⋯" on computers.
+  const rowMenu = (item: (typeof list)[number]) =>
+    showSheet({
+      header: (
+        <View style={styles.menuHead}>
+          <Artwork thumbnails={item.track.thumbnails} size={44} radius={7} />
+          <Text style={[styles.title, { flex: 1 }]} numberOfLines={1}>
+            {item.track.title}
+          </Text>
+        </View>
+      ),
+      actions: [
+        ...(item.state === "done"
+          ? [{ label: "Play", onPress: () => playAt(item.id) }]
+          : []),
+        {
+          label: "Song options",
+          keepOpen: true,
+          onPress: () => showTrackActions(item.track),
+        },
+        {
+          label: "Delete download",
+          destructive: true,
+          onPress: () => removeDownload(item.id),
+        },
+      ],
+    });
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
@@ -174,17 +213,8 @@ export default function DownloadsPage() {
               }}
             >
               <Pressable
-                onPress={() =>
-                  item.state === "done" &&
-                  void player.play(
-                    done.map((d) => d.track),
-                    Math.max(
-                      0,
-                      done.findIndex((d) => d.id === item.id),
-                    ),
-                    { source: { type: "library", title: "Downloads" } },
-                  )
-                }
+                onPress={() => playAt(item.id)}
+                {...rightClick(() => rowMenu(item))}
                 style={styles.row}
               >
                 <Artwork
@@ -219,6 +249,16 @@ export default function DownloadsPage() {
                     </View>
                   ) : null}
                 </View>
+                {hasMouse ? (
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => rowMenu(item)}
+                    accessibilityLabel="More"
+                    style={styles.more}
+                  >
+                    <MoreGlyph size={18} color="rgba(255,255,255,0.5)" />
+                  </Pressable>
+                ) : null}
               </Pressable>
             </ReanimatedSwipeable>
           )}
@@ -273,6 +313,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   title: { color: "#fff", fontSize: 16, fontWeight: "500" },
+  menuHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  more: { paddingHorizontal: 6, paddingVertical: 8 },
   sub: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 2 },
   bar: {
     height: 3,

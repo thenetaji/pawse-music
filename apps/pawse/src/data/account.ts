@@ -1,4 +1,5 @@
 import type { ArtistSummary, Track } from "@pawse/music-core";
+import { desktop } from "../lib/desktop";
 import { yt, ytAccount } from "./clients";
 import { onDislike, onLike, useLibrary } from "./library";
 import { listeningStats, parsePlaylistId, strip } from "./library-model";
@@ -322,4 +323,9 @@ export function startAccountSync(): void {
   };
   onLike((track, on) => mirror(track, on ? "like" : "none"));
   onDislike((track, on) => mirror(track, on ? "dislike" : "none"));
+  // A Firefox sign-in follows Google's cookie refreshes while the desktop app runs.
+  desktop?.onSession((cookies) => {
+    if (useLibrary.getState().settings.cookies)
+      useLibrary.getState().setSettings({ cookies });
+  });
 }

@@ -4,6 +4,16 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-12
+
+### Added
+- **Sign in with your browser on computers.** **Use my browser** opens YouTube Music in your browser; sign in there with Firefox and Pawse picks up your account by itself within a few seconds. Google never sees Pawse, so it can't turn it away, and passkeys and 2-step verification work as usual. Pawse finds Firefox, Firefox Developer Edition and Nightly, including Flatpak and Snap installs, and keeps up with Google's refreshes for as long as you stay signed in to Firefox. This follows yt-dlp's `--cookies-from-browser`.
+- **Right-click on computers** opens the same menu a long press opens on a phone: songs in lists, song cards on Home and in search, **Jump back in** tiles, and lyrics lines (to share them).
+- On computers, queue rows and downloads have a **⋯** button and a right-click menu for what phones do by swiping: **Play now**, **Play next**, **Add to playlist** and **Remove from queue** in the queue; **Play**, **Song options** and **Delete download** in Downloads. On Home and in History, a song's right-click menu has **Remove from Home & history**.
+
+### Fixed
+- **"Couldn't sign you in: this browser or app may not be secure"** in Pawse's own Google sign-in window on Mac, Windows and Linux. **Sign in here instead** gets through again.
+
 ## [1.3.0] - 2026-10-12
 
 ### Added

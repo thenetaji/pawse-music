@@ -7,6 +7,7 @@ import {
 import { player } from "@pawse/player";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { showTrackActions } from "../features/library/track-actions";
+import { rightClick } from "../lib/context-menu";
 import { useContentWidth } from "../lib/layout";
 import { go } from "../lib/nav";
 import { autoplayMode } from "../lib/settings";
@@ -187,6 +188,9 @@ export function Card({
           ? () => showTrackActions(item, { removable })
           : undefined
       }
+      {...(item.type === "track"
+        ? rightClick(() => showTrackActions(item, { removable }))
+        : {})}
       style={({ pressed }) => [
         { width: wide ? size * 1.6 : size },
         pressed && { opacity: 0.7 },

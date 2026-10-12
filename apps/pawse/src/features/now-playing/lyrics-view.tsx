@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 
+import { rightClick } from "../../lib/context-menu";
 import { activeLine } from "../../lib/lrc";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
@@ -94,6 +95,7 @@ export function LyricsView({ lyrics, loading, onSeek, onShare }: Props) {
           }
           onPress={() => onSeek(line.startMs / 1000 + 0.01)}
           onLongPress={() => line.text && onShare?.(line.text)}
+          {...rightClick(() => line.text && onShare?.(line.text))}
           style={styles.linePress}
         >
           <Line

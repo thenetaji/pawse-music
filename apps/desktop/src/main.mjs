@@ -16,7 +16,14 @@ import {
   shell,
 } from "electron";
 
-import { readSession, signIn, signOut, writeSession } from "./google.mjs";
+import {
+  readSession,
+  signIn,
+  signInWithBrowser,
+  signOut,
+  watchBrowserSession,
+  writeSession,
+} from "./google.mjs";
 import { relay } from "./relay.mjs";
 import { closeSandbox, sandboxRun } from "./sandbox.mjs";
 
@@ -173,16 +180,25 @@ else {
     ipcMain.handle("pawse:sign-in", (e) =>
       signIn(BrowserWindow.fromWebContents(e.sender)),
     );
+    // "Use my browser": YouTube Music opens in the default browser, then Pawse reads Firefox's sign-in.
+    ipcMain.handle("pawse:browser-open", () =>
+      shell.openExternal("https://music.youtube.com/"),
+    );
+    ipcMain.handle("pawse:browser-sign-in", () => signInWithBrowser());
     ipcMain.handle("pawse:sign-out", () => signOut());
     ipcMain.on("pawse:session-read", (e) => {
       e.returnValue = readSession();
     });
     ipcMain.on("pawse:session-write", (_e, cookies) => writeSession(cookies));
     ipcMain.handle("pawse:sandbox-run", (e, code, timeoutMs) => {
-      if (!e.senderFrame?.url.startsWith(ORIGIN)) throw new Error("not allowed");
+      if (!e.senderFrame?.url.startsWith(ORIGIN))
+        throw new Error("not allowed");
       return sandboxRun(code, timeoutMs);
     });
     if (!mac) Menu.setApplicationMenu(null);
     win = createWindow();
+    watchBrowserSession((cookies) =>
+      win?.webContents.send("pawse:session", cookies),
+    );
   });
 }

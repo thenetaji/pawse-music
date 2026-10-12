@@ -25,8 +25,10 @@ import { PressScale } from "../components/ui";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { showPlaylistPicker } from "../features/library/playlist-tools";
 import { ColorField } from "../features/now-playing/color-field";
+import { MoreGlyph } from "../features/now-playing/icons";
 import { useAccent, useNowPalette } from "../features/now-playing/now-palette";
 import { ShuffleGlyph } from "../features/pages/collection";
+import { hasMouse, rightClick } from "../lib/context-menu";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
 import { display } from "../lib/type";
@@ -228,6 +230,40 @@ export default function Queue() {
   );
 }
 
+// What the row's swipes do, as a menu: right-click or "⋯" on computers.
+function showRowMenu(track: Track, at: number) {
+  haptic.light();
+  showSheet({
+    header: (
+      <View style={styles.menuHead}>
+        <Artwork thumbnails={track.thumbnails} size={44} radius={7} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.title} numberOfLines={1}>
+            {track.title}
+          </Text>
+          <Text style={styles.sub} numberOfLines={1}>
+            {artistLine(track.artists)}
+          </Text>
+        </View>
+      </View>
+    ),
+    actions: [
+      { label: "Play now", onPress: () => player.skipTo(at) },
+      { label: "Play next", onPress: () => playNextWithUndo(track, at) },
+      {
+        label: "Add to playlist",
+        keepOpen: true,
+        onPress: () => showPlaylistPicker([track]),
+      },
+      {
+        label: "Remove from queue",
+        destructive: true,
+        onPress: () => removeWithUndo(track, at),
+      },
+    ],
+  });
+}
+
 const Row = memo(function Row({ track, at }: { track: Track; at: number }) {
   const drag = useReorderableDrag();
   const active = useIsActive();
@@ -252,6 +288,7 @@ const Row = memo(function Row({ track, at }: { track: Track; at: number }) {
         }}
         onLongPress={drag}
         delayLongPress={220}
+        {...rightClick(() => showRowMenu(track, at))}
         style={[styles.row, active && styles.rowActive]}
       >
         <Artwork thumbnails={track.thumbnails} size={48} radius={7} />
@@ -263,6 +300,16 @@ const Row = memo(function Row({ track, at }: { track: Track; at: number }) {
             {artistLine(track.artists)}
           </Text>
         </View>
+        {hasMouse ? (
+          <Pressable
+            hitSlop={8}
+            onPress={() => showRowMenu(track, at)}
+            accessibilityLabel="More"
+            style={styles.handle}
+          >
+            <MoreGlyph size={18} color="rgba(255,255,255,0.5)" />
+          </Pressable>
+        ) : null}
         <Pressable hitSlop={8} onPressIn={drag} style={styles.handle}>
           <View style={styles.bar} />
           <View style={styles.bar} />
@@ -391,6 +438,7 @@ const styles = StyleSheet.create({
   },
   from: { flex: 1, color: "rgba(255,255,255,0.45)", fontSize: 14 },
   save: { fontSize: 15, ...display("800") },
+  menuHead: { flexDirection: "row", alignItems: "center", gap: 12 },
   empty: { alignItems: "center", paddingTop: 40, paddingHorizontal: 40 },
   emptyText: {
     color: "rgba(255,255,255,0.5)",

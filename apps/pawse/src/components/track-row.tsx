@@ -15,6 +15,7 @@ import { useDownload } from "../data/downloads";
 import { showTrackActions } from "../features/library/track-actions";
 import { MoreGlyph } from "../features/now-playing/icons";
 import { useAccent } from "../features/now-playing/now-palette";
+import { rightClick } from "../lib/context-menu";
 import { haptic } from "../lib/haptics";
 import { display } from "../lib/type";
 import { Artwork } from "./artwork";
@@ -60,6 +61,7 @@ export const TrackRow = memo(function TrackRow({
       }}
       onLongPress={() => showTrackActions(track, { removable })}
       delayLongPress={300}
+      {...rightClick(() => showTrackActions(track, { removable }))}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
       {showArt ? (
