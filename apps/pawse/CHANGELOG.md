@@ -4,6 +4,23 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-12
+
+### Added
+- **More ways to reach YouTube.** Pawse now asks the way YouTube Music's own website does (with a "proof of origin" token from a hidden page), the way YouTube's TV app does, and the way an embedded player does, before falling back to the visionOS ways it used until now. Fewer songs get stuck or skipped.
+- **Follows yt-dlp.** The list of ways to ask YouTube and the code that unlocks YouTube's song links come straight from yt-dlp, so when yt-dlp adapts to a YouTube change, Pawse can pick it up quickly. Credits for yt-dlp, NewPipe, Metrolist, BgUtils and others are in NOTICE.md.
+- **Songs you've played replay from your phone.** A song in Pawse's cache plays from the phone instead of downloading again, which saves data and keeps YouTube happier.
+
+### Changed
+- **When YouTube asks "are you a bot?", Pawse backs off** for 15 minutes (then 30, then 60 if it keeps asking) instead of trying again and again, and plays the song from JioSaavn or your downloads meanwhile.
+- A YouTube song that stops partway through picks up where it stopped through another way of asking YouTube; the way that failed rests for 30 minutes.
+- If three songs in a row can't start, Pawse stops and tells you instead of skipping through your whole queue.
+- Pawse keeps one visitor id instead of looking new to YouTube every time, and fetches only the next song ahead instead of two.
+
+### Fixed
+- **Sleep timer: "End of this song" stops the music.** It used to slip to the next song and keep playing. The timed sleep timer now keeps time correctly when the phone sleeps.
+- Songs played in data-saver quality no longer go silent halfway while the time keeps running. iPhone read these songs as twice their length.
+
 ## [1.1.0] - 2026-10-11
 
 ### Added

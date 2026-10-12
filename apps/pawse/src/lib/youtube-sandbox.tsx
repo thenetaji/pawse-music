@@ -1,4 +1,4 @@
-import type { JsSandbox } from "@pawse/innertube";
+import { type JsSandbox, SANDBOX_USER_AGENT } from "@pawse/innertube";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { WebView } from "react-native-webview";
@@ -34,6 +34,8 @@ export function YouTubeSandboxHost() {
         originWhitelist={["*"]}
         incognito
         javaScriptEnabled
+        // A desktop Safari UA, like the web_music client: a phone UA gets m.youtube.com, which has no BotGuard challenge.
+        userAgent={SANDBOX_USER_AGENT}
         setSupportMultipleWindows={false}
         javaScriptCanOpenWindowsAutomatically={false}
         allowsLinkPreview={false}
