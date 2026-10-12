@@ -1,5 +1,5 @@
-import TrackPlayer from "@rntp/player";
 import type { ResolvedStream, ResolveOptions, Track } from "@pawse/music-core";
+import TrackPlayer from "@rntp/player";
 
 import { Platform } from "react-native";
 
@@ -213,7 +213,7 @@ test("a playback error re-resolves once at the same position, then skips to the 
   });
 });
 
-test("a source error re-resolves with the next client, demotes the failed one for later tracks, then skips when none is left", async () => {
+test("a source error re-resolves with the next client, skips when none is left, and demotes a client only once it fails a second song", async () => {
   const clients = ["youtube:a", "youtube:b", "youtube:c"];
   const byClient = jest.fn(
     async (
@@ -249,7 +249,8 @@ test("a source error re-resolves with the next client, demotes the failed one fo
     "source: Source error via=youtube:a",
   );
   expect(urlAt(0)).toMatch("/x/youtube:b/");
-  expect(urlAt(1)).toMatch("/y/youtube:b/");
+  expect(urlAt(1)).toMatch("/y/youtube:a/");
+  expect(diag).not.toHaveBeenCalledWith("source-avoided", expect.anything());
   expect(usePlayerStore.getState().index).toBe(0);
 
   await rntp.__emit("event.playback-error", source);
@@ -259,6 +260,11 @@ test("a source error re-resolves with the next client, demotes the failed one fo
   expect(diag).toHaveBeenCalledWith("resolve-failed", "x: no client left");
   expect(usePlayerStore.getState().index).toBe(1);
   expect(tp.skipToIndex).toHaveBeenLastCalledWith(1);
+
+  await rntp.__emit("event.playback-error", source);
+  await flush();
+  expect(diag).toHaveBeenCalledWith("source-avoided", "youtube:a");
+  expect(urlAt(1)).toMatch("/y/youtube:b/");
 });
 
 test("radio refills from upNext when fewer than 3 remain, de-duplicated, then follows the continuation", async () => {
@@ -446,7 +452,7 @@ const clientResolver = (clients: string[]) =>
     },
   );
 
-test("a YouTube stream that stalls mid-song re-resolves at the same spot on the next client, which stays last for 30 min", async () => {
+test("a YouTube stream that stalls mid-song re-resolves at the same spot on the next client; a client that stalls two songs stays last for 30 min", async () => {
   const byClient = clientResolver(["youtube:a", "youtube:b"]);
   const diag = jest.fn();
   await setupPlayer({ resolver: { resolve: byClient }, onDiagnostic: diag });
@@ -458,10 +464,18 @@ test("a YouTube stream that stalls mid-song re-resolves at the same spot on the 
     message: "Playback stalled",
   });
   await flush();
-  expect(diag).toHaveBeenCalledWith("source-avoided", "youtube:a");
+  expect(diag).not.toHaveBeenCalledWith("source-avoided", expect.anything());
   expect(urlAt(0)).toMatch("/x/youtube:b/");
   expect(tp.seekTo).toHaveBeenLastCalledWith(62);
-  expect(urlAt(1)).toMatch("/y/youtube:b/");
+  expect(urlAt(1)).toMatch("/y/youtube:a/");
+
+  await player.play(tracks("y"));
+  await rntp.__emit("event.playback-error", {
+    code: "stalled",
+    message: "Playback stalled",
+  });
+  await flush();
+  expect(diag).toHaveBeenCalledWith("source-avoided", "youtube:a");
 
   now += 29 * 60_000;
   await player.play(tracks("p"));
@@ -487,9 +501,10 @@ test("three songs in a row that cannot resolve stop playback with the error inst
   });
   expect(diag).toHaveBeenCalledWith("skip-guard", expect.any(String));
 
+  // A skip you ask for looks through the rest of the queue (b to f).
   player.next();
   await flush();
-  expect(resting).toHaveBeenCalledTimes(6);
+  expect(resting).toHaveBeenCalledTimes(8);
 });
 
 test("three songs in a row that resolve but never start stop on the third", async () => {
@@ -539,7 +554,13 @@ test("resolved streams survive a restart, and one restored that fails is fetched
   expect(byClient.mock.calls.map(([t]) => t.id)).toEqual(["a"]);
   expect(urlAt(0)).toMatch("/a/youtube:a/");
 
-  // A failure of the fresh URL blames the client, and its streams are no longer saved.
+  // Fresh URLs failing on two songs blame the client, and its streams are no longer saved.
+  await rntp.__emit("event.playback-error", { code: "source", message: "403" });
+  await flush();
+  expect(diag).not.toHaveBeenCalledWith("source-avoided", expect.anything());
+  await player.play(tracks("c"));
+  await flush();
+  expect(urlAt(0)).toMatch("/c/youtube:a/");
   await rntp.__emit("event.playback-error", { code: "source", message: "403" });
   await flush();
   expect(diag).toHaveBeenCalledWith("source-avoided", "youtube:a");
@@ -582,4 +603,46 @@ test("on iOS an HE-AAC song saved with the doubled length plays to its real leng
   await player.play([{ ...track("a"), durationSec: 200 }, track("b")]);
   await flush();
   expect(getProgress().duration).toBe(100);
+});
+
+test("a skip you ask for looks past songs that can't play, and the old song carries on when none can", async () => {
+  const dead = new Set(["b", "c", "d"]);
+  resolve.mockImplementation(async (t) => {
+    if (dead.has(t.id)) throw new Error("YouTube is resting after a bot check");
+    return {
+      url: `https://a/${t.id}/${++version}`,
+      mimeType: 'audio/mp4; codecs="mp4a.40.2"',
+      bitrate: 130_000,
+      expiresAt: now + 6 * HOUR,
+      via: "test",
+    };
+  });
+  await setupPlayer({ resolver: { resolve } });
+  await player.play(tracks("a", "b", "c", "d", "e"));
+  await flush();
+  await rntp.__emit("event.is-playing-changed", { playing: true });
+  const fadeOut = () => new Promise((r) => setTimeout(r, 1200));
+  player.next();
+  await fadeOut();
+  await flush();
+  expect(usePlayerStore.getState().index).toBe(4);
+  expect(tp.skipToIndex).toHaveBeenLastCalledWith(4);
+
+  // Previous looks backwards past d, c and b; a still has its link from earlier, so it plays.
+  player.previous();
+  await fadeOut();
+  await flush();
+  expect(usePlayerStore.getState().index).toBe(0);
+
+  // A fresh queue where nothing after x can play: x carries on.
+  dead.add("y").add("z");
+  await player.play(tracks("x", "y", "z"));
+  await flush();
+  await rntp.__emit("event.is-playing-changed", { playing: true });
+  tp.play.mockClear();
+  player.next();
+  await fadeOut();
+  await flush();
+  expect(usePlayerStore.getState().index).toBe(0);
+  expect(tp.play).toHaveBeenCalled();
 });

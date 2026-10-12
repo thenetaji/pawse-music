@@ -145,14 +145,19 @@ describe("client fallback chain", () => {
     ]);
   });
 
-  it("stops early on a definite unplayable", async () => {
-    const m = mockFetch([unplayable, player]);
-    const err = await yt(m.fetch)
+  it("asks the next client after one says unplayable, and stops when two do", async () => {
+    // web_music says "Video unavailable" for songs VISIONOS plays.
+    const one = mockFetch([unplayable, player]);
+    expect((await yt(one.fetch).resolve(track)).via).toBe(
+      "youtube:visionos-1.03",
+    );
+    const two = mockFetch([unplayable, unplayable, player]);
+    const err = await yt(two.fetch)
       .resolve(track)
       .catch((e) => e);
     expect(err).toBeInstanceOf(StreamError);
     expect(err.code).toBe("unplayable");
-    expect(m.players()).toHaveLength(1);
+    expect(two.players()).toHaveLength(2);
   });
 
   it("maps age gates and missing AAC", async () => {
@@ -377,14 +382,27 @@ describe("bot checks rest YouTube", () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
-  it("stops the chain on the first bot check and skips the retry without a visitor id", async () => {
-    const m = mockFetch([botCheck, player]);
-    const err = await yt(m.fetch, { visitorData: "Cgt2aXNpdG9y" })
-      .resolve(track)
-      .catch((e) => e);
+  it("benches a client that alone got a bot check while the next one plays", async () => {
+    const m = mockFetch([botCheck, player, player]);
+    const y = yt(m.fetch, { visitorData: "Cgt2aXNpdG9y" });
+    expect((await y.resolve(track)).via).toBe("youtube:visionos-1.03");
+    expect(m.players()).toHaveLength(2);
+    // The benched client sits out the next resolve instead of being asked again.
+    expect((await y.resolve(track)).via).toBe("youtube:visionos-1.03");
+    expect(m.players()).toHaveLength(3);
+    expect(isYouTubeResting(await y.resolve(track).catch((e) => e))).toBe(
+      false,
+    );
+  });
+
+  it("stops the chain on a second bot check and skips the retry without a visitor id", async () => {
+    const m = mockFetch([botCheck, botCheck, player]);
+    const y = yt(m.fetch, { visitorData: "Cgt2aXNpdG9y" });
+    const err = await y.resolve(track).catch((e) => e);
     expect(err).toMatchObject({ code: "blocked" });
     expect(err.message).toMatch(/not a bot/);
-    expect(m.players()).toHaveLength(1);
+    expect(m.players()).toHaveLength(2);
+    expect(isYouTubeResting(await y.resolve(track).catch((e) => e))).toBe(true);
   });
 
   it("rests 15, then 30, then 60 min without a network call, and a working resolve resets it", async () => {
@@ -398,36 +416,49 @@ describe("bot checks rest YouTube", () => {
     const onRequestError = jest.fn();
     const y = yt(m.fetch, { onRequestError });
     const tryNow = () => y.resolve(track).catch((e) => e);
+    const asked = () => m.players().length;
 
     expect(isYouTubeResting(await tryNow())).toBe(false);
     expect(onRequestError).toHaveBeenCalledWith(
       "player",
       expect.objectContaining({ message: expect.stringMatching(/15 min/) }),
     );
+    expect(asked()).toBe(2);
     now += 14 * MIN;
     const resting = await tryNow();
     expect(isYouTubeResting(resting)).toBe(true);
     expect(resting).toMatchObject({ code: "blocked" });
-    expect(m.players()).toHaveLength(1);
+    expect(asked()).toBe(2);
 
     now += 2 * MIN;
     await tryNow();
-    expect(m.players()).toHaveLength(2);
+    expect(asked()).toBe(4);
+    expect(onRequestError).toHaveBeenLastCalledWith(
+      "player",
+      expect.objectContaining({ message: expect.stringMatching(/30 min/) }),
+    );
     now += 29 * MIN;
     expect(isYouTubeResting(await tryNow())).toBe(true);
     now += 2 * MIN;
     await tryNow();
+    expect(onRequestError).toHaveBeenLastCalledWith(
+      "player",
+      expect.objectContaining({ message: expect.stringMatching(/60 min/) }),
+    );
     now += 59 * MIN;
     expect(isYouTubeResting(await tryNow())).toBe(true);
-    now += 2 * MIN;
+    now += 32 * MIN;
     answer = player;
     expect((await y.resolve(track)).via).toBe("youtube:visionos-1.02");
 
     answer = botCheck;
     await tryNow();
+    expect(onRequestError).toHaveBeenLastCalledWith(
+      "player",
+      expect.objectContaining({ message: expect.stringMatching(/15 min/) }),
+    );
     now += 16 * MIN;
     expect(isYouTubeResting(await tryNow())).toBe(false);
-    expect(m.players()).toHaveLength(6);
   });
 
   it("treats an answer for a different video as a bot answer", async () => {
@@ -435,13 +466,13 @@ describe("bot checks rest YouTube", () => {
       ...player,
       videoDetails: { ...player.videoDetails, videoId: "aaaaaaaaaaa" },
     };
-    const m = mockFetch([decoy, player]);
+    const m = mockFetch([decoy, decoy, player]);
     const y = yt(m.fetch);
     await expect(y.resolve(track)).rejects.toMatchObject({
       code: "blocked",
       message: "YouTube answered for a different video",
     });
-    expect(m.players()).toHaveLength(1);
+    expect(m.players()).toHaveLength(2);
     expect(isYouTubeResting(await y.resolve(track).catch((e) => e))).toBe(true);
   });
 
@@ -462,13 +493,13 @@ describe("bot checks rest YouTube", () => {
     await y.search("x").catch(() => undefined);
     expect(onVisitorData).not.toHaveBeenCalled();
     await y.resolve(track).catch(() => undefined);
-    expect(players).toEqual(["Saved"]);
+    expect(players).toEqual(["Saved", "Saved"]);
 
     await y.search("x").catch(() => undefined);
     expect(onVisitorData).toHaveBeenCalledWith("Fresh");
     now += 16 * MIN;
     await y.resolve(track).catch(() => undefined);
-    expect(players).toEqual(["Saved", "Fresh"]);
+    expect(players).toEqual(["Saved", "Saved", "Fresh", "Fresh"]);
     // A second block within the hour keeps the id.
     now += 31 * MIN;
     answer = player;

@@ -16,6 +16,8 @@ export type LocalPlaylist = {
   updatedAt: number;
   /** YouTube playlist this was imported from. */
   sourceId?: string;
+  /** When each song joined, by track id (older playlists: list order). */
+  added?: Record<string, number>;
 };
 export type Play = { track: Track; at: number };
 export type CatColor = "orange" | "black" | "white" | "grey";
@@ -165,6 +167,67 @@ export function moveItem<T>(list: T[], from: number, to: number): T[] {
   const [x] = next.splice(from, 1);
   next.splice(Math.max(0, Math.min(to, next.length)), 0, x);
   return next;
+}
+
+export type PlaylistSort = "title" | "artist" | "added" | "plays";
+
+const songNorm = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[([].*?[)\]]/g, " ")
+    .replace(/\s(feat|ft)\.?\s.*$/, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+const songOf = (t: Track) =>
+  `${songNorm(t.title)}|${songNorm(t.artists[0]?.name ?? "")}`;
+
+/** Drops repeats: the same id, or the same song from another upload (title and main artist, length within 3 s). */
+export function dedupeTracks(tracks: Track[]): Track[] {
+  const ids = new Set<string>();
+  const songs = new Map<string, number | undefined>();
+  return tracks.filter((t) => {
+    if (ids.has(t.id)) return false;
+    const key = songOf(t);
+    if (songs.has(key)) {
+      const d = songs.get(key);
+      if (!d || !t.durationSec || Math.abs(d - t.durationSec) <= 3)
+        return false;
+    }
+    ids.add(t.id);
+    songs.set(key, t.durationSec);
+    return true;
+  });
+}
+
+/** Join times for a playlist, filling in list order for songs added before Pawse kept them. */
+export function addedTimes(p: LocalPlaylist): Record<string, number> {
+  const out: Record<string, number> = {};
+  p.tracks.forEach((t, i) => (out[t.id] = p.added?.[t.id] ?? p.createdAt + i));
+  return out;
+}
+
+const byText = (a: string, b: string) =>
+  a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+
+/** A playlist's songs in a new order; ties keep their current order. */
+export function sortTracks(
+  tracks: Track[],
+  by: PlaylistSort,
+  added: Record<string, number>,
+  plays: Map<string, number>,
+): Track[] {
+  const at = new Map(tracks.map((t, i) => [t.id, i]));
+  const cmp: Record<PlaylistSort, (a: Track, b: Track) => number> = {
+    title: (a, b) => byText(a.title, b.title),
+    artist: (a, b) =>
+      byText(a.artists[0]?.name ?? "", b.artists[0]?.name ?? "") ||
+      byText(a.title, b.title),
+    added: (a, b) => (added[b.id] ?? 0) - (added[a.id] ?? 0),
+    plays: (a, b) => (plays.get(b.id) ?? 0) - (plays.get(a.id) ?? 0),
+  };
+  return [...tracks].sort(
+    (a, b) => cmp[by](a, b) || at.get(a.id)! - at.get(b.id)!,
+  );
 }
 
 /** Local-only likes first, then YouTube's order; drops likes YouTube had last sync but no longer has. */

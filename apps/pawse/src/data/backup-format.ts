@@ -226,6 +226,15 @@ export function parseBackup(json: unknown): Backup {
       createdAt: Number(p.createdAt) || now,
       updatedAt: Number(p.updatedAt) || now,
       ...(str(p.sourceId, 100) ? { sourceId: p.sourceId as string } : {}),
+      ...(isObj(p.added)
+        ? {
+            added: Object.fromEntries(
+              Object.entries(p.added)
+                .filter(([k, v]) => str(k, 100) && Number(v) > 0)
+                .map(([k, v]) => [k, Number(v)]),
+            ),
+          }
+        : {}),
     }));
   const history: Play[] = list(json.history)
     .filter((p) => isObj(p) && Number(p.at) > 0)

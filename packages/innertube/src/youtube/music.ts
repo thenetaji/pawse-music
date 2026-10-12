@@ -130,6 +130,7 @@ const ACCOUNT_REFILL_MS = 2000;
 // YouTube pushing back on the account (401/403/429) rests it for half an hour: no cookies, no writes.
 const ACCOUNT_PUSHBACK = new Set([401, 403, 429]);
 const ACCOUNT_REST_MS = 30 * 60_000;
+const PLAYLIST_EDIT_BATCH = 50;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const IDEMPOTENT = new Set([
@@ -142,6 +143,8 @@ const IDEMPOTENT = new Set([
 const BOOTSTRAP_RETRY_MS = 5 * 60_000;
 // A bot check rests stream resolving, longer each time in a row; a resolve that works resets it.
 const YT_REST_MS = [15 * 60_000, 30 * 60_000, 60 * 60_000];
+// A client that alone got a bot check sits out this long; the others keep playing.
+const BENCH_MS = 30 * 60_000;
 const VISITOR_ROTATE_MS = 3600_000;
 
 interface WebConfig {
@@ -216,6 +219,8 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
   private refilledAt = Date.now();
   private paced: Promise<void> = Promise.resolve();
   private restUntil = 0;
+  private readonly benched = new Map<string, number>();
+  private readonly refusals = new Map<string, Map<string, number>>();
   private ytRestUntil = 0;
   private ytRests = 0;
   private visitorRotatedAt = 0;
@@ -659,6 +664,54 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     );
   }
 
+  /** Adds videos to one of the account's playlists, up to 50 per request; duplicates are skipped. */
+  async addToPlaylist(playlistId: string, videoIds: string[]): Promise<void> {
+    const ids = [...new Set(videoIds)];
+    for (let i = 0; i < ids.length; i += PLAYLIST_EDIT_BATCH)
+      await this.editPlaylist(
+        playlistId,
+        ids.slice(i, i + PLAYLIST_EDIT_BATCH).map((addedVideoId) => ({
+          action: "ACTION_ADD_VIDEO",
+          addedVideoId,
+          dedupeOption: "DEDUPE_OPTION_SKIP",
+        })),
+      );
+  }
+
+  /** Removes playlist entries by the setVideoId their rows carry, up to 50 per request. */
+  async removeFromPlaylist(
+    playlistId: string,
+    items: { videoId: string; setVideoId: string }[],
+  ): Promise<void> {
+    for (let i = 0; i < items.length; i += PLAYLIST_EDIT_BATCH)
+      await this.editPlaylist(
+        playlistId,
+        items
+          .slice(i, i + PLAYLIST_EDIT_BATCH)
+          .map(({ videoId, setVideoId }) => ({
+            action: "ACTION_REMOVE_VIDEO",
+            setVideoId,
+            removedVideoId: videoId,
+          })),
+      );
+  }
+
+  private async editPlaylist(
+    playlistId: string,
+    actions: Record<string, string>[],
+  ): Promise<void> {
+    await this.requireCookie();
+    const json = await this.call("browse/edit_playlist", {
+      // Library browse ids carry a "VL" prefix the edit endpoint does not take.
+      playlistId: playlistId.replace(/^VL/, ""),
+      actions,
+    });
+    if (json?.status !== "STATUS_SUCCEEDED")
+      throw new Error(
+        `YouTube Music playlist edit failed (${json?.status ?? "no status"})`,
+      );
+  }
+
   /** Who YouTube thinks is signed in; null when the session isn't accepted. */
   async accountInfo(): Promise<{
     name: string;
@@ -753,6 +806,20 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     }
   }
 
+  /** A client whose media links 403 on two different songs sits out like a bot-checked one. */
+  private noteRefusals(trackId: string): void {
+    const now = Date.now();
+    for (const a of this.lastResolveAttempts) {
+      if (!/media url answered 403/.test(a.error ?? "")) continue;
+      const via = `youtube:${a.client}`;
+      const hits = this.refusals.get(via) ?? new Map<string, number>();
+      for (const [id, at] of hits) if (now - at > BENCH_MS) hits.delete(id);
+      hits.set(trackId, now);
+      this.refusals.set(via, hits);
+      if (hits.size >= 2) this.benched.set(via, now + BENCH_MS);
+    }
+  }
+
   // StreamResolver
 
   async resolve(
@@ -770,6 +837,9 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     }
     const clients = await this.clients.get();
     this.lastResolveAttempts = [];
+    const now = Date.now();
+    for (const [via, until] of this.benched)
+      if (until <= now) this.benched.delete(via);
     try {
       const stream = await resolveYouTubeStream(
         track.id,
@@ -783,18 +853,27 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
           verifyBudgetMs: this.verifyBudgetMs,
           quality: options.quality,
           opus: this.opus,
-          exclude: options.exclude,
+          exclude: [...(options.exclude ?? []), ...this.benched.keys()],
           avoid: options.avoid,
+          onBot: (via) => this.benched.set(via, Date.now() + BENCH_MS),
           sandbox: this.sandbox,
           poToken: this.poToken,
         },
         this.lastResolveAttempts,
       );
       this.ytRests = 0;
+      this.noteRefusals(track.id);
       return stream;
     } catch (e) {
+      this.noteRefusals(track.id);
+      // Rest only when the IP looks flagged: two clients said bot, or every client tried did.
+      const bots = this.lastResolveAttempts.filter((a) =>
+        /bot|sign in to confirm you|different video/i.test(a.error ?? ""),
+      ).length;
+      const ipWide =
+        bots >= 2 || (bots > 0 && bots === this.lastResolveAttempts.length);
       // Parallel resolves (a prefetch) hitting the same check count once.
-      if (isBotAnswer(e) && !this.isYouTubeResting()) {
+      if (isBotAnswer(e) && ipWide && !this.isYouTubeResting()) {
         const ms = YT_REST_MS[Math.min(this.ytRests, YT_REST_MS.length - 1)];
         this.ytRests += 1;
         this.ytRestUntil = Date.now() + ms;

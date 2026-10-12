@@ -32,6 +32,8 @@ export type SheetAction = {
   onPress: () => void;
   /** Rows with an icon sit left-aligned; rows without stay centred (choices, confirmations). */
   icon?: SheetIcon;
+  /** A second line; the row grows and the icon gets room for a cover. */
+  sub?: string;
   destructive?: boolean;
   keepOpen?: boolean;
 };
@@ -239,10 +241,15 @@ export function ActionSheetHost() {
                         onPress={press}
                         style={({ pressed }) => [
                           styles.iconRow,
+                          a.sub !== undefined && styles.tallRow,
                           pressed && styles.pressed,
                         ]}
                       >
-                        <View style={styles.icon}>
+                        <View
+                          style={
+                            a.sub !== undefined ? styles.cover : styles.icon
+                          }
+                        >
                           {drawIcon(a.icon, color)}
                         </View>
                         {/* The separator starts after the icon, as in iOS lists. */}
@@ -253,6 +260,11 @@ export function ActionSheetHost() {
                           >
                             {a.label}
                           </Text>
+                          {a.sub ? (
+                            <Text style={styles.iconSub} numberOfLines={1}>
+                              {a.sub}
+                            </Text>
+                          ) : null}
                         </View>
                       </Pressable>
                     );
@@ -361,6 +373,21 @@ const styles = StyleSheet.create({
   row: { height: 54, alignItems: "center", justifyContent: "center" },
   iconRow: { height: 52, flexDirection: "row", alignItems: "center" },
   icon: { width: 22, height: 22, marginLeft: 18, marginRight: 16 },
+  tallRow: { height: 62 },
+  cover: {
+    width: 42,
+    height: 42,
+    marginLeft: 12,
+    marginRight: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconSub: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    marginTop: 2,
+    paddingRight: 16,
+  },
   iconBody: { flex: 1, alignSelf: "stretch", justifyContent: "center" },
   iconLabel: { fontSize: 16, fontWeight: "600", paddingRight: 16 },
   sep: {

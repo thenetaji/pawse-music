@@ -9,15 +9,19 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
+  addedTimes,
   DEFAULT_SETTINGS,
   DISLIKED_MAX,
+  dedupeTracks,
   HISTORY_MAX,
   type LibraryData,
   mergeLikes,
   migrateLocale,
   migrateQuality,
   moveItem,
+  type PlaylistSort,
   type Settings,
+  sortTracks,
   strip,
 } from "./library-model";
 import { readSession, writeSession } from "./session";
@@ -38,6 +42,11 @@ type Library = LibraryData & {
   clearHistory(): void;
   createPlaylist(title: string, tracks?: Track[]): string;
   addToPlaylist(id: string, track: Track): void;
+  /** Adds songs not already in the playlist; returns how many went in. */
+  addManyToPlaylist(id: string, tracks: Track[]): number;
+  /** Drops repeated songs; returns how many went. */
+  dedupePlaylist(id: string): number;
+  sortPlaylist(id: string, by: PlaylistSort): void;
   removeFromPlaylist(id: string, trackId: string): void;
   renamePlaylist(id: string, title: string): void;
   /** Reorders tracks inside a playlist. */
@@ -172,27 +181,70 @@ export const useLibrary = create<Library>()(
             {
               id,
               title,
-              tracks: tracks.map(strip),
+              tracks: dedupeTracks(tracks).map(strip),
               createdAt: now,
               updatedAt: now,
+              added: Object.fromEntries(tracks.map((t) => [t.id, now])),
             },
             ...s.playlists,
           ],
         }));
         return id;
       },
-      addToPlaylist: (id, track) =>
+      addToPlaylist: (id, track) => void get().addManyToPlaylist(id, [track]),
+      addManyToPlaylist(id, tracks) {
+        let added = 0;
+        const now = Date.now();
         set((s) => ({
-          playlists: s.playlists.map((p) =>
-            p.id === id && !p.tracks.some((t) => t.id === track.id)
-              ? {
-                  ...p,
-                  tracks: [...p.tracks, strip(track)],
-                  updatedAt: Date.now(),
-                }
-              : p,
-          ),
-        })),
+          playlists: s.playlists.map((p) => {
+            if (p.id !== id) return p;
+            const have = new Set(p.tracks.map((t) => t.id));
+            const fresh = dedupeTracks(tracks).filter((t) => !have.has(t.id));
+            added = fresh.length;
+            if (!added) return p;
+            return {
+              ...p,
+              tracks: [...p.tracks, ...fresh.map(strip)],
+              added: {
+                ...addedTimes(p),
+                ...Object.fromEntries(fresh.map((t) => [t.id, now])),
+              },
+              updatedAt: now,
+            };
+          }),
+        }));
+        return added;
+      },
+      dedupePlaylist(id) {
+        let removed = 0;
+        set((s) => ({
+          playlists: s.playlists.map((p) => {
+            if (p.id !== id) return p;
+            const kept = dedupeTracks(p.tracks);
+            removed = p.tracks.length - kept.length;
+            return removed ? { ...p, tracks: kept, updatedAt: Date.now() } : p;
+          }),
+        }));
+        return removed;
+      },
+      sortPlaylist(id, by) {
+        const plays = new Map<string, number>();
+        for (const h of get().history)
+          plays.set(h.track.id, (plays.get(h.track.id) ?? 0) + 1);
+        set((s) => ({
+          playlists: s.playlists.map((p) => {
+            if (p.id !== id) return p;
+            // Remember join times before the list order stops meaning anything.
+            const added = addedTimes(p);
+            return {
+              ...p,
+              tracks: sortTracks(p.tracks, by, added, plays),
+              added,
+              updatedAt: Date.now(),
+            };
+          }),
+        }));
+      },
       removeFromPlaylist: (id, trackId) =>
         set((s) => ({
           playlists: s.playlists.map((p) =>

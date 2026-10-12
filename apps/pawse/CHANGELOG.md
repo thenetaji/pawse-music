@@ -4,6 +4,20 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-12
+
+### Added
+- **Add to your YouTube Music playlists.** When you're signed in, **Add to playlist** lists your YouTube Music playlists next to your Pawse ones, and the song goes into the playlist on YouTube too. Changes reach YouTube at the same gentle pace as likes.
+- **Add many songs at once.** The **⋯** button on any playlist or album adds every song to a playlist, or lets you pick songs with **Select songs**. In the queue, **Save** adds the song playing now and everything up next.
+- **Playlist tools.** From a Pawse playlist's **⋯** menu: **Sort** by date added, title, artist or most played (the new order is saved), **Merge another playlist in** (songs already there are skipped, and you can delete the other one afterwards) and **Remove repeats**.
+- A short note at the top of the screen tells you where songs went, or that YouTube didn't take them.
+
+### Fixed
+- **Add to playlist only offered "New playlist"** when your playlists were all on YouTube Music.
+- **Skipping no longer bounces back to the start of the song.** If the next songs can't play, Pawse keeps playing the song you were on and tells you, instead of jumping back to its start.
+- One song YouTube won't play no longer makes Pawse stop asking YouTube in that way for every song. A way of asking now only rests after it fails on two different songs.
+- When YouTube Music's website or the embedded player says one song is unavailable, Pawse still tries the other ways for that song.
+
 ## [1.2.0] - 2026-10-12
 
 ### Added

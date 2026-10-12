@@ -9,6 +9,7 @@ import { ReducedMotionConfig, ReduceMotion } from "react-native-reanimated";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ActionSheetHost } from "../components/action-sheet";
+import { ToastHost } from "../components/toast";
 import { startAutoBackup } from "../data/auto-backup";
 import { startJournalRecorder } from "../data/journal-recorder";
 import { useLibrary } from "../data/library";
@@ -91,6 +92,7 @@ export default function RootLayout() {
             />
           </Stack>
           <ActionSheetHost />
+          <ToastHost />
           <YouTubeSandboxHost />
         </View>
       </SafeAreaProvider>

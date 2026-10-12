@@ -23,6 +23,7 @@ import { EqBars } from "../components/eq-bars";
 import { SwipeRow, swipedRecently } from "../components/swipe-row";
 import { PressScale } from "../components/ui";
 import { Cat, type CatColor } from "../features/cat/cat";
+import { showPlaylistPicker } from "../features/library/playlist-tools";
 import { ColorField } from "../features/now-playing/color-field";
 import { useAccent, useNowPalette } from "../features/now-playing/now-palette";
 import { ShuffleGlyph } from "../features/pages/collection";
@@ -189,10 +190,16 @@ export default function Queue() {
 
       <View style={styles.listHead}>
         <Text style={styles.section}>Up next</Text>
-        {source?.title ? (
-          <Text style={styles.from} numberOfLines={1}>
-            from {source.title}
-          </Text>
+        <Text style={styles.from} numberOfLines={1}>
+          {source?.title ? `from ${source.title}` : ""}
+        </Text>
+        {queue.length > 1 ? (
+          <Pressable
+            hitSlop={10}
+            onPress={() => showPlaylistPicker(queue.slice(index))}
+          >
+            <Text style={[styles.save, { color: accent }]}>Save</Text>
+          </Pressable>
         ) : null}
       </View>
 
@@ -383,6 +390,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   from: { flex: 1, color: "rgba(255,255,255,0.45)", fontSize: 14 },
+  save: { fontSize: 15, ...display("800") },
   empty: { alignItems: "center", paddingTop: 40, paddingHorizontal: 40 },
   emptyText: {
     color: "rgba(255,255,255,0.5)",

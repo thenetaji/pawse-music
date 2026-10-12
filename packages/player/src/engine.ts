@@ -46,6 +46,8 @@ const MAX_SOURCE_SWITCHES = 3;
 const AVOID_MS = 30 * 60_000;
 // This many songs in a row that never start stop playback instead of skipping through the queue.
 const MAX_FAILED_STARTS = 3;
+// A skip someone asked for looks this far ahead for a song that can play (e.g. while YouTube rests).
+const USER_SCAN = 10;
 // Resolved streams survive a restart, so reopening the app doesn't re-ask YouTube for the queue.
 const STREAMS_KEY = "pawse.streams";
 const STREAMS_MAX = 200;
@@ -78,8 +80,10 @@ const live = new Map<string, number>(); // entry key -> expiresAt of the URL the
 const retried = new Map<string, number>(); // entry key -> position of the last error re-resolve
 const failedVia = new Map<string, Set<string>>(); // track id -> stream sources that failed for it
 const avoidVia = new Map<string, number>(); // source -> until; failed on this device, tried last (latest last)
+const strikes = new Map<string, Map<string, number>>(); // source -> track id -> when it failed there
 const fromDisk = new WeakSet<ResolvedStream>(); // streams restored from storage, maybe for another network
 let failedStarts = 0;
+let userScan = false;
 let changedAt = 0;
 let streamsTimer: ReturnType<typeof setTimeout> | undefined;
 let nativeLoaded = false;
@@ -245,7 +249,13 @@ function blame(trackId: string, via: string): boolean {
   if (failed.has(via)) return false;
   failed.add(via);
   failedVia.set(trackId, failed);
-  if (via !== "local") {
+  // One bad song says little about a source; a second song failing on it within the window does.
+  const now = Date.now();
+  const hits = strikes.get(via) ?? new Map<string, number>();
+  for (const [id, at] of hits) if (now - at > AVOID_MS) hits.delete(id);
+  hits.set(trackId, now);
+  strikes.set(via, hits);
+  if (via !== "local" && hits.size >= 2) {
     const fresh = !avoided().includes(via);
     avoidVia.delete(via);
     avoidVia.set(via, Date.now() + AVOID_MS);
@@ -470,9 +480,15 @@ async function goTo(
   gen: number,
   autoplay = true,
   fade = fadeOutCurrent(),
+  dir: 1 | -1 = 1,
 ): Promise<void> {
   loading = true;
   switching = true;
+  const user = userScan;
+  userScan = false;
+  const wasPlaying = playing && wantPlay;
+  const from = get().index;
+  let misses = 0;
   // The old song fades out; if the new one still has to load, it then pauses instead of playing on under the new title.
   const next = get().tracks[target];
   if (fade && next && !isFresh(streams.get(next.id)?.expiresAt))
@@ -482,13 +498,18 @@ async function goTo(
   syncStatus();
   for (
     let i = target;
-    failedStarts < MAX_FAILED_STARTS && i >= 0 && i < get().tracks.length;
-    i++
+    (user ? misses < USER_SCAN : failedStarts < MAX_FAILED_STARTS) &&
+    i >= 0 &&
+    i < get().tracks.length;
+    i += dir
   ) {
+    // Scanning never lands back on the song being skipped from.
+    if (user && i === from && i !== target) continue;
     const ok = await ensureReady(i);
     if (gen !== navGen) return;
     if (!ok) {
-      failedStarts++;
+      misses++;
+      if (!user) failedStarts++;
       continue;
     }
     if (fade) await fade;
@@ -513,6 +534,14 @@ async function goTo(
   loading = false;
   switching = false;
   pendingSeek = undefined;
+  // Nothing ahead can play: the song you skipped from carries on where it was instead of going quiet.
+  if (user && wasPlaying && nativeLoaded && get().index === from) {
+    diag("skip-guard", `none of the next ${misses} songs can play`);
+    wantPlay = true;
+    TrackPlayer.play();
+    applyVolume();
+    return syncStatus();
+  }
   if (failedStarts >= MAX_FAILED_STARTS) stopFailing();
   nativeState = PlaybackState.Error;
   // Nothing could play: bring the volume back for whatever plays next.
@@ -952,14 +981,18 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
 /** A song change someone asked for: clears the error and gives the skip guard a fresh count. */
 function userMove(): void {
   failedStarts = 0;
+  userScan = true;
   set({ error: undefined });
 }
 
 function step(dir: 1 | -1): Promise<void> {
   const s = get();
   const n = Q.stepIndex(s.tracks.length, s.index, dir, s.repeat === "all");
-  if (n === null) return Promise.resolve();
-  return goTo(n, ++navGen);
+  if (n === null) {
+    userScan = false;
+    return Promise.resolve();
+  }
+  return goTo(n, ++navGen, true, fadeOutCurrent(), dir);
 }
 
 function back(): Promise<void> {
@@ -969,6 +1002,7 @@ function back(): Promise<void> {
     pos > 3 ||
     Q.stepIndex(s.tracks.length, s.index, -1, s.repeat === "all") === null
   ) {
+    userScan = false;
     seekTo(0);
     return Promise.resolve();
   }
@@ -1223,6 +1257,7 @@ export function useProgress(): Progress {
 /** Test hook: forget module state between tests. */
 export function __resetForTests(): void {
   opts = null;
+  userScan = false;
   setupPromise = null;
   streams.clear();
   inflight.clear();
@@ -1230,6 +1265,7 @@ export function __resetForTests(): void {
   retried.clear();
   failedVia.clear();
   avoidVia.clear();
+  strikes.clear();
   failedStarts = 0;
   changedAt = 0;
   clearTimeout(streamsTimer);

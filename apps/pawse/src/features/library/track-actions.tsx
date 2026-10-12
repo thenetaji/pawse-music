@@ -3,9 +3,8 @@ import { emitPlayerEvent, player } from "@pawse/player";
 import { router } from "expo-router";
 import { Share, StyleSheet, Text, View } from "react-native";
 
-import { askText, SheetNote, showSheet } from "../../components/action-sheet";
+import { SheetNote, showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
-import { Marquee } from "../../components/marquee";
 import {
   AlbumGlyph,
   ArtistGlyph,
@@ -21,15 +20,16 @@ import {
   ThumbsDown,
   TrashGlyph,
 } from "../../components/glyphs";
+import { Marquee } from "../../components/marquee";
 import { download, isDownloaded, removeDownload } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { removeSong } from "../../lib/remove-song";
-import { autoDownloadMode } from "../../lib/settings";
 import { useShareCard } from "../../lib/share-card-store";
 import { openAlbum, openArtist } from "../../lib/song-links";
 import { display } from "../../lib/type";
+import { showPlaylistPicker } from "./playlist-tools";
 import { showSongInfo } from "./song-info";
 
 // Menu icons share one size and a lighter stroke than the 18 px glyphs.
@@ -124,7 +124,7 @@ export function showTrackActions(
         label: "Add to playlist",
         keepOpen: true,
         icon: (c) => <PlaylistGlyph size={I} weight={W} color={c} />,
-        onPress: () => showPlaylistPicker(track),
+        onPress: () => showPlaylistPicker([track]),
       },
       {
         label: "Start radio",
@@ -199,43 +199,6 @@ export function shareLyric(track: Track, lyric: string) {
   haptic.medium();
   useShareCard.setState({ track, lyric });
   push("/share-card");
-}
-
-function showPlaylistPicker(track: Track) {
-  const lib = useLibrary.getState();
-  showSheet({
-    header: (
-      <Text style={[s.title, { textAlign: "center" }]}>Add to playlist</Text>
-    ),
-    actions: [
-      {
-        label: "New playlist",
-        keepOpen: true,
-        onPress: () =>
-          askText({
-            title: "New playlist",
-            placeholder: "My playlist",
-            confirm: "Create",
-            onSubmit: (name) => {
-              useLibrary.getState().createPlaylist(name, [track]);
-              afterAdd(track);
-            },
-          }),
-      },
-      ...lib.playlists.map((p) => ({
-        label: p.title,
-        onPress: () => {
-          lib.addToPlaylist(p.id, track);
-          afterAdd(track);
-        },
-      })),
-    ],
-  });
-}
-
-// Settings → Download automatically → Liked and playlist songs.
-function afterAdd(track: Track) {
-  if (autoDownloadMode() === "all" && !isDownloaded(track.id)) download(track);
 }
 
 const s = StyleSheet.create({

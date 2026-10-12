@@ -19,17 +19,32 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
-import { ArrowDown, ArrowUp, MinusGlyph } from "../../components/glyphs";
+import {
+  ArrowDown,
+  ArrowUp,
+  CheckGlyph,
+  ImportGlyph,
+  MinusGlyph,
+  PlaylistGlyph,
+} from "../../components/glyphs";
 import { useBottomSpace } from "../../components/page";
 import { TrackRow } from "../../components/track-row";
 import { PressScale } from "../../components/ui";
 import { downloadMany, useDownloads } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
+import { count } from "../../lib/plural";
 import { autoplayMode } from "../../lib/settings";
 import { display } from "../../lib/type";
-import { PlayGlyph } from "../now-playing/icons";
+import {
+  removeDuplicates,
+  showMergeSheet,
+  showPlaylistPicker,
+  showSortSheet,
+} from "../library/playlist-tools";
+import { MoreGlyph, PlayGlyph } from "../now-playing/icons";
 import { readable } from "../now-playing/now-palette";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
 import { TopGlow } from "./top-glow";
@@ -70,6 +85,8 @@ export function Collection({
   const bottom = useBottomSpace();
   const palette = useArtworkPalette(bestThumbnail(thumbnails, 120));
   const [editing, setEditing] = useState(false);
+  // Row positions picked in select mode; null when not selecting.
+  const [picked, setPicked] = useState<Set<number> | null>(null);
   const downloads = useDownloads();
   const doneIds = new Set(
     downloads.list.filter((d) => d.state === "done").map((d) => d.id),
@@ -103,10 +120,78 @@ export function Collection({
     });
   };
 
+  const own =
+    editableId ?? (source.type === "playlist" ? source.id : undefined);
+  const toggle = (i: number) => {
+    haptic.tick();
+    setPicked((p) => {
+      const next = new Set(p);
+      if (!next.delete(i)) next.add(i);
+      return next;
+    });
+  };
+  const menu = () => {
+    haptic.light();
+    showSheet({
+      header: (
+        <View>
+          <Text style={styles.menuTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.menuSub}>{count(tracks.length, "song")}</Text>
+        </View>
+      ),
+      actions: [
+        {
+          label: "Add all to a playlist",
+          keepOpen: true,
+          icon: (c) => <PlaylistGlyph size={22} weight={1.8} color={c} />,
+          onPress: () => showPlaylistPicker(tracks, { exclude: own }),
+        },
+        {
+          label: "Select songs",
+          icon: (c) => <CheckGlyph size={22} weight={1.8} color={c} />,
+          onPress: () => {
+            setEditing(false);
+            setPicked(new Set());
+          },
+        },
+        ...(editableId
+          ? [
+              {
+                label: "Sort",
+                keepOpen: true,
+                icon: (c: string) => (
+                  <ArrowDown size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => showSortSheet(editableId),
+              },
+              {
+                label: "Merge another playlist in",
+                keepOpen: true,
+                icon: (c: string) => (
+                  <ImportGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => showMergeSheet(editableId),
+              },
+              {
+                label: "Remove repeats",
+                icon: (c: string) => (
+                  <MinusGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => removeDuplicates(editableId),
+              },
+            ]
+          : []),
+      ],
+    });
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <Animated.FlatList
         data={tracks}
+        extraData={picked}
         onScroll={onScroll}
         scrollEventThrottle={16}
         keyExtractor={(t, i) => `${t.id}${i}`}
@@ -214,7 +299,14 @@ export function Collection({
           </View>
         }
         renderItem={({ item, index }) =>
-          editing && editableId ? (
+          picked ? (
+            <PickRow
+              track={item}
+              on={picked.has(index)}
+              accent={readable(palette.accent)}
+              onPress={() => toggle(index)}
+            />
+          ) : editing && editableId ? (
             <EditRow
               track={item}
               index={index}
@@ -248,8 +340,90 @@ export function Collection({
           {title}
         </Text>
       </Animated.View>
-      <BackButton />
+      {picked ? (
+        <View style={[styles.pickBar, { paddingTop: insets.top + 6 }]}>
+          <Pressable hitSlop={8} onPress={() => setPicked(null)}>
+            <Text style={styles.pickText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            hitSlop={8}
+            onPress={() =>
+              setPicked(
+                picked.size === tracks.length
+                  ? new Set()
+                  : new Set(tracks.map((_, i) => i)),
+              )
+            }
+          >
+            <Text style={styles.pickText}>
+              {picked.size === tracks.length ? "None" : "All"}
+            </Text>
+          </Pressable>
+          <Text style={styles.pickCount} numberOfLines={1}>
+            {picked.size ? `${picked.size} selected` : "Tap songs"}
+          </Text>
+          <PressScale
+            disabled={!picked.size}
+            onPress={() => {
+              const chosen = tracks.filter((_, i) => picked.has(i));
+              showPlaylistPicker(chosen, { exclude: own });
+            }}
+            style={[styles.pickAdd, !picked.size && { opacity: 0.4 }]}
+          >
+            <PlaylistGlyph size={16} weight={2.2} color="#000" />
+            <Text style={styles.pickAddText}>Add</Text>
+          </PressScale>
+        </View>
+      ) : (
+        <>
+          <BackButton />
+          {tracks.length ? (
+            <Pressable
+              hitSlop={10}
+              onPress={menu}
+              accessibilityLabel="More"
+              style={[styles.more, { top: insets.top + 6 }]}
+            >
+              <MoreGlyph size={20} color="#fff" />
+            </Pressable>
+          ) : null}
+        </>
+      )}
     </View>
+  );
+}
+
+function PickRow({
+  track,
+  on,
+  accent,
+  onPress,
+}: {
+  track: Track;
+  on: boolean;
+  accent: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.editRow}>
+      <View
+        style={[
+          styles.check,
+          on && { backgroundColor: accent, borderColor: accent },
+        ]}
+      >
+        {on ? <CheckGlyph size={14} weight={3} color="#000" /> : null}
+      </View>
+      <Artwork thumbnails={track.thumbnails} size={44} radius={6} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.editTitle} numberOfLines={1}>
+          {track.title}
+        </Text>
+        <Text style={styles.pickSub} numberOfLines={1}>
+          {track.artists.map((a) => a.name).join(", ")}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -486,6 +660,68 @@ const styles = StyleSheet.create({
     backgroundColor: "#FF4F6D",
   },
   editTitle: { flex: 1, color: "#fff", fontSize: 15 },
+  menuTitle: {
+    color: "#fff",
+    fontSize: 17,
+    textAlign: "center",
+    ...display("800"),
+  },
+  menuSub: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 3,
+  },
+  more: {
+    position: "absolute",
+    right: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  check: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickSub: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 2 },
+  pickBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    backgroundColor: "rgba(10,10,14,0.94)",
+  },
+  pickText: { color: "#fff", fontSize: 16, ...display("700") },
+  pickCount: {
+    flex: 1,
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 15,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  pickAdd: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: "#fff",
+  },
+  pickAddText: { color: "#000", fontSize: 15, ...display("800") },
   arrow: {
     width: 32,
     height: 32,

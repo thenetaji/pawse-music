@@ -209,7 +209,7 @@ async function drainWrites(): Promise<void> {
   if (writing) return;
   writing = true;
   try {
-    for (let next = pendingWrites.entries().next(); !next.done;) {
+    for (let next = pendingWrites.entries().next(); !next.done; ) {
       const hourAgo = Date.now() - 3600_000;
       while (recentWrites.length && recentWrites[0] < hourAgo)
         recentWrites.shift();
@@ -240,6 +240,74 @@ export function mirrorFollow(channelId: string, on: boolean): void {
   const s = useLibrary.getState().settings;
   if (!s.cookies || !s.syncLikes) return;
   queueWrite(`follow:${channelId}`, () => ytAccount.subscribe(channelId, on));
+}
+
+// Playlist edits wait in the same queue as likes; the count moves at once and moves back if YouTube refuses.
+let editSeq = 0;
+const NOT_SIGNED_IN = "Sign in to YouTube Music to edit playlists";
+function bumpCount(playlistId: string, delta: number): void {
+  const id = bareId(playlistId);
+  useLibrary.setState((s) => ({
+    ytPlaylists: s.ytPlaylists.map((p) =>
+      bareId(p.id) === id && p.trackCount !== undefined
+        ? { ...p, trackCount: Math.max(0, p.trackCount + delta) }
+        : p,
+    ),
+  }));
+}
+
+function queuePlaylistEdit(
+  playlistId: string,
+  delta: number,
+  send: () => Promise<void>,
+): Promise<void> {
+  bumpCount(playlistId, delta);
+  const done = new Promise<void>((resolve, reject) => {
+    queueWrite(`playlist:${bareId(playlistId)}:${editSeq++}`, async () => {
+      try {
+        await send();
+        resolve();
+      } catch (e) {
+        bumpCount(playlistId, -delta);
+        reject(e);
+      }
+    });
+  });
+  // The caller may not await it; a refused edit must not surface as an unhandled rejection.
+  done.catch(() => {});
+  return done;
+}
+
+/** Adds YouTube tracks to one of the account's playlists; resolves once YouTube accepted it, rejects if it refused. */
+export async function addToYouTubePlaylist(
+  playlistId: string,
+  tracks: Track[],
+): Promise<void> {
+  const ids = [
+    ...new Set(tracks.filter((t) => t.source === "youtube").map((t) => t.id)),
+  ];
+  if (!signedIn()) throw new Error(NOT_SIGNED_IN);
+  if (!ids.length) return;
+  return queuePlaylistEdit(playlistId, ids.length, () =>
+    ytAccount.addToPlaylist(bareId(playlistId), ids),
+  );
+}
+
+/** Removes tracks from one of the account's playlists; only tracks that carry a setVideoId (from the playlist page) can go. */
+export async function removeFromYouTubePlaylist(
+  playlistId: string,
+  tracks: Track[],
+): Promise<void> {
+  const items = tracks.flatMap((t) =>
+    t.source === "youtube" && t.setVideoId
+      ? [{ videoId: t.id, setVideoId: t.setVideoId }]
+      : [],
+  );
+  if (!signedIn()) throw new Error(NOT_SIGNED_IN);
+  if (!items.length) return;
+  return queuePlaylistEdit(playlistId, -items.length, () =>
+    ytAccount.removeFromPlaylist(bareId(playlistId), items),
+  );
 }
 
 let started = false;

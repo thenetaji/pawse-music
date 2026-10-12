@@ -148,6 +148,8 @@ export interface ResolveOptions {
   exclude?: string[];
   /** `youtube:<client>` ids to try last (they failed on this device). */
   avoid?: string[];
+  /** A client answered with a bot check (`youtube:<client>`). */
+  onBot?: (via: string) => void;
   /** Solves sig/n challenges; without it clients that `need` js are skipped. */
   sandbox?: JsSandbox;
   /** BotGuard tokens for clients that `need` pot; without it those clients are skipped. */
@@ -419,6 +421,10 @@ export async function probe(
   }
 }
 
+/** Bot answers in one resolve that mean the IP, not one client, is flagged. */
+const BOT_STOP = 2;
+const UNPLAYABLE_STOP = 2;
+
 const SEVERITY: Record<StreamError["code"], number> = {
   unplayable: 5,
   age_restricted: 4,
@@ -441,7 +447,7 @@ export function orderClients(
   ];
 }
 
-/** Tries each client in order; stops early on a definite 'unplayable', and on a bot answer (asking again only deepens the flag). */
+/** Tries each client in order; stops early on a definite 'unplayable', and on a second bot answer (asking again only deepens the flag). */
 export async function resolveYouTubeStream(
   videoId: string,
   o: ResolveOptions,
@@ -455,6 +461,9 @@ export async function resolveYouTubeStream(
       "every stream client already failed for this track",
     );
   let worst: StreamError | undefined;
+  let bot: StreamError | undefined;
+  let bots = 0;
+  let unplayable = 0;
   for (const c of clients) {
     const t0 = Date.now();
     try {
@@ -471,11 +480,19 @@ export async function resolveYouTubeStream(
         ms: Date.now() - t0,
         error: `${err.code}: ${err.message}`,
       });
-      if (isBotAnswer(err)) throw err;
+      // One client's bot answer can be about that client alone (tv_samsung is refused while VISIONOS plays); two are about the IP.
+      if (isBotAnswer(err)) {
+        o.onBot?.(viaOf(c));
+        bot = err;
+        if (++bots >= BOT_STOP) throw err;
+        continue;
+      }
       if (!worst || SEVERITY[err.code] > SEVERITY[worst.code]) worst = err;
-      if (err.code === "unplayable") break;
+      // One client's "Video unavailable" can be its own limit (web_music, embeds); two mean the video.
+      if (err.code === "unplayable" && ++unplayable >= UNPLAYABLE_STOP) break;
     }
   }
+  if (bot) throw bot;
   // A saved visitor id can be in a YouTube experiment that refuses every URL; yt-dlp starts fresh, so try that once.
   if (worst?.code === "blocked" && o.visitorData)
     return resolveYouTubeStream(
