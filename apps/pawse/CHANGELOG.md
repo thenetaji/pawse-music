@@ -4,6 +4,12 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-17
+
+### Fixed
+- **Long songs (from about 20 minutes up to hours) no longer stall before they start on iPhone.** Pawse gave every song 8 seconds to start, but iPhone reads through a long file before playing it. Pawse then gave up, tried YouTube another way and started over, again and again. Long songs now get up to a minute to start and skip Pawse's song cache.
+- A long song that's slow to start no longer marks a way of reaching YouTube as bad for your other songs.
+
 ## [1.5.0] - 2026-10-17
 
 ### Added

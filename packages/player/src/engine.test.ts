@@ -400,12 +400,15 @@ test("songs keep a stable cache key, but a stream too big for the disk cache get
   const long = jest.fn(async (t: Pick<Track, "id">) => ({
     ...(await resolve(t)),
     ...(t.id === "noise" ? { contentLength: 600 * 1024 * 1024 } : {}),
+    ...(t.id === "raga" ? { durationSec: 40 * 60 } : {}),
   }));
   await setupPlayer({ resolver: { resolve: long } });
-  await player.play(tracks("song", "noise"));
+  await player.play(tracks("song", "noise", "raga"));
+  await flush();
+  await player.play(tracks("song", "noise", "raga"), 1);
   await flush();
   const keys = native.queue.map((it) => (it as { cacheKey?: string }).cacheKey);
-  expect(keys).toEqual(["song:test:130000", undefined]);
+  expect(keys).toEqual(["song:test:130000", undefined, undefined]);
 });
 
 test("a failed prefetch of a later song leaves the playing one without an error", async () => {
@@ -496,6 +499,27 @@ test("a YouTube stream that stalls mid-song re-resolves at the same spot on the 
   now += 2 * 60_000;
   await player.play(tracks("q"));
   expect(urlAt(0)).toMatch("/q/youtube:a/");
+});
+
+test("a long song slow to start moves to the next client without marking the first one down for other songs", async () => {
+  const byClient = clientResolver(["youtube:a", "youtube:b"]);
+  const long = jest.fn(async (t: Pick<Track, "id">, o?: ResolveOptions) => ({
+    ...(await byClient(t, o)),
+    durationSec: 3 * 3600,
+  }));
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve: long }, onDiagnostic: diag });
+  for (const id of ["rain", "sitar"]) {
+    await player.play(tracks(id));
+    await flush();
+    await rntp.__emit("event.playback-error", {
+      code: "stalled",
+      message: "Playback stalled",
+    });
+    await flush();
+    expect(urlAt(0)).toMatch(`/${id}/youtube:b/`);
+  }
+  expect(diag).not.toHaveBeenCalledWith("source-avoided", expect.anything());
 });
 
 test("three songs in a row that cannot resolve stop playback with the error instead of skipping the queue", async () => {
