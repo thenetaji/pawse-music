@@ -4,6 +4,9 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+- **Long tracks like hours of white noise or rain no longer keep loading on iPhone.** Pawse tried to download them from the start into its song cache, which is too small for them, so they could stall and jumping ahead barely worked. Tracks that big now stream straight from YouTube and skip the cache. They also no longer download in full when they're up next.
+
 ## [1.4.0] - 2026-10-12
 
 ### Added

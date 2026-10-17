@@ -277,7 +277,7 @@ index c38942a31423e45f40ab8430345ca47ae65cc2d0..d3f408f36eb4a4a22ab13402cbd5409c
    }
  }
 diff --git a/ios/player/AVPlayerEngine.swift b/ios/player/AVPlayerEngine.swift
-index d58a7df934eb1866152e3df15931bb63fd6354be..bfe779a6d4f2f973e197da2e5a8af12fc2806a39 100644
+index d58a7df934eb1866152e3df15931bb63fd6354be..9837aeb14e991887bf186086c33aab5e507ed9ab 100644
 --- a/ios/player/AVPlayerEngine.swift
 +++ b/ios/player/AVPlayerEngine.swift
 @@ -29,6 +29,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
@@ -322,9 +322,16 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..bfe779a6d4f2f973e197da2e5a8af12f
      if let testSourceLoader {
        loadGeneration &+= 1
        itemFailureEvidence = ItemFailureEvidence(
-@@ -339,18 +342,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+@@ -336,21 +339,28 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+       testSourceLoader(url, headers, isLive, loadGeneration)
+       return
+     }
++    // Pawse patch: a finite stream without an app cache key (a very long one) plays direct, so AVPlayer's own range
++    // requests reach the server; the proxy fetches from byte 0 and can't seek far into a file it hasn't downloaded.
      if let proxy = proxyServer, let cache = cache,
-        url.scheme?.hasPrefix("http") == true {
+-       url.scheme?.hasPrefix("http") == true {
++       url.scheme?.hasPrefix("http") == true,
++       isLive || customKey != nil {
        // Live resources use the in-memory proxy relay; finite resources use disk.
 +      // Pawse patch: finite items may carry an app cache key that survives URL re-resolves.
 +      let appKey = isLive ? nil : customKey
@@ -348,7 +355,7 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..bfe779a6d4f2f973e197da2e5a8af12f
        )
  
        let asset = AVURLAsset(url: proxyRequest.url)
-@@ -469,7 +476,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+@@ -469,7 +479,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
        return
      }
      liveRefresh = LiveRefresh(generation: -1, completions: [completion])
@@ -357,7 +364,7 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..bfe779a6d4f2f973e197da2e5a8af12f
      liveRefresh?.generation = loadGeneration
    }
  
-@@ -531,6 +538,10 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+@@ -531,6 +541,10 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
         let ctx = pendingDirectFallback,
         itemFailureEvidence?.proxyRootID == ctx.rootID {
        pendingDirectFallback = nil
@@ -368,7 +375,7 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..bfe779a6d4f2f973e197da2e5a8af12f
        loadDirect(url: ctx.url, headers: ctx.headers)
        return
      }
-@@ -671,17 +682,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+@@ -671,17 +685,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
      switch type {
      case .began:
        wasPlayingBeforeInterruption = isPlaying
@@ -435,7 +442,7 @@ index c95d040c4a6d2908763ab189ba89722ac8bd4c43..1f62f9efbe7a965328fef2e5229ab45a
 +  var cacheKey: String? { nil }
  }
 diff --git a/ios/player/AudioPlayer.swift b/ios/player/AudioPlayer.swift
-index 626e4a4a85347d894326965b6081c46ba7b1cd6e..ac5aca336a9ef619bf44081506ac4fa6e9341912 100644
+index 626e4a4a85347d894326965b6081c46ba7b1cd6e..1b485a726492b444c29c99499c065ba4eacb8895 100644
 --- a/ios/player/AudioPlayer.swift
 +++ b/ios/player/AudioPlayer.swift
 @@ -233,7 +233,7 @@ class AudioPlayer {
@@ -456,9 +463,13 @@ index 626e4a4a85347d894326965b6081c46ba7b1cd6e..ac5aca336a9ef619bf44081506ac4fa6
      state = .loading
      resetNowPlaying(for: item)
      onCurrentItemChanged?(item, queue.currentIndex, reason)
-@@ -521,7 +521,7 @@ class AudioPlayer {
+@@ -519,9 +519,10 @@ class AudioPlayer {
+ 
+     for i in startIndex..<endIndex {
        let item = queue.items[i]
-       guard !item.isLive, item.sourceType == .stream,
+-      guard !item.isLive, item.sourceType == .stream,
++      // Pawse patch: an item without a cache key plays direct, so preloading it would download the whole file.
++      guard !item.isLive, item.sourceType == .stream, item.cacheKey != nil,
              let url = URL(string: item.sourceUrl) else { continue }
 -      preloader.preload(url: url, headers: item.headers)
 +      preloader.preload(url: url, headers: item.headers, cacheKey: item.cacheKey)
