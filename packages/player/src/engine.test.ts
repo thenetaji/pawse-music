@@ -396,6 +396,18 @@ test("setup turns on the disk cache with one song preloaded", async () => {
   );
 });
 
+test("songs keep a stable cache key, but a stream too big for the disk cache gets none", async () => {
+  const long = jest.fn(async (t: Pick<Track, "id">) => ({
+    ...(await resolve(t)),
+    ...(t.id === "noise" ? { contentLength: 600 * 1024 * 1024 } : {}),
+  }));
+  await setupPlayer({ resolver: { resolve: long } });
+  await player.play(tracks("song", "noise"));
+  await flush();
+  const keys = native.queue.map((it) => (it as { cacheKey?: string }).cacheKey);
+  expect(keys).toEqual(["song:test:130000", undefined]);
+});
+
 test("a failed prefetch of a later song leaves the playing one without an error", async () => {
   const flaky = jest.fn(async (t: Pick<Track, "id">) => {
     if (t.id === "b") throw new Error("offline");

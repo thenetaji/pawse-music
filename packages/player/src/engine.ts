@@ -59,6 +59,8 @@ const CACHE_BYTES = 256 * 1024 * 1024;
 const PRELOAD_WINDOW = 1;
 // Near the end of a song, retry a next-song prefetch that failed earlier.
 const NEAR_END_SEC = 30;
+// Bigger streams (hours of white noise) skip the disk cache: iOS then plays them direct, seeking by range.
+const CACHE_MAX_STREAM_BYTES = 64 * 1024 * 1024;
 
 export { POS_KEY, QUEUE_KEY };
 
@@ -289,6 +291,11 @@ const headersOf = (st: ResolvedStream) =>
     ? { ...RANGE_FROM_START, ...st.headers }
     : st.headers;
 
+const streamBytes = (st: ResolvedStream) =>
+  st.contentLength ?? ((st.durationSec ?? 0) * st.bitrate) / 8;
+const cacheable = (st: ResolvedStream) =>
+  st.via !== "local" && streamBytes(st) <= CACHE_MAX_STREAM_BYTES;
+
 function mediaItem(key: string, track: Track): MediaItem {
   const st = streams.get(track.id);
   const ok = st && isFresh(st.expiresAt);
@@ -304,7 +311,7 @@ function mediaItem(key: string, track: Track): MediaItem {
     mimeType: ok ? st.mimeType.split(";")[0] : undefined,
     // Keyed by song, not URL (which changes every resolve), so a replay plays from the disk cache.
     cacheKey:
-      ok && st.via !== "local"
+      ok && cacheable(st)
         ? `${track.id}:${st.via.split(":")[0]}:${st.contentLength ?? st.bitrate}`
         : undefined,
     title: track.title,
