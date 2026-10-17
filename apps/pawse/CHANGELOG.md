@@ -4,6 +4,8 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-17
+
 ### Added
 - **Pull down on Library to refresh** your YouTube Music likes and playlists. A playlist you make on YouTube also shows up by itself when you open Library or come back to Pawse, instead of hours later.
 - **Pull down on a YouTube playlist** to see songs added to it on YouTube.
