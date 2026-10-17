@@ -1,8 +1,10 @@
 import type { Thumbnail, Track } from "@pawse/music-core";
 import { player } from "@pawse/player";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
+  AppState,
   FlatList,
   ScrollView,
   StyleSheet,
@@ -25,7 +27,7 @@ import {
   Screen,
   SectionTitle,
 } from "../../components/ui";
-import { maybeSyncLibrary } from "../../data/account";
+import { maybeSyncLibrary, refreshLibrary } from "../../data/account";
 import { useDownloads, useOfflineTracks } from "../../data/downloads";
 import { listeningStats, useLibrary } from "../../data/library";
 import { useSmartPlaylists } from "../../data/recommend";
@@ -62,15 +64,29 @@ export default function LibraryPage() {
   const [filter, setFilter] = useState<Filter>("playlists");
   const [sort, setSort] = useState<Sort>("recent");
   const [query, setQuery] = useState("");
+  const [pulling, setPulling] = useState(false);
   // Open-ended so plays made while this tab stays mounted still count.
   const week = listeningStats(history, now - 7 * 86400_000, Infinity);
   const empty =
     !liked.length && !playlists.length && !albums.length && !history.length;
 
-  // Pulls the YouTube library at most every few hours, and only from here.
-  useEffect(() => {
-    if (signedIn) void maybeSyncLibrary().catch(() => {});
-  }, [signedIn]);
+  // Each visit to Library, and coming back to the app on it, picks up playlists made on YouTube (rate-limited in account.ts).
+  useFocusEffect(
+    useCallback(() => {
+      if (!signedIn) return;
+      void maybeSyncLibrary().catch(() => {});
+      const sub = AppState.addEventListener("change", (st) => {
+        if (st === "active") void maybeSyncLibrary().catch(() => {});
+      });
+      return () => sub.remove();
+    }, [signedIn]),
+  );
+  const pull = () => {
+    setPulling(true);
+    void refreshLibrary()
+      .catch(() => {})
+      .finally(() => setPulling(false));
+  };
 
   const plays = playCounts(history);
   const q = query.trim().toLowerCase();
@@ -119,7 +135,10 @@ export default function LibraryPage() {
   return (
     <Screen
       title="Library"
+      tab="library"
       background={<TopGlow height={340} />}
+      onRefresh={signedIn ? pull : undefined}
+      refreshing={pulling}
       right={
         <PressScale onPress={() => push("/settings")} style={styles.gear}>
           <Text style={styles.gearText}>Settings</Text>

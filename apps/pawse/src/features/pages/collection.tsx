@@ -6,6 +6,7 @@ import {
   Alert,
   Platform,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -19,21 +20,26 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-import { showSheet } from "../../components/action-sheet";
+import { askText, showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
 import {
   ArrowDown,
   ArrowUp,
   CheckGlyph,
+  CopyGlyph,
   ImportGlyph,
   MinusGlyph,
+  PencilGlyph,
   PlaylistGlyph,
+  RefreshGlyph,
+  TrashGlyph,
 } from "../../components/glyphs";
 import { useBottomSpace } from "../../components/page";
+import { showToast } from "../../components/toast";
 import { TrackRow } from "../../components/track-row";
 import { PressScale } from "../../components/ui";
 import { downloadMany, useDownloads } from "../../data/downloads";
-import { useLibrary } from "../../data/library";
+import { importPlaylist, useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { count } from "../../lib/plural";
 import { autoplayMode } from "../../lib/settings";
@@ -59,6 +65,9 @@ type Props = {
   numbered?: boolean;
   footer?: ReactNode;
   onEndReached?: () => void;
+  /** Pull to refresh, e.g. a YouTube playlist edited on YouTube. */
+  onRefresh?: () => void;
+  refreshing?: boolean;
   /** Heart button state for albums and remote playlists. */
   saved?: boolean;
   onSave?: () => void;
@@ -77,6 +86,8 @@ export function Collection({
   numbered,
   footer,
   onEndReached,
+  onRefresh,
+  refreshing,
   saved,
   onSave,
   editableId,
@@ -122,6 +133,42 @@ export function Collection({
 
   const own =
     editableId ?? (source.type === "playlist" ? source.id : undefined);
+  // A playlist copied from YouTube remembers where it came from, so it can be pulled again.
+  const sourceId = useLibrary((s) =>
+    editableId
+      ? s.playlists.find((p) => p.id === editableId)?.sourceId
+      : undefined,
+  );
+  const removePicked = () => {
+    if (!editableId || !picked?.size) return;
+    const ids = tracks.filter((_, i) => picked.has(i)).map((t) => t.id);
+    useLibrary.getState().removeManyFromPlaylist(editableId, ids);
+    haptic.success();
+    showToast(`Removed ${count(ids.length, "song")}`);
+    setPicked(null);
+  };
+  // The YouTube copy replaces this one, so songs added only in Pawse go: ask first.
+  const reimport = (id: string) =>
+    Alert.alert(
+      "Update from YouTube?",
+      "This playlist will match YouTube's copy. Songs you added only in Pawse will be removed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Update",
+          onPress: () => {
+            showToast("Updating from YouTube…");
+            importPlaylist(id).then(
+              () => showToast(`${title} is up to date`),
+              () =>
+                showToast("Couldn't reach YouTube. Try again later.", {
+                  bad: true,
+                }),
+            );
+          },
+        },
+      ],
+    );
   const toggle = (i: number) => {
     haptic.tick();
     setPicked((p) => {
@@ -142,22 +189,46 @@ export function Collection({
         </View>
       ),
       actions: [
-        {
-          label: "Add all to a playlist",
-          keepOpen: true,
-          icon: (c) => <PlaylistGlyph size={22} weight={1.8} color={c} />,
-          onPress: () => showPlaylistPicker(tracks, { exclude: own }),
-        },
-        {
-          label: "Select songs",
-          icon: (c) => <CheckGlyph size={22} weight={1.8} color={c} />,
-          onPress: () => {
-            setEditing(false);
-            setPicked(new Set());
-          },
-        },
+        ...(tracks.length
+          ? [
+              {
+                label: "Add all to a playlist",
+                keepOpen: true,
+                icon: (c: string) => (
+                  <PlaylistGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => showPlaylistPicker(tracks, { exclude: own }),
+              },
+              {
+                label: "Select songs",
+                icon: (c: string) => (
+                  <CheckGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => {
+                  setEditing(false);
+                  setPicked(new Set());
+                },
+              },
+            ]
+          : []),
         ...(editableId
           ? [
+              {
+                label: "Rename",
+                keepOpen: true,
+                icon: (c: string) => (
+                  <PencilGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () =>
+                  askText({
+                    title: "Rename playlist",
+                    placeholder: title,
+                    initial: title,
+                    confirm: "Save",
+                    onSubmit: (name) =>
+                      useLibrary.getState().renamePlaylist(editableId, name),
+                  }),
+              },
               {
                 label: "Sort",
                 keepOpen: true,
@@ -181,6 +252,41 @@ export function Collection({
                 ),
                 onPress: () => removeDuplicates(editableId),
               },
+              ...(sourceId
+                ? [
+                    {
+                      label: "Update from YouTube",
+                      icon: (c: string) => (
+                        <RefreshGlyph size={22} weight={1.8} color={c} />
+                      ),
+                      onPress: () => reimport(sourceId),
+                    },
+                  ]
+                : []),
+              {
+                label: "Duplicate",
+                icon: (c: string) => (
+                  <CopyGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => {
+                  const copy = useLibrary
+                    .getState()
+                    .duplicatePlaylist(editableId);
+                  if (copy) showToast(`Made ${title} copy`);
+                },
+              },
+              {
+                label: "Delete playlist",
+                destructive: true,
+                icon: (c: string) => (
+                  <TrashGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () =>
+                  confirmDelete(title, () => {
+                    useLibrary.getState().deletePlaylist(editableId);
+                    router.back();
+                  }),
+              },
             ]
           : []),
       ],
@@ -197,6 +303,15 @@ export function Collection({
         keyExtractor={(t, i) => `${t.id}${i}`}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.6}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              tintColor="#fff"
+              refreshing={!!refreshing}
+              onRefresh={onRefresh}
+            />
+          ) : undefined
+        }
         contentContainerStyle={{ paddingBottom: bottom }}
         ListHeaderComponent={
           <View>
@@ -362,6 +477,20 @@ export function Collection({
           <Text style={styles.pickCount} numberOfLines={1}>
             {picked.size ? `${picked.size} selected` : "Tap songs"}
           </Text>
+          {editableId ? (
+            <PressScale
+              disabled={!picked.size}
+              onPress={removePicked}
+              accessibilityLabel="Remove from playlist"
+              style={[
+                styles.pickAdd,
+                styles.pickRemove,
+                !picked.size && { opacity: 0.4 },
+              ]}
+            >
+              <MinusGlyph size={16} weight={2.4} color="#fff" />
+            </PressScale>
+          ) : null}
           <PressScale
             disabled={!picked.size}
             onPress={() => {
@@ -377,7 +506,7 @@ export function Collection({
       ) : (
         <>
           <BackButton />
-          {tracks.length ? (
+          {tracks.length || editableId ? (
             <Pressable
               hitSlop={10}
               onPress={menu}
@@ -720,6 +849,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 18,
     backgroundColor: "#fff",
+  },
+  pickRemove: {
+    paddingHorizontal: 11,
+    backgroundColor: "rgba(255,90,106,0.9)",
   },
   pickAddText: { color: "#000", fontSize: 15, ...display("800") },
   arrow: {

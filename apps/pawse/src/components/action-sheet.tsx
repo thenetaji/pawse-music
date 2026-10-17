@@ -68,8 +68,10 @@ export function askText(o: {
   placeholder: string;
   confirm: string;
   onSubmit: (text: string) => void;
+  /** Starting text, e.g. the current name when renaming. */
+  initial?: string;
 }) {
-  let text = "";
+  let text = o.initial ?? "";
   const submit = () => o.onSubmit(text.trim() || o.placeholder);
   showSheet({
     header: (
@@ -77,6 +79,8 @@ export function askText(o: {
         <Text style={styles.noteTitle}>{o.title}</Text>
         <TextInput
           autoFocus
+          defaultValue={o.initial}
+          selectTextOnFocus={!!o.initial}
           placeholder={o.placeholder}
           placeholderTextColor="rgba(255,255,255,0.35)"
           onChangeText={(t) => {

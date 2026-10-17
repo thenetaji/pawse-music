@@ -119,6 +119,7 @@ export default function HomePage() {
   return (
     <Screen
       title={greeting()}
+      tab="home"
       background={<TopGlow />}
       onRefresh={home.reload}
       refreshing={false}

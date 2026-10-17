@@ -8,6 +8,10 @@ import { kv } from "./storage";
 const MAX_PAGES = 50;
 // Every 6 to 9 hours, so syncs never land on a fixed clock.
 const SYNC_EVERY_MS = (6 + Math.random() * 3) * 3600_000;
+// The playlist list is one request, so it follows YouTube more closely: on opening Library or the app, at most every 10 min.
+const PLAYLISTS_EVERY_MS = 10 * 60_000;
+// A pull-to-refresh within this long of the last one reuses it.
+const PULL_GAP_MS = 30_000;
 const PAGE_GAP_MS = 400;
 // Likes and follows reach YouTube 2.5 to 4.5 s apart, 40 an hour at most; the rest wait their turn.
 const WRITE_GAP_MS = 2500;
@@ -44,6 +48,8 @@ async function allTracks(
 }
 
 let syncing: Promise<{ liked: number; playlists: number }> | undefined;
+let listing: Promise<void> | undefined;
+let playlistsAt = 0;
 
 /** Pulls YouTube Music liked songs and library playlists into the store; no-op when signed out. */
 export function syncYouTubeLibrary(): Promise<{
@@ -56,6 +62,7 @@ export function syncYouTubeLibrary(): Promise<{
     await sleep(PAGE_GAP_MS);
     const playlists = await ytAccount.libraryPlaylists();
     useLibrary.getState().applyRemote({ liked, playlists });
+    playlistsAt = Date.now();
     return { liked: liked.length, playlists: playlists.length };
   })().finally(() => {
     syncing = undefined;
@@ -63,12 +70,37 @@ export function syncYouTubeLibrary(): Promise<{
   return syncing;
 }
 
-/** Syncs when signed in and the last sync is over 6 hours old; the Library screen calls this. */
+/** Re-reads only the account's playlist list (one request), so a playlist made on YouTube shows up. */
+function refreshYouTubePlaylists(): Promise<void> {
+  // Counted from the attempt, so a refused request isn't retried on every visit.
+  playlistsAt = Date.now();
+  listing ??= ytAccount
+    .libraryPlaylists()
+    .then((playlists) => useLibrary.getState().applyRemote({ playlists }))
+    .finally(() => {
+      listing = undefined;
+    });
+  return listing;
+}
+
+/** Full sync when the last is over 6 hours old, else the playlist list when it is over 10 min old; Library calls this on focus. */
 export async function maybeSyncLibrary(): Promise<boolean> {
-  if (!signedIn() || syncing) return false;
-  if (Date.now() - useLibrary.getState().syncedAt < SYNC_EVERY_MS) return false;
-  await syncYouTubeLibrary();
+  if (!signedIn() || syncing || listing) return false;
+  const now = Date.now();
+  if (now - useLibrary.getState().syncedAt >= SYNC_EVERY_MS)
+    await syncYouTubeLibrary();
+  else if (now - playlistsAt >= PLAYLISTS_EVERY_MS)
+    await refreshYouTubePlaylists();
+  else return false;
   return true;
+}
+
+/** Pull-to-refresh on Library: likes and playlists now, unless that just happened. */
+export async function refreshLibrary(): Promise<void> {
+  if (!signedIn()) return;
+  if (syncing) return void (await syncing);
+  if (Date.now() - useLibrary.getState().syncedAt < PULL_GAP_MS) return;
+  await syncYouTubeLibrary();
 }
 
 /** Creates a local playlist for a YouTube playlist, or refreshes the one imported before; returns its id. */

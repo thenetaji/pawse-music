@@ -4,7 +4,20 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+- **Pull down on Library to refresh** your YouTube Music likes and playlists. A playlist you make on YouTube also shows up by itself when you open Library or come back to Pawse, instead of hours later.
+- **Pull down on a YouTube playlist** to see songs added to it on YouTube.
+- More in a Pawse playlist's **⋯** menu:
+  - **Rename**
+  - **Duplicate**
+  - **Delete playlist**
+  - **Update from YouTube**, for playlists you brought over from YouTube
+- After **Select songs** in your own playlist, a **−** button removes them all at once.
+- Tapping the tab you're on scrolls the page back to the top. On Android, it first goes back to the tab's first page.
+
 ### Fixed
+- A new, empty playlist had no **⋯** menu, so it couldn't be renamed or deleted.
+- **Import → A playlist link**: the keyboard no longer covers the link field. **Go** on the keyboard starts the import, and the result shows at the top.
 - **Long tracks like hours of white noise or rain no longer keep loading on iPhone.** Pawse tried to download them from the start into its song cache, which is too small for them, so they could stall and jumping ahead barely worked. Tracks that big now stream straight from YouTube and skip the cache. They also no longer download in full when they're up next.
 
 ## [1.4.0] - 2026-10-12

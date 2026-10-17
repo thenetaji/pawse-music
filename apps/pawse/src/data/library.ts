@@ -48,6 +48,7 @@ type Library = LibraryData & {
   dedupePlaylist(id: string): number;
   sortPlaylist(id: string, by: PlaylistSort): void;
   removeFromPlaylist(id: string, trackId: string): void;
+  removeManyFromPlaylist(id: string, trackIds: string[]): void;
   renamePlaylist(id: string, title: string): void;
   /** Reorders tracks inside a playlist. */
   movePlaylistTrack(id: string, from: number, to: number): void;
@@ -60,7 +61,7 @@ type Library = LibraryData & {
   toggleFollowArtist(artist: ArtistSummary): boolean;
   isFollowing(id: string): boolean;
   setSettings(patch: Partial<Settings>): void;
-  /** Merges a YouTube sync: remote likes in, likes removed on YouTube out, local-only likes kept. */
+  /** Merges a YouTube sync: remote likes in, likes removed on YouTube out, local-only likes kept. A playlists-only refresh leaves syncedAt alone. */
   applyRemote(remote: { liked?: Track[]; playlists?: PlaylistSummary[] }): void;
 };
 
@@ -246,17 +247,21 @@ export const useLibrary = create<Library>()(
         }));
       },
       removeFromPlaylist: (id, trackId) =>
+        get().removeManyFromPlaylist(id, [trackId]),
+      removeManyFromPlaylist: (id, trackIds) => {
+        const gone = new Set(trackIds);
         set((s) => ({
           playlists: s.playlists.map((p) =>
             p.id === id
               ? {
                   ...p,
-                  tracks: p.tracks.filter((t) => t.id !== trackId),
+                  tracks: p.tracks.filter((t) => !gone.has(t.id)),
                   updatedAt: Date.now(),
                 }
               : p,
           ),
-        })),
+        }));
+      },
       renamePlaylist: (id, title) =>
         set((s) => ({
           playlists: s.playlists.map((p) =>
@@ -334,7 +339,7 @@ export const useLibrary = create<Library>()(
               }
             : {}),
           ...(playlists ? { ytPlaylists: playlists } : {}),
-          syncedAt: Date.now(),
+          ...(liked ? { syncedAt: Date.now() } : {}),
         })),
     }),
     {
