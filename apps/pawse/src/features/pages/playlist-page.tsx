@@ -71,6 +71,12 @@ function RemotePlaylist({ id }: { id: string }) {
       tracks={tracks}
       source={{ type: "playlist", id: p.id, title: p.title }}
       onEndReached={loadMore}
+      // Songs added on YouTube show up without waiting for the cache to expire.
+      onRefresh={() => {
+        setMore(null);
+        pl.reload();
+      }}
+      refreshing={pl.loading}
       footer={loadingMore ? <SkeletonRows count={3} /> : null}
     />
   );

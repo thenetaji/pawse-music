@@ -28,6 +28,15 @@ export const ChevronRight = (p: P) => <Stroke d="M9 5l7 7-7 7" {...p} />;
 export const PlusGlyph = (p: P) => <Stroke d="M12 5v14M5 12h14" {...p} />;
 export const MinusGlyph = (p: P) => <Stroke d="M5 12h14" {...p} />;
 export const CheckGlyph = (p: P) => <Stroke d="M5 12.5l4.5 4.5L19 7" {...p} />;
+export const PencilGlyph = (p: P) => (
+  <Stroke d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" {...p} />
+);
+export const CopyGlyph = (p: P) => (
+  <Stroke d="M9 9h10v10H9zM5 15V5h10" {...p} />
+);
+export const RefreshGlyph = (p: P) => (
+  <Stroke d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" {...p} />
+);
 export const CloseGlyph = (p: P) => <Stroke d="M6 6l12 12M18 6L6 18" {...p} />;
 export const ArrowUp = (p: P) => <Stroke d="M12 19V5M6 11l6-6 6 6" {...p} />;
 export const ArrowDown = (p: P) => <Stroke d="M12 5v14M6 13l6 6 6-6" {...p} />;

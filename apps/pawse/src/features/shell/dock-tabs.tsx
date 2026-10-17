@@ -1,5 +1,6 @@
 import { usePlayerSelect } from "@pawse/player";
 import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import {
   TabList,
   TabSlot,
@@ -12,6 +13,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { haptic } from "../../lib/haptics";
+import { emitTabReselect, type Tab } from "../../lib/nav";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
 import { useAccent } from "../now-playing/now-palette";
@@ -60,7 +62,12 @@ export function DockTabs() {
         <View style={styles.bar}>
           {NAV.map((n) => (
             <TabTrigger key={n.name} name={n.name} resetOnFocus asChild>
-              <Item label={n.label} Icon={n.Icon} accent={accent} />
+              <Item
+                tab={n.name}
+                label={n.label}
+                Icon={n.Icon}
+                accent={accent}
+              />
             </TabTrigger>
           ))}
         </View>
@@ -75,13 +82,14 @@ export function DockTabs() {
 }
 
 type ItemProps = TabTriggerSlotProps & {
+  tab: Tab;
   label: string;
   Icon: ComponentType<{ size?: number; color?: string }>;
   accent: string;
 };
 
 const Item = forwardRef<View, ItemProps>(function Item(
-  { label, Icon, accent, isFocused, onPress, ...rest },
+  { tab, label, Icon, accent, isFocused, onPress, ...rest },
   ref,
 ) {
   return (
@@ -90,6 +98,12 @@ const Item = forwardRef<View, ItemProps>(function Item(
       {...rest}
       onPress={(e) => {
         haptic.tick();
+        // Tapping the tab you're on goes back to its first page, then scrolls that to the top, like iOS.
+        if (isFocused) {
+          if (router.canDismiss()) router.dismissAll();
+          else emitTabReselect(tab);
+          return;
+        }
         onPress?.(e);
       }}
       android_ripple={{

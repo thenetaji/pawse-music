@@ -131,8 +131,8 @@ function BrowserWait({
       <View style={styles.status}>
         {miss === "no-firefox" ? (
           <Text style={styles.statusText}>
-            Pawse can't find Firefox on this computer. Use Firefox, or sign in
-            here instead.
+            Pawse can&apos;t find Firefox on this computer. Use Firefox, or sign
+            in here instead.
           </Text>
         ) : (
           <>

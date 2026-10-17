@@ -71,6 +71,7 @@ export default function ExplorePage() {
   return (
     <Screen
       title="Explore"
+      tab="explore"
       background={<TopGlow height={300} />}
       onRefresh={() => (moods.reload(), releases.reload(), charts.reload())}
       onEndReached={loadMore}

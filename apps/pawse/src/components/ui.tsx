@@ -1,6 +1,6 @@
 import { BlurView } from "expo-blur";
 import { router } from "expo-router";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import {
   type GestureResponderEvent,
   Platform,
@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Cat, type CatColor, type CatMood } from "../features/cat/cat";
 import { haptic } from "../lib/haptics";
+import { onTabReselect, type Tab } from "../lib/nav";
 import { useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import { ChevronLeft } from "./glyphs";
@@ -103,6 +104,8 @@ type ScreenProps = {
   refreshing?: boolean;
   onEndReached?: () => void;
   bottomInset?: number;
+  /** A tab's root page: tapping that tab again scrolls it to the top. */
+  tab?: Tab;
 };
 
 // Large title that collapses into a blurred bar as you scroll; the tab bar hides itself on iOS 26.
@@ -116,8 +119,19 @@ export function Screen({
   refreshing,
   onEndReached,
   bottomInset = 150,
+  tab,
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
+  const scroller = useRef<Animated.ScrollView>(null);
+  useEffect(
+    () =>
+      tab
+        ? onTabReselect((t) => {
+            if (t === tab) scroller.current?.scrollTo({ y: 0, animated: true });
+          })
+        : undefined,
+    [tab],
+  );
   const y = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
     y.value = e.contentOffset.y;
@@ -134,8 +148,9 @@ export function Screen({
   }));
   return (
     <View style={styles.flex}>
-      {background}
+      {/* The scroll view comes first: iOS's tap-the-tab-again scroll to top only looks down each first child. */}
       <Animated.ScrollView
+        ref={scroller}
         onScroll={onScroll}
         scrollEventThrottle={16}
         onMomentumScrollEnd={(e) => {
@@ -165,11 +180,11 @@ export function Screen({
             />
           ) : undefined
         }
-        contentContainerStyle={{
-          paddingTop: insets.top + 8,
-          paddingBottom: insets.bottom + bottomInset,
-        }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + bottomInset }}
       >
+        {/* Absolutely placed at the top of the content, so it scrolls with the page. */}
+        {background}
+        <View style={{ height: insets.top + 8 }} />
         {back ? (
           <Pressable
             hitSlop={12}

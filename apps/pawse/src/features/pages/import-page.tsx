@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -14,7 +15,12 @@ import {
   TextInput,
   View,
 } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useAnimatedKeyboard,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { showSheet } from "../../components/action-sheet";
@@ -57,6 +63,12 @@ type Stage =
   | { kind: "review"; lists: Reviewed[] };
 
 export default function ImportPage() {
+  // The link field sits at the bottom: room for the keyboard under it, and a scroll to bring it into view.
+  const scroller = useRef<ScrollView>(null);
+  const keyboard = useAnimatedKeyboard();
+  const keyboardSpace = useAnimatedStyle(() => ({
+    height: keyboard.height.value,
+  }));
   const insets = useSafeAreaInsets();
   const color = useSetting<CatColor>("catColor", "orange");
   const accent = useAccent();
@@ -217,6 +229,17 @@ export default function ImportPage() {
         ? "Choose lists"
         : "Import";
 
+  const importLink = () => {
+    if (!link.trim()) return;
+    Keyboard.dismiss();
+    // The result shows at the top, above the cat.
+    void run("link", async () => {
+      const id = await importPlaylist(link.trim());
+      const p = useLibrary.getState().playlists.find((x) => x.id === id);
+      return `Imported ${p?.title ?? "playlist"} · ${count(p?.tracks.length ?? 0, "song")}`;
+    }).then(() => scroller.current?.scrollTo({ y: 0, animated: true }));
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top + 12 }]}>
       <View style={styles.head}>
@@ -277,8 +300,10 @@ export default function ImportPage() {
         />
       ) : (
         <ScrollView
+          ref={scroller}
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
         >
           <View style={styles.center}>
             <Cat
@@ -381,6 +406,14 @@ export default function ImportPage() {
                 placeholderTextColor="rgba(255,255,255,0.35)"
                 autoCapitalize="none"
                 autoCorrect={false}
+                onFocus={() =>
+                  setTimeout(
+                    () => scroller.current?.scrollToEnd({ animated: true }),
+                    350,
+                  )
+                }
+                returnKeyType="go"
+                onSubmitEditing={importLink}
                 style={styles.input}
               />
               <Pressable
@@ -391,16 +424,7 @@ export default function ImportPage() {
               </Pressable>
             </View>
             <PressScale
-              onPress={() =>
-                link.trim() &&
-                void run("link", async () => {
-                  const id = await importPlaylist(link.trim());
-                  const p = useLibrary
-                    .getState()
-                    .playlists.find((x) => x.id === id);
-                  return `Imported ${p?.title ?? "playlist"} · ${count(p?.tracks.length ?? 0, "song")}`;
-                })
-              }
+              onPress={importLink}
               style={[
                 styles.cta,
                 styles.ghost,
@@ -416,6 +440,7 @@ export default function ImportPage() {
               )}
             </PressScale>
           </Card>
+          <Animated.View style={keyboardSpace} />
         </ScrollView>
       )}
     </View>
