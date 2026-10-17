@@ -59,8 +59,8 @@ const CACHE_BYTES = 256 * 1024 * 1024;
 const PRELOAD_WINDOW = 1;
 // Near the end of a song, retry a next-song prefetch that failed earlier.
 const NEAR_END_SEC = 30;
-// Bigger streams (hours of white noise) skip the disk cache: iOS then plays them direct, seeking by range.
-const CACHE_MAX_STREAM_BYTES = 64 * 1024 * 1024;
+// Longer streams (about 17 min at 128 kbps and up) skip the disk cache: iOS then plays them direct, by range.
+const CACHE_MAX_STREAM_BYTES = 16 * 1024 * 1024;
 
 export { POS_KEY, QUEUE_KEY };
 
@@ -114,6 +114,9 @@ let ticker: ReturnType<typeof setInterval> | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let stallTimer: ReturnType<typeof setTimeout> | undefined;
 const STALL_MS = 8000;
+// AVPlayer reads a long file's whole index before it starts, so a long song gets 1 s more per minute to begin.
+const STALL_START_PER_MIN_MS = 1000;
+const STALL_START_MAX_MS = 60_000;
 const diag = (kind: string, detail?: string) =>
   opts?.onDiagnostic?.(kind, detail);
 let endTimer: ReturnType<typeof setTimeout> | undefined;
@@ -246,11 +249,13 @@ function resolveStream(track: Track, force = false): Promise<ResolvedStream> {
 }
 
 /** Records that `via` failed for this track; false when it already had. */
-function blame(trackId: string, via: string): boolean {
+/** `strike: false` moves this track to the next source without counting against `via` on other songs. */
+function blame(trackId: string, via: string, strike = true): boolean {
   const failed = failedVia.get(trackId) ?? new Set<string>();
   if (failed.has(via)) return false;
   failed.add(via);
   failedVia.set(trackId, failed);
+  if (!strike) return true;
   // One bad song says little about a source; a second song failing on it within the window does.
   const now = Date.now();
   const hits = strikes.get(via) ?? new Map<string, number>();
@@ -680,13 +685,15 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
   // A YouTube URL that stalls counts too: at the start AVPlayer just buffers a refused URL, mid-song it is a PO-token 403.
   const stalledYouTube =
     (e.code as string) === "stalled" && !!via?.startsWith("youtube:");
+  // A long song still starting is slow, not refused, so its source isn't marked down for other songs.
+  const slowStart = stalledYouTube && position < 1 && !!st && !cacheable(st);
   // A URL saved before a restart may belong to another network: fetch a new one before blaming its client.
   const stale = !!st && fromDisk.has(st);
   const switched =
     !stale &&
     (e.code === "source" || stalledYouTube) &&
     !!via &&
-    blame(track.id, via) &&
+    blame(track.id, via, !slowStart) &&
     (failedVia.get(track.id)?.size ?? 0) <= MAX_SOURCE_SWITCHES;
   if (stale) fromDisk.delete(st);
   // Otherwise one re-resolve per incident; a track that played 30 s since the last retry earns another.
@@ -732,6 +739,22 @@ function stopFailing(): void {
   failedStarts = 0;
   wantPlay = false;
   if (nativeLoaded) TrackPlayer.pause();
+}
+
+/** How long the current song may buffer before it counts as stalled; a long song that hasn't started gets longer. */
+function stallMs(): number {
+  const track = get().tracks[get().index];
+  if (!track || !nativeLoaded || TrackPlayer.getProgress().position >= 1)
+    return STALL_MS;
+  const min = (trustedDuration(track) ?? 0) / 60;
+  return Math.min(STALL_START_MAX_MS, STALL_MS + min * STALL_START_PER_MIN_MS);
+}
+
+/** The current song plays straight from its source, not through the disk cache (for the diagnostics log). */
+function directNow(): boolean {
+  const track = get().tracks[get().index];
+  const st = track && streams.get(track.id);
+  return !!st && st.via !== "local" && !cacheable(st);
 }
 
 function tick(): void {
@@ -941,14 +964,16 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     syncStatus();
     // A stream stuck buffering gets a fresh URL and resumes where it was.
     clearTimeout(stallTimer);
-    if (state === PlaybackState.Buffering && wantPlay)
+    if (state === PlaybackState.Buffering && wantPlay) {
+      const ms = stallMs();
       stallTimer = setTimeout(() => {
         if (nativeState === PlaybackState.Buffering && wantPlay)
           void onError({
             code: "stalled",
-            message: "Playback stalled",
+            message: `Playback stalled after ${Math.round(ms / 1000)} s${directNow() ? " (direct)" : ""}`,
           } as unknown as PlaybackErrorEvent);
-      }, STALL_MS);
+      }, ms);
+    }
   });
   // Going to the background mid-song: re-assert playback, but never over a call or Siri pause.
   AppState.addEventListener("change", (st) => {
