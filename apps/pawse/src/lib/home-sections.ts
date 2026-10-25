@@ -2,6 +2,7 @@ import { setSetting, useSetting } from "./settings";
 
 export type HomeSectionId =
   | "continue"
+  | "pinned"
   | "people"
   | "new"
   | "jump"
@@ -13,7 +14,7 @@ export type HomeSectionId =
 
 export type HomeSection = { id: HomeSectionId; on: boolean };
 
-/** Every Home section, in its default order. Suggestions from YouTube start off. */
+/** Every Home section, in the full app's order; Focus mode keeps only what you chose. */
 export const HOME_SECTIONS: {
   id: HomeSectionId;
   label: string;
@@ -29,6 +30,12 @@ export const HOME_SECTIONS: {
     on: true,
   },
   {
+    id: "pinned",
+    label: "Pinned",
+    note: "What you pinned from a ⋯ menu",
+    on: true,
+  },
+  {
     id: "people",
     label: "Your people",
     note: "Channels and artists you follow",
@@ -37,7 +44,7 @@ export const HOME_SECTIONS: {
   {
     id: "new",
     label: "New from your channels",
-    note: "Latest videos, signed in",
+    note: "Latest uploads from channels you subscribe to",
     on: true,
     videos: true,
   },
@@ -64,18 +71,30 @@ export const HOME_SECTIONS: {
     id: "ytvideos",
     label: "Suggested videos",
     note: "YouTube's video feed",
-    on: false,
+    on: true,
     videos: true,
   },
   {
     id: "picks",
-    label: "YouTube Music picks",
-    note: "An endless feed of suggestions",
-    on: false,
+    label: "Endless feed",
+    note: "YouTube and YouTube Music picks that keep going",
+    on: true,
   },
 ];
 
 const ids = new Set(HOME_SECTIONS.map((s) => s.id));
+
+// The full app: everything, ending in a feed that keeps going.
+export const FULL_HOME: HomeSection[] = HOME_SECTIONS.map((d) => ({
+  id: d.id,
+  on: true,
+}));
+// Focus: only what you started, follow or pinned; Home ends when you're caught up.
+const SUGGESTED = new Set<HomeSectionId>(["foryou", "ytvideos", "picks"]);
+export const FOCUS_HOME: HomeSection[] = HOME_SECTIONS.map((d) => ({
+  id: d.id,
+  on: !SUGGESTED.has(d.id),
+}));
 
 /** The saved order and switches, with any section added since appended in its default state. */
 export function useHomeSections(): HomeSection[] {

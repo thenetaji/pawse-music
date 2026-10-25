@@ -50,6 +50,13 @@ export const useWatched = create<{
 );
 
 /** Records progress on a video, newest first. */
+/** Forgets a video from Watched and Continue. */
+export const removeWatched = (id: string) =>
+  useWatched.setState((s) => ({ list: s.list.filter((w) => w.id !== id) }));
+
+/** Empties the watch history. */
+export const clearWatched = () => useWatched.setState({ list: [] });
+
 export function recordWatch(w: Omit<Watched, "at">) {
   useWatched.setState((s) => ({
     list: [

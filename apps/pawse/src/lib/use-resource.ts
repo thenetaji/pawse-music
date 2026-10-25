@@ -34,9 +34,12 @@ export function useResource<T>(
     data?: T;
     error?: Error;
     loading: boolean;
-    reload: () => void;
+    reload: () => Promise<void>;
   };
 }
+
+/** Fetches these pages again, e.g. on pull-to-refresh. */
+export const refreshResources = (prefixes: string[]) => cache.refresh(prefixes);
 
 /** Drops every cached page and saved copy, e.g. after signing in or out. */
 export const clearResources = () => {

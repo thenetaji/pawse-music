@@ -100,6 +100,10 @@ const overlayStatus = (v: Node): { text?: string; style?: string } => {
 };
 
 /** videoRenderer, gridVideoRenderer, compactVideoRenderer and playlistVideoRenderer. */
+// YouTube's own music tag: a music video opens as a radio (start_radio) and carries a music icon.
+const MUSIC_MARK = /start_radio=1|"iconType":"[A-Z_]*MUSIC/;
+export const isMusicNode = (v: Node) => MUSIC_MARK.test(JSON.stringify(v));
+
 export function parseVideoRenderer(v: Node): VideoItem | undefined {
   const id = v.videoId;
   if (typeof id !== "string" || !VIDEO_ID.test(id)) return undefined;
@@ -136,6 +140,7 @@ export function parseVideoRenderer(v: Node): VideoItem | undefined {
     publishedText: clean(text(v.publishedTimeText)),
     thumbnails: thumbs.length ? thumbs : fallbackThumb(id),
     ...(live ? { live: true } : {}),
+    ...(isMusicNode(v) ? { music: true } : {}),
   };
 }
 
@@ -324,6 +329,26 @@ const findText = (
   return undefined;
 };
 
+// The first boolean under `key`: the subscribe button and the newer subscription-state entity both use "subscribed".
+const findBool = (root: unknown, key: string, depth = 24): boolean | undefined => {
+  if (depth < 0) return undefined;
+  if (Array.isArray(root)) {
+    for (const x of root) {
+      const f = findBool(x, key, depth - 1);
+      if (f !== undefined) return f;
+    }
+    return undefined;
+  }
+  const o = obj(root);
+  if (!o) return undefined;
+  if (typeof o[key] === "boolean") return o[key] as boolean;
+  for (const k of Object.keys(o)) {
+    const f = findBool(o[k], key, depth - 1);
+    if (f !== undefined) return f;
+  }
+  return undefined;
+};
+
 /** A channel's Videos tab; `fallback` supplies the channel when this is a continuation page. */
 export function parseChannel(
   json: unknown,
@@ -365,11 +390,15 @@ export function parseChannel(
   const videos = onlyVideos(items).map((v) =>
     v.channel ? v : { ...v, channel: mine },
   );
+  const subscribed =
+    findBool(dig(json, "frameworkUpdates"), "subscribed") ??
+    findBool(header, "subscribed");
   return {
     channel,
     ...(banner.length ? { banner } : {}),
     videos,
     ...(continuation ? { continuation } : {}),
+    ...(subscribed !== undefined ? { subscribed } : {}),
   };
 }
 

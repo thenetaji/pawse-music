@@ -106,6 +106,7 @@ export function useWatchPlayer(
       toggle: () => (video.paused ? play(video) : video.pause()),
       pause: () => video.pause(),
       setRate: (r: number) => setRate(video, r),
+      time: () => video.currentTime,
     }),
     [video],
   );

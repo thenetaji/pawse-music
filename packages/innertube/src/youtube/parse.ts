@@ -112,6 +112,7 @@ function track(
     thumbnails: base.thumbs.length ? base.thumbs : (d.thumbnails ?? []),
     explicit: base.explicit || undefined,
     kind: kindOf(base.videoType),
+    ...(base.videoType === "MUSIC_VIDEO_TYPE_OMV" ? { official: true } : {}),
     setVideoId: base.setVideoId,
   };
 }
@@ -780,7 +781,22 @@ export function parseNext(json: unknown): UpNext {
         "playlistPanelVideoRenderer",
       );
     const t = r && fromPanelVideo(r);
-    if (t) tracks.push(t);
+    // The song's music video, behind YouTube Music's Song | Video switch.
+    const pair = dig(
+      c,
+      "playlistPanelVideoWrapperRenderer",
+      "counterpart",
+      0,
+      "counterpartRenderer",
+      "playlistPanelVideoRenderer",
+      "videoId",
+    );
+    if (t)
+      tracks.push(
+        typeof pair === "string" && pair !== t.id
+          ? { ...t, musicVideoId: pair }
+          : t,
+      );
   }
   let lyricsBrowseId: string | undefined;
   let relatedBrowseId: string | undefined;

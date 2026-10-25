@@ -1,4 +1,10 @@
-import type { HomeFeed, Shelf as ShelfT, Track } from "@pawse/music-core";
+import type {
+  HomeFeed,
+  Shelf as ShelfT,
+  Track,
+  VideoFeed,
+  VideoItem,
+} from "@pawse/music-core";
 import { player } from "@pawse/player";
 import { useState } from "react";
 import {
@@ -24,19 +30,22 @@ import {
   SectionTitle,
   SkeletonShelves,
 } from "../../components/ui";
+import { VideoCard } from "../../components/video-card";
 import type { DailyMix } from "../../data/account";
 import { dailyMixes, useLibrary } from "../../data/library";
 import { useForYou } from "../../data/recommend";
+import { useVideoFilter } from "../../lib/block";
 import { rightClick } from "../../lib/context-menu";
-import { yt } from "../../lib/engine";
+import { yt, ytv } from "../../lib/engine";
 import { HOME_SECTIONS, useHomeSections } from "../../lib/home-sections";
 import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
-import { useResource } from "../../lib/use-resource";
+import { refreshResources, useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
 import { ContinueCard, VideoShelf, YourPeople } from "../home/home-blocks";
+import { Pinned } from "../home/pinned";
 import { showTrackActions } from "../library/track-actions";
 import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
@@ -52,7 +61,7 @@ export default function HomePage() {
     (s) =>
       s.on && (videos || !HOME_SECTIONS.find((d) => d.id === s.id)?.videos),
   );
-  // YouTube Music's own feed is the only endless part, and it's off unless you turn it on.
+  // The endless feed: YouTube Music's shelves with YouTube's videos woven in; Focus mode leaves it out.
   const full = sections.some((s) => s.id === "picks");
   const [chip, setChip] = useState<string | undefined>();
   const home = useResource<HomeFeed>(
@@ -88,7 +97,44 @@ export default function HomePage() {
     keep,
   );
 
+  // Videos for the endless feed start after the four Suggested videos shows.
+  const vhome = useResource<VideoFeed>(
+    full && videos ? "watch:home" : null,
+    () => ytv.home(),
+    { keep: true },
+  );
+  const [vmore, setVmore] = useState<{
+    items: VideoItem[];
+    cont?: string;
+    started: boolean;
+  }>({ items: [], started: false });
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const keepVideo = useVideoFilter();
+  const vcont = vmore.started ? vmore.cont : vhome.data?.continuation;
+  const feedVideos =
+    full && videos
+      ? [...(vhome.data?.items.slice(4) ?? []), ...vmore.items].filter((v) =>
+          keepVideo(v),
+        )
+      : [];
+  const moreVideos = () => {
+    if (!videos || loadingVideos || !vcont) return;
+    setLoadingVideos(true);
+    ytv
+      .home(vcont)
+      .then((r) =>
+        setVmore({
+          items: [...vmore.items, ...r.items],
+          cont: r.continuation,
+          started: true,
+        }),
+      )
+      .catch(() => {})
+      .finally(() => setLoadingVideos(false));
+  };
+
   const loadMore = () => {
+    moreVideos();
     if (loadingMore || !home.data) return;
     const list = moods.data ?? [];
     let next: Promise<{
@@ -132,8 +178,9 @@ export default function HomePage() {
       title={greeting()}
       tab="home"
       background={<TopGlow />}
-      onRefresh={home.reload}
-      refreshing={false}
+      onRefresh={() =>
+        Promise.all([home.reload(), refreshResources(["watch:", "home:mixes"])])
+      }
       onEndReached={full ? loadMore : undefined}
       right={
         <View style={styles.headRight}>
@@ -155,6 +202,8 @@ export default function HomePage() {
         switch (sec.id) {
           case "continue":
             return <ContinueCard key={sec.id} accent={accent} />;
+          case "pinned":
+            return <Pinned key={sec.id} />;
           case "people":
             return <YourPeople key={sec.id} videos={videos} accent={accent} />;
           case "new":
@@ -183,6 +232,7 @@ export default function HomePage() {
                 key={sec.id}
                 home={home}
                 shelves={shelves}
+                videos={feedVideos}
                 chip={chip}
                 setChip={setChip}
                 accent={accent}
@@ -191,7 +241,7 @@ export default function HomePage() {
         }
       })}
       {full && home.data ? (
-        <EndSpinner loading={loadingMore} onPress={loadMore} />
+        <EndSpinner loading={loadingMore || loadingVideos} onPress={loadMore} />
       ) : (
         <>
           <PressScale onPress={() => push("/edit-home")} style={styles.edit}>
@@ -208,19 +258,21 @@ export default function HomePage() {
 function Picks({
   home,
   shelves,
+  videos,
   chip,
   setChip,
   accent,
 }: {
   home: { data?: HomeFeed; error?: Error; reload: () => void };
   shelves: ShelfT[];
+  videos: VideoItem[];
   chip?: string;
   setChip: (c?: string) => void;
   accent: string;
 }) {
   return (
     <View>
-      <SectionTitle title="YouTube Music picks" />
+      <SectionTitle title="More for you" />
       {home.data?.chips.length ? (
         <ScrollView
           horizontal
@@ -239,12 +291,16 @@ function Picks({
         </ScrollView>
       ) : null}
       {home.data ? (
-        shelves.map((s, i) => (
+        weave(shelves, videos).map((b, i) => (
           <Animated.View
-            key={`${s.title}${i}`}
+            key={b.key}
             entering={FadeInDown.duration(420).delay(Math.min(i % 8, 6) * 60)}
           >
-            <Shelf shelf={s} removable />
+            {b.shelf ? (
+              <Shelf shelf={b.shelf} removable />
+            ) : b.video ? (
+              <VideoCard video={b.video} />
+            ) : null}
           </Animated.View>
         ))
       ) : home.error ? (
@@ -259,6 +315,21 @@ function Picks({
       )}
     </View>
   );
+}
+
+// Two music shelves, then three videos, and so on; whichever runs out, the other keeps going.
+function weave(shelves: ShelfT[], videos: VideoItem[]) {
+  const out: { key: string; shelf?: ShelfT; video?: VideoItem }[] = [];
+  let v = 0;
+  shelves.forEach((shelf, i) => {
+    out.push({ key: `s${i}:${shelf.title}`, shelf });
+    if (i % 2 === 1)
+      for (const video of videos.slice(v, v + 3))
+        out.push({ key: `v${v++}:${video.id}`, video });
+  });
+  for (const video of videos.slice(v))
+    out.push({ key: `v${v++}:${video.id}`, video });
+  return out;
 }
 
 function LikedLately() {
@@ -295,7 +366,7 @@ function EndSpinner({
     <SkeletonShelves count={1} />
   ) : (
     <Pressable onPress={onPress} style={styles.more}>
-      <Text style={styles.moreText}>More music</Text>
+      <Text style={styles.moreText}>Load more</Text>
     </Pressable>
   );
 }

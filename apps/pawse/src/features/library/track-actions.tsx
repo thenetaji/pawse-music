@@ -12,6 +12,7 @@ import {
   DownloadGlyph,
   HeartIcon,
   InfoGlyph,
+  PinGlyph,
   PlaylistGlyph,
   PlayNextGlyph,
   QueueAddGlyph,
@@ -21,14 +22,17 @@ import {
   TrashGlyph,
 } from "../../components/glyphs";
 import { Marquee } from "../../components/marquee";
+import { showToast } from "../../components/toast";
 import { download, isDownloaded, removeDownload } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { isPinned, togglePin } from "../../data/pins";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { removeSong } from "../../lib/remove-song";
 import { getSetting } from "../../lib/settings";
 import { useShareCard } from "../../lib/share-card-store";
 import { openAlbum, openArtist } from "../../lib/song-links";
+import { findSongVideo } from "../../lib/song-video";
 import { display } from "../../lib/type";
 import { WatchIcon } from "../shell/icons";
 import { openWatch } from "../watch/store";
@@ -140,13 +144,18 @@ export function showTrackActions(
             {
               label: "Watch video",
               icon: (c: string) => <WatchIcon size={I} color={c} />,
+              // A song opens its official music video; one with none says so.
               onPress: () =>
-                leave(() =>
-                  openWatch({
-                    id: track.id,
-                    title: track.title,
-                    thumbnails: track.thumbnails,
-                  }),
+                void findSongVideo(track).then((id) =>
+                  id
+                    ? leave(() =>
+                        openWatch({
+                          id,
+                          title: track.title,
+                          thumbnails: track.thumbnails,
+                        }),
+                      )
+                    : showToast("This song has no music video"),
                 ),
             },
           ]
@@ -168,6 +177,19 @@ export function showTrackActions(
             },
           ]
         : []),
+      {
+        label: isPinned(track.id) ? "Unpin from Home" : "Pin to Home",
+        icon: (c) => <PinGlyph size={I} weight={W} color={c} />,
+        onPress: () =>
+          togglePin({
+            kind: "song",
+            id: track.id,
+            title: track.title,
+            sub: artistLine(track.artists),
+            thumbnails: track.thumbnails,
+            track,
+          }),
+      },
       {
         label: "Song info",
         keepOpen: true,

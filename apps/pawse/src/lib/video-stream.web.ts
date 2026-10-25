@@ -1,3 +1,4 @@
+import { relayStream } from "./net";
 import {
   buildMutedVideo,
   buildVideoSource,
@@ -5,9 +6,9 @@ import {
   type Quality,
   type VideoSource,
 } from "./video-ladder";
-import { relayStream } from "./net";
 
 export type { Quality, QualityOption, VideoSource } from "./video-ladder";
+export { forgetStream } from "./video-ladder";
 
 // Playlists live in memory as blob URLs; their segments go through the relay like songs do.
 let urls: string[] = [];

@@ -12,6 +12,7 @@ import { PawseActivity } from "../../../modules/pawse-activity";
 import { PawseIsland } from "../../../modules/pawse-island-android";
 import { useLibrary } from "../../data/library";
 import { getSetting } from "../../lib/settings";
+import { useWatch } from "../watch/store";
 
 /** Other audio starting this close after a system pause marks it as an interruption. */
 const NEAR_MS = 2000;
@@ -27,7 +28,10 @@ const MAX_AWAY_MS = 30 * 60_000;
 const isPlaying = (s: PlayerStatus) =>
   s === "playing" || s === "buffering" || s === "loading";
 
-const enabled = () => getSetting<boolean>("resumeAfterInterruption", true);
+// A video you're watching is the "interruption": music must not come back over it, or end it.
+const enabled = () =>
+  getSetting<boolean>("resumeAfterInterruption", true) &&
+  !useWatch.getState().id;
 
 let stopController: (() => void) | null = null;
 
@@ -45,13 +49,20 @@ export function startResumeController(): () => void {
 function startIos(): () => void {
   let on = enabled();
   PawseActivity.setResumeAfterInterruption(on);
-  const unsub = useLibrary.subscribe((s, prev) => {
-    if (s.settings === prev.settings || enabled() === on) return;
+  const sync = () => {
+    if (enabled() === on) return;
     on = enabled();
     PawseActivity.setResumeAfterInterruption(on);
+  };
+  const unsub = useLibrary.subscribe((s, prev) => {
+    if (s.settings !== prev.settings) sync();
+  });
+  const unsubWatch = useWatch.subscribe((s, prev) => {
+    if (!!s.id !== !!prev.id) sync();
   });
   return () => {
     unsub();
+    unsubWatch();
     stopController = null;
   };
 }

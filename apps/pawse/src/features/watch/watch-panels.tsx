@@ -28,14 +28,18 @@ export const useComments = (id: string, token?: string) =>
 /** YouTube's comments teaser under the buttons: the count and the top comment. */
 export function CommentsCard({
   page,
+  failed,
   onPress,
+  onRetry,
 }: {
   page?: CommentPage;
+  failed?: boolean;
   onPress: () => void;
+  onRetry: () => void;
 }) {
   const top = page?.items[0];
   return (
-    <PressScale onPress={onPress} style={styles.card}>
+    <PressScale onPress={failed ? onRetry : onPress} style={styles.card}>
       <Text style={styles.cardTitle}>
         Comments{" "}
         {page?.count ? <Text style={styles.count}>{page.count}</Text> : null}
@@ -47,6 +51,8 @@ export function CommentsCard({
             {top.text}
           </Text>
         </View>
+      ) : failed ? (
+        <Text style={styles.failed}>Couldn’t load them. Tap to try again.</Text>
       ) : (
         <Skeleton w="80%" h={12} r={5} style={{ marginTop: 10 }} />
       )}
@@ -88,10 +94,14 @@ function Panel({
 
 export function CommentsPanel({
   first,
+  failed,
+  onRetry,
   onClose,
   onSeek,
 }: {
   first?: CommentPage;
+  failed?: boolean;
+  onRetry: () => void;
   onClose: () => void;
   onSeek: (sec: number) => void;
 }) {
@@ -122,7 +132,17 @@ export function CommentsPanel({
         onEndReached={load}
         onEndReachedThreshold={0.6}
         contentContainerStyle={{ paddingBottom: 60 }}
-        ListEmptyComponent={first ? null : <CommentSkeleton />}
+        ListEmptyComponent={
+          first ? null : failed ? (
+            <Pressable onPress={onRetry} style={styles.retry}>
+              <Text style={styles.failed}>
+                Couldn’t load comments. Tap to try again.
+              </Text>
+            </Pressable>
+          ) : (
+            <CommentSkeleton />
+          )
+        }
         ListFooterComponent={busy ? <CommentSkeleton n={2} /> : null}
       />
     </Panel>
@@ -374,6 +394,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   cardText: { flex: 1, color: "#fff", fontSize: 13.5, lineHeight: 18 },
+  failed: { color: "rgba(255,255,255,0.6)", fontSize: 13.5, marginTop: 8 },
+  retry: { padding: 16 },
   panel: {
     position: "absolute",
     top: 0,

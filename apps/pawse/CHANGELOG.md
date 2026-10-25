@@ -2,6 +2,49 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.11.0] - 2026-10-25
+
+### Added
+- **Focus mode** (Settings, or Edit Home). One switch takes away comments, view and like counts, Up next, autoplay and YouTube's suggestions, and Home ends when you're caught up. Each part also has its own switch: hide comments, hide counts, hide Up next, plain thumbnails (a still from the middle of the video instead of the clickbait picture), honest titles, hide search suggestions, and a **break reminder** that pauses the video every 15 to 90 minutes. It replaces the Calm watch page.
+- **Full or Focus Home.** Edit Home starts with the two: Full has everything and ends in a feed that keeps going, with YouTube videos between the music; Focus keeps only what you follow, play and pin.
+- **Pin to Home.** Pin any video, channel, playlist, album, artist or song from its ⋯ menu, and it sits in a **Pinned** row near the top of Home. Press and hold a pin to move it or unpin it.
+- **Subscribe without signing in.** The Subscribe button is on every channel page and watch page. Signed out, your subscriptions live on the phone and fill Your people and New from your channels; signed in, they go to YouTube too.
+- **Unsubscribe from Your people.** Press and hold a channel or artist there to open it, pin it or unsubscribe.
+- **Channel pages** have a Subscribe button, a ⋯ menu (pin, share, don't show this channel) and pull to refresh.
+- **A music mark** (♪) on videos YouTube files as music.
+- **Menus for albums, artists and playlists.** Press and hold one to save it, follow, pin it or share it.
+- **Remove from history** in a watched video's menu, and the Watched and Liked videos rows open the menu on a long press.
+- **Landscape full screen.** Swipe up on a video, or tap the full-screen button, and it turns sideways and fills the screen; swipe down or tap the button again to come back.
+- **A small DeArrow mark** (a blue arrow in a circle) next to a video's views when DeArrow changed its title or picture. On the watch page, tap it to see the original title.
+- **Try again** on a video that stops playing, which picks up from the same moment. It sits beside **Play the downloaded copy** when you have one.
+
+### Fixed
+- **The Video side of the player shows the real music video.** Most YouTube Music songs are audio uploads whose "video" is the album cover. Pawse now finds the song's official music video, and when a song has none, Video is struck through instead of showing a still picture. Watch video in a song's menu opens the music video too.
+- **Tapping Home (or Explore, Library) again goes back to the top**, and from the top it refreshes, like YouTube.
+- **Pull to refresh shows that it's working** and waits for the new feed.
+- **Tapping a playing video shows the controls every time.** Before, taps stopped working after a few seconds until you minimised the video.
+- **Opening a video while music plays, then minimising it, no longer closes the video.** The music used to start again by itself and push the video out.
+- **The mini player on iPhone** shows one picture instead of two copies fighting over the video.
+- **A minimised video stays minimised** when autoplay moves on to the next one.
+- **The end card goes away** when you play the video again from the mini player, a chapter or a comment's timestamp.
+- **Removing a downloaded video keeps the song** if you downloaded the song too.
+- **Pull down on Home** now refreshes the video rows and mixes, not only the YouTube Music picks.
+- **Search filters come back** after you tap into the search box and close the keyboard.
+- **Comments that fail to load** say so, with a tap to try again, instead of loading forever.
+- **The song's lock-screen info on iPhone** is no longer cleared when the Video side opens or closes.
+- Minimising a video keeps your exact spot for Continue, and sharing a video on iPhone no longer pastes the link twice.
+- The tiny video server on iPhone turns away any connection that isn't from the phone itself.
+
+### Changed
+- **Search's All tab searches YouTube**, videos and channels, and loads more as you scroll. When YouTube says the results are music, the matching songs sit on top, ready to play. Songs, Albums, Artists and Playlists still search YouTube Music.
+- **Home starts as Full**: Suggested videos and the endless feed are on unless you changed Home before. Choose Focus in Edit Home for a Home that ends.
+- **No bar at the top when you scroll** Home, Explore or Library: the page runs to the top of the screen.
+- **New icons** throughout, from one set (Lucide), in place of hand-drawn ones.
+- **Better menus.** The video menu shows the video on top, with Save, Download and Share, then Listen, Pin to Home, Go to channel and Don't show. Choices like quality, speed and settings lists have a tick on the right instead of a ✓ in the text.
+- **Smoother minimise and expand**, with the video easing down and fading into the mini player.
+- **The Video side of the player** has rounded corners instead of a hard-edged box.
+- **A calmer mini player swipe.** Swiping to skip moves less and settles without the bounce.
+
 ## [1.10.0] - 2026-10-25
 
 ### Added

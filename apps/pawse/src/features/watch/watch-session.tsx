@@ -7,7 +7,16 @@ import {
 import { player as music, usePlayerStore } from "@pawse/player";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useRef, useState } from "react";
+import { StatusBar } from "expo-status-bar";
+import CircleArrowDown from "lucide-react-native/icons/circle-arrow-down";
+import CircleCheck from "lucide-react-native/icons/circle-check";
+import Headphones from "lucide-react-native/icons/headphones";
+import ListPlus from "lucide-react-native/icons/list-plus";
+import ShareIcon from "lucide-react-native/icons/share";
+import SlidersHorizontal from "lucide-react-native/icons/sliders-horizontal";
+import ThumbsDownIcon from "lucide-react-native/icons/thumbs-down";
+import ThumbsUpIcon from "lucide-react-native/icons/thumbs-up";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BackHandler,
   Platform,
@@ -21,6 +30,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   FadeIn,
   FadeInDown,
   interpolate,
@@ -30,8 +40,13 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Path } from "react-native-svg";
-import { showSheet } from "../../components/action-sheet";
+import { SheetNote, showSheet } from "../../components/action-sheet";
+import {
+  DeArrowMark,
+  PinGlyph,
+  QualityGlyph,
+  SpeedGlyph,
+} from "../../components/glyphs";
 import { Spinner } from "../../components/spinner";
 import { showToast } from "../../components/toast";
 import {
@@ -46,13 +61,15 @@ import {
   VideoCard,
   VideoRow,
 } from "../../components/video-card";
+import { setSubscribed, useSubscribed } from "../../data/channels";
 import { ytAccount } from "../../data/clients";
 import {
   downloadVideo,
-  removeDownload,
+  removeVideoDownload,
   useVideoDownload,
 } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { isPinned, togglePin } from "../../data/pins";
 import {
   rateVideo,
   recordWatch,
@@ -65,12 +82,14 @@ import { skipNote, useBranding, videoSkips } from "../../lib/community";
 import { logEvent } from "../../lib/diagnostics";
 import { useVotes } from "../../lib/dislikes";
 import { ytv } from "../../lib/engine";
+import { noteWatching, useFocus } from "../../lib/focus";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { setSetting, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import {
+  forgetStream,
   type Quality,
   type VideoSource,
   videoSource,
@@ -100,9 +119,13 @@ import {
 type Rating = "like" | "dislike" | "none";
 
 const MAX_W = 980;
-// A drag this far down (or a flick) shrinks the video into the mini player.
+// A drag this far down (or a flick) shrinks the video into the mini player; this far up goes full screen.
 const DISMISS_PX = 110;
 const DISMISS_V = 900;
+const FULL_PX = 70;
+// Eased, no bounce: the page glides between full and the mini player.
+const SLIDE = { duration: 320, easing: Easing.bezier(0.2, 0.8, 0.2, 1) };
+const SETTLE = { damping: 26, stiffness: 240 };
 
 /** One watch session: the video full screen over the whole app, or shrunk into the mini player while it keeps playing. */
 export function WatchSession({ id }: { id: string }) {
@@ -127,6 +150,7 @@ export function WatchSession({ id }: { id: string }) {
   const src = loaded?.src;
   const error = loaded?.error;
   const [ended, setEnded] = useState(false);
+  const [reload, setReload] = useState(0);
   const [started, setStarted] = useState(false);
   const [at, setAt] = useState(0);
   const atRef = useRef(0);
@@ -135,7 +159,7 @@ export function WatchSession({ id }: { id: string }) {
   const skips = useRef<SkipSegment[]>([]);
   const keep = useVideoFilter();
   const brand = useBranding(id);
-  const calm = useSetting("videoCalm", false);
+  const focus = useFocus();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
   // Phones keep the video pinned at the top; wide screens scroll it with the page.
   const pinned = width < 900;
@@ -144,27 +168,51 @@ export function WatchSession({ id }: { id: string }) {
 
   const setError = (message: string) => {
     logEvent("video-failed", `${id}: ${message}`);
-    setLoaded({ error: message });
+    setLoaded((was) => ({ ...was, error: message }));
   };
   // Sponsor reads and plugs are jumped over as playback reaches them.
   const savedAt = useRef(0);
+  const keepSpot = (sec: number) => {
+    savedAt.current = sec;
+    recordWatch({
+      id,
+      title: brand?.title ?? v?.title ?? seed?.title ?? "",
+      thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
+      channel: v?.channel ?? seed?.channel,
+      pos: sec,
+      dur: src?.stream.durationSec ?? v?.durationSec ?? 0,
+    });
+  };
+  // A fresh stream after an error, picking up where it stopped.
+  const retry = () => {
+    haptic.light();
+    forgetStream();
+    setStarted(false);
+    setLoaded({ start: atRef.current > 0 ? atRef.current : undefined });
+    setReload((n) => n + 1);
+  };
   const onTime = (sec: number) => {
     setAt(sec);
     atRef.current = sec;
+    if (noteWatching()) {
+      video.pause();
+      showSheet({
+        header: (
+          <SheetNote
+            title="Time for a break?"
+            body="You asked Pawse to check in. The video is paused."
+          />
+        ),
+        actions: [
+          { label: "Keep watching", onPress: () => video.toggle() },
+          { label: "Close the video", onPress: closeWatch },
+        ],
+      });
+    }
     const dur = src?.stream.durationSec ?? v?.durationSec;
     if (dur) useWatch.setState({ progress: Math.min(1, sec / dur) });
     // Progress is kept every few seconds, so Home can offer to continue.
-    if (Math.abs(sec - savedAt.current) > 8) {
-      savedAt.current = sec;
-      recordWatch({
-        id,
-        title: brand?.title ?? v?.title ?? seed?.title ?? "",
-        thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
-        channel: v?.channel ?? seed?.channel,
-        pos: sec,
-        dur: src?.stream.durationSec ?? v?.durationSec ?? 0,
-      });
-    }
+    if (Math.abs(sec - savedAt.current) > 8) keepSpot(sec);
     if (sec > 0 && !started) setStarted(true);
     const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
     if (!seg) return;
@@ -174,16 +222,14 @@ export function WatchSession({ id }: { id: string }) {
 
   const d = detail.data;
   const v = d?.video;
-  const comments = useComments(id, calm ? undefined : d?.comments);
+  const comments = useComments(id, focus.comments ? d?.comments : undefined);
   // Your like and subscription, changed here before YouTube's copy of the page catches up.
-  const [mine, setMine] = useState<{ rating?: Rating; subscribed?: boolean }>(
-    {},
-  );
+  const [mine, setMine] = useState<{ rating?: Rating }>({});
   // Likes are kept on the phone too, so they work signed out; signed in they go to YouTube as well.
   const local = useVideoRating(id);
   const rating: Rating =
     mine.rating ?? (local !== "none" ? local : (d?.rating ?? "none"));
-  const subscribed = mine.subscribed ?? d?.subscribed ?? false;
+  const subscribed = useSubscribed(v?.channel?.id, d?.subscribed);
   const base = d?.likes ?? votes?.likes;
   const likes =
     base === undefined
@@ -202,19 +248,17 @@ export function WatchSession({ id }: { id: string }) {
   };
   const toggleSubscribe = () => {
     const cid = v?.channel?.id;
-    if (!cid) return;
+    if (!cid || !v?.channel) return;
     haptic.light();
-    const on = !subscribed;
-    setMine((m) => ({ ...m, subscribed: on }));
-    ytAccount.subscribe(cid, on).catch(() => {
-      setMine((m) => ({ ...m, subscribed: !on }));
-      showToast("Couldn't save that");
-    });
+    const { name, avatar } = v.channel;
+    // Signed out, the subscription lives on this phone and feeds Home.
+    setSubscribed({ id: cid, name, avatar }, !subscribed);
   };
   const related = d?.related.filter(keep) ?? [];
   const next = related[0];
   const onEnd = () => {
-    if (autoplay && next) return openWatch(next);
+    // A minimised video stays minimised when the next one starts.
+    if (autoplay && next) return openWatch(next, undefined, { keepMode: true });
     setEnded(true);
   };
 
@@ -227,8 +271,17 @@ export function WatchSession({ id }: { id: string }) {
     onError: setError,
     onFrame: setFrame,
     onTrack: (h, fps) => setTrack(`${h}p${(fps ?? 30) > 30 ? "60" : ""}`),
-    onPlaying: (on) => useWatch.setState({ playing: on }),
+    onPlaying: (on) => {
+      useWatch.setState({ playing: on });
+      if (on) setEnded(false);
+    },
   });
+
+  // Minimising keeps the exact spot for Continue watching, not the last 8-second save.
+  useEffect(() => {
+    if (mode === "mini" && atRef.current > 0) keepSpot(atRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // The mini player shows and controls this same player.
   useEffect(() => {
@@ -259,6 +312,15 @@ export function WatchSession({ id }: { id: string }) {
       music.pause();
     return usePlayerStore.subscribe((s, prev) => {
       if (s.status !== "playing" || prev.status === "playing") return;
+      // The same song coming back by itself while the video plays is the system resuming it: the video wins.
+      const resumed =
+        prev.status === "paused" &&
+        s.index === prev.index &&
+        s.tracks === prev.tracks;
+      if (resumed && useWatch.getState().playing) {
+        music.pause();
+        return;
+      }
       video.pause();
       if (useWatch.getState().mode === "mini") closeWatch();
     });
@@ -273,7 +335,7 @@ export function WatchSession({ id }: { id: string }) {
           live &&
           setLoaded((was) => ({
             src: s,
-            start: was?.src ? atRef.current : (t ?? resumeAt(id)),
+            start: was?.src ? atRef.current : (was?.start ?? t ?? resumeAt(id)),
           })),
       )
       .catch((e: Error) => {
@@ -285,36 +347,60 @@ export function WatchSession({ id }: { id: string }) {
     };
     // t only matters for the first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, quality]);
+  }, [id, quality, reload]);
 
   // Slides up when opened, down into the mini player when shrunk; a drag on the video follows the finger.
   const y = useSharedValue(height);
   useEffect(() => {
-    y.set(withTiming(mode === "full" ? 0 : height, { duration: 280 }));
+    y.set(withTiming(mode === "full" ? 0 : height, SLIDE));
   }, [mode, height, y]);
-  const drag = Gesture.Pan()
-    .runOnJS(true)
-    .activeOffsetY(12)
-    .failOffsetX([-24, 24])
-    .onUpdate((e) => y.set(Math.max(0, e.translationY)))
-    .onEnd((e) => {
-      if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
-        haptic.light();
-        minimizeWatch();
-      } else y.set(withSpring(0, { damping: 18, stiffness: 220 }));
-    });
+  // Our own full screen: the video turned on its side over everything (phones), the browser's elsewhere.
+  const [fs, setFs] = useState(false);
+  const fullscreen = Platform.OS !== "web" || width < 600;
+  const toggleFs = () => {
+    haptic.light();
+    if (!fullscreen) return enterFullscreen();
+    setFs((f) => !f);
+  };
+  // Down shrinks the video into the mini player, up goes full screen, like YouTube. Built once, not per frame.
+  const drag = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .activeOffsetY([-12, 12])
+        .failOffsetX([-24, 24])
+        .onUpdate((e) => y.set(Math.max(0, e.translationY) * 0.85))
+        .onEnd((e) => {
+          if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
+            haptic.light();
+            minimizeWatch();
+            return;
+          }
+          y.set(withSpring(0, SETTLE));
+          if (
+            fullscreen &&
+            (e.translationY < -FULL_PX || e.velocityY < -DISMISS_V)
+          ) {
+            haptic.light();
+            setFs(true);
+          }
+        }),
+    [y, fullscreen, setFs],
+  );
   const sheet = useAnimatedStyle(() => ({
     transform: [
       { translateY: y.value },
-      { scale: interpolate(y.value, [0, height], [1, 0.9], "clamp") },
+      { scale: interpolate(y.value, [0, height], [1, 0.94], "clamp") },
     ],
-    borderRadius: interpolate(y.value, [0, 160], [0, 28], "clamp"),
+    opacity: interpolate(y.value, [height * 0.6, height], [1, 0], "clamp"),
+    borderRadius: interpolate(y.value, [0, 120], [0, 24], "clamp"),
   }));
 
   // Back (Android) and Esc (computers) close a panel, then shrink the video rather than lose it.
   useEffect(() => {
     if (mode !== "full") return;
-    const back = () => (panel ? setPanel(null) : minimizeWatch());
+    const back = () =>
+      fs ? setFs(false) : panel ? setPanel(null) : minimizeWatch();
     if (typeof document === "undefined") {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
         back();
@@ -325,7 +411,7 @@ export function WatchSession({ id }: { id: string }) {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && back();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [mode, panel]);
+  }, [mode, panel, fs]);
 
   const qualityLabel =
     src?.quality === "auto"
@@ -337,15 +423,16 @@ export function WatchSession({ id }: { id: string }) {
     if (!src) return;
     const choose = (q: Quality) => () => setQuality(q);
     showSheet({
-      header: <Text style={styles.sheetTitle}>Quality</Text>,
+      title: "Quality",
       actions: [
         {
-          label: src.quality === "auto" ? `✓  ${qualityLabel}` : "Auto",
-          sub: "Changes with your connection",
+          label: src.quality === "auto" ? qualityLabel : "Auto",
+          checked: src.quality === "auto",
           onPress: choose("auto"),
         },
         ...src.options.map((o) => ({
-          label: src.quality === o.key ? `✓  ${o.key}` : o.key,
+          label: o.key,
+          checked: src.quality === o.key,
           onPress: choose(o.key),
         })),
       ],
@@ -354,9 +441,10 @@ export function WatchSession({ id }: { id: string }) {
   const [speed, setSpeed] = useState(1);
   const pickSpeed = () =>
     showSheet({
-      header: <Text style={styles.sheetTitle}>Playback speed</Text>,
+      title: "Playback speed",
       actions: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => ({
-        label: `${r === speed ? "✓  " : ""}${r === 1 ? "Normal" : `${r}×`}`,
+        label: r === 1 ? "Normal" : `${r}×`,
+        checked: r === speed,
         onPress: () => {
           setSpeed(r);
           video.setRate(r);
@@ -366,11 +454,28 @@ export function WatchSession({ id }: { id: string }) {
   const pickSettings = () =>
     showSheet({
       actions: [
-        { label: "Quality", sub: qualityLabel, onPress: pickQuality },
+        {
+          label: "Quality",
+          sub: qualityLabel,
+          icon: (c) => <QualityGlyph size={22} color={c} />,
+          onPress: pickQuality,
+        },
         {
           label: "Playback speed",
           sub: speed === 1 ? "Normal" : `${speed}×`,
+          icon: (c) => <SpeedGlyph size={22} color={c} />,
           onPress: pickSpeed,
+        },
+        {
+          label: isPinned(id) ? "Unpin from Home" : "Pin to Home",
+          icon: (c) => <PinGlyph size={22} color={c} />,
+          onPress: () =>
+            togglePin({
+              kind: "video",
+              id,
+              title: title ?? "",
+              thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
+            }),
         },
       ],
     });
@@ -378,10 +483,9 @@ export function WatchSession({ id }: { id: string }) {
   const hasBack = useWatch((s) => s.back.length > 0);
   const share = () => {
     haptic.light();
-    void Share.share({
-      url: `https://youtu.be/${id}`,
-      message: `https://youtu.be/${id}`,
-    });
+    const link = `https://youtu.be/${id}`;
+    // iOS shares the url on its own; a message too would paste the link twice.
+    void Share.share(Platform.OS === "ios" ? { url: link } : { message: link });
   };
   // Saved with the title shown here (DeArrow's, when it has one).
   const asTrack = () =>
@@ -430,7 +534,7 @@ export function WatchSession({ id }: { id: string }) {
           {
             label: "Remove download",
             destructive: true,
-            onPress: () => removeDownload(id),
+            onPress: () => removeVideoDownload(id),
           },
         ],
       });
@@ -440,7 +544,7 @@ export function WatchSession({ id }: { id: string }) {
           {
             label: "Cancel download",
             destructive: true,
-            onPress: () => removeDownload(id),
+            onPress: () => removeVideoDownload(id),
           },
         ],
       });
@@ -488,76 +592,87 @@ export function WatchSession({ id }: { id: string }) {
     -1,
   );
 
+  const screen = (
+    <>
+      {src && mode === "full" ? (
+        <VideoSurface
+          surface={video.surface}
+          controls
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
+      {src && started && !ended && mode === "full" ? (
+        <VideoControls
+          at={at}
+          dur={src.stream.durationSec ?? v?.durationSec}
+          playing={playing}
+          chapters={d?.chapters ?? []}
+          canPrev={at > 3 || hasBack}
+          canNext={!!next}
+          autoplay={autoplay}
+          onToggle={video.toggle}
+          onSeek={video.seek}
+          onPrev={() => (at > 3 ? video.seek(0) : watchPrevious())}
+          onNext={() => next && openWatch(next)}
+          onMinimize={minimizeWatch}
+          onSettings={pickSettings}
+          onFullscreen={toggleFs}
+          fullscreen={fs}
+          getTime={video.time}
+          onAutoplay={(on) => {
+            setSetting("videoAutoplay", on);
+            showToast(on ? "Autoplay is on" : "Autoplay is off");
+          }}
+        />
+      ) : null}
+      {!started ? (
+        <View style={styles.veil} pointerEvents="none">
+          <Image
+            source={thumb}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            blurRadius={error ? 12 : undefined}
+          />
+          {error ? null : (
+            <View style={styles.spin}>
+              <Spinner size={30} />
+            </View>
+          )}
+        </View>
+      ) : null}
+      {error ? (
+        <View style={[styles.veil, styles.failed]}>
+          <Text style={styles.veilText}>This video won’t play right now.</Text>
+          <View style={styles.failRow}>
+            <PressScale onPress={retry} style={styles.offlineBtn}>
+              <Text style={styles.offlineText}>Try again</Text>
+            </PressScale>
+            {offlineCopy ? (
+              <PressScale onPress={playOffline} style={styles.offlineBtn}>
+                <Text style={styles.offlineText}>Play the downloaded copy</Text>
+              </PressScale>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+      {ended ? (
+        <EndCard
+          next={focus.upNext ? next : undefined}
+          onReplay={() => {
+            setEnded(false);
+            video.replay();
+          }}
+          onNext={() => next && openWatch(next)}
+          onDone={closeWatch}
+        />
+      ) : null}
+    </>
+  );
   const stage = (
-    // Drag the video down to keep it playing in the mini player.
+    // Drag the video down to keep it playing in the mini player, or up for full screen.
     <GestureDetector gesture={drag}>
       <View style={[styles.stage, { width: w, height: stageH }]}>
-        {src && mode === "full" ? (
-          <VideoSurface
-            surface={video.surface}
-            controls
-            style={StyleSheet.absoluteFill}
-          />
-        ) : null}
-        {src && started && !ended && mode === "full" ? (
-          <VideoControls
-            at={at}
-            dur={src.stream.durationSec ?? v?.durationSec}
-            playing={playing}
-            chapters={d?.chapters ?? []}
-            canPrev={at > 3 || hasBack}
-            canNext={!!next}
-            autoplay={autoplay}
-            onToggle={video.toggle}
-            onSeek={video.seek}
-            onPrev={() => (at > 3 ? video.seek(0) : watchPrevious())}
-            onNext={() => next && openWatch(next)}
-            onMinimize={minimizeWatch}
-            onSettings={pickSettings}
-            onFullscreen={enterFullscreen}
-            onAutoplay={(on) => {
-              setSetting("videoAutoplay", on);
-              showToast(on ? "Autoplay is on" : "Autoplay is off");
-            }}
-          />
-        ) : null}
-        {!started ? (
-          <View style={styles.veil} pointerEvents="none">
-            <Image
-              source={thumb}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              blurRadius={error ? 12 : undefined}
-            />
-            {error && offlineCopy ? null : error ? (
-              <Text style={styles.veilText}>
-                This video won’t play right now.
-              </Text>
-            ) : (
-              <View style={styles.spin}>
-                <Spinner size={30} />
-              </View>
-            )}
-          </View>
-        ) : null}
-        {error && offlineCopy ? (
-          <View style={styles.veil}>
-            <PressScale onPress={playOffline} style={styles.offlineBtn}>
-              <Text style={styles.offlineText}>Play the downloaded copy</Text>
-            </PressScale>
-          </View>
-        ) : null}
-        {ended ? (
-          <EndCard
-            next={next}
-            onReplay={() => {
-              setEnded(false);
-              video.replay();
-            }}
-            onNext={() => next && openWatch(next)}
-            onDone={closeWatch}
-          />
-        ) : null}
+        {fs ? null : screen}
       </View>
     </GestureDetector>
   );
@@ -574,12 +689,32 @@ export function WatchSession({ id }: { id: string }) {
             <Text style={styles.title} numberOfLines={2}>
               {title}
             </Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {(calm ? [v.publishedText] : [v.viewsText, v.publishedText])
-                .filter(Boolean)
-                .join(" · ")}
-              <Text style={styles.metaMore}> ...more</Text>
-            </Text>
+            <View style={styles.metaRow}>
+              {brand?.title || brand?.thumbnail ? (
+                <Pressable
+                  hitSlop={10}
+                  accessibilityLabel="Changed by DeArrow"
+                  onPress={() =>
+                    showToast(
+                      brand.title
+                        ? `Original title: ${v.title}`
+                        : "Thumbnail from DeArrow",
+                    )
+                  }
+                >
+                  <DeArrowMark size={13} />
+                </Pressable>
+              ) : null}
+              <Text style={styles.metaText} numberOfLines={1}>
+                {(focus.counts
+                  ? [v.viewsText, v.publishedText]
+                  : [v.publishedText]
+                )
+                  .filter(Boolean)
+                  .join(" · ")}
+                <Text style={styles.metaMore}> ...more</Text>
+              </Text>
+            </View>
           </Pressable>
           <View style={styles.channel}>
             <Pressable
@@ -596,14 +731,14 @@ export function WatchSession({ id }: { id: string }) {
                 <Text style={styles.channelName} numberOfLines={1}>
                   {v.channel?.name}
                 </Text>
-                {d?.subscribersText && !calm ? (
+                {d?.subscribersText && focus.counts ? (
                   <Text style={styles.subs} numberOfLines={1}>
                     {d.subscribersText}
                   </Text>
                 ) : null}
               </View>
             </Pressable>
-            {signedIn && v.channel?.id ? (
+            {v.channel?.id ? (
               <PressScale
                 onPress={toggleSubscribe}
                 style={[styles.subBtn, subscribed && styles.subBtnOn]}
@@ -620,8 +755,8 @@ export function WatchSession({ id }: { id: string }) {
             contentContainerStyle={styles.actions}
           >
             <LikePill
-              likes={calm ? undefined : likes}
-              dislikes={calm ? undefined : votes?.dislikes}
+              likes={focus.counts ? likes : undefined}
+              dislikes={focus.counts ? votes?.dislikes : undefined}
               rating={rating}
               onRate={rate}
             />
@@ -676,14 +811,16 @@ export function WatchSession({ id }: { id: string }) {
         </ScrollView>
       ) : null}
 
-      {!calm && d?.comments ? (
+      {focus.comments && d?.comments ? (
         <CommentsCard
           page={comments.data}
+          failed={!!comments.error && !comments.data}
           onPress={() => setPanel("comments")}
+          onRetry={comments.reload}
         />
       ) : null}
 
-      {!calm && related.length ? (
+      {focus.upNext && related.length ? (
         <View style={styles.upNext}>
           {pinned ? (
             related.slice(0, 16).map((r) => <VideoCard key={r.id} video={r} />)
@@ -704,6 +841,8 @@ export function WatchSession({ id }: { id: string }) {
     panel === "comments" ? (
       <CommentsPanel
         first={comments.data}
+        failed={!!comments.error && !comments.data}
+        onRetry={comments.reload}
         onClose={() => setPanel(null)}
         onSeek={video.seek}
       />
@@ -711,7 +850,7 @@ export function WatchSession({ id }: { id: string }) {
       <DescriptionPanel
         detail={d}
         title={title}
-        likes={calm ? undefined : likes}
+        likes={focus.counts ? likes : undefined}
         onClose={() => setPanel(null)}
         onSeek={video.seek}
       />
@@ -753,6 +892,9 @@ export function WatchSession({ id }: { id: string }) {
           ) : null}
         </>
       )}
+      {fs && mode === "full" ? (
+        <FullscreenLayer onExit={() => setFs(false)}>{screen}</FullscreenLayer>
+      ) : null}
     </Animated.View>
   );
 }
@@ -818,62 +960,22 @@ const mb = (bytes: number) =>
     ? `${(bytes / 1e9).toFixed(1)} GB`
     : `${Math.max(1, Math.round(bytes / 1e6))} MB`;
 
-const DownloadGlyph = ({ done }: { done?: boolean }) => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d={
-        done
-          ? "M5 12.5l4.5 4.5L19 7.5"
-          : "M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"
-      }
-      stroke="#fff"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+const DownloadGlyph = ({ done }: { done?: boolean }) =>
+  done ? (
+    <CircleCheck size={17} color="#fff" strokeWidth={2} />
+  ) : (
+    <CircleArrowDown size={17} color="#fff" strokeWidth={2} />
+  );
 
-const SaveGlyph = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M4 6h11M4 12h11M4 18h7M18 14v7M14.5 17.5h7"
-      stroke="#fff"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-    />
-  </Svg>
-);
+const SaveGlyph = () => <ListPlus size={17} color="#fff" strokeWidth={2} />;
 
 const GearGlyph = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M4 7h10M18 7h2M4 17h4M12 17h8"
-      stroke="#fff"
-      strokeWidth={2}
-      strokeLinecap="round"
-    />
-    <Path
-      d="M16 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM10 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
-      stroke="#fff"
-      strokeWidth={2}
-    />
-  </Svg>
+  <SlidersHorizontal size={17} color="#fff" strokeWidth={2} />
 );
 
-const ShareGlyph = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M14 5l7 7-7 7M21 12H10a6 6 0 0 0-6 6v1"
-      stroke="#fff"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+const ShareGlyph = () => <ShareIcon size={17} color="#fff" strokeWidth={2} />;
 
-// Like and dislike in one pill, like YouTube's; counts are hidden on the calm page.
+// Like and dislike in one pill, like YouTube's; counts are hidden in Focus mode.
 function LikePill({
   likes,
   dislikes,
@@ -912,23 +1014,12 @@ function LikePill({
   );
 }
 
-const Thumb = ({ up, on }: { up?: boolean; on?: boolean }) => (
-  <Svg
-    width={17}
-    height={17}
-    viewBox="0 0 24 24"
-    fill="none"
-    style={up ? undefined : { transform: [{ rotate: "180deg" }] }}
-  >
-    <Path
-      d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3zm0 0 4-8a2 2 0 0 1 2 2v4h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.3 20H7"
-      stroke="#fff"
-      fill={on ? "#fff" : "none"}
-      strokeWidth={2}
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+const Thumb = ({ up, on }: { up?: boolean; on?: boolean }) => {
+  const Icon = up ? ThumbsUpIcon : ThumbsDownIcon;
+  return (
+    <Icon size={17} color="#fff" strokeWidth={2} fill={on ? "#fff" : "none"} />
+  );
+};
 
 // When a video ends nothing starts by itself: replay, go on, or stop here.
 function EndCard({
@@ -967,16 +1058,57 @@ function EndCard({
 }
 
 const HeadphonesGlyph = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2zm16 0a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2z"
-      stroke="#fff"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
+  <Headphones size={17} color="#fff" strokeWidth={2} />
 );
+
+/** Landscape without rotating the app: the video turned on its side over everything, status bar hidden.
+ * Swipe down (in the turned picture) to leave, like YouTube. */
+function FullscreenLayer({
+  children,
+  onExit,
+}: {
+  children: React.ReactNode;
+  onExit: () => void;
+}) {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const exit = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .activeOffsetY(16)
+        .failOffsetX([-30, 30])
+        .onEnd((e) => {
+          if (e.translationY > 70 || e.velocityY > 800) {
+            haptic.light();
+            onExit();
+          }
+        }),
+    [onExit],
+  );
+  return (
+    <Animated.View entering={FadeIn.duration(200)} style={styles.full}>
+      <StatusBar hidden />
+      <GestureDetector gesture={exit}>
+        <View
+          style={{
+            position: "absolute",
+            width: height,
+            height: width,
+            left: (width - height) / 2,
+            top: (height - width) / 2,
+            // Turned clockwise: the notch ends up on the left, the home bar on the right.
+            paddingLeft: insets.top,
+            paddingRight: insets.bottom,
+            transform: [{ rotate: "90deg" }],
+          }}
+        >
+          <View style={{ flex: 1 }}>{children}</View>
+        </View>
+      </GestureDetector>
+    </Animated.View>
+  );
+}
 
 /** YouTube's ambient mode: the picture, blurred past recognition, glowing out from under the video onto black. */
 function Ambient({ uri }: { uri: string }) {
@@ -1043,6 +1175,15 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     transform: [{ scale: 1.35 }],
   },
+  full: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "#000",
+    zIndex: 10,
+  },
   // Not clipped, so the seek bar's handle can sit on the video's bottom edge like YouTube's.
   stage: { backgroundColor: "#000", zIndex: 2 },
   sheetTitle: {
@@ -1063,6 +1204,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   veilText: { color: "#fff", fontSize: 14, ...display("700") },
+  failed: { gap: 14, backgroundColor: "rgba(0,0,0,0.6)" },
+  failRow: { flexDirection: "row", gap: 10 },
   offlineBtn: {
     height: 40,
     paddingHorizontal: 18,
@@ -1073,7 +1216,8 @@ const styles = StyleSheet.create({
   offlineText: { color: "#000", fontSize: 14, ...display("800") },
   info: { paddingHorizontal: 12, paddingTop: 12 },
   title: { color: "#fff", fontSize: 18, lineHeight: 23, ...display("800") },
-  meta: { color: "rgba(255,255,255,0.6)", fontSize: 12.5, marginTop: 5 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5 },
+  metaText: { flexShrink: 1, color: "rgba(255,255,255,0.6)", fontSize: 12.5 },
   metaMore: { color: "#fff", fontWeight: "700" },
   actions: { gap: 8, paddingHorizontal: 12, marginTop: 12 },
   likePill: { paddingHorizontal: 0, gap: 0 },

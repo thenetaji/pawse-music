@@ -33,7 +33,7 @@ import { Artwork } from "../../components/artwork";
 import { CloseGlyph } from "../../components/glyphs";
 import { MoodTile } from "../../components/mood-tile";
 import { useBottomSpace, useTabRoot } from "../../components/page";
-import { openItem, Shelf } from "../../components/shelf";
+import { openItem, Shelf, showItemActions } from "../../components/shelf";
 import { TrackRow } from "../../components/track-row";
 import {
   CatState,
@@ -46,7 +46,9 @@ import {
 import { ChannelRow, VideoCard } from "../../components/video-card";
 import { useLibrary } from "../../data/library";
 import { useVideoFilter } from "../../lib/block";
+import { rightClick } from "../../lib/context-menu";
 import { yt, ytv } from "../../lib/engine";
+import { useFocus } from "../../lib/focus";
 import { useRegion } from "../../lib/locale";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
@@ -54,13 +56,13 @@ import { useResource } from "../../lib/use-resource";
 import { PlayGlyph } from "../now-playing/icons";
 import { useAccent } from "../now-playing/now-palette";
 
+// All is YouTube itself (videos, channels, music); the rest search YouTube Music's catalog.
 const FILTERS: { id: SearchFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "songs", label: "Songs" },
   { id: "albums", label: "Albums" },
   { id: "artists", label: "Artists" },
   { id: "playlists", label: "Playlists" },
-  { id: "videos", label: "Videos" },
 ];
 
 export default function SearchPage() {
@@ -71,23 +73,25 @@ export default function SearchPage() {
   const input = useRef<TextInput>(null);
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
-  // "youtube" searches all of YouTube (videos and channels), not YouTube Music.
-  const [filter, setFilter] = useState<SearchFilter | "youtube">("all");
+  const [filter, setFilter] = useState<SearchFilter>("all");
   const videos = useSetting("videos", true);
+  // With videos off, All falls back to YouTube Music's own mix of results.
+  const youtube = videos && filter === "all";
+  const focus = useFocus();
   const [focused, setFocused] = useState(false);
   const recent = useLibrary((s) => s.recentSearches);
 
   const debounced = useDebounced(text.trim(), 180);
   const suggestions = useResource<string[]>(
-    focused && debounced ? `sugg:${debounced}` : null,
+    focused && debounced && focus.trends ? `sugg:${debounced}` : null,
     () => yt.suggestions(debounced),
   );
   const results = useResource<SearchResults>(
-    query && filter !== "youtube" ? `search:${filter}:${query}` : null,
-    () => yt.search(query, filter as SearchFilter),
+    query && !youtube ? `search:${filter}:${query}` : null,
+    () => yt.search(query, filter),
   );
   const ytResults = useResource<VideoSearchResults>(
-    query && filter === "youtube" ? `ytsearch:${query}` : null,
+    query && youtube ? `ytsearch:${query}` : null,
     () => ytv.search(query),
   );
 
@@ -150,6 +154,7 @@ export default function SearchPage() {
               value={text}
               onChangeText={setText}
               onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
               onSubmitEditing={() => submit(text)}
               placeholder="Songs, artists, albums"
               placeholderTextColor="rgba(255,255,255,0.4)"
@@ -198,14 +203,6 @@ export default function SearchPage() {
                 onPress={() => setFilter(f.id)}
               />
             ))}
-            {videos ? (
-              <Chip
-                label="YouTube"
-                on={filter === "youtube"}
-                accent={accent}
-                onPress={() => setFilter("youtube")}
-              />
-            ) : null}
           </ScrollView>
         ) : null}
       </View>
@@ -238,9 +235,14 @@ export default function SearchPage() {
           bottom={bottom}
           accent={accent}
         />
-      ) : filter === "youtube" ? (
+      ) : youtube ? (
         ytResults.data ? (
-          <YouTubeResults data={ytResults.data} bottom={bottom} />
+          <YouTubeResults
+            data={ytResults.data}
+            query={query}
+            bottom={bottom}
+            onFilter={setFilter}
+          />
         ) : ytResults.error ? (
           <CatState
             kind="error"
@@ -273,31 +275,101 @@ export default function SearchPage() {
 }
 
 // All of YouTube: edge-to-edge videos and channels, never Shorts, minus anything blocked.
+// When YouTube files the top results as music, the matching songs come first, ready to play.
 function YouTubeResults({
   data,
+  query,
   bottom,
+  onFilter,
 }: {
   data: VideoSearchResults;
+  query: string;
   bottom: number;
+  onFilter: (f: SearchFilter) => void;
 }) {
   const keep = useVideoFilter();
-  const items = data.items.filter(
-    (x) => x.type === "channel" || keep(x as VideoItem),
+  const [more, setMore] = useState<{
+    from: VideoSearchResults;
+    items: VideoSearchResults["items"];
+    continuation?: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const extra = more?.from === data ? more : null;
+  const cont = extra ? extra.continuation : data.continuation;
+  const all = [...data.items, ...(extra?.items ?? [])];
+  const seen = new Set<string>();
+  const items = all.filter((x) => {
+    if (seen.has(x.id)) return false;
+    seen.add(x.id);
+    return x.type === "channel" || keep(x as VideoItem);
+  });
+  const musical =
+    data.items.slice(0, 8).filter((x) => x.type === "video" && x.music)
+      .length >= 2;
+  const songs = useResource<SearchResults>(
+    musical ? `search:songs:${query}` : null,
+    () => yt.search(query, "songs"),
   );
+  const topSongs = (songs.data?.items ?? [])
+    .filter(
+      (i): i is Extract<CatalogItem, { type: "track" }> => i.type === "track",
+    )
+    .slice(0, 3);
+  const loadMore = () => {
+    if (!cont || loading) return;
+    setLoading(true);
+    ytv
+      .search(query, cont)
+      .then((r) =>
+        setMore({
+          from: data,
+          items: [...(extra?.items ?? []), ...r.items],
+          continuation: r.continuation,
+        }),
+      )
+      .catch(() =>
+        setMore({
+          from: data,
+          items: extra?.items ?? [],
+          continuation: undefined,
+        }),
+      )
+      .finally(() => setLoading(false));
+  };
   if (!items.length)
-    return <CatState kind="empty" message="No videos for that." />;
+    return (
+      <CatState kind="empty" message="Nothing for that. Try other words." />
+    );
   return (
-    <ScrollView
+    <FlatList
+      data={items}
+      keyExtractor={(x) => `${x.type}:${x.id}`}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.8}
       contentContainerStyle={{ paddingTop: 12, paddingBottom: bottom }}
-    >
-      {items.map((x) =>
+      ListHeaderComponent={
+        topSongs.length ? (
+          <View style={{ marginBottom: 16 }}>
+            <SectionTitle title="Songs" onMore={() => onFilter("songs")} />
+            {topSongs.map((t) => (
+              <TrackRow
+                key={t.id}
+                track={t as Track}
+                onPress={() => openItem(t, topSongs)}
+              />
+            ))}
+          </View>
+        ) : null
+      }
+      ListFooterComponent={loading ? <SkeletonRows count={2} /> : null}
+      renderItem={({ item: x }) =>
         x.type === "channel" ? (
-          <ChannelRow key={x.id} channel={x} />
+          <ChannelRow channel={x} />
         ) : (
-          <VideoCard key={x.id} video={x as VideoItem} />
-        ),
-      )}
-    </ScrollView>
+          <VideoCard video={x as VideoItem} />
+        )
+      }
+    />
   );
 }
 
@@ -513,6 +585,8 @@ function Results({
 }) {
   if (filter !== "all" && data.items)
     return <FilteredResults data={data} bottom={bottom} />;
+  if (!data.top && !data.shelves.length)
+    return <CatState kind="empty" message="No matches. Try other words." />;
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: bottom }}>
       {data.top ? <TopResult item={data.top} /> : null}
@@ -665,6 +739,8 @@ function ItemRow({ item }: { item: CatalogItem }) {
   return (
     <Pressable
       onPress={() => openItem(item)}
+      onLongPress={() => showItemActions(item)}
+      {...rightClick(() => showItemActions(item))}
       android_ripple={RIPPLE}
       style={({ pressed }) => [
         styles.itemRow,

@@ -14,12 +14,27 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 
+import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
+import {
+  ArtistGlyph,
+  ChannelGlyph,
+  PinGlyph,
+  UnsubscribeGlyph,
+} from "../../components/glyphs";
 import { PressScale, SectionTitle, SkeletonShelves } from "../../components/ui";
-import { VideoCard } from "../../components/video-card";
+import { showVideoActions, VideoCard } from "../../components/video-card";
+import {
+  setSubscribed,
+  subscriptionsFeed,
+  useDroppedChannel,
+  useFollowedChannels,
+} from "../../data/channels";
 import { useLibrary } from "../../data/library";
+import { isPinned, togglePin } from "../../data/pins";
 import { isUnfinished, useWatched, type Watched } from "../../data/watched";
 import { useVideoFilter } from "../../lib/block";
+import { rightClick } from "../../lib/context-menu";
 import { ytv } from "../../lib/engine";
 import { go, push } from "../../lib/nav";
 import { autoplayMode } from "../../lib/settings";
@@ -29,9 +44,15 @@ import { openWatch, useWatch } from "../watch/store";
 
 // Same keys as the videos page, so both share one copy of each feed.
 export const useSubsFeed = (on: boolean) =>
-  useResource<VideoFeed>(on ? "watch:subs" : null, () => ytv.subscriptions(), {
+  useResource<VideoFeed>(on ? "watch:subs" : null, () => subscriptionsFeed(), {
     keep: true,
   });
+/** Signed in, or following channels on this phone: either way there's a feed of their uploads. */
+export const useHasSubs = () => {
+  const signedIn = useLibrary((s) => !!s.settings.cookies);
+  const local = useFollowedChannels().length > 0;
+  return signedIn || local;
+};
 const useVideoHome = (on: boolean) =>
   useResource<VideoFeed>(on ? "watch:home" : null, () => ytv.home(), {
     keep: true,
@@ -231,6 +252,8 @@ export function VideoStrip({
                 channel: w.channel,
               })
             }
+            onLongPress={() => showVideoActions({ type: "video", ...w })}
+            {...rightClick(() => showVideoActions({ type: "video", ...w }))}
             style={styles.mini}
           >
             <View style={styles.miniPic}>
@@ -260,7 +283,54 @@ type Person = {
   avatar?: Thumbnail[];
   fresh: boolean;
   open: () => void;
+  menu: () => void;
 };
+
+/** A channel's long-press menu: open it, or unsubscribe. */
+export function channelMenu(c: {
+  id: string;
+  name: string;
+  avatar?: Thumbnail[];
+}) {
+  showSheet({
+    header: <SheetPerson name={c.name} avatar={c.avatar} />,
+    actions: [
+      {
+        label: "Open channel",
+        icon: (col) => <ChannelGlyph size={22} color={col} />,
+        onPress: () => go(`/channel/${c.id}`),
+      },
+      {
+        label: isPinned(c.id) ? "Unpin from Home" : "Pin to Home",
+        icon: (col) => <PinGlyph size={22} color={col} />,
+        onPress: () =>
+          togglePin({
+            kind: "channel",
+            id: c.id,
+            title: c.name,
+            thumbnails: c.avatar ?? [],
+          }),
+      },
+      {
+        label: "Unsubscribe",
+        icon: (col) => <UnsubscribeGlyph size={22} color={col} />,
+        destructive: true,
+        onPress: () => setSubscribed(c, false),
+      },
+    ],
+  });
+}
+
+function SheetPerson({ name, avatar }: { name: string; avatar?: Thumbnail[] }) {
+  return (
+    <View style={styles.sheetHead}>
+      <Artwork thumbnails={avatar} size={44} round seed={name} />
+      <Text style={styles.sheetName} numberOfLines={1}>
+        {name}
+      </Text>
+    </View>
+  );
+}
 
 /** Channels you're subscribed to and artists you follow, newest uploads first, with a dot for anything new. */
 export function YourPeople({
@@ -270,23 +340,35 @@ export function YourPeople({
   videos: boolean;
   accent: string;
 }) {
-  const signedIn = useLibrary((s) => !!s.settings.cookies);
+  const has = useHasSubs();
   const artists = useLibrary((s) => s.followedArtists);
-  const subs = useSubsFeed(videos && signedIn);
+  const local = useFollowedChannels();
+  const dropped = useDroppedChannel();
+  const subs = useSubsFeed(videos && has);
   const people: Person[] = [];
   const seen = new Set<string>();
+  const channel = (c: { id: string; name: string; avatar?: Thumbnail[] }) => ({
+    key: c.id,
+    name: c.name,
+    avatar: c.avatar,
+    fresh: false,
+    open: () => go(`/channel/${c.id}`),
+    menu: () => channelMenu(c),
+  });
   for (const v of subs.data?.items ?? []) {
     const c = v.channel;
-    if (!c?.id || seen.has(c.id)) continue;
+    if (!c?.id || seen.has(c.id) || dropped(c.id)) continue;
     seen.add(c.id);
-    const id = c.id;
     people.push({
-      key: id,
-      name: c.name,
-      avatar: c.avatar,
+      ...channel({ id: c.id, name: c.name, avatar: c.avatar }),
       fresh: FRESH.test(v.publishedText ?? ""),
-      open: () => go(`/channel/${id}`),
     });
+  }
+  // Channels followed here that haven't posted lately still belong in the row.
+  for (const c of videos ? local : []) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    people.push(channel(c));
   }
   for (const a of artists) {
     if (seen.has(a.id)) continue;
@@ -297,6 +379,23 @@ export function YourPeople({
       avatar: a.thumbnails,
       fresh: false,
       open: () => go(`/artist/${a.id}`),
+      menu: () =>
+        showSheet({
+          header: <SheetPerson name={a.name} avatar={a.thumbnails} />,
+          actions: [
+            {
+              label: "Open artist",
+              icon: (c) => <ArtistGlyph size={22} color={c} />,
+              onPress: () => go(`/artist/${a.id}`),
+            },
+            {
+              label: "Unfollow",
+              icon: (c) => <UnsubscribeGlyph size={22} color={c} />,
+              destructive: true,
+              onPress: () => useLibrary.getState().toggleFollowArtist(a),
+            },
+          ],
+        }),
     });
   }
   if (!people.length) return null;
@@ -309,7 +408,14 @@ export function YourPeople({
         contentContainerStyle={styles.people}
       >
         {people.slice(0, 24).map((p) => (
-          <PressScale key={p.key} onPress={p.open} style={styles.person}>
+          <PressScale
+            key={p.key}
+            onPress={p.open}
+            onLongPress={p.menu}
+            {...rightClick(p.menu)}
+            accessibilityLabel={p.name}
+            style={styles.person}
+          >
             <View>
               <Artwork thumbnails={p.avatar} size={64} round seed={p.name} />
               {p.fresh ? (
@@ -334,13 +440,13 @@ export function VideoShelf({
   kind: "subs" | "home";
   title: string;
 }) {
-  const signedIn = useLibrary((s) => !!s.settings.cookies);
-  const subs = useSubsFeed(kind === "subs" && signedIn);
+  const has = useHasSubs();
+  const subs = useSubsFeed(kind === "subs" && has);
   const home = useVideoHome(kind === "home");
   const feed = kind === "subs" ? subs : home;
   const keep = useVideoFilter();
   const [width, setWidth] = useState(0);
-  if (kind === "subs" && !signedIn) return null;
+  if (kind === "subs" && !has) return null;
   const items = (feed.data?.items ?? []).filter((v: VideoItem) => keep(v));
   const wide = width >= 640;
   const more = () => push(`/(tabs)/(home)/videos?feed=${kind}`);
@@ -380,6 +486,8 @@ export function VideoShelf({
 }
 
 const styles = StyleSheet.create({
+  sheetHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sheetName: { flex: 1, color: "#fff", fontSize: 17, ...display("800") },
   hero: {
     marginHorizontal: 16,
     maxWidth: 640,

@@ -3,6 +3,7 @@ import { player, usePlayerState, useProgress } from "@pawse/player";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   FadeIn,
   useAnimatedStyle,
   useSharedValue,
@@ -18,6 +19,10 @@ import { push } from "../../lib/nav";
 import { NextGlyph, PauseGlyph, PlayGlyph } from "./icons";
 import { useAccent } from "./now-palette";
 
+const MAX_X = 70;
+// No overshoot on the way back.
+const CALM = { damping: 26, stiffness: 260 };
+
 // Lives in the iOS 26 tab bar accessory (or floats above the tab bar elsewhere).
 // Tap opens the player; swipe left/right to skip.
 export function MiniPlayer({ inline }: { inline?: boolean }) {
@@ -32,20 +37,23 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
     .runOnJS(true)
     .activeOffsetX([-10, 10])
     .failOffsetY([-10, 10])
-    .onUpdate((e) => x.set(e.translationX * 0.9))
+    // Half the finger's travel, held to a short reach, so a swipe nudges rather than flings.
+    .onUpdate((e) =>
+      x.set(Math.max(-MAX_X, Math.min(MAX_X, e.translationX * 0.5))),
+    )
     .onEnd((e) => {
       const go = Math.abs(e.translationX) > 60 || Math.abs(e.velocityX) > 600;
       if (!go) {
-        x.set(withSpring(0, { damping: 14, stiffness: 220 }));
+        x.set(withSpring(0, CALM));
         return;
       }
-      haptic.medium();
+      haptic.light();
       const dir = e.translationX < 0 ? -1 : 1;
       x.set(
         withSequence(
-          withTiming(dir * 260, { duration: 140 }),
-          withTiming(-dir * 120, { duration: 0 }),
-          withSpring(0, { damping: 14, stiffness: 200 }),
+          withTiming(dir * MAX_X, { duration: 110 }),
+          withTiming(-dir * 24, { duration: 0 }),
+          withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) }),
         ),
       );
       if (dir < 0) player.next();
@@ -53,7 +61,7 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
     });
   const style = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value }, { scale: press.value }],
-    opacity: 1 - Math.min(0.6, Math.abs(x.value) / 300),
+    opacity: 1 - Math.min(0.7, Math.abs(x.value) / 100),
   }));
 
   if (!current) return null;

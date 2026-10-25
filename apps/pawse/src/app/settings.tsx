@@ -507,8 +507,10 @@ function QualityRow({
     <Pressable
       onPress={() =>
         showSheet({
+          title: label,
           actions: options.map(([v, l]) => ({
-            label: v === value ? `✓  ${l}` : l,
+            label: l,
+            checked: v === value,
             onPress: () => setSetting(k, v),
           })),
         })
@@ -815,9 +817,14 @@ const styles = StyleSheet.create({
 function VideoSettings() {
   const videos = useSetting("videos", true);
   const blocked = useBlockedCount();
+  const focus = useSetting("focusMode", false);
   return (
     <>
       <Section title="Home and videos">
+        <Link
+          label={focus ? "Focus mode · On" : "Focus mode"}
+          onPress={() => push("/focus")}
+        />
         <Link label="Edit Home" onPress={() => push("/edit-home")} />
         <Toggle k="videos" label="YouTube videos" def />
         {videos ? (
@@ -835,7 +842,6 @@ function VideoSettings() {
               ]}
             />
             <Toggle k="videoAutoplay" label="Play the next video" def={false} />
-            <Toggle k="videoCalm" label="Calm watch page" def={false} />
             <Toggle k="skipSponsors" label="Skip sponsors" def />
             <Toggle k="dearrow" label="Honest titles and thumbnails" def />
             <Link
@@ -849,7 +855,7 @@ function VideoSettings() {
       </Section>
       <Foot>
         {videos
-          ? "Videos from YouTube in Home, Search and the player, never Shorts. Auto picks the quality as your connection allows. The calm watch page leaves out comments, counts and Up next. Sponsor skips come from SponsorBlock, honest titles from DeArrow."
+          ? "Videos from YouTube in Home, Search and the player, never Shorts. Auto picks the quality as your connection allows. Focus mode leaves out comments, counts, suggestions and autoplay. Sponsor skips come from SponsorBlock, honest titles from DeArrow."
           : "Pawse shows music only."}
       </Foot>
     </>

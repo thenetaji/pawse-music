@@ -1,7 +1,13 @@
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { type ReactNode, useEffect, useRef } from "react";
+import { router, useFocusEffect } from "expo-router";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   type GestureResponderEvent,
   Platform,
@@ -101,7 +107,7 @@ type ScreenProps = {
   right?: ReactNode;
   children: ReactNode;
   background?: ReactNode;
-  onRefresh?: () => void;
+  onRefresh?: () => unknown;
   refreshing?: boolean;
   onEndReached?: () => void;
   bottomInset?: number;
@@ -127,22 +133,40 @@ export function Screen({
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const scroller = useRef<Animated.ScrollView>(null);
+  const y = useSharedValue(0);
+  // The spinner stays until the reload lands (or a moment, for pages that reload without telling).
+  const [pulling, setPulling] = useState(false);
+  const pull = () => {
+    if (!onRefresh) return;
+    haptic.light();
+    setPulling(true);
+    void Promise.all([
+      Promise.resolve(onRefresh()).catch(() => {}),
+      new Promise((r) => setTimeout(r, 700)),
+    ]).finally(() => setPulling(false));
+  };
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      return () => {
+        focused.current = false;
+      };
+    }, []),
+  );
+  // Tapping the tab you're on goes to the top, and from the top it refreshes, like YouTube.
+  const onReselect = useEffectEvent((t: Tab) => {
+    if (t !== tab || !focused.current) return;
+    if (y.get() > 4) scroller.current?.scrollTo({ y: 0, animated: true });
+    else pull();
+  });
   useEffect(
-    () =>
-      tab
-        ? onTabReselect((t) => {
-            if (t === tab) scroller.current?.scrollTo({ y: 0, animated: true });
-          })
-        : undefined,
+    () => (tab ? onTabReselect((t) => onReselect(t)) : undefined),
     [tab],
   );
-  const y = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
-    y.value = e.contentOffset.y;
+    y.set(e.contentOffset.y);
   });
-  const bar = useAnimatedStyle(() => ({
-    opacity: interpolate(y.value, [30, 70], [0, 1], "clamp"),
-  }));
   const big = useAnimatedStyle(() => ({
     opacity: interpolate(y.value, [0, 50], [1, 0], "clamp"),
     transform: [
@@ -179,8 +203,8 @@ export function Screen({
           onRefresh ? (
             <RefreshControl
               tintColor="#fff"
-              refreshing={!!refreshing}
-              onRefresh={onRefresh}
+              refreshing={!!refreshing || pulling}
+              onRefresh={pull}
             />
           ) : undefined
         }
@@ -211,33 +235,12 @@ export function Screen({
         )}
         {children}
       </Animated.ScrollView>
-      {bare ? (
-        // Content slides under the clock; a fade keeps the status bar readable.
-        <LinearGradient
-          pointerEvents="none"
-          colors={["#000", "rgba(0,0,0,0.6)", "rgba(0,0,0,0)"]}
-          style={[styles.bar, { height: insets.top + 14 }]}
-        />
-      ) : (
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.bar, { height: insets.top + 44 }, bar]}
-        >
-          {ANDROID ? (
-            <View style={[StyleSheet.absoluteFill, styles.barSolid]} />
-          ) : (
-            <BlurView
-              intensity={50}
-              tint="systemChromeMaterialDark"
-              style={StyleSheet.absoluteFill}
-            />
-          )}
-          <View style={styles.hairline} />
-          <Text style={[styles.barTitle, { marginTop: insets.top + 12 }]}>
-            {title}
-          </Text>
-        </Animated.View>
-      )}
+      {/* No bar: the page scrolls under the clock, with a fade to keep it readable. */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={["#000", "rgba(0,0,0,0.6)", "rgba(0,0,0,0)"]}
+        style={[styles.bar, { height: insets.top + 14 }]}
+      />
     </View>
   );
 }
@@ -450,17 +453,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     overflow: "hidden",
   },
-  // Android's BlurView is a flat translucent wash without a blur target, so it gets a solid surface.
-  barSolid: { backgroundColor: "#141418" },
-  hairline: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  barTitle: { color: "#fff", fontSize: 17, ...display("700") },
   section: { paddingHorizontal: 20, marginTop: 28, marginBottom: 10 },
   kicker: {
     color: "rgba(255,255,255,0.5)",

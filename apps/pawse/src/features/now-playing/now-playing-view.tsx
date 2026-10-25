@@ -95,6 +95,8 @@ export type NowPlayingProps = {
     /** The video-only playlist, once it's ready. */
     uri?: string;
     failed?: boolean;
+    /** The song has no music video: the switch shows that and stays on Song. */
+    none?: boolean;
     onChange: (on: boolean) => void;
   };
   /** Tapping the title opens the album; tapping the artist opens the artist. */
@@ -130,7 +132,7 @@ export function NowPlayingView(p: NowPlayingProps) {
       s.status === "loading",
   );
   const lyricsMode = p.mode === "lyrics";
-  const videoOn = !!p.video?.on && !lyricsMode;
+  const videoOn = !!p.video?.on && !p.video.none && !lyricsMode;
 
   // Paused: the artwork dims and settles back a touch.
   const live = useSharedValue(playing ? 1 : 0);
@@ -419,7 +421,11 @@ export function NowPlayingView(p: NowPlayingProps) {
           </Pressable>
           {p.video && !lyricsMode ? (
             <View style={styles.context}>
-              <SongVideoSwitch on={p.video.on} onChange={p.video.onChange} />
+              <SongVideoSwitch
+                on={p.video.on && !p.video.none}
+                none={p.video.none}
+                onChange={p.video.onChange}
+              />
             </View>
           ) : (
             <>
@@ -493,7 +499,10 @@ export function NowPlayingView(p: NowPlayingProps) {
                 {videoOn ? (
                   <Animated.View
                     entering={FadeIn.duration(300)}
-                    style={[styles.videoBox, { height: (win.width * 9) / 16 }]}
+                    style={[
+                      styles.videoBox,
+                      { height: ((win.width - 32) * 9) / 16 },
+                    ]}
                   >
                     {p.video?.uri ? (
                       <SyncedVideo
@@ -900,10 +909,16 @@ const styles = StyleSheet.create({
   artArea: { flex: 1, minHeight: 160, justifyContent: "center" },
   // Edge to edge across the player's side padding.
   // No fill: the blurred artwork shows around a 4:3 or vertical picture instead of black bars.
+  // A rounded card, not a hard-cut strip across the screen.
   videoBox: {
-    marginHorizontal: -28,
+    marginHorizontal: -12,
+    borderRadius: 18,
+    overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   videoNote: {
     color: "rgba(255,255,255,0.7)",

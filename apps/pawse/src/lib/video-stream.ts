@@ -9,6 +9,7 @@ import {
 } from "./video-ladder";
 
 export type { Quality, QualityOption, VideoSource } from "./video-ladder";
+export { forgetStream } from "./video-ladder";
 
 const host: PlaylistHost = {
   publish: publishPlaylist,

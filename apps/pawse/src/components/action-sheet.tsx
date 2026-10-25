@@ -24,6 +24,7 @@ import { FullWindowOverlay } from "react-native-screens";
 import { create } from "zustand";
 import { useAccent } from "../features/now-playing/now-palette";
 import { display } from "../lib/type";
+import { CheckGlyph } from "./glyphs";
 
 /** An icon, or a function drawing it in the colour the row wants (white, accent, red). */
 export type SheetIcon = ReactNode | ((color: string) => ReactNode);
@@ -36,6 +37,8 @@ export type SheetAction = {
   sub?: string;
   destructive?: boolean;
   keepOpen?: boolean;
+  /** A choice in a list: a tick on the right marks the current one. */
+  checked?: boolean;
 };
 /** A tile in the row under the header (Like, Download, Share...). */
 export type QuickAction = {
@@ -46,6 +49,8 @@ export type QuickAction = {
   keepOpen?: boolean;
 };
 type Sheet = {
+  /** A small heading for a list of choices, such as "Playback speed". */
+  title?: string;
   header?: ReactNode;
   quick?: QuickAction[];
   actions: SheetAction[];
@@ -143,7 +148,7 @@ export function ActionSheetHost() {
   // Wide windows (desktop) get a centred panel instead of one stretched edge to edge.
   const side = width > 700 ? (width - 440) / 2 : 10;
   const quick = sheet.quick ?? [];
-  const top = !!sheet.header || quick.length > 0;
+  const top = !!sheet.header || !!sheet.title || quick.length > 0;
   // Leaves room for the header, tiles and Cancel; longer lists scroll.
   const rowsMax = Math.min(
     520,
@@ -180,6 +185,9 @@ export function ActionSheetHost() {
                     sheet.actions.length > 0 && styles.topSep,
                   ]}
                 >
+                  {sheet.title ? (
+                    <Text style={styles.title}>{sheet.title}</Text>
+                  ) : null}
                   {sheet.header ? (
                     <View style={styles.header}>{sheet.header}</View>
                   ) : null}
@@ -237,6 +245,34 @@ export function ActionSheetHost() {
                     if (!a.keepOpen) hideSheet();
                     a.onPress();
                   };
+                  if (a.checked !== undefined)
+                    return (
+                      <Pressable
+                        key={a.label}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: a.checked }}
+                        onPress={press}
+                        style={({ pressed }) => [
+                          styles.choice,
+                          i > 0 && styles.sep,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.iconLabel,
+                            { flex: 1 },
+                            a.checked && { color: accent },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {a.label}
+                        </Text>
+                        {a.checked ? (
+                          <CheckGlyph size={20} color={accent} weight={2.6} />
+                        ) : null}
+                      </Pressable>
+                    );
                   if (a.icon)
                     return (
                       <Pressable
@@ -354,6 +390,19 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.1)",
   },
   header: { paddingHorizontal: 16, paddingTop: 16 },
+  title: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 13,
+    textAlign: "center",
+    paddingTop: 14,
+    ...display("700"),
+  },
+  choice: {
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
   quick: {
     flexDirection: "row",
     gap: 8,

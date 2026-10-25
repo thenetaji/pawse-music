@@ -88,8 +88,10 @@ export function Pick<T extends string | number>({
     <Pressable
       onPress={() =>
         showSheet({
+          title: label,
           actions: options.map(([v, l]) => ({
-            label: v === value ? `✓  ${l}` : l,
+            label: l,
+            checked: v === value,
             onPress: () => setSetting(k, v),
           })),
         })
