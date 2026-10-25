@@ -22,7 +22,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FullWindowOverlay } from "react-native-screens";
 import { create } from "zustand";
-import { useAccent } from "../features/now-playing/now-palette";
+import { readable, useAccent } from "../features/now-playing/now-palette";
 import { display } from "../lib/type";
 import { CheckGlyph } from "./glyphs";
 
@@ -136,7 +136,8 @@ export function ActionSheetHost() {
   const sheet = useSheet((s) => s.sheet);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const accent = useAccent();
+  // The album's colour can be too dark to read on the dark sheet.
+  const accent = readable(useAccent());
   // Rides above the keyboard when the sheet asks for text.
   const keyboard = useAnimatedKeyboard();
   const lift = useAnimatedStyle(() => ({
@@ -442,7 +443,12 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   iconBody: { flex: 1, alignSelf: "stretch", justifyContent: "center" },
-  iconLabel: { fontSize: 16, fontWeight: "600", paddingRight: 16 },
+  iconLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    paddingRight: 16,
+  },
   sep: {
     borderTopWidth: HAIR,
     borderTopColor: "rgba(255,255,255,0.1)",
