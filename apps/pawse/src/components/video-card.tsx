@@ -8,12 +8,11 @@ import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { MoreGlyph } from "../features/now-playing/icons";
-
+import { minimizeWatch, openWatch, useWatch } from "../features/watch/store";
 import { blockChannel } from "../lib/block";
 import { useBranding } from "../lib/community";
 import { rightClick } from "../lib/context-menu";
 import { go, push } from "../lib/nav";
-import { openWatch } from "../features/watch/store";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
 import { PressScale } from "./ui";
@@ -38,7 +37,12 @@ export const openVideo = (v: VideoItem) =>
     thumbnails: v.thumbnails,
     channel: v.channel,
   });
-export const openChannel = (id: string) => go(`/channel/${id}`);
+/** A channel page opens under the video, so a full-screen video shrinks out of the way first. */
+export const openChannel = (id: string) => {
+  const w = useWatch.getState();
+  if (w.id && w.mode === "full") minimizeWatch();
+  go(`/channel/${id}`);
+};
 
 /** Long press: block the channel, so none of its videos show again. */
 export function showVideoActions(v: VideoItem) {

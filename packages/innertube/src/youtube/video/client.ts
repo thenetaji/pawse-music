@@ -1,6 +1,7 @@
 import type {
   ChannelItem,
   ChannelPage,
+  CommentPage,
   VideoDetail,
   VideoFeed,
   VideoItem,
@@ -21,6 +22,7 @@ import type { JsSandbox, PoTokenProvider } from "../sandbox";
 import type { ResolveAttempt } from "../stream";
 import {
   parseChannel,
+  parseComments,
   parseSuggestionsJson,
   parseVideoDetail,
   parseVideoFeed,
@@ -342,6 +344,11 @@ export class YouTubeVideo {
       await this.call("next", { videoId: id, racyCheckOk: true }),
       id,
     );
+  }
+
+  /** A page of comments (or replies) from a token on the watch page or a previous page. */
+  async comments(token: string): Promise<CommentPage> {
+    return parseComments(await this.call("next", { continuation: token }));
   }
 
   async suggestions(q: string): Promise<string[]> {

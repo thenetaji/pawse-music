@@ -13,6 +13,7 @@ export {
   isShortNode,
   parseChannel,
   parseChannelRenderer,
+  parseComments,
   parseLockup,
   parseSuggestionsJson,
   parseVideoDetail,
