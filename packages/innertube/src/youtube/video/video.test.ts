@@ -4,7 +4,7 @@ import {
   parseVideoFeed,
   parseVideoSearch,
 } from "./parse";
-import { pickVideoFormat } from "./stream";
+import { pickVideoFormat, videoLadder } from "./stream";
 
 const run = (text: string, browseId?: string) => ({
   text,
@@ -367,5 +367,29 @@ describe("pickVideoFormat", () => {
     ];
     expect(pickVideoFormat(ciphered)).toBeUndefined();
     expect(pickVideoFormat(ciphered, 1080, true)?.itag).toBe(137);
+  });
+});
+
+describe("videoLadder", () => {
+  const avc = (itag: number, height: number, fps: number, bitrate: number) => ({
+    itag,
+    height,
+    fps,
+    bitrate,
+    mimeType: 'video/mp4; codecs="avc1.640028"',
+    url: `https://x/${itag}`,
+  });
+
+  it("keeps one avc1 per height and frame rate, best bitrate, tallest first", () => {
+    const ladder = videoLadder([
+      avc(137, 1080, 30, 4000),
+      avc(299, 1080, 60, 6000),
+      avc(136, 720, 30, 2000),
+      avc(9136, 720, 30, 2500),
+      avc(160, 144, 30, 100),
+      { ...avc(248, 1080, 30, 3000), mimeType: 'video/webm; codecs="vp9"' },
+    ]);
+    expect(ladder.map((f) => f.itag)).toEqual([299, 137, 9136, 160]);
+    expect(videoLadder(ladder, 720).map((f) => f.itag)).toEqual([9136, 160]);
   });
 });

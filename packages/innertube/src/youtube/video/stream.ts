@@ -44,6 +44,31 @@ export function pickVideoFormat(
     )[0];
 }
 
+const qualityKey = (f: AdaptiveFormat) =>
+  `${f.height ?? 0}p${(f.fps ?? 30) > 30 ? 60 : 30}`;
+
+/** One H.264 format per height and frame rate at or below maxHeight (the highest bitrate of each), tallest first. */
+export function videoLadder(
+  formats: AdaptiveFormat[] | undefined,
+  maxHeight = DEFAULT_MAX_HEIGHT,
+  ciphered = false,
+): AdaptiveFormat[] {
+  const best = new Map<string, AdaptiveFormat>();
+  for (const f of formats ?? []) {
+    if (!isAvc(f) || !usable(f, ciphered) || (f.height ?? 0) > maxHeight)
+      continue;
+    const k = qualityKey(f);
+    const had = best.get(k);
+    if (!had || (f.bitrate ?? 0) > (had.bitrate ?? 0)) best.set(k, f);
+  }
+  return [...best.values()].sort(
+    (a, b) =>
+      (b.height ?? 0) - (a.height ?? 0) ||
+      (b.fps ?? 0) - (a.fps ?? 0) ||
+      (b.bitrate ?? 0) - (a.bitrate ?? 0),
+  );
+}
+
 const range = (r?: { start: string; end: string }) => {
   const start = Number(r?.start);
   const end = Number(r?.end);
@@ -70,7 +95,7 @@ const part = (
   indexRange: range(f.indexRange),
 });
 
-/** Best H.264 video (<= maxHeight) plus best AAC audio from one stream client; the client that serves the video also serves the audio. */
+/** Every H.264 quality (<= maxHeight) plus best AAC audio from one stream client; the client that serves the video also serves the audio. */
 export async function resolveVideoStream(
   videoId: string,
   options: VideoStreamOptions = {},
@@ -87,6 +112,7 @@ export async function resolveVideoStream(
     ...rest,
   };
   let picked: { format: AdaptiveFormat; via: string } | undefined;
+  let extras: { format: AdaptiveFormat; url: string }[] = [];
   const video = await resolveYouTubeStream(
     videoId,
     {
@@ -95,6 +121,13 @@ export async function resolveVideoStream(
         pickVideoFormat(formats, maxHeight, ciphered),
       onFormat: (format, via) => {
         picked = { format, via };
+      },
+      extra: (formats, chosen) =>
+        videoLadder(formats, maxHeight, !!o.sandbox).filter(
+          (f) => qualityKey(f) !== qualityKey(chosen),
+        ),
+      onExtra: (list) => {
+        extras = list;
       },
     },
     attempts,
@@ -116,14 +149,30 @@ export async function resolveVideoStream(
     attempts,
   );
   if (!audioFormat) throw new StreamError("no_audio", "no AAC audio format");
-  return {
-    video: part(
-      picked.format,
-      video.url,
-      video.mimeType,
-      video.bitrate,
-      video.contentLength,
+  const top = part(
+    picked.format,
+    video.url,
+    video.mimeType,
+    video.bitrate,
+    video.contentLength,
+  );
+  const variants = [
+    top,
+    ...extras.map(({ format: f, url }) =>
+      part(
+        f,
+        url,
+        f.mimeType ?? "video/mp4",
+        f.bitrate ?? 0,
+        Number(f.contentLength) || undefined,
+      ),
     ),
+  ].sort(
+    (a, b) => (b.height ?? 0) - (a.height ?? 0) || (b.fps ?? 0) - (a.fps ?? 0),
+  );
+  return {
+    video: top,
+    variants,
     audio: part(
       audioFormat,
       audio.url,

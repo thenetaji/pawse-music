@@ -43,7 +43,6 @@ import {
   currentAppIcon,
   setAppIcon,
 } from "../lib/app-icon";
-import { useBlockedCount } from "../lib/block";
 import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
@@ -809,64 +808,11 @@ const styles = StyleSheet.create({
   accentOn: { borderWidth: 3, borderColor: "#fff" },
 });
 
-// Early features to try before they become part of Pawse.
+// Early features live on their own page, so Settings stays short.
 function ExperimentalSection() {
-  const yt = useSetting("ytMode", false);
   return (
-    <>
-      <Section title="Experimental">
-        <Toggle k="ytMode" label="YouTube videos" def={false} />
-        {yt ? (
-          <>
-            <Toggle k="videoAutoplay" label="Play the next video" def={false} />
-            <Pick
-              k="videoQuality"
-              label="Video quality"
-              def={720}
-              options={[
-                [480, "480p"],
-                [720, "720p"],
-                [1080, "1080p"],
-              ]}
-            />
-            <Toggle k="skipSponsors" label="Skip sponsors" def />
-            <Toggle k="dearrow" label="Honest titles and thumbnails" def />
-            <Toggle k="showDislikes" label="Show dislikes" def={false} />
-            <Toggle k="videoEdge" label="Edge-to-edge video" def={false} />
-            <BlockedLink />
-          </>
-        ) : null}
-        <Toggle k="skipNonMusic" label="Skip non-music parts" def />
-        <Pick
-          k="homeStyle"
-          label="Home"
-          def="full"
-          options={[
-            ["full", "Everything"],
-            ["calm", "Calm"],
-            ["mine", "Only my music"],
-          ]}
-        />
-      </Section>
-      <Foot>
-        {yt
-          ? "Watch adds YouTube videos without Shorts. Sponsor skips come from SponsorBlock, titles and thumbnails from DeArrow, both made by their communities. "
-          : ""}
-        Skip non-music parts jumps over the talking in music videos
-        (SponsorBlock). Calm keeps Home to your music and a few picks, and it
-        ends instead of scrolling forever. Only my music shows nothing
-        suggested. These may change or go away.
-      </Foot>
-    </>
-  );
-}
-
-function BlockedLink() {
-  const n = useBlockedCount();
-  return (
-    <Link
-      label={n ? `Blocked (${n})` : "Blocked channels and words"}
-      onPress={() => push("/blocked")}
-    />
+    <Section title="Try new things">
+      <Link label="Experimental" onPress={() => push("/experimental")} />
+    </Section>
   );
 }

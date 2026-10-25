@@ -63,7 +63,10 @@ export interface StreamPart {
 
 /** Separate H.264 video and AAC audio streams from one client, for a player that merges them. */
 export interface VideoStream {
+  /** The tallest picture; `variants` holds it too. */
   video: StreamPart;
+  /** Every H.264 quality from the same client, tallest first (one per height and frame rate). */
+  variants: StreamPart[];
   audio: StreamPart;
   durationSec?: number;
   /** Epoch ms. Re-resolve before this. */

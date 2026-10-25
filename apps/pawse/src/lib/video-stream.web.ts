@@ -1,49 +1,36 @@
 import {
-  fetchSegmentIndex,
-  hlsMaster,
-  hlsMediaPlaylist,
-} from "@pawse/innertube";
-import type { StreamPart, VideoStream } from "@pawse/music-core";
+  buildMutedVideo,
+  buildVideoSource,
+  type PlaylistHost,
+  type Quality,
+  type VideoSource,
+} from "./video-ladder";
+import { relayStream } from "./net";
 
-import { ytv } from "../data/clients";
-import { appFetch, relayStream } from "./net";
-
-export interface VideoSource {
-  uri: string;
-  stream: VideoStream;
-}
+export type { Quality, QualityOption, VideoSource } from "./video-ladder";
 
 // Playlists live in memory as blob URLs; their segments go through the relay like songs do.
 let urls: string[] = [];
-const blob = (text: string) => {
-  const u = URL.createObjectURL(
-    new Blob([text], { type: "application/vnd.apple.mpegurl" }),
-  );
-  urls.push(u);
-  return u;
+
+const host: PlaylistHost = {
+  publish: async (_name, text) => {
+    const u = URL.createObjectURL(
+      new Blob([text], { type: "application/vnd.apple.mpegurl" }),
+    );
+    urls.push(u);
+    return u;
+  },
+  media: (part, st) => relayStream!({ ...part, headers: st.headers } as never),
+  forget: () => {
+    for (const u of urls) URL.revokeObjectURL(u);
+    urls = [];
+  },
 };
 
-async function mediaPlaylist(part: StreamPart, st: VideoStream) {
-  const index = await fetchSegmentIndex(appFetch, part.url, st.headers);
-  if (!index) throw new Error("this video has no segment index");
-  const relayed = relayStream!({ ...part, headers: st.headers } as never);
-  return hlsMediaPlaylist(relayed, index);
-}
-
-export async function videoSource(
+export const videoSource = (
   id: string,
-  maxHeight: number,
-): Promise<VideoSource> {
-  for (const u of urls) URL.revokeObjectURL(u);
-  urls = [];
-  const stream = await ytv.resolveStream(id, { maxHeight });
-  const [video, audio] = await Promise.all([
-    mediaPlaylist(stream.video, stream),
-    mediaPlaylist(stream.audio, stream),
-  ]);
-  const master = hlsMaster(
-    { ...stream.video, uri: blob(video) },
-    { ...stream.audio, uri: blob(audio) },
-  );
-  return { uri: blob(master), stream };
-}
+  quality: Quality,
+): Promise<VideoSource> => buildVideoSource(host, id, quality);
+
+export const mutedVideo = (id: string, maxHeight: number): Promise<string> =>
+  buildMutedVideo(host, id, maxHeight);

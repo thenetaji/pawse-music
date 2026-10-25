@@ -67,6 +67,7 @@ export {
 } from "./youtube/stream";
 export {
   fetchSegmentIndex,
+  type HlsVariant,
   hlsMaster,
   hlsMediaPlaylist,
   parseSegmentIndex,

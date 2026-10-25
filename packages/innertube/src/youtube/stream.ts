@@ -166,6 +166,13 @@ export interface ResolveOptions {
   ) => AdaptiveFormat | undefined;
   /** Gets the format that was resolved and the `youtube:<client>` that served it. */
   onFormat?: (format: AdaptiveFormat, via: string) => void;
+  /** More formats to make playable from the same answer (video callers, one per quality). */
+  extra?: (
+    formats: AdaptiveFormat[] | undefined,
+    chosen: AdaptiveFormat,
+  ) => AdaptiveFormat[];
+  /** Gets the extra formats with their playable urls; ones that fail are left out. */
+  onExtra?: (list: { format: AdaptiveFormat; url: string }[]) => void;
 }
 
 export interface ResolveAttempt {
@@ -361,13 +368,14 @@ async function tryClient(
     ...(pot && c.headers?.Origin ? { Origin: c.headers.Origin } : {}),
     ...(pot && c.headers?.Referer ? { Referer: c.headers.Referer } : {}),
   };
-  let url = cpn ? `${mediaUrl}&cpn=${cpn}` : mediaUrl;
+  let suffix = cpn ? `&cpn=${cpn}` : "";
   if (pot) {
     // The media server wants a token bound to the video id (the player call took the visitor-bound one).
     const gvs = await capped(pot.mint(videoId));
     if (!gvs) throw new StreamError("network", "PO token unavailable");
-    url += `&pot=${encodeURIComponent(gvs)}`;
+    suffix += `&pot=${encodeURIComponent(gvs)}`;
   }
+  const url = mediaUrl + suffix;
   const length = Number(format.contentLength);
   if (
     o.verify &&
@@ -390,6 +398,25 @@ async function tryClient(
   const ttl = Number(sd?.expiresInSeconds);
   const ms = Number(format.approxDurationMs);
   o.onFormat?.(format, viaOf(c));
+  if (o.extra && o.onExtra) {
+    const list: { format: AdaptiveFormat; url: string }[] = [];
+    for (const f of o.extra(sd?.adaptiveFormats, format)) {
+      try {
+        let u = f.url;
+        if (
+          o.sandbox &&
+          (f.signatureCipher || f.cipher || (player && nChallengeOf(u ?? "")))
+        ) {
+          player ??= await getPlayer(o.fetch);
+          u = await decipher(f, player, o.sandbox);
+        }
+        if (u) list.push({ format: f, url: u + suffix });
+      } catch {
+        // A quality that can't be unlocked is simply not offered.
+      }
+    }
+    o.onExtra(list);
+  }
   return {
     url,
     mimeType: format.mimeType ?? "audio/mp4",

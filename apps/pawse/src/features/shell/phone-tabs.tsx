@@ -7,12 +7,15 @@ import { useOnline } from "../../data/downloads";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
+import { useVideoMini } from "../watch/store";
+import { WatchMini } from "../watch/watch-mini";
 import { useAccent } from "../now-playing/now-palette";
 
 /** iPhone: the native tab bar, with the mini player in its bottom accessory. */
 export function PhoneTabs() {
   const accent = useAccent();
   const hasTrack = usePlayerSelect((s) => !!s.current);
+  const videoMini = useVideoMini();
   const watch = useSetting("ytMode", false);
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
@@ -22,7 +25,7 @@ export function PhoneTabs() {
         blurEffect="systemChromeMaterialDark"
       >
         {/* The mini player slot appears only once something is loaded. */}
-        {Platform.OS === "ios" && hasTrack ? (
+        {Platform.OS === "ios" && (hasTrack || videoMini) ? (
           <NativeTabs.BottomAccessory>
             <Accessory />
           </NativeTabs.BottomAccessory>
@@ -92,9 +95,15 @@ export function OfflineBanner() {
   );
 }
 
+// A video shrunk from full screen takes the slot until it's closed or music starts again.
 function Accessory() {
   const placement = NativeTabs.BottomAccessory.usePlacement();
-  return <MiniPlayer inline={placement === "inline"} />;
+  const videoMini = useVideoMini();
+  return videoMini ? (
+    <WatchMini inline={placement === "inline"} />
+  ) : (
+    <MiniPlayer inline={placement === "inline"} />
+  );
 }
 
 const styles = StyleSheet.create({

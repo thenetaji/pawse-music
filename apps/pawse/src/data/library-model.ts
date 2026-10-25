@@ -95,7 +95,12 @@ export type Settings = {
   /** full: everything YouTube suggests; calm: your music and a few picks, and Home ends; mine: nothing suggested. */
   homeStyle: "full" | "calm" | "mine";
   /** Highest video height to stream. */
-  videoQuality: number;
+  /** "auto", or the tallest height to play by default. */
+  videoPreferred: "auto" | number;
+  /** The Song and Video switch at the top of the player. */
+  videoInPlayer: boolean;
+  /** The player shows the song's video (Video side of the switch). */
+  npVideo: boolean;
   /** Start the next video when one ends. */
   videoAutoplay: boolean;
   /** SponsorBlock: jump over the non-music parts of music videos. */
@@ -106,8 +111,6 @@ export type Settings = {
   dearrow: boolean;
   /** Return YouTube Dislike's estimate on the video page. */
   showDislikes: boolean;
-  /** The video fills the top of the screen, with no close arrow above it. */
-  videoEdge: boolean;
   blockedChannels: { id: string; name: string }[];
   /** Videos with any of these in the title are hidden. */
   blockedWords: string[];
@@ -162,13 +165,14 @@ export const DEFAULT_SETTINGS: Settings = {
   androidPillOffset: 0,
   ytMode: false,
   homeStyle: "full",
-  videoQuality: 720,
+  videoPreferred: "auto",
+  videoInPlayer: true,
+  npVideo: false,
   videoAutoplay: false,
   skipNonMusic: true,
   skipSponsors: true,
   dearrow: true,
   showDislikes: false,
-  videoEdge: false,
   blockedChannels: [],
   blockedWords: [],
   onboarded: false,

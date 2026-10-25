@@ -58,6 +58,8 @@ import {
   QueueGlyph,
 } from "./icons";
 import { LyricsView } from "./lyrics-view";
+import { SyncedVideo } from "../video/synced-video";
+import { SongVideoSwitch } from "./song-video-switch";
 import { WatchIcon } from "../shell/icons";
 import { useNowPalette } from "./now-palette";
 
@@ -87,6 +89,14 @@ export type NowPlayingProps = {
   onMore?: () => void;
   /** Opens this song's video where it is (YouTube videos on). */
   onVideo?: () => void;
+  /** The Song and Video switch: the song's video shows in place of the artwork, in time with the music. */
+  video?: {
+    on: boolean;
+    /** The video-only playlist, once it's ready. */
+    uri?: string;
+    failed?: boolean;
+    onChange: (on: boolean) => void;
+  };
   /** Tapping the title opens the album; tapping the artist opens the artist. */
   onTitle?: () => void;
   onArtist?: () => void;
@@ -120,6 +130,7 @@ export function NowPlayingView(p: NowPlayingProps) {
       s.status === "loading",
   );
   const lyricsMode = p.mode === "lyrics";
+  const videoOn = !!p.video?.on && !lyricsMode;
 
   // Paused: the artwork dims and settles back a touch.
   const live = useSharedValue(playing ? 1 : 0);
@@ -350,12 +361,14 @@ export function NowPlayingView(p: NowPlayingProps) {
                   style={StyleSheet.absoluteFill}
                   contentFit="cover"
                   transition={350}
+                  blurRadius={videoOn ? 40 : 0}
                   recyclingKey={p.track?.id}
                   onError={hero.next}
                   // YouTube answers a missing HD frame with a 120×90 grey placeholder.
                   onLoad={(e) => e.source.width <= 120 && hero.next()}
                 />
               ) : null}
+              {videoOn ? <View style={styles.videoDim} /> : null}
             </Animated.View>
             <LinearGradient
               colors={[`${tint}00`, `${tint}c0`, tint]}
@@ -402,27 +415,35 @@ export function NowPlayingView(p: NowPlayingProps) {
           <Pressable hitSlop={12} onPress={p.onClose} style={styles.headerBtn}>
             <ChevronDown color="rgba(255,255,255,0.8)" />
           </Pressable>
-          {p.onVideo ? <View style={styles.headerBtn} /> : null}
-          <View style={styles.context}>
-            <Text style={styles.contextLabel} numberOfLines={1}>
-              {p.context?.label ?? "Now playing"}
-            </Text>
-            {p.context?.title ? (
-              <Text style={styles.contextTitle} numberOfLines={1}>
-                {p.context.title}
-              </Text>
-            ) : null}
-          </View>
-          {p.onVideo ? (
-            <Pressable
-              hitSlop={8}
-              onPress={p.onVideo}
-              style={styles.headerBtn}
-              accessibilityLabel="Watch the video"
-            >
-              <WatchIcon size={20} color="rgba(255,255,255,0.8)" />
-            </Pressable>
-          ) : null}
+          {p.video && !lyricsMode ? (
+            <View style={styles.context}>
+              <SongVideoSwitch on={p.video.on} onChange={p.video.onChange} />
+            </View>
+          ) : (
+            <>
+              {p.onVideo ? <View style={styles.headerBtn} /> : null}
+              <View style={styles.context}>
+                <Text style={styles.contextLabel} numberOfLines={1}>
+                  {p.context?.label ?? "Now playing"}
+                </Text>
+                {p.context?.title ? (
+                  <Text style={styles.contextTitle} numberOfLines={1}>
+                    {p.context.title}
+                  </Text>
+                ) : null}
+              </View>
+              {p.onVideo ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={p.onVideo}
+                  style={styles.headerBtn}
+                  accessibilityLabel="Watch the video"
+                >
+                  <WatchIcon size={20} color="rgba(255,255,255,0.8)" />
+                </Pressable>
+              ) : null}
+            </>
+          )}
           <Pressable hitSlop={12} onPress={p.onMore} style={styles.headerBtn}>
             <MoreGlyph color="rgba(255,255,255,0.8)" />
           </Pressable>
@@ -467,7 +488,36 @@ export function NowPlayingView(p: NowPlayingProps) {
                   )
                 }
               >
-                {art ? (
+                {videoOn ? (
+                  <Animated.View
+                    entering={FadeIn.duration(300)}
+                    style={[styles.videoBox, { height: (win.width * 9) / 16 }]}
+                  >
+                    {p.video?.uri ? (
+                      <SyncedVideo
+                        key={p.video.uri}
+                        uri={p.video.uri}
+                        style={StyleSheet.absoluteFill}
+                      />
+                    ) : (
+                      <Text style={styles.videoNote}>
+                        {p.video?.failed
+                          ? "This video won't play right now."
+                          : "Loading video…"}
+                      </Text>
+                    )}
+                  </Animated.View>
+                ) : null}
+                {videoOn && p.onVideo ? (
+                  <Pressable
+                    hitSlop={10}
+                    onPress={p.onVideo}
+                    style={styles.expand}
+                    accessibilityLabel="Open the full video"
+                  >
+                    <ExpandGlyph />
+                  </Pressable>
+                ) : art && !videoOn ? (
                   <Pressable
                     hitSlop={10}
                     onPress={openFull}
@@ -845,7 +895,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 1,
   },
-  artArea: { flex: 1, minHeight: 160 },
+  artArea: { flex: 1, minHeight: 160, justifyContent: "center" },
+  // Edge to edge across the player's side padding.
+  // No fill: the blurred artwork shows around a 4:3 or vertical picture instead of black bars.
+  videoBox: {
+    marginHorizontal: -28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  videoNote: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    ...display("700"),
+  },
+  videoDim: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
   scrim: { position: "absolute", left: 0, right: 0, top: 0 },
   fade: { position: "absolute", left: 0, right: 0 },
   meta: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },

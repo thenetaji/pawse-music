@@ -1,4 +1,5 @@
 import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { type ReactNode, useEffect, useRef } from "react";
 import {
@@ -106,6 +107,8 @@ type ScreenProps = {
   bottomInset?: number;
   /** A tab's root page: tapping that tab again scrolls it to the top. */
   tab?: Tab;
+  /** No big title and no bar on scroll: the page brings its own top (Watch). */
+  bare?: boolean;
 };
 
 // Large title that collapses into a blurred bar as you scroll; the tab bar hides itself on iOS 26.
@@ -120,6 +123,7 @@ export function Screen({
   onEndReached,
   bottomInset = 150,
   tab,
+  bare,
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const scroller = useRef<Animated.ScrollView>(null);
@@ -197,32 +201,43 @@ export function Screen({
             <ChevronLeft size={20} weight={2.6} />
           </Pressable>
         ) : null}
-        <View style={styles.titleRow}>
-          <Animated.Text style={[styles.h1, big]} numberOfLines={1}>
-            {title}
-          </Animated.Text>
-          {right}
-        </View>
+        {bare ? null : (
+          <View style={styles.titleRow}>
+            <Animated.Text style={[styles.h1, big]} numberOfLines={1}>
+              {title}
+            </Animated.Text>
+            {right}
+          </View>
+        )}
         {children}
       </Animated.ScrollView>
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.bar, { height: insets.top + 44 }, bar]}
-      >
-        {ANDROID ? (
-          <View style={[StyleSheet.absoluteFill, styles.barSolid]} />
-        ) : (
-          <BlurView
-            intensity={50}
-            tint="systemChromeMaterialDark"
-            style={StyleSheet.absoluteFill}
-          />
-        )}
-        <View style={styles.hairline} />
-        <Text style={[styles.barTitle, { marginTop: insets.top + 12 }]}>
-          {title}
-        </Text>
-      </Animated.View>
+      {bare ? (
+        // Content slides under the clock; a fade keeps the status bar readable.
+        <LinearGradient
+          pointerEvents="none"
+          colors={["#000", "rgba(0,0,0,0.6)", "rgba(0,0,0,0)"]}
+          style={[styles.bar, { height: insets.top + 14 }]}
+        />
+      ) : (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.bar, { height: insets.top + 44 }, bar]}
+        >
+          {ANDROID ? (
+            <View style={[StyleSheet.absoluteFill, styles.barSolid]} />
+          ) : (
+            <BlurView
+              intensity={50}
+              tint="systemChromeMaterialDark"
+              style={StyleSheet.absoluteFill}
+            />
+          )}
+          <View style={styles.hairline} />
+          <Text style={[styles.barTitle, { marginTop: insets.top + 12 }]}>
+            {title}
+          </Text>
+        </Animated.View>
+      )}
     </View>
   );
 }

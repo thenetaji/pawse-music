@@ -164,6 +164,10 @@ public class PawseActivityModule: Module {
     AsyncFunction("deleteBackupFile") { (name: String) async -> Bool in
       await BackupFolder.delete(name)
     }
+
+    AsyncFunction("servePlaylist") { (name: String, text: String) async -> String? in
+      await PlaylistServer.shared.put(name, text)
+    }
   }
 
   @available(iOS 17.0, *)

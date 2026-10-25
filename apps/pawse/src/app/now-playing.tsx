@@ -15,10 +15,13 @@ import {
   showTrackActions,
 } from "../features/library/track-actions";
 import { NowPlayingView } from "../features/now-playing/now-playing-view";
+import { openWatch } from "../features/watch/store";
 import { lyricsService } from "../lib/engine";
+import { logEvent } from "../lib/diagnostics";
 import { push } from "../lib/nav";
 import { openAlbum, openArtist } from "../lib/song-links";
-import { useSetting } from "../lib/settings";
+import { setSetting, useSetting } from "../lib/settings";
+import { mutedVideo } from "../lib/video-stream";
 import { useResource } from "../lib/use-resource";
 
 const LABEL = {
@@ -53,6 +56,18 @@ export default function NowPlaying() {
   const lyrics = useResource<Lyrics | null>(
     current ? `lyrics:${current.id}` : null,
     () => lyricsService.lyrics(current!),
+  );
+  // Song | Video: the switch remembers its side from song to song.
+  const inPlayer = useSetting("videoInPlayer", true);
+  const videoOn = useSetting("npVideo", false);
+  const canVideo = watch && inPlayer && current?.source === "youtube";
+  // The id alone: the compiler would read current.id while memoizing, even with no song yet.
+  const videoId = canVideo && videoOn ? current?.id : undefined;
+  const muted = useResource<string>(videoId ? `muted:${videoId}` : null, () =>
+    mutedVideo(videoId!, 480).catch((e: Error) => {
+      logEvent("video-failed", `${videoId} (player): ${e.message}`);
+      throw e;
+    }),
   );
 
   if (!current)
@@ -91,11 +106,30 @@ export default function NowPlaying() {
       onQueue={() => push("/queue")}
       onClose={() => router.back()}
       onMore={() => current && showTrackActions(current, { fromPlayer: true })}
+      video={
+        canVideo
+          ? {
+              on: videoOn,
+              uri: muted.data ?? undefined,
+              failed: !!muted.error,
+              onChange: (on) => setSetting("npVideo", on),
+            }
+          : undefined
+      }
       onVideo={
         watch && current.source === "youtube"
           ? () => {
               const at = Math.floor(getProgress().position);
-              leavePlayer(() => push(`/video/${current.id}?t=${at}`));
+              leavePlayer(() =>
+                openWatch(
+                  {
+                    id: current.id,
+                    title: current.title,
+                    thumbnails: current.thumbnails,
+                  },
+                  at,
+                ),
+              );
             }
           : undefined
       }
