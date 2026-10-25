@@ -22,6 +22,8 @@ interface WatchState {
   /** The session's player, so the mini player can show it and play or pause it. */
   player: WatchPlayer | null;
   playing: boolean;
+  /** 0–1 through the video, for the mini player's bar. */
+  progress: number;
   title?: string;
   channel?: string;
 }
@@ -31,6 +33,7 @@ export const useWatch = create<WatchState>(() => ({
   mode: "full",
   player: null,
   playing: false,
+  progress: 0,
 }));
 
 /** Opens a video full screen; the same video already in the mini player just grows back. */
@@ -47,6 +50,7 @@ export function openWatch(v: WatchSeed, t?: number) {
     mode: "full",
     player: null,
     playing: false,
+    progress: 0,
     title: v.title,
     channel: v.channel?.name,
   });

@@ -1,6 +1,7 @@
 import type { VideoItem } from "@pawse/music-core";
 
 import { useLibrary } from "../data/library";
+import { useWatched } from "../data/watched";
 import { getSetting, setSetting, useSetting } from "./settings";
 
 export type BlockedChannel = { id: string; name: string };
@@ -14,7 +15,10 @@ export function useVideoFilter(): (v: VideoItem) => boolean {
   const ws = useSetting<string[]>("blockedWords", []);
   const ids = new Set(ch.map((c) => c.id));
   const lower = ws.map((w) => w.toLowerCase());
+  // Videos you disliked don't come back in feeds or Up next.
+  const disliked = useWatched((s) => s.disliked);
   return (v) =>
+    !disliked.includes(v.id) &&
     !(v.channel?.id && ids.has(v.channel.id)) &&
     !lower.some((w) => v.title.toLowerCase().includes(w));
 }
