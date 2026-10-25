@@ -12,6 +12,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **Comments.** The watch page shows the comment count and the top comment; tap for all of them, with replies, likes and the creator's hearts. Times like 1:23 in a comment jump the video there.
 - **Subscribe and like from the watch page** when signed in, with the subscriber count beside the channel.
 - **Calm watch page** (Settings): no comments, counts or Up next.
+- **YouTube's player controls.** Tap the video for previous, play/pause and next, the time, full screen, an autoplay switch and settings (quality and playback speed). Double-tap either side to skip 10 seconds. Drag the red bar along the bottom to seek, with the time and chapter showing as you go. The controls fade away while the video plays.
 - **Download videos** to watch offline, in the quality you pick (with its size). A downloaded video shows up in Downloads, plays without a connection in the player with its picture on the Video side, and the watch page offers the downloaded copy when it can't stream.
 - **Save to playlist** from the watch page and from any video's ⋯ menu.
 - **Liked videos and Watched** rows in Library.

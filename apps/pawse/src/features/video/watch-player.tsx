@@ -1,10 +1,10 @@
 import {
+  useVideoPlayer,
   type VideoPlayer,
   type VideoSource,
-  useVideoPlayer,
   VideoView,
 } from "expo-video";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 
 /** What the player hands to a VideoSurface: the native player object (a <video> element on the web). */
@@ -16,7 +16,14 @@ export interface WatchPlayer {
   replay(): void;
   toggle(): void;
   pause(): void;
+  /** Playback speed, 1 = normal. */
+  setRate(rate: number): void;
 }
+
+// The page's own full-screen button reaches the one surface on screen through this.
+let enterFull: (() => void) | undefined;
+/** Shows the video full screen, with the system's own controls there. */
+export const enterFullscreen = () => enterFull?.();
 
 export interface WatchPlayerOptions {
   uri?: string;
@@ -42,6 +49,9 @@ async function load(p: VideoPlayer, src: VideoSource, start?: number) {
 const seekTo = (p: VideoPlayer, sec: number) => {
   p.currentTime = sec;
   p.play();
+};
+const setRate = (p: VideoPlayer, r: number) => {
+  p.playbackRate = r;
 };
 const setup = (p: VideoPlayer) => {
   p.staysActiveInBackground = true;
@@ -98,6 +108,7 @@ export function useWatchPlayer(o: WatchPlayerOptions): WatchPlayer {
       replay: () => seekTo(player, 0),
       toggle: () => (player.playing ? player.pause() : player.play()),
       pause: () => player.pause(),
+      setRate: (r: number) => setRate(player, r),
     }),
     [player],
   );
@@ -113,15 +124,30 @@ export function VideoSurface({
   controls?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  const view = useRef<VideoView>(null);
+  // The page draws its own controls; full screen uses the system's.
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    if (!controls) return;
+    enterFull = () => {
+      setFull(true);
+      requestAnimationFrame(() => void view.current?.enterFullscreen());
+    };
+    return () => {
+      enterFull = undefined;
+    };
+  }, [controls]);
   return (
     <VideoView
+      ref={view}
       player={surface}
       style={style}
-      nativeControls={!!controls}
+      nativeControls={full}
       contentFit="contain"
       allowsPictureInPicture
       startsPictureInPictureAutomatically
       fullscreenOptions={{ enable: true }}
+      onFullscreenExit={() => setFull(false)}
     />
   );
 }
