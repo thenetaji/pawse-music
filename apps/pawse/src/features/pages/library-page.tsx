@@ -31,10 +31,12 @@ import { maybeSyncLibrary, refreshLibrary } from "../../data/account";
 import { useDownloads, useOfflineTracks } from "../../data/downloads";
 import { listeningStats, useLibrary } from "../../data/library";
 import { useSmartPlaylists } from "../../data/recommend";
+import { useWatched } from "../../data/watched";
 import { go, push } from "../../lib/nav";
 import { count } from "../../lib/plural";
 import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
+import { VideoStrip } from "../home/home-blocks";
 import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
 
@@ -55,6 +57,9 @@ export default function LibraryPage() {
   const albums = useLibrary((s) => s.savedAlbums);
   const artists = useLibrary((s) => s.followedArtists);
   const history = useLibrary((s) => s.history);
+  const videos = useSetting("videos", true);
+  const likedVideos = useWatched((s) => s.liked);
+  const watched = useWatched((s) => s.list);
   const signedIn = useLibrary((s) => !!s.settings.cookies);
   const downloads = useDownloads();
   const offline = useOfflineTracks();
@@ -68,7 +73,11 @@ export default function LibraryPage() {
   // Open-ended so plays made while this tab stays mounted still count.
   const week = listeningStats(history, now - 7 * 86400_000, Infinity);
   const empty =
-    !liked.length && !playlists.length && !albums.length && !history.length;
+    !liked.length &&
+    !playlists.length &&
+    !albums.length &&
+    !history.length &&
+    !(videos && (likedVideos.length || watched.length));
 
   // Each visit to Library, and coming back to the app on it, picks up playlists made on YouTube (rate-limited in account.ts).
   useFocusEffect(
@@ -219,6 +228,17 @@ export default function LibraryPage() {
               </PressScale>
             ))}
           </ScrollView>
+        </>
+      ) : null}
+
+      {videos ? (
+        <>
+          <VideoStrip
+            title="Liked videos"
+            items={likedVideos}
+            accent={accent}
+          />
+          <VideoStrip title="Watched" items={watched} accent={accent} />
         </>
       ) : null}
 

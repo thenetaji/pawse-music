@@ -200,6 +200,60 @@ function PlayBadge({ accent }: { accent: string }) {
   );
 }
 
+/** A row of small video tiles (liked or watched videos), with a bar for how far you got. */
+export function VideoStrip({
+  title,
+  items,
+  accent,
+}: {
+  title: string;
+  items: (Pick<Watched, "id" | "title" | "thumbnails" | "channel"> &
+    Partial<Pick<Watched, "pos" | "dur">>)[];
+  accent: string;
+}) {
+  if (!items.length) return null;
+  return (
+    <View>
+      <SectionTitle title={title} />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.minis}
+      >
+        {items.slice(0, 20).map((w) => (
+          <PressScale
+            key={w.id}
+            onPress={() =>
+              openWatch({
+                id: w.id,
+                title: w.title,
+                thumbnails: w.thumbnails,
+                channel: w.channel,
+              })
+            }
+            style={styles.mini}
+          >
+            <View style={styles.miniPic}>
+              <Pic thumbnails={w.thumbnails} style={StyleSheet.absoluteFill} />
+              {w.dur && w.pos ? (
+                <Progress w={w as Watched} accent={accent} />
+              ) : null}
+            </View>
+            <Text style={styles.miniTitle} numberOfLines={2}>
+              {w.title}
+            </Text>
+            {w.channel?.name ? (
+              <Text style={styles.miniSub} numberOfLines={1}>
+                {w.channel.name}
+              </Text>
+            ) : null}
+          </PressScale>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
 type Person = {
   key: string;
   name: string;
@@ -381,6 +435,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#111",
   },
+  miniSub: { color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 2 },
   miniTitle: { color: "#fff", fontSize: 13, marginTop: 8, fontWeight: "600" },
   people: { paddingHorizontal: 16, gap: 14 },
   person: { width: 72, alignItems: "center" },

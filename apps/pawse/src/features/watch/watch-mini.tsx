@@ -20,6 +20,7 @@ export function WatchMini({ inline }: { inline?: boolean }) {
   const playing = useWatch((s) => s.playing);
   const title = useWatch((s) => s.title);
   const channel = useWatch((s) => s.channel);
+  const progress = useWatch((s) => s.progress);
   if (!player) return null;
   const h = inline ? 30 : 40;
   return (
@@ -79,6 +80,9 @@ export function WatchMini({ inline }: { inline?: boolean }) {
           <CloseGlyph size={16} weight={2.6} color="rgba(255,255,255,0.85)" />
         </Pressable>
       </Animated.View>
+      <View style={styles.bar} pointerEvents="none">
+        <View style={[styles.barFill, { width: `${progress * 100}%` }]} />
+      </View>
     </Pressable>
   );
 }
@@ -96,6 +100,17 @@ export function FloatingWatchMini() {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, justifyContent: "center" },
+  bar: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 0,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    overflow: "hidden",
+  },
+  barFill: { height: 2, backgroundColor: "rgba(255,255,255,0.85)" },
   row: {
     flex: 1,
     flexDirection: "row",

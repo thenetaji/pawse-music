@@ -1,5 +1,5 @@
 import { getProgress, usePlayerStore } from "@pawse/player";
-import { type VideoPlayer, useVideoPlayer, VideoView } from "expo-video";
+import { useVideoPlayer, type VideoPlayer, VideoView } from "expo-video";
 import { useEffect } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 
@@ -22,7 +22,9 @@ export function SyncedVideo({
   uri: string;
   style?: StyleProp<ViewStyle>;
 }) {
-  const video = useVideoPlayer({ uri, contentType: "hls" }, (p) => {
+  // A downloaded picture is a plain mp4 file; online it's a playlist.
+  const contentType = uri.startsWith("file:") ? "progressive" : "hls";
+  const video = useVideoPlayer({ uri, contentType }, (p) => {
     p.muted = true;
     // Never take the audio session from the music player.
     p.audioMixingMode = "mixWithOthers";

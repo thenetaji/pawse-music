@@ -62,11 +62,13 @@ const MAX_FAILS = 3;
 const MAX_REFRESH = 2;
 
 const extOf = (mime: string | undefined) =>
-  /webm/i.test(mime ?? "")
-    ? "webm"
-    : /mpeg|mp3/i.test(mime ?? "")
-      ? "mp3"
-      : "m4a";
+  /video\/mp4/i.test(mime ?? "")
+    ? "mp4"
+    : /webm/i.test(mime ?? "")
+      ? "webm"
+      : /mpeg|mp3/i.test(mime ?? "")
+        ? "mp3"
+        : "m4a";
 const strip = (t: Track): Track => ({ ...t, setVideoId: undefined });
 
 /** Queue (2 at a time), 1 MiB range chunks, resume from the partial file, re-resolve on 403. */

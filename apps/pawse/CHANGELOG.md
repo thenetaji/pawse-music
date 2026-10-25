@@ -12,9 +12,14 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **Comments.** The watch page shows the comment count and the top comment; tap for all of them, with replies, likes and the creator's hearts. Times like 1:23 in a comment jump the video there.
 - **Subscribe and like from the watch page** when signed in, with the subscriber count beside the channel.
 - **Calm watch page** (Settings): no comments, counts or Up next.
+- **Download videos** to watch offline, in the quality you pick (with its size). A downloaded video shows up in Downloads, plays without a connection in the player with its picture on the Video side, and the watch page offers the downloaded copy when it can't stream.
+- **Save to playlist** from the watch page and from any video's ⋯ menu.
+- **Liked videos and Watched** rows in Library.
+- The video mini player shows how far through you are.
 
 ### Changed
 - **The watch page feels like YouTube.** The video stays at the top while the page scrolls under it, the status bar above it is black, and the glow now spreads out below the video instead of above it. The title opens the full description; Up next is full-width videos.
+- **Like and dislike work when you're signed out too.** They're kept on the phone, and also go to YouTube when you're signed in. Videos you dislike stop showing up in feeds and Up next.
 - **A smaller Song | Video switch** in the player, dark and out of the way, so it no longer sits across faces in the artwork; the top of the artwork is darker behind it.
 - **Videos are on for everyone** and no longer under Experimental. The Watch tab is gone: Home and Search cover music and videos, and **All videos** on Home opens the full list of your subscriptions. Settings has a **YouTube videos** switch for music only.
 - The Calm / Everything / Only my music choice became Edit Home. Anyone on "Only my music" keeps mixes and For you off.

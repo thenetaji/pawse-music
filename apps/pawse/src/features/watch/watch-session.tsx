@@ -1,7 +1,6 @@
 import type { SkipSegment } from "@pawse/innertube";
 import {
   bestThumbnail,
-  type Track,
   type VideoDetail,
   type VideoItem,
 } from "@pawse/music-core";
@@ -11,6 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
 import {
   BackHandler,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -47,15 +47,27 @@ import {
   VideoRow,
 } from "../../components/video-card";
 import { ytAccount } from "../../data/clients";
+import {
+  downloadVideo,
+  removeDownload,
+  useVideoDownload,
+} from "../../data/downloads";
 import { useLibrary } from "../../data/library";
-import { recordWatch, resumeAt } from "../../data/watched";
+import {
+  rateVideo,
+  recordWatch,
+  resumeAt,
+  useVideoRating,
+  videoTrack,
+} from "../../data/watched";
 import { useVideoFilter } from "../../lib/block";
 import { skipNote, useBranding, videoSkips } from "../../lib/community";
 import { logEvent } from "../../lib/diagnostics";
 import { useVotes } from "../../lib/dislikes";
 import { ytv } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
-import { useSetting } from "../../lib/settings";
+import { push } from "../../lib/nav";
+import { setSetting, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import {
@@ -63,6 +75,7 @@ import {
   type VideoSource,
   videoSource,
 } from "../../lib/video-stream";
+import { showPlaylistPicker } from "../library/playlist-tools";
 import { useWatchPlayer, VideoSurface } from "../video/watch-player";
 import { closeWatch, minimizeWatch, openWatch, useWatch } from "./store";
 import {
@@ -127,6 +140,8 @@ export function WatchSession({ id }: { id: string }) {
   const onTime = (sec: number) => {
     setAt(sec);
     atRef.current = sec;
+    const dur = src?.stream.durationSec ?? v?.durationSec;
+    if (dur) useWatch.setState({ progress: Math.min(1, sec / dur) });
     // Progress is kept every few seconds, so Home can offer to continue.
     if (Math.abs(sec - savedAt.current) > 8) {
       savedAt.current = sec;
@@ -153,7 +168,10 @@ export function WatchSession({ id }: { id: string }) {
   const [mine, setMine] = useState<{ rating?: Rating; subscribed?: boolean }>(
     {},
   );
-  const rating: Rating = mine.rating ?? d?.rating ?? "none";
+  // Likes are kept on the phone too, so they work signed out; signed in they go to YouTube as well.
+  const local = useVideoRating(id);
+  const rating: Rating =
+    mine.rating ?? (local !== "none" ? local : (d?.rating ?? "none"));
   const subscribed = mine.subscribed ?? d?.subscribed ?? false;
   const base = d?.likes ?? votes?.likes;
   const likes =
@@ -161,14 +179,15 @@ export function WatchSession({ id }: { id: string }) {
       ? undefined
       : base + (rating === "like" ? 1 : 0) - (d?.rating === "like" ? 1 : 0);
   const rate = (r: Rating) => {
-    if (!signedIn) return showToast("Sign in to YouTube to like videos");
+    if (!v) return;
     haptic.light();
-    const was = rating;
     setMine((m) => ({ ...m, rating: r }));
-    ytAccount.rate(id, r).catch(() => {
-      setMine((m) => ({ ...m, rating: was }));
-      showToast("Couldn't save that");
-    });
+    rateVideo({ ...v, title: title ?? v.title }, r);
+    if (r === "like") showToast("Added to Liked videos");
+    if (signedIn)
+      ytAccount
+        .rate(id, r)
+        .catch(() => showToast("Saved here; YouTube didn’t take it"));
   };
   const toggleSubscribe = () => {
     const cid = v?.channel?.id;
@@ -328,22 +347,98 @@ export function WatchSession({ id }: { id: string }) {
       message: `https://youtu.be/${id}`,
     });
   };
+  // Saved with the title shown here (DeArrow's, when it has one).
+  const asTrack = () =>
+    videoTrack(
+      {
+        id,
+        title: title ?? "",
+        thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
+        channel: v?.channel ?? seed?.channel,
+      },
+      src?.stream.durationSec ?? v?.durationSec,
+    );
   const listen = () => {
     if (!v) return;
     haptic.light();
-    const song: Track = {
-      id: v.id,
-      source: "youtube",
-      title: v.title,
-      artists: [{ id: v.channel?.id, name: v.channel?.name ?? "YouTube" }],
-      durationSec: src?.stream.durationSec ?? v.durationSec,
-      thumbnails: v.thumbnails,
-      kind: "video",
-    };
     closeWatch();
-    void music.play([song], 0, {
+    void music.play([asTrack()], 0, {
       source: { type: "other", title: "From Watch" },
     });
+  };
+  // A downloaded video plays offline in the music player, its picture on the Video side.
+  const playOffline = () => {
+    closeWatch();
+    setSetting("npVideo", true);
+    void music.play([asTrack()], 0, {
+      source: { type: "other", title: "Downloads" },
+    });
+    push("/now-playing");
+  };
+  const dl = useVideoDownload(id);
+  const offlineCopy = dl.state === "done";
+  const downloadLabel =
+    dl.state === "done"
+      ? "Downloaded"
+      : dl.state === "downloading" || dl.state === "queued"
+        ? `${Math.round(dl.progress * 100)}%`
+        : dl.state === "error"
+          ? "Retry"
+          : "Download";
+  const pickDownload = () => {
+    haptic.light();
+    if (dl.state === "done")
+      return showSheet({
+        actions: [
+          { label: "Play offline", onPress: playOffline },
+          {
+            label: "Remove download",
+            destructive: true,
+            onPress: () => removeDownload(id),
+          },
+        ],
+      });
+    if (dl.state === "downloading" || dl.state === "queued")
+      return showSheet({
+        actions: [
+          {
+            label: "Cancel download",
+            destructive: true,
+            onPress: () => removeDownload(id),
+          },
+        ],
+      });
+    const st = src?.stream;
+    const sizes = new Map<number, number | undefined>();
+    for (const p of st?.variants ?? []) {
+      const h = p.height ?? 0;
+      if (h > 1080 || (sizes.has(h) && (p.fps ?? 30) > 30)) continue;
+      sizes.set(
+        h,
+        p.contentLength && st?.audio.contentLength
+          ? p.contentLength + st.audio.contentLength
+          : undefined,
+      );
+    }
+    const heights = sizes.size ? [...sizes.keys()] : [720, 480, 360];
+    const go = (h: number) => () => {
+      downloadVideo(asTrack(), h);
+      showToast("Downloading. It’ll be in Downloads.");
+    };
+    showSheet({
+      header: <Text style={styles.sheetTitle}>Download</Text>,
+      actions: heights
+        .filter((h) => h >= 144)
+        .map((h) => ({
+          label: `${h}p`,
+          sub: sizes.get(h) ? `About ${mb(sizes.get(h)!)}` : undefined,
+          onPress: go(h),
+        })),
+    });
+  };
+  const save = () => {
+    haptic.light();
+    showPlaylistPicker([asTrack()]);
   };
 
   const thumb =
@@ -376,7 +471,7 @@ export function WatchSession({ id }: { id: string }) {
               contentFit="cover"
               blurRadius={error ? 12 : undefined}
             />
-            {error ? (
+            {error && offlineCopy ? null : error ? (
               <Text style={styles.veilText}>
                 This video won’t play right now.
               </Text>
@@ -385,6 +480,13 @@ export function WatchSession({ id }: { id: string }) {
                 <Spinner size={30} />
               </View>
             )}
+          </View>
+        ) : null}
+        {error && offlineCopy ? (
+          <View style={styles.veil}>
+            <PressScale onPress={playOffline} style={styles.offlineBtn}>
+              <Text style={styles.offlineText}>Play the downloaded copy</Text>
+            </PressScale>
           </View>
         ) : null}
         {ended ? (
@@ -466,6 +568,14 @@ export function WatchSession({ id }: { id: string }) {
               onRate={rate}
             />
             <Pill icon={<ShareGlyph />} label="Share" onPress={share} />
+            {Platform.OS !== "web" ? (
+              <Pill
+                icon={<DownloadGlyph done={offlineCopy} />}
+                label={downloadLabel}
+                onPress={pickDownload}
+              />
+            ) : null}
+            <Pill icon={<SaveGlyph />} label="Save" onPress={save} />
             <Pill
               icon={<GearGlyph />}
               label={qualityLabel}
@@ -644,6 +754,38 @@ function Pill({
     </PressScale>
   );
 }
+
+const mb = (bytes: number) =>
+  bytes >= 1e9
+    ? `${(bytes / 1e9).toFixed(1)} GB`
+    : `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+
+const DownloadGlyph = ({ done }: { done?: boolean }) => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path
+      d={
+        done
+          ? "M5 12.5l4.5 4.5L19 7.5"
+          : "M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"
+      }
+      stroke="#fff"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const SaveGlyph = () => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 6h11M4 12h11M4 18h7M18 14v7M14.5 17.5h7"
+      stroke="#fff"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
 
 const GearGlyph = () => (
   <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
@@ -862,6 +1004,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   veilText: { color: "#fff", fontSize: 14, ...display("700") },
+  offlineBtn: {
+    height: 40,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  offlineText: { color: "#000", fontSize: 14, ...display("800") },
   info: { paddingHorizontal: 12, paddingTop: 12 },
   title: { color: "#fff", fontSize: 18, lineHeight: 23, ...display("800") },
   meta: { color: "rgba(255,255,255,0.6)", fontSize: 12.5, marginTop: 5 },

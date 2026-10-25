@@ -5,8 +5,11 @@ import {
 } from "@pawse/music-core";
 import { Image } from "expo-image";
 import { memo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
+import { downloadVideo } from "../data/downloads";
+import { videoTrack } from "../data/watched";
+import { showPlaylistPicker } from "../features/library/playlist-tools";
 import { MoreGlyph } from "../features/now-playing/icons";
 import { minimizeWatch, openWatch, useWatch } from "../features/watch/store";
 import { blockChannel } from "../lib/block";
@@ -51,6 +54,19 @@ export function showVideoActions(v: VideoItem) {
   showSheet({
     actions: [
       { label: "Open", onPress: () => openVideo(v) },
+      {
+        label: "Save to playlist",
+        onPress: () => showPlaylistPicker([videoTrack(v)]),
+      },
+      ...(Platform.OS !== "web"
+        ? [
+            {
+              label: "Download",
+              sub: "720p, for watching offline",
+              onPress: () => downloadVideo(videoTrack(v), 720),
+            },
+          ]
+        : []),
       ...(ch && id
         ? [
             {
