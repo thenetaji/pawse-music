@@ -33,7 +33,8 @@ type Current = {
 
 type StoreState = ReturnType<typeof usePlayerStore.getState>;
 
-const paused = () => getSetting("pauseHistory", false);
+const paused = () =>
+  getSetting("pauseHistory", false) || getSetting("incognito", false);
 
 let stopRecorder: (() => void) | null = null;
 

@@ -2,6 +2,7 @@ import {
   bestThumbnail,
   type ChannelItem,
   type VideoItem,
+  type VideoPlaylistItem,
 } from "@pawse/music-core";
 import { player } from "@pawse/player";
 import { Image } from "expo-image";
@@ -10,7 +11,12 @@ import { Platform, Share, StyleSheet, Text, View } from "react-native";
 
 import { downloadVideo } from "../data/downloads";
 import { isPinned, togglePin } from "../data/pins";
-import { removeWatched, useWatched, videoTrack } from "../data/watched";
+import {
+  isUnfinished,
+  removeWatched,
+  useWatched,
+  videoTrack,
+} from "../data/watched";
 import { showPlaylistPicker } from "../features/library/playlist-tools";
 import { MoreGlyph } from "../features/now-playing/icons";
 import { minimizeWatch, openWatch, useWatch } from "../features/watch/store";
@@ -182,6 +188,7 @@ function Thumb({
   /** Edge to edge, square corners. */
   bleed?: boolean;
 }) {
+  const seen = useSeen(v.id);
   return (
     <View
       style={[styles.thumb, width ? { width } : null, bleed && styles.bleed]}
@@ -195,11 +202,26 @@ function Thumb({
       {v.live ? (
         <Text style={[styles.badge, styles.live]}>LIVE</Text>
       ) : v.durationSec ? (
-        <Text style={styles.badge}>{clock(v.durationSec)}</Text>
+        <Text style={[styles.badge, seen > 0 && { bottom: 11 }]}>
+          {clock(v.durationSec)}
+        </Text>
+      ) : null}
+      {seen > 0 ? (
+        <View style={styles.seenTrack}>
+          <View style={[styles.seenBar, { width: `${seen * 100}%` }]} />
+        </View>
       ) : null}
     </View>
   );
 }
+
+/** How much of a video you've watched, 0 to 1; a finished one counts as all of it. */
+const useSeen = (id: string) =>
+  useWatched((s) => {
+    const w = s.list.find((x) => x.id === id);
+    if (!w || w.pos <= 5) return 0;
+    return !w.dur || !isUnfinished(w) ? 1 : Math.min(1, w.pos / w.dur);
+  });
 
 /** A wide 16:9 card: the thumbnail first, then the channel's face and two lines of title.
  * On phones the picture runs edge to edge, like YouTube; in a grid it's a rounded tile. */
@@ -303,6 +325,67 @@ export const VideoRow = memo(function VideoRow({
   );
 });
 
+/** A YouTube playlist in results: a stacked thumbnail with its count, opening the playlist page. */
+export function VideoPlaylistRow({ list }: { list: VideoPlaylistItem }) {
+  const open = () => {
+    const w = useWatch.getState();
+    if (w.id && w.mode === "full") minimizeWatch();
+    go(`/playlist/${list.id}`);
+  };
+  const menu = () =>
+    showSheet({
+      actions: [
+        {
+          label: isPinned(list.id) ? "Unpin from Home" : "Pin to Home",
+          icon: (c) => <PinGlyph size={22} color={c} />,
+          onPress: () =>
+            togglePin({
+              kind: "playlist",
+              id: list.id,
+              title: list.title,
+              thumbnails: list.thumbnails,
+            }),
+        },
+      ],
+    });
+  return (
+    <PressScale
+      onPress={open}
+      onLongPress={menu}
+      {...rightClick(menu)}
+      style={styles.row}
+    >
+      <View style={styles.stackWrap}>
+        <View style={styles.stack} />
+        <View style={[styles.thumb, { width: 150 }]}>
+          <Image
+            source={bestThumbnail(list.thumbnails, 360)}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={200}
+          />
+          <View style={styles.countBadge}>
+            <PlaylistGlyph size={13} color="#fff" />
+            {list.countText ? (
+              <Text style={styles.countText} numberOfLines={1}>
+                {list.countText}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowTitle} numberOfLines={2}>
+          {list.title}
+        </Text>
+        <Text style={styles.metaText} numberOfLines={1}>
+          {[list.author, "Playlist"].filter(Boolean).join(" · ")}
+        </Text>
+      </View>
+    </PressScale>
+  );
+}
+
 export function ChannelRow({ channel }: { channel: ChannelItem }) {
   return (
     <PressScale onPress={() => openChannel(channel.id)} style={styles.chRow}>
@@ -361,6 +444,15 @@ const styles = StyleSheet.create({
     ...display("700"),
   },
   live: { backgroundColor: "#e5332a" },
+  seenTrack: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 4,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  seenBar: { height: 4, backgroundColor: "#ff0033" },
   info: { flexDirection: "row", gap: 12, marginTop: 11 },
   infoPad: { paddingLeft: 14, paddingRight: 6 },
   more: { paddingHorizontal: 6, paddingTop: 2 },
@@ -386,6 +478,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 14,
   },
+  stackWrap: { paddingTop: 5 },
+  stack: {
+    position: "absolute",
+    top: 0,
+    left: 8,
+    right: 8,
+    height: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.22)",
+  },
+  countBadge: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    maxWidth: 130,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: "rgba(0,0,0,0.72)",
+  },
+  countText: { color: "#fff", fontSize: 12, ...display("700") },
   chRow: {
     flexDirection: "row",
     alignItems: "center",

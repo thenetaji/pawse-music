@@ -17,7 +17,7 @@ The IPA is unsigned (SideStore signs it on the phone). The APK is release-signed
 
 ## iPhone (SideStore)
 - Install **LocalDevVPN** from the App Store and keep it connected while SideStore installs or refreshes apps.
-- New releases show up in the SideStore source as updates. Pawse also offers them itself (**Settings → About → Check for updates**).
+- New releases show up in SideStore's **My Apps** as updates, but only for a copy installed from the source; one installed from an `.ipa` says **Sideloaded** and never updates (see [the iPhone guide](../../../docs/IPHONE.md#no-update-button-pawse-says-sideloaded)). Pawse also offers them itself (**Settings → About → Check for updates**).
 - Free Apple ID apps stop opening after 7 days. Open SideStore and refresh Pawse, or turn on **Background Refresh**.
 
 ## Android

@@ -76,7 +76,10 @@ export const useSignals = create<SignalsState>()(
 export const trackSignals = (id: string): TrackSignal =>
   useSignals.getState().tracks[id] ?? EMPTY;
 
-const paused = () => useLibrary.getState().settings.pauseHistory;
+const paused = () => {
+  const s = useLibrary.getState().settings;
+  return s.pauseHistory || s.incognito;
+};
 
 // The current track's listening session; play time only counts while the player is playing.
 type Session = {

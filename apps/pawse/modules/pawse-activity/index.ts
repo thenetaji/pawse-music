@@ -61,6 +61,7 @@ declare class PawseActivityNative extends NativeModule<Events> {
   setArtwork(url: string): Promise<string | null>;
   squareArtwork(urls: string[], px: number): Promise<string | null>;
   setResumeAfterInterruption(on: boolean): void;
+  claimAudioSession(): void;
   saveBackupFolder(uri: string): boolean;
   clearBackupFolder(): void;
   writeBackupFile(name: string, text: string): Promise<boolean>;
@@ -148,6 +149,15 @@ export const PawseActivity = {
   setResumeAfterInterruption(on: boolean): void {
     try {
       native?.setResumeAfterInterruption(on);
+    } catch {
+      // Older native build without the function.
+    }
+  },
+
+  /** Takes the audio session back from a video player that set it to mix, so Now Playing shows. */
+  claimAudioSession(): void {
+    try {
+      native?.claimAudioSession();
     } catch {
       // Older native build without the function.
     }

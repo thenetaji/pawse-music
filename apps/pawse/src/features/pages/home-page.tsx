@@ -17,8 +17,11 @@ import {
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Circle, Path } from "react-native-svg";
+import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
 import { CaughtUp } from "../../components/caught-up";
+import { IncognitoGlyph } from "../../components/glyphs";
+import { IncognitoChip } from "../../components/incognito-chip";
 import { useTabRoot } from "../../components/page";
 import { Shelf } from "../../components/shelf";
 import { TrackRow } from "../../components/track-row";
@@ -38,6 +41,7 @@ import { useVideoFilter } from "../../lib/block";
 import { rightClick } from "../../lib/context-menu";
 import { yt, ytv } from "../../lib/engine";
 import { HOME_SECTIONS, useHomeSections } from "../../lib/home-sections";
+import { setIncognito, useIncognito } from "../../lib/incognito";
 import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { autoplayMode, useSetting } from "../../lib/settings";
@@ -56,6 +60,7 @@ export default function HomePage() {
   useTabRoot("home");
   const accent = useAccent();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
+  const incognito = useIncognito();
   const videos = useSetting("videos", true);
   const sections = useHomeSections().filter(
     (s) =>
@@ -184,9 +189,23 @@ export default function HomePage() {
       onEndReached={full ? loadMore : undefined}
       right={
         <View style={styles.headRight}>
+          <IncognitoChip />
           <HomeCat />
           <PressScale
             onPress={() => push("/settings")}
+            onLongPress={() =>
+              showSheet({
+                actions: [
+                  {
+                    label: incognito
+                      ? "Turn off incognito"
+                      : "Turn on incognito",
+                    icon: (c) => <IncognitoGlyph size={22} color={c} />,
+                    onPress: () => setIncognito(!incognito),
+                  },
+                ],
+              })
+            }
             style={styles.gear}
             hitSlop={Platform.OS === "android" ? 5 : undefined}
             accessibilityLabel="Settings"

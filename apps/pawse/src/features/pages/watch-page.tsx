@@ -20,7 +20,11 @@ import { CaughtUp } from "../../components/caught-up";
 import { CloseGlyph } from "../../components/glyphs";
 import { useTabRoot } from "../../components/page";
 import { CatState, Chip, Screen, SkeletonShelves } from "../../components/ui";
-import { ChannelRow, VideoCard } from "../../components/video-card";
+import {
+  ChannelRow,
+  VideoCard,
+  VideoPlaylistRow,
+} from "../../components/video-card";
 import { subscriptionsFeed } from "../../data/channels";
 import { useVideoFilter } from "../../lib/block";
 import { ytv } from "../../lib/engine";
@@ -119,9 +123,7 @@ export default function WatchPage({
   const seen = new Set<string>();
   const unique = items.filter(
     (x) =>
-      !seen.has(x.id) &&
-      !!seen.add(x.id) &&
-      (x.type === "channel" || keep(x as VideoItem)),
+      !seen.has(x.id) && !!seen.add(x.id) && (x.type !== "video" || keep(x)),
   );
 
   return (
@@ -205,6 +207,8 @@ export default function WatchPage({
               {row.map((x) =>
                 x.type === "channel" ? (
                   <ChannelRow key={x.id} channel={x} />
+                ) : x.type === "playlist" ? (
+                  <VideoPlaylistRow key={x.id} list={x} />
                 ) : (
                   <VideoCard
                     key={x.id}
@@ -213,7 +217,7 @@ export default function WatchPage({
                   />
                 ),
               )}
-              {cols > 1 && row.length < cols && row[0].type !== "channel"
+              {cols > 1 && row.length < cols && row[0].type === "video"
                 ? Array.from({ length: cols - row.length }, (_, k) => (
                     <View key={k} style={{ flex: 1 }} />
                   ))
@@ -252,7 +256,7 @@ function rows(items: Item[], cols: number): Item[][] {
   const out: Item[][] = [];
   let row: Item[] = [];
   for (const x of items) {
-    if (x.type === "channel") {
+    if (x.type !== "video") {
       if (row.length) out.push(row);
       out.push([x]);
       row = [];

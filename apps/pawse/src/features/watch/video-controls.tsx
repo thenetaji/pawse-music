@@ -12,6 +12,10 @@ const RED = "#FF0033";
 // Controls fade after this long while the video plays.
 const HIDE_MS = 3000;
 const SKIP_SEC = 10;
+// A second tap this soon after the first, on the same side, is a double tap.
+const DOUBLE_MS = 300;
+// Double tap skips only in the outer thirds; the middle just shows and hides the controls.
+const SIDE = 0.35;
 
 export type ControlsProps = {
   at: number;
@@ -34,6 +38,42 @@ export type ControlsProps = {
   onFullscreen: () => void;
   onAutoplay: (on: boolean) => void;
 };
+
+/** Each tap answers at once, like YouTube: it shows or hides the controls, and a quick second
+ * tap on a side skips instead, putting the controls back the way they were. */
+function tapGesture(o: {
+  width: number;
+  setShown: (f: (s: boolean) => boolean) => void;
+  onTap: () => void;
+  onSkip: (side: -1 | 1) => void;
+}) {
+  const last = { at: 0, side: 0, was: true, skipping: false };
+  return Gesture.Tap()
+    .runOnJS(true)
+    .maxDuration(600)
+    .onEnd((e, ok) => {
+      if (!ok) return;
+      const side =
+        e.x < o.width * SIDE ? -1 : e.x > o.width * (1 - SIDE) ? 1 : 0;
+      const now = Date.now();
+      if (side && side === last.side && now - last.at < DOUBLE_MS) {
+        const was = last.was;
+        if (!last.skipping) o.setShown(() => was);
+        last.at = now;
+        last.skipping = true;
+        o.onSkip(side);
+        return;
+      }
+      last.at = now;
+      last.side = side;
+      last.skipping = false;
+      o.setShown((s) => {
+        last.was = s;
+        return !s;
+      });
+      o.onTap();
+    });
+}
 
 /** YouTube's player chrome: tap for controls, double-tap a side to skip 10 s, drag the red bar to seek. */
 export function VideoControls(p: ControlsProps) {
@@ -66,27 +106,22 @@ export function VideoControls(p: ControlsProps) {
 
   const { onSeek, getTime } = p;
   // Built once per layout, never per frame: a gesture rebuilt while a finger is down drops the tap (iOS, Android).
-  const taps = useMemo(() => {
-    const single = Gesture.Tap()
-      .runOnJS(true)
-      .maxDuration(250)
-      .onEnd(() => {
-        setShown((s) => !s);
-        setPoke((n) => n + 1);
-      });
-    const double = Gesture.Tap()
-      .runOnJS(true)
-      .numberOfTaps(2)
-      .onEnd((e) => {
-        const side = e.x < stageW / 2 ? -1 : 1;
-        haptic.light();
-        onSeek(
-          Math.max(0, Math.min(dur || Infinity, getTime() + side * SKIP_SEC)),
-        );
-        setSkip((s) => ({ side, n: s?.side === side ? s.n + 1 : 1 }));
-      });
-    return Gesture.Exclusive(double, single);
-  }, [stageW, dur, onSeek, getTime]);
+  const taps = useMemo(
+    () =>
+      tapGesture({
+        width: stageW,
+        setShown,
+        onTap: () => setPoke((n) => n + 1),
+        onSkip: (side) => {
+          haptic.light();
+          onSeek(
+            Math.max(0, Math.min(dur || Infinity, getTime() + side * SKIP_SEC)),
+          );
+          setSkip((s) => ({ side, n: s?.side === side ? s.n + 1 : 1 }));
+        },
+      }),
+    [stageW, dur, onSeek, getTime],
+  );
   const drag = useMemo(() => {
     const at = (x: number) =>
       barW && dur ? Math.max(0, Math.min(dur, (x / barW) * dur)) : 0;

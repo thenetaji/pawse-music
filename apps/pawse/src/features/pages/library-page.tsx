@@ -238,7 +238,11 @@ export default function LibraryPage() {
             items={likedVideos}
             accent={accent}
           />
-          <VideoStrip title="Watched" items={watched} accent={accent} />
+          <VideoStrip
+            title="Watched"
+            items={watched.slice(0, 60)}
+            accent={accent}
+          />
         </>
       ) : null}
 

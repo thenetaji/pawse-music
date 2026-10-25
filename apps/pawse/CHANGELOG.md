@@ -2,6 +2,21 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.11.1] - 2026-10-25
+
+### Added
+- **Incognito.** Turn it on in **Settings → Privacy**, or hold the Settings button on Home. While it's on, nothing you play, watch or search is kept: no listening or watch history, no Continue, no search history, nothing learned for recommendations, and nothing sent to YouTube's history (video searches go out signed out). An **Incognito** chip on Home shows it's on; tap it to turn it off.
+- **Resume a playlist where you stopped.** A playlist's page offers **Resume** and says where you stopped, with **Start over** beside it. A music playlist picks up at the song you were on. A YouTube playlist of videos (a course, a series) opens the video you were on at your spot, or the next one if you finished it.
+- **Watch a YouTube playlist in order.** Playlists of videos show **Watch** instead of Play, and tapping one opens the watch page with the rest of the list under it ("2 of 13"). Each video plays the next when it ends.
+- **YouTube playlists in Search.** The All tab shows playlists and courses beside videos and channels, with how many videos each has.
+- **Pin a playlist or album to Home** from its ⋯ menu, or by holding a playlist in Search. It sits in the Pinned row with your pinned videos.
+- **A red bar on videos you've watched**, everywhere videos show up: how far you got, or the whole width when you finished it.
+
+### Fixed
+- **The Dynamic Island and lock-screen player on iPhone stay with the music.** Opening, closing or switching videos, or the Video side of the player, could make iPhone treat Pawse as background audio and drop them until something else played.
+- **Tapping a video shows or hides the controls straight away, anywhere on the picture.** Before, a tap waited to see if a double tap followed, so a quick second tap on a side skipped 10 seconds instead. Double tap now skips only on the left and right thirds.
+- **SideStore's What's New shows the release notes** instead of "nil".
+
 ## [1.11.0] - 2026-10-25
 
 ### Added

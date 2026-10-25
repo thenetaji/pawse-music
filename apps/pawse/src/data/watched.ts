@@ -2,6 +2,7 @@ import type { Thumbnail, Track, VideoItem } from "@pawse/music-core";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import { useLibrary } from "./library";
 import { kv } from "./storage";
 
 /** A video you started, and how far you got. */
@@ -16,7 +17,8 @@ export type Watched = {
   at: number;
 };
 
-const MAX = 60;
+// Enough to mark the videos you've seen wherever they show up again.
+const MAX = 300;
 // Closer than this to the end counts as finished, so it isn't offered to continue.
 const DONE_SEC = 20;
 
@@ -58,6 +60,7 @@ export const removeWatched = (id: string) =>
 export const clearWatched = () => useWatched.setState({ list: [] });
 
 export function recordWatch(w: Omit<Watched, "at">) {
+  if (useLibrary.getState().settings.incognito) return;
   useWatched.setState((s) => ({
     list: [
       { ...w, at: Date.now() },

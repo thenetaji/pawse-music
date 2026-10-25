@@ -235,6 +235,22 @@ function codesignIos() {
   }
 }
 
+// A version's CHANGELOG section as plain text: SideStore shows What's New without markdown.
+function releaseNotes(version) {
+  const file = path.join(root, "apps", env.APP, "CHANGELOG.md");
+  if (!fs.existsSync(file)) return undefined;
+  const text = fs.readFileSync(file, "utf8");
+  const start = text.indexOf(`## [${version}]`);
+  if (start < 0) return undefined;
+  const body = text.slice(text.indexOf("\n", start) + 1);
+  const end = body.search(/^## \[/m);
+  return (end < 0 ? body : body.slice(0, end))
+    .replace(/^### (.+)$/gm, "$1:")
+    .replace(/^- /gm, "• ")
+    .replace(/\*\*|`/g, "")
+    .trim();
+}
+
 // Adds this release to the AltStore/SideStore source (newest version first).
 function sidestore(ipaPath) {
   const file = path.join(root, "sources", "sidestore.json");
@@ -273,6 +289,9 @@ function sidestore(ipaPath) {
     size: fs.statSync(ipaPath).size,
     minOSVersion: "16.4",
   });
+  // Older entries were written without notes; fill them so What's New never reads "nil".
+  for (const v of entry.versions)
+    v.localizedDescription ??= releaseNotes(v.version) ?? `Pawse ${v.version}`;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(source, null, 2) + "\n");
   console.log(`sources/sidestore.json: ${expo.name} ${env.VERSION}`);

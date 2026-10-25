@@ -1,4 +1,5 @@
 import ActivityKit
+import AVFoundation
 import ExpoModulesCore
 import UIKit
 
@@ -122,6 +123,18 @@ public class PawseActivityModule: Module {
       guard #available(iOS 17.0, *) else { return }
       for activity in Activity<PawseActivityAttributes>.activities {
         await activity.end(nil, dismissalPolicy: .immediate)
+      }
+    }
+
+    // expo-video turns on "mix with others" when its players go quiet, and iOS gives a mixing app
+    // no Now Playing or Dynamic Island; music playing takes the session back.
+    Function("claimAudioSession") {
+      let session = AVAudioSession.sharedInstance()
+      var options = session.categoryOptions
+      options.remove(.mixWithOthers)
+      options.remove(.duckOthers)
+      if session.category != .playback || options != session.categoryOptions {
+        try? session.setCategory(.playback, mode: session.mode, options: options)
       }
     }
 

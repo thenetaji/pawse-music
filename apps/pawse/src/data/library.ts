@@ -117,7 +117,8 @@ export const useLibrary = create<Library>()(
       syncedAt: 0,
       disliked: [],
       settings: { ...DEFAULT_SETTINGS, cookies: readSession() },
-      addSearch: (q) =>
+      addSearch: (q) => {
+        if (get().settings.incognito) return;
         set((s) => ({
           recentSearches: [
             q,
@@ -125,7 +126,8 @@ export const useLibrary = create<Library>()(
               (x) => x.toLowerCase() !== q.toLowerCase(),
             ),
           ].slice(0, 12),
-        })),
+        }));
+      },
       clearSearches: () => set({ recentSearches: [] }),
       removeSearch: (q) =>
         set((s) => ({
@@ -168,7 +170,8 @@ export const useLibrary = create<Library>()(
       },
       isDisliked: (id) => (get().disliked ?? []).some((t) => t.id === id),
       recordPlay: (track) => {
-        if (get().settings.pauseHistory) return;
+        const { pauseHistory, incognito } = get().settings;
+        if (pauseHistory || incognito) return;
         set((s) => ({
           history: [
             { track: strip(track), at: Date.now() },

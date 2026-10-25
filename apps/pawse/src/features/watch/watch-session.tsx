@@ -69,6 +69,7 @@ import {
   useVideoDownload,
 } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { recordSpot } from "../../data/list-spots";
 import { isPinned, togglePin } from "../../data/pins";
 import {
   rateVideo,
@@ -105,6 +106,7 @@ import {
   minimizeWatch,
   openWatch,
   useWatch,
+  type WatchSeed,
   watchPrevious,
 } from "./store";
 import { VideoControls } from "./video-controls";
@@ -255,12 +257,24 @@ export function WatchSession({ id }: { id: string }) {
     setSubscribed({ id: cid, name, avatar }, !subscribed);
   };
   const related = d?.related.filter(keep) ?? [];
-  const next = related[0];
+  // A playlist opened from its page plays in order, whatever autoplay says; its end is the end.
+  const list = useWatch((s) => s.list);
+  const listAt = list ? list.items.findIndex((x) => x.id === id) : -1;
+  const inList = listAt >= 0 ? list : undefined;
+  const listNext = inList?.items[listAt + 1];
+  const next = inList ? listNext && asVideo(listNext) : related[0];
   const onEnd = () => {
     // A minimised video stays minimised when the next one starts.
-    if (autoplay && next) return openWatch(next, undefined, { keepMode: true });
+    if ((autoplay || inList) && next)
+      return openWatch(next, undefined, { keepMode: true });
     setEnded(true);
   };
+  // Where you are in the playlist, for its Resume button.
+  const listId = inList?.id;
+  const listTitle = inList?.items[listAt]?.title;
+  useEffect(() => {
+    if (listId) recordSpot(listId, id, listTitle);
+  }, [listId, id, listTitle]);
 
   const video = useWatchPlayer({
     uri: src?.uri,
@@ -657,7 +671,7 @@ export function WatchSession({ id }: { id: string }) {
       ) : null}
       {ended ? (
         <EndCard
-          next={focus.upNext ? next : undefined}
+          next={focus.upNext || inList ? next : undefined}
           onReplay={() => {
             setEnded(false);
             video.replay();
@@ -820,7 +834,21 @@ export function WatchSession({ id }: { id: string }) {
         />
       ) : null}
 
-      {focus.upNext && related.length ? (
+      {inList ? (
+        <View style={styles.upNext}>
+          <SectionTitle
+            title={inList.title}
+            kicker={`${listAt + 1} of ${inList.items.length}`}
+          />
+          {inList.items.slice(listAt + 1, listAt + 41).map((x) => (
+            <VideoRow
+              key={x.id}
+              video={asVideo(x)}
+              onPress={() => openWatch(x)}
+            />
+          ))}
+        </View>
+      ) : focus.upNext && related.length ? (
         <View style={styles.upNext}>
           {pinned ? (
             related.slice(0, 16).map((r) => <VideoCard key={r.id} video={r} />)
@@ -1020,6 +1048,14 @@ const Thumb = ({ up, on }: { up?: boolean; on?: boolean }) => {
     <Icon size={17} color="#fff" strokeWidth={2} fill={on ? "#fff" : "none"} />
   );
 };
+
+const asVideo = (s: WatchSeed): VideoItem => ({
+  type: "video",
+  id: s.id,
+  title: s.title ?? "",
+  thumbnails: s.thumbnails ?? [],
+  channel: s.channel,
+});
 
 // When a video ends nothing starts by itself: replay, go on, or stop here.
 function EndCard({

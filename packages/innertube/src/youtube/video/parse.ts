@@ -7,6 +7,7 @@ import type {
   VideoDetail,
   VideoFeed,
   VideoItem,
+  VideoPlaylistItem,
   VideoSearchResults,
 } from "@pawse/music-core";
 
@@ -22,7 +23,7 @@ import {
   tokenOfItem,
 } from "../nodes";
 
-type Found = VideoItem | ChannelItem;
+type Found = VideoItem | ChannelItem | VideoPlaylistItem;
 
 // Keys whose subtree is never catalog content: ads, Shorts, nudges and page chrome.
 const SKIP_KEY =
@@ -262,7 +263,7 @@ export function collect(root: unknown, into: Walk = { items: [] }): Walk {
           item = parseVideoRenderer(child);
           break;
         case "lockupViewModel":
-          item = parseLockup(child);
+          item = parseLockup(child) ?? parsePlaylistLockup(child);
           break;
         case "channelRenderer":
           item = parseChannelRenderer(child);
@@ -285,6 +286,46 @@ export function collect(root: unknown, into: Walk = { items: [] }): Walk {
   };
   visit(root, 0);
   return into;
+}
+
+/** lockupViewModel of a playlist or course: a stack of videos with a count. */
+export function parsePlaylistLockup(l: Node): VideoPlaylistItem | undefined {
+  const type = l.contentType;
+  if (
+    type !== "LOCKUP_CONTENT_TYPE_PLAYLIST" &&
+    type !== "LOCKUP_CONTENT_TYPE_COURSE"
+  )
+    return undefined;
+  const id = l.contentId;
+  if (typeof id !== "string" || !id) return undefined;
+  // Mixes ("RD…") never end and aren't anyone's list.
+  if (id.startsWith("RD")) return undefined;
+  const meta = obj(dig(l, "metadata", "lockupMetadataViewModel")) ?? {};
+  const title = text(meta.title);
+  if (!title) return undefined;
+  const author = findText(
+    dig(meta, "metadata", "contentMetadataViewModel", "metadataRows", 0),
+    /\S/,
+  );
+  const countText = findText(dig(l, "contentImage"), /\d.*\b(videos?|lessons?)\b/i);
+  const thumbs = thumbnails(
+    dig(
+      l,
+      "contentImage",
+      "collectionThumbnailViewModel",
+      "primaryThumbnail",
+      "thumbnailViewModel",
+      "image",
+    ),
+  );
+  return {
+    type: "playlist",
+    id,
+    title,
+    ...(author ? { author } : {}),
+    ...(countText ? { countText } : {}),
+    thumbnails: thumbs,
+  };
 }
 
 const onlyVideos = (items: Found[]): VideoItem[] =>
