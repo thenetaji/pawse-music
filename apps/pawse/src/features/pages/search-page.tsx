@@ -6,6 +6,8 @@ import {
   type SearchResults,
   type Shelf as ShelfT,
   type Track,
+  type VideoItem,
+  type VideoSearchResults,
 } from "@pawse/music-core";
 import { player } from "@pawse/player";
 import { useEffect, useRef, useState } from "react";
@@ -27,7 +29,6 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path } from "react-native-svg";
-
 import { Artwork } from "../../components/artwork";
 import { CloseGlyph } from "../../components/glyphs";
 import { MoodTile } from "../../components/mood-tile";
@@ -42,8 +43,10 @@ import {
   SectionTitle,
   SkeletonRows,
 } from "../../components/ui";
+import { ChannelRow, VideoCard } from "../../components/video-card";
 import { useLibrary } from "../../data/library";
-import { yt } from "../../lib/engine";
+import { useVideoFilter } from "../../lib/block";
+import { yt, ytv } from "../../lib/engine";
 import { useRegion } from "../../lib/locale";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
@@ -68,7 +71,9 @@ export default function SearchPage() {
   const input = useRef<TextInput>(null);
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<SearchFilter>("all");
+  // "youtube" searches all of YouTube (videos and channels), not YouTube Music.
+  const [filter, setFilter] = useState<SearchFilter | "youtube">("all");
+  const videos = useSetting("videos", true);
   const [focused, setFocused] = useState(false);
   const recent = useLibrary((s) => s.recentSearches);
 
@@ -78,8 +83,12 @@ export default function SearchPage() {
     () => yt.suggestions(debounced),
   );
   const results = useResource<SearchResults>(
-    query ? `search:${filter}:${query}` : null,
-    () => yt.search(query, filter),
+    query && filter !== "youtube" ? `search:${filter}:${query}` : null,
+    () => yt.search(query, filter as SearchFilter),
+  );
+  const ytResults = useResource<VideoSearchResults>(
+    query && filter === "youtube" ? `ytsearch:${query}` : null,
+    () => ytv.search(query),
   );
 
   const submit = (q: string) => {
@@ -189,6 +198,14 @@ export default function SearchPage() {
                 onPress={() => setFilter(f.id)}
               />
             ))}
+            {videos ? (
+              <Chip
+                label="YouTube"
+                on={filter === "youtube"}
+                accent={accent}
+                onPress={() => setFilter("youtube")}
+              />
+            ) : null}
           </ScrollView>
         ) : null}
       </View>
@@ -221,6 +238,19 @@ export default function SearchPage() {
           bottom={bottom}
           accent={accent}
         />
+      ) : filter === "youtube" ? (
+        ytResults.data ? (
+          <YouTubeResults data={ytResults.data} bottom={bottom} />
+        ) : ytResults.error ? (
+          <CatState
+            kind="error"
+            message="Search didn't go through."
+            action="Try again"
+            onAction={ytResults.reload}
+          />
+        ) : (
+          <SkeletonRows />
+        )
       ) : results.data ? (
         <Results
           data={results.data}
@@ -239,6 +269,35 @@ export default function SearchPage() {
         <SkeletonRows />
       )}
     </View>
+  );
+}
+
+// All of YouTube: edge-to-edge videos and channels, never Shorts, minus anything blocked.
+function YouTubeResults({
+  data,
+  bottom,
+}: {
+  data: VideoSearchResults;
+  bottom: number;
+}) {
+  const keep = useVideoFilter();
+  const items = data.items.filter(
+    (x) => x.type === "channel" || keep(x as VideoItem),
+  );
+  if (!items.length)
+    return <CatState kind="empty" message="No videos for that." />;
+  return (
+    <ScrollView
+      contentContainerStyle={{ paddingTop: 12, paddingBottom: bottom }}
+    >
+      {items.map((x) =>
+        x.type === "channel" ? (
+          <ChannelRow key={x.id} channel={x} />
+        ) : (
+          <VideoCard key={x.id} video={x as VideoItem} />
+        ),
+      )}
+    </ScrollView>
   );
 }
 

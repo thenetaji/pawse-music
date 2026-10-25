@@ -3,9 +3,9 @@ import { router } from "expo-router";
 import {
   TabList,
   TabSlot,
+  Tabs,
   TabTrigger,
   type TabTriggerSlotProps,
-  Tabs,
 } from "expo-router/ui";
 import { type ComponentType, forwardRef, useEffect, useState } from "react";
 import {
@@ -23,11 +23,11 @@ import { Cat, type CatColor } from "../cat/cat";
 import { useAccent } from "../now-playing/now-palette";
 import {
   ExploreIcon,
-  WatchIcon,
   GearIcon,
   HomeIcon,
   LibraryIcon,
   SearchIcon,
+  WatchIcon,
 } from "./icons";
 import { PlayerBar } from "./player-bar";
 
@@ -73,14 +73,13 @@ export function DesktopShell() {
 
 function Sidebar() {
   const accent = useAccent();
-  const watch = useSetting("ytMode", false);
   return (
     <View style={styles.sidebar}>
       <View style={styles.brand}>
         <Text style={styles.wordmark}>Pawse</Text>
       </View>
       <View style={styles.nav}>
-        {NAV.filter((n) => watch || n.name !== "watch").map((n) => (
+        {NAV.filter((n) => n.name !== "watch").map((n) => (
           <TabTrigger key={n.name} name={n.name} asChild>
             <NavItem label={n.label} Icon={n.Icon} accent={accent} />
           </TabTrigger>

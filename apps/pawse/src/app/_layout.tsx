@@ -17,11 +17,11 @@ import { startAndroidPill } from "../features/island/android-pill";
 import { startIslandController } from "../features/island/island";
 import { NowPaletteSync } from "../features/now-playing/now-palette";
 import { startResumeController } from "../features/playback/resume-after-interruption";
+import { WatchHost } from "../features/watch/watch-host";
 import { startEngine } from "../lib/engine";
 import { getSetting, useSetting } from "../lib/settings";
 import { checkOnLaunch } from "../lib/updates";
 import { YouTubeSandboxHost } from "../lib/youtube-sandbox";
-import { WatchHost } from "../features/watch/watch-host";
 
 export { ErrorScreen as ErrorBoundary } from "../components/error-screen";
 
@@ -86,6 +86,7 @@ export default function RootLayout() {
             <Stack.Screen name="about" options={modal} />
             <Stack.Screen name="blocked" options={modal} />
             <Stack.Screen name="experimental" options={modal} />
+            <Stack.Screen name="edit-home" options={modal} />
             <Stack.Screen name="sign-in" options={modal} />
             <Stack.Screen name="import" options={modal} />
             <Stack.Screen name="downloads" options={modal} />
