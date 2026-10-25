@@ -7,7 +7,7 @@ import Animated, {
 import { haptic } from "../../lib/haptics";
 import { display } from "../../lib/type";
 
-const W = 84;
+const W = 62;
 
 /** YouTube Music's Song | Video switch: what fills the top of the player. */
 export function SongVideoSwitch({
@@ -47,22 +47,25 @@ export function SongVideoSwitch({
 }
 
 const styles = StyleSheet.create({
+  // Dark glass, so it sits quietly on any artwork instead of a white bar across faces.
   track: {
     flexDirection: "row",
-    padding: 3,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    padding: 2,
+    borderRadius: 15,
+    backgroundColor: "rgba(0,0,0,0.38)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
   },
   knob: {
     position: "absolute",
-    top: 3,
-    left: 3,
+    top: 2,
+    left: 2,
     width: W,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "#fff",
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.92)",
   },
-  seg: { width: W, height: 30, alignItems: "center", justifyContent: "center" },
-  label: { color: "rgba(255,255,255,0.8)", fontSize: 14, ...display("700") },
+  seg: { width: W, height: 26, alignItems: "center", justifyContent: "center" },
+  label: { color: "rgba(255,255,255,0.85)", fontSize: 13, ...display("700") },
   labelOn: { color: "#000" },
 });

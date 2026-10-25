@@ -835,6 +835,7 @@ function VideoSettings() {
               ]}
             />
             <Toggle k="videoAutoplay" label="Play the next video" def={false} />
+            <Toggle k="videoCalm" label="Calm watch page" def={false} />
             <Toggle k="skipSponsors" label="Skip sponsors" def />
             <Toggle k="dearrow" label="Honest titles and thumbnails" def />
             <Link
@@ -848,7 +849,7 @@ function VideoSettings() {
       </Section>
       <Foot>
         {videos
-          ? "Videos from YouTube in Home, Search and the player, never Shorts. Auto picks the quality as your connection allows. Sponsor skips come from SponsorBlock, honest titles from DeArrow."
+          ? "Videos from YouTube in Home, Search and the player, never Shorts. Auto picks the quality as your connection allows. The calm watch page leaves out comments, counts and Up next. Sponsor skips come from SponsorBlock, honest titles from DeArrow."
           : "Pawse shows music only."}
       </Foot>
     </>

@@ -38,6 +38,40 @@ export interface VideoDetail {
   description?: string;
   chapters: { title: string; startSec: number }[];
   related: VideoItem[];
+  /** "1.25M subscribers". */
+  subscribersText?: string;
+  /** Signed in: whether you're subscribed to the channel. */
+  subscribed?: boolean;
+  /** Signed in: your rating of the video. */
+  rating?: "like" | "dislike" | "none";
+  /** Exact like count, when YouTube shows it. */
+  likes?: number;
+  /** Token for the first page of comments; absent when comments are off. */
+  comments?: string;
+}
+
+export interface VideoComment {
+  id: string;
+  text: string;
+  author: { id?: string; name: string; avatar?: string; creator?: boolean };
+  published?: string;
+  likes?: string;
+  /** "13" when it has replies. */
+  replies?: string;
+  /** Token for its replies. */
+  repliesToken?: string;
+  pinned?: boolean;
+  /** The creator hearted it. */
+  hearted?: boolean;
+  /** A reply rather than a top-level comment. */
+  reply?: boolean;
+}
+
+export interface CommentPage {
+  /** "5,207" — only on the first page. */
+  count?: string;
+  items: VideoComment[];
+  continuation?: string;
 }
 
 export interface ChannelPage {

@@ -100,6 +100,8 @@ export type Settings = {
   videoInPlayer: boolean;
   /** The player shows the song's video (Video side of the switch). */
   npVideo: boolean;
+  /** The watch page without comments, counts or Up next. */
+  videoCalm: boolean;
   /** Start the next video when one ends. */
   videoAutoplay: boolean;
   /** SponsorBlock: jump over the non-music parts of music videos. */
@@ -167,6 +169,7 @@ export const DEFAULT_SETTINGS: Settings = {
   videoPreferred: "auto",
   videoInPlayer: true,
   npVideo: false,
+  videoCalm: false,
   videoAutoplay: false,
   skipNonMusic: true,
   skipSponsors: true,

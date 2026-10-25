@@ -1,7 +1,9 @@
 import type {
   ChannelItem,
   ChannelPage,
+  CommentPage,
   Thumbnail,
+  VideoComment,
   VideoDetail,
   VideoFeed,
   VideoItem,
@@ -475,11 +477,140 @@ export function parseVideoDetail(json: unknown, id: string): VideoDetail {
       dig(json, "contents", "twoColumnWatchNextResults", "secondaryResults"),
     ).items,
   ).filter((v) => v.id !== id);
+  const sub = obj(dig(secondary, "subscribeButton", "subscribeButtonRenderer"));
+  const status = firstKey(json, "likeStatus");
+  // "like this video along with 110,273 other people"
+  const likeA11y = JSON.stringify(primary ?? {}).match(
+    /along with ([\d,.]+) other/,
+  );
+  const comments = arr(
+    obj(
+      results.find(
+        (r) =>
+          r?.itemSectionRenderer?.sectionIdentifier === "comment-item-section",
+      )?.itemSectionRenderer,
+    )?.contents,
+  );
+  const commentsToken = tokenOf(comments[0]?.continuationItemRenderer);
   return {
     video,
     ...(description ? { description } : {}),
     chapters: chaptersOf(json),
     related,
+    ...(clean(text(owner?.subscriberCountText))
+      ? { subscribersText: clean(text(owner?.subscriberCountText)) }
+      : {}),
+    ...(typeof sub?.subscribed === "boolean"
+      ? { subscribed: sub.subscribed as boolean }
+      : {}),
+    ...(status
+      ? {
+          rating:
+            status === "LIKE"
+              ? ("like" as const)
+              : status === "DISLIKE"
+                ? ("dislike" as const)
+                : ("none" as const),
+        }
+      : {}),
+    ...(likeA11y ? { likes: Number(likeA11y[1].replace(/[,.]/g, "")) } : {}),
+    ...(commentsToken ? { comments: commentsToken } : {}),
+  };
+}
+
+const tokenOf = (n: unknown): string | undefined => {
+  const t =
+    dig(n, "continuationEndpoint", "continuationCommand", "token") ??
+    dig(
+      n,
+      "button",
+      "buttonRenderer",
+      "command",
+      "continuationCommand",
+      "token",
+    );
+  return typeof t === "string" ? t : undefined;
+};
+
+/** A page of comments or replies: the list holds view-model keys, and the text lives in `frameworkUpdates`. */
+export function parseComments(json: unknown): CommentPage {
+  const entities = new Map<string, Node>();
+  for (const m of arr(
+    dig(json, "frameworkUpdates", "entityBatchUpdate", "mutations"),
+  )) {
+    const p = obj(m?.payload);
+    const v = p && (Object.values(p)[0] as Node | undefined);
+    if (typeof m?.entityKey === "string" && v) entities.set(m.entityKey, v);
+  }
+  const list: Node[] = [];
+  for (const e of arr(dig(json, "onResponseReceivedEndpoints")))
+    list.push(
+      ...arr(
+        dig(e, "reloadContinuationItemsCommand", "continuationItems") ??
+          dig(e, "appendContinuationItemsAction", "continuationItems"),
+      ),
+    );
+  let count: string | undefined;
+  let continuation: string | undefined;
+  const items: VideoComment[] = [];
+  for (const it of list) {
+    const head = obj(it?.commentsHeaderRenderer);
+    if (head) {
+      count = clean(arr(dig(head, "countText", "runs"))[0]?.text as string);
+      continue;
+    }
+    if (it?.continuationItemRenderer) {
+      continuation = tokenOf(it.continuationItemRenderer);
+      continue;
+    }
+    const thread = obj(it?.commentThreadRenderer);
+    const vm = obj(
+      thread
+        ? dig(thread, "commentViewModel", "commentViewModel")
+        : it?.commentViewModel,
+    );
+    const c = obj(entities.get(vm?.commentKey as string));
+    if (!c) continue;
+    const props = obj(c.properties);
+    const author = obj(c.author);
+    const bar = obj(c.toolbar);
+    const state = obj(entities.get(vm?.toolbarStateKey as string));
+    const repliesToken = tokenOf(
+      arr(dig(thread, "replies", "commentRepliesRenderer", "contents"))[0]
+        ?.continuationItemRenderer,
+    );
+    const replies = clean(bar?.replyCount as string | undefined);
+    const likes = clean(bar?.likeCountNotliked as string | undefined);
+    items.push({
+      id: String(props?.commentId ?? vm?.commentId ?? ""),
+      text: text(props?.content),
+      author: {
+        ...(typeof author?.channelId === "string"
+          ? { id: author.channelId }
+          : {}),
+        name: String(author?.displayName ?? ""),
+        ...(typeof author?.avatarThumbnailUrl === "string"
+          ? { avatar: author.avatarThumbnailUrl }
+          : {}),
+        ...(author?.isCreator ? { creator: true } : {}),
+      },
+      ...(clean(props?.publishedTime as string | undefined)
+        ? { published: clean(props?.publishedTime as string) }
+        : {}),
+      ...(likes && likes !== "0" ? { likes } : {}),
+      ...(replies && replies !== "0" ? { replies } : {}),
+      ...(repliesToken ? { repliesToken } : {}),
+      ...(vm?.pinnedText ? { pinned: true } : {}),
+      ...(state?.heartState === "TOOLBAR_HEART_STATE_HEARTED"
+        ? { hearted: true }
+        : {}),
+      ...(Number(props?.replyLevel) > 0 ? { reply: true } : {}),
+    });
+  }
+  return {
+    ...(count ? { count } : {}),
+    items,
+    ...(continuation ? { continuation } : {}),
   };
 }
 
