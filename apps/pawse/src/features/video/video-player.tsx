@@ -8,6 +8,8 @@ type Props = {
   uri: string;
   /** Shown until the first frame (web only; native players show their own). */
   poster?: string;
+  /** Where to begin, seconds (opening a song's video where the song was). */
+  startAt?: number;
   style?: StyleProp<ViewStyle>;
   onEnd?: () => void;
   onTime?: (sec: number) => void;
@@ -16,7 +18,7 @@ type Props = {
 
 /** The system's own video player (AVPlayer, ExoPlayer) with its controls, full screen and picture in picture. */
 export const VideoPlayer = forwardRef<VideoHandle, Props>(function VideoPlayer(
-  { uri, style, onEnd, onTime, onError },
+  { uri, startAt, style, onEnd, onTime, onError },
   ref,
 ) {
   const cb = useRef({ onEnd, onTime, onError });
@@ -24,7 +26,8 @@ export const VideoPlayer = forwardRef<VideoHandle, Props>(function VideoPlayer(
   const player = useVideoPlayer({ uri, contentType: "hls" }, (p) => {
     p.staysActiveInBackground = true;
     p.showNowPlayingNotification = true;
-    p.timeUpdateEventInterval = 1;
+    p.timeUpdateEventInterval = 0.5;
+    if (startAt) p.currentTime = startAt;
     p.play();
   });
   useEffect(() => {

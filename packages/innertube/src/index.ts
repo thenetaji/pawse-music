@@ -76,3 +76,9 @@ export {
   THROTTLE_BYTES,
 } from "./youtube/hls";
 export * from "./youtube/video";
+export {
+  type Branding,
+  type SkipSegment,
+  SponsorBlock,
+  type SponsorBlockOptions,
+} from "./sponsorblock";

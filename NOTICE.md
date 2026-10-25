@@ -44,3 +44,4 @@ BotGuard Proof-of-Origin tokens for YouTube's web clients are minted in `package
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Unlicense). The 10 MiB request limit (`CHUNK_SIZE` in its YouTube extractor), which `packages/innertube/src/youtube/hls.ts` and `apps/desktop/src/relay.mjs` keep every media request under.
 - **[hls.js](https://github.com/video-dev/hls.js)** (Apache-2.0). Plays YouTube videos on computers and in the web preview.
 - **[expo-video](https://github.com/expo/expo/tree/main/packages/expo-video)** (MIT). The video player on phones.
+- **[SponsorBlock](https://sponsor.ajay.app)** and **[DeArrow](https://dearrow.ajay.app)** by Ajay Ramachandran. Skip segments, titles and thumbnails come from their public API; the data is licensed [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) and made by their communities. `packages/innertube/src/sponsorblock.ts` follows their documented hash-prefix lookups.

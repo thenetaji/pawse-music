@@ -4,6 +4,18 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-25
+
+### Added
+- **Music videos skip their talking.** Intros, skits and outros in music videos are jumped over, using SponsorBlock's community-marked "non-music" parts. A short note says when it happens. **Settings → Experimental → Skip non-music parts** turns it off.
+- **Videos skip sponsor reads**, self-promotion and "like and subscribe" reminders (SponsorBlock). **Skip sponsors** in Experimental turns it off.
+- **Honest titles and thumbnails.** Video titles and thumbnails come from DeArrow's community, without the all-caps clickbait and shocked faces, wherever someone has written a better one.
+- **Block channels and words.** Long-press a video (or right-click on computers) to block its channel. Add words in **Settings → Experimental → Blocked channels and words** to hide every video with them in the title. Blocked videos stay out of Watch, search and Up next.
+- **Song ⇄ Video.** With YouTube videos on, a video button at the top of the player opens the song's video right where the song is, and the music pauses.
+
+### Changed
+- Pawse asks SponsorBlock and DeArrow by the first characters of a hash of the video, so they never learn which video you're watching.
+
 ## [1.6.0] - 2026-10-25
 
 ### Added

@@ -58,6 +58,7 @@ import {
   QueueGlyph,
 } from "./icons";
 import { LyricsView } from "./lyrics-view";
+import { WatchIcon } from "../shell/icons";
 import { useNowPalette } from "./now-palette";
 
 export type NowPlayingStatus =
@@ -84,6 +85,8 @@ export type NowPlayingProps = {
   onQueue?: () => void;
   onClose?: () => void;
   onMore?: () => void;
+  /** Opens this song's video where it is (YouTube videos on). */
+  onVideo?: () => void;
   /** Tapping the title opens the album; tapping the artist opens the artist. */
   onTitle?: () => void;
   onArtist?: () => void;
@@ -236,6 +239,7 @@ export function NowPlayingView(p: NowPlayingProps) {
             >
               <ChevronDown color="rgba(255,255,255,0.8)" />
             </Pressable>
+            {p.onVideo ? <View style={styles.headerBtn} /> : null}
             <View style={styles.context}>
               <Text style={styles.contextLabel} numberOfLines={1}>
                 {p.context?.label ?? "Now playing"}
@@ -246,6 +250,16 @@ export function NowPlayingView(p: NowPlayingProps) {
                 </Text>
               ) : null}
             </View>
+            {p.onVideo ? (
+              <Pressable
+                hitSlop={8}
+                onPress={p.onVideo}
+                style={styles.headerBtn}
+                accessibilityLabel="Watch the video"
+              >
+                <WatchIcon size={20} color="rgba(255,255,255,0.8)" />
+              </Pressable>
+            ) : null}
             <Pressable hitSlop={12} onPress={p.onMore} style={styles.headerBtn}>
               <MoreGlyph color="rgba(255,255,255,0.8)" />
             </Pressable>
@@ -388,6 +402,7 @@ export function NowPlayingView(p: NowPlayingProps) {
           <Pressable hitSlop={12} onPress={p.onClose} style={styles.headerBtn}>
             <ChevronDown color="rgba(255,255,255,0.8)" />
           </Pressable>
+          {p.onVideo ? <View style={styles.headerBtn} /> : null}
           <View style={styles.context}>
             <Text style={styles.contextLabel} numberOfLines={1}>
               {p.context?.label ?? "Now playing"}
@@ -398,6 +413,16 @@ export function NowPlayingView(p: NowPlayingProps) {
               </Text>
             ) : null}
           </View>
+          {p.onVideo ? (
+            <Pressable
+              hitSlop={8}
+              onPress={p.onVideo}
+              style={styles.headerBtn}
+              accessibilityLabel="Watch the video"
+            >
+              <WatchIcon size={20} color="rgba(255,255,255,0.8)" />
+            </Pressable>
+          ) : null}
           <Pressable hitSlop={12} onPress={p.onMore} style={styles.headerBtn}>
             <MoreGlyph color="rgba(255,255,255,0.8)" />
           </Pressable>

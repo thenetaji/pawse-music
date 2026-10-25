@@ -125,6 +125,9 @@ const STALL_START_MAX_MS = 60_000;
 const diag = (kind: string, detail?: string) =>
   opts?.onDiagnostic?.(kind, detail);
 let endTimer: ReturnType<typeof setTimeout> | undefined;
+type Skip = { start: number; end: number; category: string };
+const segments = new Map<string, Skip[]>(); // track id -> parts to skip (empty while loading or none)
+let skipTimer: ReturnType<typeof setTimeout> | undefined;
 // The song "end of this song" stops after; the engine checks it too, since its own song changes can outrun the native timer's pause.
 let sleepKey: string | undefined;
 const SLEEP_GRACE_MS = 15_000;
@@ -503,6 +506,46 @@ function entered(key: string, rearmSleep: boolean): void {
   ensureAhead();
   void refill();
   savePosition(0);
+  loadSegments(s.tracks[i]);
+}
+
+function loadSegments(track: Track): void {
+  const load = opts?.skipSegments;
+  if (!load || segments.has(track.id)) return armSkip();
+  segments.set(track.id, []);
+  load(track)
+    .then((list) => {
+      segments.set(track.id, list);
+      armSkip();
+    })
+    .catch(() => segments.delete(track.id));
+}
+
+/** Waits for the next part of the current song to skip, then jumps past it; a part that runs to the end ends the song. */
+function armSkip(): void {
+  clearTimeout(skipTimer);
+  const s = get();
+  const track = s.tracks[s.index];
+  if (!track || !playing || !nativeLoaded || switching) return;
+  const list = segments.get(track.id);
+  if (!list?.length) return;
+  const pos = TrackPlayer.getProgress().position;
+  const next = list.find((g) => g.end > pos + 0.5);
+  if (!next) return;
+  if (pos < next.start - 0.2) {
+    skipTimer = setTimeout(armSkip, (next.start - pos) * 1000);
+    return;
+  }
+  diag(
+    "skip-segment",
+    `${track.id} ${next.category} ${Math.round(next.start)}-${Math.round(next.end)}s`,
+  );
+  opts?.onSkip?.(track, next.category);
+  const dur = chooseDuration(TrackPlayer.getProgress().duration, track) || 0;
+  TrackPlayer.seekTo(
+    dur && next.end >= dur - 1 ? Math.max(0, dur - 0.3) : next.end,
+  );
+  skipTimer = setTimeout(armSkip, 1000);
 }
 
 async function goTo(
@@ -1028,6 +1071,7 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     if (!on && wantPlay && !loading && !settling)
       diag("paused-by-system", nativeState);
     playing = on;
+    armSkip();
     clearInterval(ticker);
     ticker = on ? setInterval(tick, TICK_MS) : undefined;
     if (!on) tick();
@@ -1124,8 +1168,11 @@ function seekTo(sec: number): void {
   const s = get();
   const real = trustedDuration(s.tracks[s.index]);
   if (real) sec = Math.min(sec, Math.max(0, real - 1));
-  if (nativeLoaded && !switching) TrackPlayer.seekTo(sec);
-  else if (s.keys[s.index])
+  if (nativeLoaded && !switching) {
+    TrackPlayer.seekTo(sec);
+    clearTimeout(skipTimer);
+    skipTimer = setTimeout(armSkip, 300);
+  } else if (s.keys[s.index])
     pendingSeek = { key: s.keys[s.index], position: sec };
   savePosition(sec);
   emitPlayerEvent("seeked", s.tracks[s.index]);
@@ -1338,6 +1385,8 @@ export function __resetForTests(): void {
   changedAt = 0;
   onPlaylist.clear();
   playlistsOff = false;
+  segments.clear();
+  clearTimeout(skipTimer);
   clearTimeout(streamsTimer);
   nativeLoaded = false;
   sleepKey = undefined;

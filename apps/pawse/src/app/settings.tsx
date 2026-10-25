@@ -43,6 +43,7 @@ import {
   currentAppIcon,
   setAppIcon,
 } from "../lib/app-icon";
+import { useBlockedCount } from "../lib/block";
 import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
@@ -813,8 +814,12 @@ function ExperimentalSection() {
                 [1080, "1080p"],
               ]}
             />
+            <Toggle k="skipSponsors" label="Skip sponsors" def />
+            <Toggle k="dearrow" label="Honest titles and thumbnails" def />
+            <BlockedLink />
           </>
         ) : null}
+        <Toggle k="skipNonMusic" label="Skip non-music parts" def />
         <Pick
           k="homeStyle"
           label="Home"
@@ -827,11 +832,24 @@ function ExperimentalSection() {
         />
       </Section>
       <Foot>
-        {yt ? "Watch adds YouTube videos without Shorts. " : ""}
-        Calm keeps Home to your music and a few picks, and it ends instead of
-        scrolling forever. Only my music shows nothing suggested. These may
-        change or go away.
+        {yt
+          ? "Watch adds YouTube videos without Shorts. Sponsor skips come from SponsorBlock, titles and thumbnails from DeArrow, both made by their communities. "
+          : ""}
+        Skip non-music parts jumps over the talking in music videos
+        (SponsorBlock). Calm keeps Home to your music and a few picks, and it
+        ends instead of scrolling forever. Only my music shows nothing
+        suggested. These may change or go away.
       </Foot>
     </>
+  );
+}
+
+function BlockedLink() {
+  const n = useBlockedCount();
+  return (
+    <Link
+      label={n ? `Blocked (${n})` : "Blocked channels and words"}
+      onPress={() => push("/blocked")}
+    />
   );
 }

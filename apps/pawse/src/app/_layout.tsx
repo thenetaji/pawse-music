@@ -82,6 +82,7 @@ export default function RootLayout() {
             />
             <Stack.Screen name="settings" options={modal} />
             <Stack.Screen name="about" options={modal} />
+            <Stack.Screen name="blocked" options={modal} />
             <Stack.Screen name="sign-in" options={modal} />
             <Stack.Screen name="import" options={modal} />
             <Stack.Screen name="downloads" options={modal} />
