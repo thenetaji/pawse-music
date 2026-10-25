@@ -1,5 +1,10 @@
 import type { Lyrics } from "@pawse/music-core";
-import { emitPlayerEvent, player, usePlayerSelect } from "@pawse/player";
+import {
+  emitPlayerEvent,
+  getProgress,
+  player,
+  usePlayerSelect,
+} from "@pawse/player";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
@@ -13,6 +18,7 @@ import { NowPlayingView } from "../features/now-playing/now-playing-view";
 import { lyricsService } from "../lib/engine";
 import { push } from "../lib/nav";
 import { openAlbum, openArtist } from "../lib/song-links";
+import { useSetting } from "../lib/settings";
 import { useResource } from "../lib/use-resource";
 
 const LABEL = {
@@ -35,6 +41,7 @@ export default function NowPlaying() {
   // Status and progress are read by the small parts that show them, not by the whole screen.
   const current = usePlayerSelect((s) => s.current);
   const source = usePlayerSelect((s) => s.source);
+  const watch = useSetting("ytMode", false);
   const liked = useLibrary((s) =>
     current ? s.liked.some((t) => t.id === current.id) : false,
   );
@@ -84,6 +91,14 @@ export default function NowPlaying() {
       onQueue={() => push("/queue")}
       onClose={() => router.back()}
       onMore={() => current && showTrackActions(current, { fromPlayer: true })}
+      onVideo={
+        watch && current.source === "youtube"
+          ? () => {
+              const at = Math.floor(getProgress().position);
+              leavePlayer(() => push(`/video/${current.id}?t=${at}`));
+            }
+          : undefined
+      }
       onTitle={() => current && void openAlbum(current, leavePlayer)}
       onArtist={() => current && void openArtist(current, leavePlayer)}
       onShareLyric={(line) => current && shareLyric(current, line)}

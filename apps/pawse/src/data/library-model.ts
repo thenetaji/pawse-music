@@ -96,6 +96,15 @@ export type Settings = {
   videoQuality: number;
   /** Start the next video when one ends. */
   videoAutoplay: boolean;
+  /** SponsorBlock: jump over the non-music parts of music videos. */
+  skipNonMusic: boolean;
+  /** SponsorBlock: jump over sponsor reads and plugs in videos. */
+  skipSponsors: boolean;
+  /** DeArrow's community titles and thumbnails instead of clickbait. */
+  dearrow: boolean;
+  blockedChannels: { id: string; name: string }[];
+  /** Videos with any of these in the title are hidden. */
+  blockedWords: string[];
   // Onboarding
   onboarded: boolean;
   seedArtists: ArtistSummary[];
@@ -148,6 +157,11 @@ export const DEFAULT_SETTINGS: Settings = {
   homeStyle: "full",
   videoQuality: 720,
   videoAutoplay: false,
+  skipNonMusic: true,
+  skipSponsors: true,
+  dearrow: true,
+  blockedChannels: [],
+  blockedWords: [],
   onboarded: false,
   seedArtists: [],
   seedLanguages: [],

@@ -711,3 +711,28 @@ test("a long song with a playlist plays from it, outside the cache; a player tha
   await flush();
   expect(urlAt(1)).toMatch("/sea/youtube:a/");
 });
+
+test("a song's non-music part is skipped when playback reaches it, and one that runs to the end ends the song", async () => {
+  jest.useFakeTimers({ doNotFake: ["Date"] });
+  const onSkip = jest.fn();
+  const skipSegments = jest.fn(async () => [
+    { start: 0, end: 12, category: "music_offtopic" },
+    { start: 190, end: 200, category: "music_offtopic" },
+  ]);
+  await setupPlayer({ resolver: { resolve }, skipSegments, onSkip });
+  await player.play(tracks("mv"));
+  await jest.runOnlyPendingTimersAsync();
+  await rntp.__emit("event.is-playing-changed", { playing: true });
+  expect(tp.seekTo).toHaveBeenLastCalledWith(12);
+  expect(onSkip).toHaveBeenCalledWith(
+    expect.objectContaining({ id: "mv" }),
+    "music_offtopic",
+  );
+  native.position = 150;
+  await jest.advanceTimersByTimeAsync(1000);
+  expect(tp.seekTo).toHaveBeenLastCalledWith(12);
+  native.position = 189.9;
+  await jest.advanceTimersByTimeAsync(41_000);
+  expect(tp.seekTo).toHaveBeenLastCalledWith(expect.closeTo(200 - 0.3, 1));
+  jest.useRealTimers();
+});

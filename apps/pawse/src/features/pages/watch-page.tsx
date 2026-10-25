@@ -22,6 +22,7 @@ import { useTabRoot } from "../../components/page";
 import { CatState, Chip, Screen, SkeletonShelves } from "../../components/ui";
 import { ChannelRow, VideoCard } from "../../components/video-card";
 import { useLibrary } from "../../data/library";
+import { useVideoFilter } from "../../lib/block";
 import { ytv } from "../../lib/engine";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
@@ -103,8 +104,14 @@ export default function WatchPage() {
     Keyboard.dismiss();
   };
 
+  const keep = useVideoFilter();
   const seen = new Set<string>();
-  const unique = items.filter((x) => !seen.has(x.id) && !!seen.add(x.id));
+  const unique = items.filter(
+    (x) =>
+      !seen.has(x.id) &&
+      !!seen.add(x.id) &&
+      (x.type === "channel" || keep(x as VideoItem)),
+  );
 
   return (
     <Screen

@@ -8,6 +8,8 @@ import "../data/signals";
 import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
 import { readyArtwork, startArtwork } from "./artwork";
+import { showToast } from "../components/toast";
+import { skipNote, songSkips } from "./community";
 import { logEvent } from "./diagnostics";
 import { withPlaylist } from "./long-stream";
 import { relayStream } from "./net";
@@ -52,6 +54,8 @@ export function startEngine() {
     sleepFadeSec: () => settings().sleepFade,
     artwork: readyArtwork,
     streamUrl: relayStream,
+    skipSegments: songSkips,
+    onSkip: (_t, category) => showToast(skipNote(category)),
     onDiagnostic: (kind, detail) => {
       logEvent(kind, detail);
       // Automatic quality steps down when streams keep stalling.

@@ -8,6 +8,8 @@ type Props = {
   uri: string;
   /** Shown until the first frame (web only; native players show their own). */
   poster?: string;
+  /** Where to begin, seconds (opening a song's video where the song was). */
+  startAt?: number;
   style?: StyleProp<ViewStyle>;
   onEnd?: () => void;
   onTime?: (sec: number) => void;
@@ -16,7 +18,7 @@ type Props = {
 
 /** Chromium has no HLS of its own, so hls.js feeds the playlist to a plain video element. */
 export const VideoPlayer = forwardRef<VideoHandle, Props>(function VideoPlayer(
-  { uri, poster, style, onEnd, onTime, onError },
+  { uri, poster, startAt, style, onEnd, onTime, onError },
   ref,
 ) {
   const el = useRef<HTMLVideoElement>(null);
@@ -31,8 +33,11 @@ export const VideoPlayer = forwardRef<VideoHandle, Props>(function VideoPlayer(
     });
     hls.loadSource(uri);
     hls.attachMedia(video);
+    if (startAt) video.currentTime = startAt;
     void video.play().catch(() => {});
     return () => hls.destroy();
+    // Starts once per source; a later startAt doesn't move a playing video.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uri]);
   useImperativeHandle(ref, () => ({
     seek: (sec) => {

@@ -27,6 +27,12 @@ export interface SetupOptions {
   artwork?: (track: Track) => string | undefined;
   /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */
   onDiagnostic?: (kind: string, detail?: string) => void;
+  /** Parts of a song to jump over (SponsorBlock's non-music sections), earliest first. */
+  skipSegments?: (
+    track: Track,
+  ) => Promise<{ start: number; end: number; category: string }[]>;
+  /** A segment was just skipped. */
+  onSkip?: (track: Track, category: string) => void;
   /** Web and desktop: a header-free URL for a stream; a local relay adds its headers. */
   streamUrl?: (stream: ResolvedStream) => string;
 }

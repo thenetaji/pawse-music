@@ -36,13 +36,17 @@ import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { type VideoSource, videoSource } from "../../lib/video-stream";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
+import { showToast } from "../../components/toast";
+import { useVideoFilter } from "../../lib/block";
+import { skipNote, useBranding, videoSkips } from "../../lib/community";
+import type { SkipSegment } from "@pawse/innertube";
 import { type VideoHandle, VideoPlayer } from "../video/video-player";
 
 const MAX_W = 980;
 
 /** One video: the player on a field of its thumbnail's colour, then chapters, the description and what's next. */
 export default function VideoPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, t } = useLocalSearchParams<{ id: string; t?: string }>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const quality = useSetting("videoQuality", 720);
@@ -65,6 +69,29 @@ export default function VideoPage() {
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState(0);
   const handle = useRef<VideoHandle>(null);
+  const skips = useRef<SkipSegment[]>([]);
+  const keep = useVideoFilter();
+  const brand = useBranding(id);
+
+  useEffect(() => {
+    skips.current = [];
+    let live = true;
+    void videoSkips(id).then((s) => {
+      if (live) skips.current = s;
+    });
+    return () => {
+      live = false;
+    };
+  }, [id]);
+
+  // Sponsor reads and plugs are jumped over as playback reaches them.
+  const onTime = (sec: number) => {
+    setAt(sec);
+    const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
+    if (!seg) return;
+    handle.current?.seek(seg.end);
+    showToast(skipNote(seg.category));
+  };
 
   // A video takes over from the music, the way another app's video would.
   useEffect(() => {
@@ -88,7 +115,8 @@ export default function VideoPage() {
   const v = d?.video;
   const thumb = v ? bestThumbnail(v.thumbnails, 480) : undefined;
   const palette = useArtworkPalette(thumb);
-  const next = d?.related[0];
+  const related = d?.related.filter(keep) ?? [];
+  const next = related[0];
 
   const onEnd = () => {
     if (autoplay && next) return router.replace(`/video/${next.id}`);
@@ -153,7 +181,8 @@ export default function VideoPage() {
                 poster={thumb}
                 style={StyleSheet.absoluteFill}
                 onEnd={onEnd}
-                onTime={setAt}
+                onTime={onTime}
+                startAt={t ? Number(t) : undefined}
                 onError={setError}
               />
             ) : thumb ? (
@@ -186,7 +215,7 @@ export default function VideoPage() {
 
           {v ? (
             <Animated.View entering={FadeInDown.duration(360)}>
-              <Text style={styles.title}>{v.title}</Text>
+              <Text style={styles.title}>{brand?.title ?? v.title}</Text>
               <Text style={styles.meta}>{videoMeta(v, false)}</Text>
               <View style={styles.channel}>
                 <Pressable
@@ -261,10 +290,10 @@ export default function VideoPage() {
             </Pressable>
           ) : null}
 
-          {d?.related.length ? (
+          {related.length ? (
             <View>
               <SectionTitle title="Up next" />
-              {d.related.slice(0, 12).map((r) => (
+              {related.slice(0, 12).map((r) => (
                 <VideoRow
                   key={r.id}
                   video={r}

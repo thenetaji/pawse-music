@@ -7,8 +7,12 @@ import { Image } from "expo-image";
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { blockChannel } from "../lib/block";
+import { useBranding } from "../lib/community";
+import { rightClick } from "../lib/context-menu";
 import { go, push } from "../lib/nav";
 import { display } from "../lib/type";
+import { showSheet } from "./action-sheet";
 import { PressScale } from "./ui";
 
 export const clock = (sec?: number) => {
@@ -27,11 +31,39 @@ export const videoMeta = (v: VideoItem, channel = true) =>
 export const openVideo = (v: Pick<VideoItem, "id">) => push(`/video/${v.id}`);
 export const openChannel = (id: string) => go(`/channel/${id}`);
 
-function Thumb({ v, width }: { v: VideoItem; width?: number }) {
+/** Long press: block the channel, so none of its videos show again. */
+export function showVideoActions(v: VideoItem) {
+  const ch = v.channel;
+  const id = ch?.id;
+  showSheet({
+    actions: [
+      { label: "Open", onPress: () => openVideo(v) },
+      ...(ch && id
+        ? [
+            {
+              label: `Block ${ch.name}`,
+              destructive: true,
+              onPress: () => blockChannel({ id, name: ch.name }),
+            },
+          ]
+        : []),
+    ],
+  });
+}
+
+function Thumb({
+  v,
+  width,
+  src,
+}: {
+  v: VideoItem;
+  width?: number;
+  src?: string;
+}) {
   return (
     <View style={[styles.thumb, width ? { width } : null]}>
       <Image
-        source={bestThumbnail(v.thumbnails, 720)}
+        source={src ?? bestThumbnail(v.thumbnails, 720)}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
         transition={200}
@@ -55,9 +87,15 @@ export const VideoCard = memo(function VideoCard({
 }) {
   const avatar =
     video.channel?.avatar && bestThumbnail(video.channel.avatar, 88);
+  const brand = useBranding(video.id);
   return (
-    <PressScale onPress={() => openVideo(video)} style={styles.card}>
-      <Thumb v={video} />
+    <PressScale
+      onPress={() => openVideo(video)}
+      onLongPress={() => showVideoActions(video)}
+      {...rightClick(() => showVideoActions(video))}
+      style={styles.card}
+    >
+      <Thumb v={video} src={brand?.thumbnail} />
       <View style={styles.info}>
         {avatar && !hideChannel ? (
           <PressScale
@@ -69,7 +107,7 @@ export const VideoCard = memo(function VideoCard({
         ) : null}
         <View style={{ flex: 1 }}>
           <Text style={styles.title} numberOfLines={2}>
-            {video.title}
+            {brand?.title ?? video.title}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
             {videoMeta(video, !hideChannel)}
@@ -88,15 +126,18 @@ export const VideoRow = memo(function VideoRow({
   video: VideoItem;
   onPress?: () => void;
 }) {
+  const brand = useBranding(video.id);
   return (
     <PressScale
       onPress={onPress ?? (() => openVideo(video))}
+      onLongPress={() => showVideoActions(video)}
+      {...rightClick(() => showVideoActions(video))}
       style={styles.row}
     >
-      <Thumb v={video} width={150} />
+      <Thumb v={video} width={150} src={brand?.thumbnail} />
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle} numberOfLines={2}>
-          {video.title}
+          {brand?.title ?? video.title}
         </Text>
         <Text style={styles.meta} numberOfLines={2}>
           {videoMeta(video)}
