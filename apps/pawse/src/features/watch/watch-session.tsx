@@ -7,7 +7,8 @@ import {
 import { player as music, usePlayerStore } from "@pawse/player";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useRef, useState } from "react";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BackHandler,
   Platform,
@@ -21,6 +22,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
+  Easing,
   FadeIn,
   FadeInDown,
   interpolate,
@@ -100,9 +102,13 @@ import {
 type Rating = "like" | "dislike" | "none";
 
 const MAX_W = 980;
-// A drag this far down (or a flick) shrinks the video into the mini player.
+// A drag this far down (or a flick) shrinks the video into the mini player; this far up goes full screen.
 const DISMISS_PX = 110;
 const DISMISS_V = 900;
+const FULL_PX = 70;
+// Eased, no bounce: the page glides between full and the mini player.
+const SLIDE = { duration: 320, easing: Easing.bezier(0.2, 0.8, 0.2, 1) };
+const SETTLE = { damping: 26, stiffness: 240 };
 
 /** One watch session: the video full screen over the whole app, or shrunk into the mini player while it keeps playing. */
 export function WatchSession({ id }: { id: string }) {
@@ -259,6 +265,15 @@ export function WatchSession({ id }: { id: string }) {
       music.pause();
     return usePlayerStore.subscribe((s, prev) => {
       if (s.status !== "playing" || prev.status === "playing") return;
+      // The same song coming back by itself while the video plays is the system resuming it: the video wins.
+      const resumed =
+        prev.status === "paused" &&
+        s.index === prev.index &&
+        s.tracks === prev.tracks;
+      if (resumed && useWatch.getState().playing) {
+        music.pause();
+        return;
+      }
       video.pause();
       if (useWatch.getState().mode === "mini") closeWatch();
     });
@@ -290,31 +305,55 @@ export function WatchSession({ id }: { id: string }) {
   // Slides up when opened, down into the mini player when shrunk; a drag on the video follows the finger.
   const y = useSharedValue(height);
   useEffect(() => {
-    y.set(withTiming(mode === "full" ? 0 : height, { duration: 280 }));
+    y.set(withTiming(mode === "full" ? 0 : height, SLIDE));
   }, [mode, height, y]);
-  const drag = Gesture.Pan()
-    .runOnJS(true)
-    .activeOffsetY(12)
-    .failOffsetX([-24, 24])
-    .onUpdate((e) => y.set(Math.max(0, e.translationY)))
-    .onEnd((e) => {
-      if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
-        haptic.light();
-        minimizeWatch();
-      } else y.set(withSpring(0, { damping: 18, stiffness: 220 }));
-    });
+  // Our own full screen: the video turned on its side over everything (phones), the browser's elsewhere.
+  const [fs, setFs] = useState(false);
+  const fullscreen = Platform.OS !== "web" || width < 600;
+  const toggleFs = () => {
+    haptic.light();
+    if (!fullscreen) return enterFullscreen();
+    setFs((f) => !f);
+  };
+  // Down shrinks the video into the mini player, up goes full screen, like YouTube. Built once, not per frame.
+  const drag = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .activeOffsetY([-12, 12])
+        .failOffsetX([-24, 24])
+        .onUpdate((e) => y.set(Math.max(0, e.translationY) * 0.85))
+        .onEnd((e) => {
+          if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
+            haptic.light();
+            minimizeWatch();
+            return;
+          }
+          y.set(withSpring(0, SETTLE));
+          if (
+            fullscreen &&
+            (e.translationY < -FULL_PX || e.velocityY < -DISMISS_V)
+          ) {
+            haptic.light();
+            setFs(true);
+          }
+        }),
+    [y, fullscreen, setFs],
+  );
   const sheet = useAnimatedStyle(() => ({
     transform: [
       { translateY: y.value },
-      { scale: interpolate(y.value, [0, height], [1, 0.9], "clamp") },
+      { scale: interpolate(y.value, [0, height], [1, 0.94], "clamp") },
     ],
-    borderRadius: interpolate(y.value, [0, 160], [0, 28], "clamp"),
+    opacity: interpolate(y.value, [height * 0.6, height], [1, 0], "clamp"),
+    borderRadius: interpolate(y.value, [0, 120], [0, 24], "clamp"),
   }));
 
   // Back (Android) and Esc (computers) close a panel, then shrink the video rather than lose it.
   useEffect(() => {
     if (mode !== "full") return;
-    const back = () => (panel ? setPanel(null) : minimizeWatch());
+    const back = () =>
+      fs ? setFs(false) : panel ? setPanel(null) : minimizeWatch();
     if (typeof document === "undefined") {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
         back();
@@ -325,7 +364,7 @@ export function WatchSession({ id }: { id: string }) {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && back();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [mode, panel]);
+  }, [mode, panel, fs]);
 
   const qualityLabel =
     src?.quality === "auto"
@@ -488,76 +527,83 @@ export function WatchSession({ id }: { id: string }) {
     -1,
   );
 
+  const screen = (
+    <>
+      {src && mode === "full" ? (
+        <VideoSurface
+          surface={video.surface}
+          controls
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
+      {src && started && !ended && mode === "full" ? (
+        <VideoControls
+          at={at}
+          dur={src.stream.durationSec ?? v?.durationSec}
+          playing={playing}
+          chapters={d?.chapters ?? []}
+          canPrev={at > 3 || hasBack}
+          canNext={!!next}
+          autoplay={autoplay}
+          onToggle={video.toggle}
+          onSeek={video.seek}
+          onPrev={() => (at > 3 ? video.seek(0) : watchPrevious())}
+          onNext={() => next && openWatch(next)}
+          onMinimize={minimizeWatch}
+          onSettings={pickSettings}
+          onFullscreen={toggleFs}
+          fullscreen={fs}
+          getTime={video.time}
+          onAutoplay={(on) => {
+            setSetting("videoAutoplay", on);
+            showToast(on ? "Autoplay is on" : "Autoplay is off");
+          }}
+        />
+      ) : null}
+      {!started ? (
+        <View style={styles.veil} pointerEvents="none">
+          <Image
+            source={thumb}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            blurRadius={error ? 12 : undefined}
+          />
+          {error && offlineCopy ? null : error ? (
+            <Text style={styles.veilText}>
+              This video won’t play right now.
+            </Text>
+          ) : (
+            <View style={styles.spin}>
+              <Spinner size={30} />
+            </View>
+          )}
+        </View>
+      ) : null}
+      {error && offlineCopy ? (
+        <View style={styles.veil}>
+          <PressScale onPress={playOffline} style={styles.offlineBtn}>
+            <Text style={styles.offlineText}>Play the downloaded copy</Text>
+          </PressScale>
+        </View>
+      ) : null}
+      {ended ? (
+        <EndCard
+          next={next}
+          onReplay={() => {
+            setEnded(false);
+            video.replay();
+          }}
+          onNext={() => next && openWatch(next)}
+          onDone={closeWatch}
+        />
+      ) : null}
+    </>
+  );
   const stage = (
-    // Drag the video down to keep it playing in the mini player.
+    // Drag the video down to keep it playing in the mini player, or up for full screen.
     <GestureDetector gesture={drag}>
       <View style={[styles.stage, { width: w, height: stageH }]}>
-        {src && mode === "full" ? (
-          <VideoSurface
-            surface={video.surface}
-            controls
-            style={StyleSheet.absoluteFill}
-          />
-        ) : null}
-        {src && started && !ended && mode === "full" ? (
-          <VideoControls
-            at={at}
-            dur={src.stream.durationSec ?? v?.durationSec}
-            playing={playing}
-            chapters={d?.chapters ?? []}
-            canPrev={at > 3 || hasBack}
-            canNext={!!next}
-            autoplay={autoplay}
-            onToggle={video.toggle}
-            onSeek={video.seek}
-            onPrev={() => (at > 3 ? video.seek(0) : watchPrevious())}
-            onNext={() => next && openWatch(next)}
-            onMinimize={minimizeWatch}
-            onSettings={pickSettings}
-            onFullscreen={enterFullscreen}
-            onAutoplay={(on) => {
-              setSetting("videoAutoplay", on);
-              showToast(on ? "Autoplay is on" : "Autoplay is off");
-            }}
-          />
-        ) : null}
-        {!started ? (
-          <View style={styles.veil} pointerEvents="none">
-            <Image
-              source={thumb}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              blurRadius={error ? 12 : undefined}
-            />
-            {error && offlineCopy ? null : error ? (
-              <Text style={styles.veilText}>
-                This video won’t play right now.
-              </Text>
-            ) : (
-              <View style={styles.spin}>
-                <Spinner size={30} />
-              </View>
-            )}
-          </View>
-        ) : null}
-        {error && offlineCopy ? (
-          <View style={styles.veil}>
-            <PressScale onPress={playOffline} style={styles.offlineBtn}>
-              <Text style={styles.offlineText}>Play the downloaded copy</Text>
-            </PressScale>
-          </View>
-        ) : null}
-        {ended ? (
-          <EndCard
-            next={next}
-            onReplay={() => {
-              setEnded(false);
-              video.replay();
-            }}
-            onNext={() => next && openWatch(next)}
-            onDone={closeWatch}
-          />
-        ) : null}
+        {fs ? null : screen}
       </View>
     </GestureDetector>
   );
@@ -753,6 +799,9 @@ export function WatchSession({ id }: { id: string }) {
           ) : null}
         </>
       )}
+      {fs && mode === "full" ? (
+        <FullscreenLayer onExit={() => setFs(false)}>{screen}</FullscreenLayer>
+      ) : null}
     </Animated.View>
   );
 }
@@ -978,6 +1027,55 @@ const HeadphonesGlyph = () => (
   </Svg>
 );
 
+/** Landscape without rotating the app: the video turned on its side over everything, status bar hidden.
+ * Swipe down (in the turned picture) to leave, like YouTube. */
+function FullscreenLayer({
+  children,
+  onExit,
+}: {
+  children: React.ReactNode;
+  onExit: () => void;
+}) {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const exit = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .activeOffsetY(16)
+        .failOffsetX([-30, 30])
+        .onEnd((e) => {
+          if (e.translationY > 70 || e.velocityY > 800) {
+            haptic.light();
+            onExit();
+          }
+        }),
+    [onExit],
+  );
+  return (
+    <Animated.View entering={FadeIn.duration(200)} style={styles.full}>
+      <StatusBar hidden />
+      <GestureDetector gesture={exit}>
+        <View
+          style={{
+            position: "absolute",
+            width: height,
+            height: width,
+            left: (width - height) / 2,
+            top: (height - width) / 2,
+            // Turned clockwise: the notch ends up on the left, the home bar on the right.
+            paddingLeft: insets.top,
+            paddingRight: insets.bottom,
+            transform: [{ rotate: "90deg" }],
+          }}
+        >
+          <View style={{ flex: 1 }}>{children}</View>
+        </View>
+      </GestureDetector>
+    </Animated.View>
+  );
+}
+
 /** YouTube's ambient mode: the picture, blurred past recognition, glowing out from under the video onto black. */
 function Ambient({ uri }: { uri: string }) {
   return (
@@ -1042,6 +1140,15 @@ const styles = StyleSheet.create({
     left: 0,
     opacity: 0.85,
     transform: [{ scale: 1.35 }],
+  },
+  full: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "#000",
+    zIndex: 10,
   },
   // Not clipped, so the seek bar's handle can sit on the video's bottom edge like YouTube's.
   stage: { backgroundColor: "#000", zIndex: 2 },

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
@@ -15,6 +15,10 @@ const SKIP_SEC = 10;
 
 export type ControlsProps = {
   at: number;
+  /** The playing position right now; gestures read it so they needn't be rebuilt as time passes. */
+  getTime: () => number;
+  /** In our full-screen view: the button exits it. */
+  fullscreen?: boolean;
   dur?: number;
   playing: boolean;
   chapters: { startSec: number; title: string }[];
@@ -60,45 +64,52 @@ export function VideoControls(p: ControlsProps) {
     fn();
   };
 
-  const single = Gesture.Tap()
-    .runOnJS(true)
-    .maxDuration(250)
-    .onEnd(() => {
-      setShown((s) => !s);
-      touch();
-    });
-  const double = Gesture.Tap()
-    .runOnJS(true)
-    .numberOfTaps(2)
-    .onEnd((e) => {
-      const side = e.x < stageW / 2 ? -1 : 1;
-      haptic.light();
-      p.onSeek(Math.max(0, Math.min(dur || Infinity, p.at + side * SKIP_SEC)));
-      setSkip((s) => ({ side, n: s?.side === side ? s.n + 1 : 1 }));
-    });
-  const taps = Gesture.Exclusive(double, single);
-
-  const toSec = (x: number) =>
-    barW && dur ? Math.max(0, Math.min(dur, (x / barW) * dur)) : 0;
-  const drag = Gesture.Pan()
-    .runOnJS(true)
-    .minDistance(0)
-    .onBegin((e) => {
-      setShown(true);
-      setScrub(toSec(e.x));
-    })
-    .onUpdate((e) => {
-      setShown(true);
-      setScrub(toSec(e.x));
-    })
-    .onEnd((e) => {
-      p.onSeek(toSec(e.x));
-      haptic.light();
-    })
-    .onFinalize(() => {
-      setScrub(undefined);
-      touch();
-    });
+  const { onSeek, getTime } = p;
+  // Built once per layout, never per frame: a gesture rebuilt while a finger is down drops the tap (iOS, Android).
+  const taps = useMemo(() => {
+    const single = Gesture.Tap()
+      .runOnJS(true)
+      .maxDuration(250)
+      .onEnd(() => {
+        setShown((s) => !s);
+        setPoke((n) => n + 1);
+      });
+    const double = Gesture.Tap()
+      .runOnJS(true)
+      .numberOfTaps(2)
+      .onEnd((e) => {
+        const side = e.x < stageW / 2 ? -1 : 1;
+        haptic.light();
+        onSeek(
+          Math.max(0, Math.min(dur || Infinity, getTime() + side * SKIP_SEC)),
+        );
+        setSkip((s) => ({ side, n: s?.side === side ? s.n + 1 : 1 }));
+      });
+    return Gesture.Exclusive(double, single);
+  }, [stageW, dur, onSeek, getTime]);
+  const drag = useMemo(() => {
+    const at = (x: number) =>
+      barW && dur ? Math.max(0, Math.min(dur, (x / barW) * dur)) : 0;
+    return Gesture.Pan()
+      .runOnJS(true)
+      .minDistance(0)
+      .onBegin((e) => {
+        setShown(true);
+        setScrub(at(e.x));
+      })
+      .onUpdate((e) => {
+        setShown(true);
+        setScrub(at(e.x));
+      })
+      .onEnd((e) => {
+        onSeek(at(e.x));
+        haptic.light();
+      })
+      .onFinalize(() => {
+        setScrub(undefined);
+        setPoke((n) => n + 1);
+      });
+  }, [barW, dur, onSeek]);
 
   const shownAt = scrub ?? p.at;
   const frac = dur ? Math.min(1, shownAt / dur) : 0;
@@ -209,8 +220,17 @@ export function VideoControls(p: ControlsProps) {
               </Text>
             </View>
             <View style={{ flex: 1 }} pointerEvents="none" />
-            <Btn onPress={act(p.onFullscreen)} label="Full screen">
-              <Glyph d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            <Btn
+              onPress={act(p.onFullscreen)}
+              label={p.fullscreen ? "Exit full screen" : "Full screen"}
+            >
+              <Glyph
+                d={
+                  p.fullscreen
+                    ? "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"
+                    : "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
+                }
+              />
             </Btn>
           </View>
         </Animated.View>

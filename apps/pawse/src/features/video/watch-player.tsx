@@ -18,6 +18,8 @@ export interface WatchPlayer {
   pause(): void;
   /** Playback speed, 1 = normal. */
   setRate(rate: number): void;
+  /** Seconds played, read at the moment it's asked. */
+  time(): number;
 }
 
 // The page's own full-screen button reaches the one surface on screen through this.
@@ -109,6 +111,7 @@ export function useWatchPlayer(o: WatchPlayerOptions): WatchPlayer {
       toggle: () => (player.playing ? player.pause() : player.play()),
       pause: () => player.pause(),
       setRate: (r: number) => setRate(player, r),
+      time: () => player.currentTime,
     }),
     [player],
   );
