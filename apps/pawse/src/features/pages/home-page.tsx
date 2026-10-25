@@ -318,7 +318,9 @@ function Picks({
             {b.shelf ? (
               <Shelf shelf={b.shelf} removable />
             ) : b.video ? (
-              <VideoCard video={b.video} />
+              <View style={b.first && styles.afterShelf}>
+                <VideoCard video={b.video} />
+              </View>
             ) : null}
           </Animated.View>
         ))
@@ -338,16 +340,27 @@ function Picks({
 
 // Two music shelves, then three videos, and so on; whichever runs out, the other keeps going.
 function weave(shelves: ShelfT[], videos: VideoItem[]) {
-  const out: { key: string; shelf?: ShelfT; video?: VideoItem }[] = [];
+  const out: {
+    key: string;
+    shelf?: ShelfT;
+    video?: VideoItem;
+    /** The first video after a shelf, which needs room above it. */
+    first?: boolean;
+  }[] = [];
   let v = 0;
+  const addVideos = (list: VideoItem[]) =>
+    list.forEach((video) =>
+      out.push({
+        key: `v${v++}:${video.id}`,
+        video,
+        first: !!out[out.length - 1]?.shelf,
+      }),
+    );
   shelves.forEach((shelf, i) => {
     out.push({ key: `s${i}:${shelf.title}`, shelf });
-    if (i % 2 === 1)
-      for (const video of videos.slice(v, v + 3))
-        out.push({ key: `v${v++}:${video.id}`, video });
+    if (i % 2 === 1) addVideos(videos.slice(v, v + 3));
   });
-  for (const video of videos.slice(v))
-    out.push({ key: `v${v++}:${video.id}`, video });
+  addVideos(videos.slice(v));
   return out;
 }
 
@@ -569,6 +582,7 @@ function greeting() {
 }
 
 const styles = StyleSheet.create({
+  afterShelf: { marginTop: 28 },
   headRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   gear: {
     width: 38,
