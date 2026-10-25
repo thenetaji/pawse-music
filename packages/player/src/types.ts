@@ -23,6 +23,8 @@ export interface SetupOptions {
   skipTrack?: (track: Track) => boolean;
   /** Seconds the sleep timer fades the volume over before it stops (default 10). */
   sleepFadeSec?: () => number;
+  /** Seconds a song fades out at its end (the next fades in over half that); 0 is off. */
+  crossfadeSec?: () => number;
   /** A ready artwork URI (e.g. a local square file) for the system Now Playing; undefined uses the best thumbnail. */
   artwork?: (track: Track) => string | undefined;
   /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */

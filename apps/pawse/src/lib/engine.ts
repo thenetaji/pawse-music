@@ -52,6 +52,7 @@ export function startEngine() {
     // Radio and autoplay never add a disliked song.
     skipTrack: (t: Track) => useLibrary.getState().isDisliked(t.id),
     sleepFadeSec: () => settings().sleepFade,
+    crossfadeSec: () => settings().crossfade ?? 0,
     artwork: readyArtwork,
     streamUrl: relayStream,
     skipSegments: songSkips,

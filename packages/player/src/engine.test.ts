@@ -736,3 +736,25 @@ test("a song's non-music part is skipped when playback reaches it, and one that 
   expect(tp.seekTo).toHaveBeenLastCalledWith(expect.closeTo(200 - 0.3, 1));
   jest.useRealTimers();
 });
+
+test("crossfade fades a song out over its last seconds and brings the next one in", async () => {
+  jest.useFakeTimers({ doNotFake: ["Date"] });
+  await setupPlayer({ resolver: { resolve }, crossfadeSec: () => 6 });
+  await player.play(tracks("a", "b"));
+  await jest.runOnlyPendingTimersAsync();
+  await rntp.__emit("event.is-playing-changed", { playing: true });
+  native.position = 190; // the mock's songs run 200 s
+  await jest.advanceTimersByTimeAsync(5000); // a tick arms the fade for 194 s
+  native.position = 194;
+  await jest.advanceTimersByTimeAsync(4100); // the fade starts at 194 s
+  expect(tp.setVolume).not.toHaveBeenLastCalledWith(1);
+  await jest.advanceTimersByTimeAsync(6100); // and reaches silence by the end
+  expect(tp.setVolume).toHaveBeenLastCalledWith(0);
+  await rntp.__emit("event.media-item-transition", {
+    item: { mediaId: usePlayerStore.getState().keys[1] },
+    reason: "auto",
+  });
+  await jest.advanceTimersByTimeAsync(3100);
+  expect(tp.setVolume).toHaveBeenLastCalledWith(1);
+  jest.useRealTimers();
+});
