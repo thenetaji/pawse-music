@@ -14,6 +14,8 @@ type Props = {
   onEnd?: () => void;
   onTime?: (sec: number) => void;
   onError?: (message: string) => void;
+  /** A small still of the playing picture every few seconds, for the ambient glow (web only). */
+  onFrame?: (uri: string) => void;
 };
 
 /** The system's own video player (AVPlayer, ExoPlayer) with its controls, full screen and picture in picture. */

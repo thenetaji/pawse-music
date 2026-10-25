@@ -430,6 +430,9 @@ let volume = 1;
 let fadeGen = 0;
 /** The last switch faded the old song out, so the next one fades in. */
 let fadedOut = false;
+/** The current song is fading out into the next one (crossfade). */
+let endFading = false;
+let endFadeTimer: ReturnType<typeof setTimeout> | undefined;
 
 function setVolume(v: number): void {
   volume = v;
@@ -456,6 +459,8 @@ function ramp(to: number, ms: number): Promise<void> {
 
 /** Starts fading out the playing song; the switch waits for it. Undefined when nothing plays. */
 function fadeOutCurrent(): Promise<void> | undefined {
+  clearTimeout(endFadeTimer);
+  endFading = false;
   if (!playing || !nativeLoaded) return undefined;
   fadedOut = true;
   return ramp(0, FADE_OUT_MS);
@@ -470,7 +475,10 @@ function applyVolume(): void {
     : 1;
   if (fadedOut) {
     fadedOut = false;
-    void ramp(target, FADE_IN_MS);
+    // After a crossfade the new song comes in over half the fade; after a skip, quickly.
+    const xf = endFading ? (opts?.crossfadeSec?.() ?? 0) * 500 : 0;
+    endFading = false;
+    void ramp(target, Math.max(FADE_IN_MS, xf));
     return;
   }
   fadeGen++;
@@ -862,6 +870,37 @@ function tick(): void {
     return sleepNow("timer backstop");
   if (dur > 0 && dur - position < NEAR_END_SEC) ensureAhead();
   guardEnd(position, duration, track);
+  armEndFade(position, dur);
+}
+
+/** Crossfade: near the end, the song fades out over the set seconds and the next one fades in (one player, so they don't overlap). */
+function armEndFade(position: number, dur: number): void {
+  const secs = opts?.crossfadeSec?.() ?? 0;
+  if (!secs || !playing || endFading || !dur || get().repeat === "one") return;
+  const left = dur - position;
+  if (left > secs + TICK_MS / 1000 || left < 1) return;
+  const key = get().keys[get().index];
+  clearTimeout(endFadeTimer);
+  endFadeTimer = setTimeout(
+    () => {
+      if (!playing || get().keys[get().index] !== key) return;
+      const now = dur - TrackPlayer.getProgress().position;
+      if (now < 0.5) return;
+      endFading = true;
+      fadedOut = true;
+      void ramp(0, now * 1000);
+    },
+    Math.max(0, (left - secs) * 1000),
+  );
+}
+
+/** A seek or resume away from the end undoes a crossfade that had started. */
+function cancelEndFade(): void {
+  clearTimeout(endFadeTimer);
+  if (!endFading) return;
+  endFading = false;
+  fadedOut = false;
+  applyVolume();
 }
 
 const sleepDue = () =>
@@ -1170,6 +1209,7 @@ function seekTo(sec: number): void {
   if (real) sec = Math.min(sec, Math.max(0, real - 1));
   if (nativeLoaded && !switching) {
     TrackPlayer.seekTo(sec);
+    cancelEndFade();
     clearTimeout(skipTimer);
     skipTimer = setTimeout(armSkip, 300);
   } else if (s.keys[s.index])
@@ -1386,6 +1426,8 @@ export function __resetForTests(): void {
   onPlaylist.clear();
   playlistsOff = false;
   segments.clear();
+  endFading = false;
+  clearTimeout(endFadeTimer);
   clearTimeout(skipTimer);
   clearTimeout(streamsTimer);
   nativeLoaded = false;

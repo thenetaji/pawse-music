@@ -50,6 +50,8 @@ export type Settings = {
   resumeAfterInterruption: boolean;
   /** Sleep timer fade-out, seconds. */
   sleepFade: number;
+  /** Seconds each song fades out at its end (the next fades in); 0 is off. */
+  crossfade: number;
   // Downloads
   downloadQuality: AudioQuality;
   wifiOnly: boolean;
@@ -102,6 +104,10 @@ export type Settings = {
   skipSponsors: boolean;
   /** DeArrow's community titles and thumbnails instead of clickbait. */
   dearrow: boolean;
+  /** Return YouTube Dislike's estimate on the video page. */
+  showDislikes: boolean;
+  /** The video fills the top of the screen, with no close arrow above it. */
+  videoEdge: boolean;
   blockedChannels: { id: string; name: string }[];
   /** Videos with any of these in the title are hidden. */
   blockedWords: string[];
@@ -128,6 +134,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pauseOnDisconnect: true,
   resumeAfterInterruption: true,
   sleepFade: 10,
+  crossfade: 0,
   downloadQuality: "high",
   wifiOnly: false,
   autoDownloadLiked: false,
@@ -160,6 +167,8 @@ export const DEFAULT_SETTINGS: Settings = {
   skipNonMusic: true,
   skipSponsors: true,
   dearrow: true,
+  showDislikes: false,
+  videoEdge: false,
   blockedChannels: [],
   blockedWords: [],
   onboarded: false,

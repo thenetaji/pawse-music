@@ -35,7 +35,7 @@ import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { type VideoSource, videoSource } from "../../lib/video-stream";
-import { useArtworkPalette } from "../now-playing/use-artwork-palette";
+import { compact, useVotes } from "../../lib/dislikes";
 import { showToast } from "../../components/toast";
 import { useVideoFilter } from "../../lib/block";
 import { skipNote, useBranding, videoSkips } from "../../lib/community";
@@ -43,14 +43,19 @@ import type { SkipSegment } from "@pawse/innertube";
 import { type VideoHandle, VideoPlayer } from "../video/video-player";
 
 const MAX_W = 980;
+const INSET = 12;
+// Room above the page for a pull-down bounce, so the glow never shows a gap.
+const OVERSCROLL = 600;
 
-/** One video: the player on a field of its thumbnail's colour, then chapters, the description and what's next. */
+/** One video: the player glowing with its own picture on black, then chapters, the description and what's next. */
 export default function VideoPage() {
   const { id, t } = useLocalSearchParams<{ id: string; t?: string }>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const quality = useSetting("videoQuality", 720);
   const autoplay = useSetting("videoAutoplay", false);
+  // Edge to edge drops the close arrow; a swipe down, back or Esc closes instead.
+  const edge = useSetting("videoEdge", false);
   const w = Math.min(width, MAX_W);
   const detail = useResource<VideoDetail>(`video:${id}`, () => ytv.video(id));
   // Keyed by video and quality, so moving to another video starts clean without resetting in an effect.
@@ -114,7 +119,18 @@ export default function VideoPage() {
   const d = detail.data;
   const v = d?.video;
   const thumb = v ? bestThumbnail(v.thumbnails, 480) : undefined;
-  const palette = useArtworkPalette(thumb);
+  // The glow follows the playing picture where a player can share frames, else the thumbnail.
+  const [frame, setFrame] = useState<{ id: string; uri: string }>();
+  const glow =
+    frame?.id === id ? frame.uri : `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+  const stageH = ((edge ? w : w - INSET * 2) * 9) / 16;
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && router.back();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   const related = d?.related.filter(keep) ?? [];
   const next = related[0];
 
@@ -148,32 +164,38 @@ export default function VideoPage() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={[palette.colors[0], "rgba(0,0,0,0)"]}
-        locations={[0, 1]}
-        style={[StyleSheet.absoluteFill, { height: 520, opacity: 0.75 }]}
-        pointerEvents="none"
-      />
-      <View style={[styles.bar, { paddingTop: insets.top + 6 }]}>
-        <Pressable
-          hitSlop={12}
-          onPress={() => router.back()}
-          style={styles.close}
-          accessibilityLabel="Close"
-        >
-          <View style={{ transform: [{ rotate: "-90deg" }] }}>
-            <ChevronLeft size={18} weight={2.6} />
-          </View>
-        </Pressable>
-      </View>
       <ScrollView
         contentContainerStyle={{
           paddingBottom: insets.bottom + 40,
           alignItems: "center",
         }}
       >
+        <Ambient
+          uri={glow}
+          height={insets.top + (edge ? 0 : 48) + stageH + 220}
+        />
         <View style={{ width: w }}>
-          <View style={[styles.stage, { height: (w * 9) / 16 }]}>
+          {edge ? null : (
+            <View style={[styles.bar, { paddingTop: insets.top + 6 }]}>
+              <Pressable
+                hitSlop={12}
+                onPress={() => router.back()}
+                style={styles.close}
+                accessibilityLabel="Close"
+              >
+                <View style={{ transform: [{ rotate: "-90deg" }] }}>
+                  <ChevronLeft size={18} weight={2.6} />
+                </View>
+              </Pressable>
+            </View>
+          )}
+          <View
+            style={[
+              styles.stage,
+              { height: stageH },
+              edge && [styles.edge, { marginTop: insets.top }],
+            ]}
+          >
             {src ? (
               <VideoPlayer
                 ref={handle}
@@ -184,6 +206,7 @@ export default function VideoPage() {
                 onTime={onTime}
                 startAt={t ? Number(t) : undefined}
                 onError={setError}
+                onFrame={(uri) => setFrame({ id, uri })}
               />
             ) : thumb ? (
               <Image
@@ -217,6 +240,7 @@ export default function VideoPage() {
             <Animated.View entering={FadeInDown.duration(360)}>
               <Text style={styles.title}>{brand?.title ?? v.title}</Text>
               <Text style={styles.meta}>{videoMeta(v, false)}</Text>
+              <VoteBar id={id} />
               <View style={styles.channel}>
                 <Pressable
                   onPress={() => {
@@ -308,6 +332,41 @@ export default function VideoPage() {
   );
 }
 
+// Likes beside Return YouTube Dislike's estimate, with a thin bar of the share that liked it.
+function VoteBar({ id }: { id: string }) {
+  const v = useVotes(id);
+  if (!v) return null;
+  const share = v.likes + v.dislikes ? v.likes / (v.likes + v.dislikes) : 1;
+  return (
+    <Animated.View entering={FadeIn.duration(240)} style={styles.votes}>
+      <Thumb up />
+      <Text style={styles.voteText}>{compact(v.likes)}</Text>
+      <Thumb />
+      <Text style={styles.voteText}>{compact(v.dislikes)}</Text>
+      <View style={styles.voteTrack}>
+        <View style={[styles.voteFill, { width: `${share * 100}%` }]} />
+      </View>
+    </Animated.View>
+  );
+}
+
+const Thumb = ({ up }: { up?: boolean }) => (
+  <Svg
+    width={15}
+    height={15}
+    viewBox="0 0 24 24"
+    fill="none"
+    style={up ? undefined : { transform: [{ rotate: "180deg" }] }}
+  >
+    <Path
+      d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3zm0 0 4-8a2 2 0 0 1 2 2v4h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.3 20H7"
+      stroke="rgba(255,255,255,0.75)"
+      strokeWidth={2}
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 // When a video ends nothing starts by itself: replay, go on, or stop here.
 function EndCard({
   next,
@@ -356,8 +415,43 @@ const HeadphonesGlyph = () => (
   </Svg>
 );
 
+/** YouTube's ambient mode: the picture, blurred past recognition, lighting the black around the player. */
+function Ambient({ uri, height }: { uri: string; height: number }) {
+  const total = height + OVERSCROLL;
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.ambient, { top: -OVERSCROLL, height: total }]}
+    >
+      <Image
+        source={uri}
+        style={styles.ambientImage}
+        contentFit="cover"
+        blurRadius={48}
+        transition={1400}
+      />
+      <LinearGradient
+        colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.35)", "#000"]}
+        locations={[0, (OVERSCROLL + height * 0.55) / total, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
+  ambient: { position: "absolute", left: 0, right: 0, overflow: "hidden" },
+  // Scaled past the edges so the blur doesn't fade to dark at the sides.
+  ambientImage: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    opacity: 0.85,
+    transform: [{ scale: 1.35 }],
+  },
   bar: { paddingHorizontal: 14, paddingBottom: 8 },
   close: {
     width: 34,
@@ -367,7 +461,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.12)",
   },
-  stage: { width: "100%", backgroundColor: "#000", overflow: "hidden" },
+  // Inset and rounded, so the glow wraps the video like YouTube's ambient mode.
+  stage: {
+    marginHorizontal: INSET,
+    borderRadius: 18,
+    backgroundColor: "#000",
+    overflow: "hidden",
+    borderCurve: "continuous",
+  },
+  edge: { marginHorizontal: 0, borderRadius: 0 },
   veil: {
     position: "absolute",
     top: 0,
@@ -393,6 +495,28 @@ const styles = StyleSheet.create({
     marginTop: 5,
     marginHorizontal: 16,
   },
+  votes: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    marginHorizontal: 16,
+  },
+  voteText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    marginRight: 8,
+    ...display("700"),
+  },
+  voteTrack: {
+    flex: 1,
+    maxWidth: 120,
+    height: 3,
+    borderRadius: 2,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  voteFill: { height: 3, backgroundColor: "rgba(255,255,255,0.75)" },
   channel: {
     flexDirection: "row",
     alignItems: "center",

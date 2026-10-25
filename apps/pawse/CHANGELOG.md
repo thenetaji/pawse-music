@@ -4,6 +4,16 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-25
+
+### Added
+- **Crossfade.** **Settings → Playback → Crossfade** (3 to 12 seconds) fades a song out over its last seconds and fades the next one in, so songs no longer stop dead. Pawse plays one song at a time, so the two don't overlap; it's a soft hand-off rather than a DJ mix. Off by default, and a song on repeat never fades.
+- **Edge-to-edge video (Experimental).** The video fills the top of the screen, like YouTube, with no close arrow above it. Swipe down or go back to close it, or press Esc on computers.
+- **Dislikes on videos (Experimental).** **Show dislikes** puts the like and dislike counts under a video, with a bar for the share of likes. Dislike counts are estimates from Return YouTube Dislike.
+
+### Changed
+- **The video page glows like YouTube's ambient mode.** A soft, blurred copy of the picture lights the black around the player, then fades to true black, so OLED screens stay dark below it. On computers the glow follows the video as it plays; on phones it comes from the thumbnail.
+
 ## [1.7.0] - 2026-10-25
 
 ### Added

@@ -202,9 +202,24 @@ export default function Settings() {
             [30, "30 s"],
           ]}
         />
+        <Pick
+          k="crossfade"
+          label="Crossfade"
+          def={0}
+          options={[
+            [0, "Off"],
+            [3, "3 s"],
+            [6, "6 s"],
+            [9, "9 s"],
+            [12, "12 s"],
+          ]}
+        />
       </Section>
 
-      <Foot>Automatic picks the quality from your connection.</Foot>
+      <Foot>
+        Automatic picks the quality from your connection. Crossfade fades each
+        song out at its end and the next one in.
+      </Foot>
 
       {Platform.OS !== "web" ? <DownloadOptions manage /> : null}
 
@@ -816,6 +831,8 @@ function ExperimentalSection() {
             />
             <Toggle k="skipSponsors" label="Skip sponsors" def />
             <Toggle k="dearrow" label="Honest titles and thumbnails" def />
+            <Toggle k="showDislikes" label="Show dislikes" def={false} />
+            <Toggle k="videoEdge" label="Edge-to-edge video" def={false} />
             <BlockedLink />
           </>
         ) : null}
