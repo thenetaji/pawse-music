@@ -4,6 +4,21 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-25
+
+### Added
+- **YouTube videos, without the noise (Experimental).** Turn on **Settings → Experimental → YouTube videos** and a **Watch** tab appears: your subscriptions when you're signed in, a feed when you're not, and video search. Shorts, ads and mixes never show up. Videos play in the phone's own player, with full screen, picture in picture and background play.
+- When a video ends, nothing starts by itself: **Replay**, **Next** or **Done**. **Play the next video** in Experimental turns autoplay back on.
+- On a video: chapters you can tap to jump to, the description, **Up next**, and **Listen**, which hands the video's sound to Pawse's music player so it plays like a song.
+- **Watch video** in a song's menu opens its video when YouTube videos is on.
+- Channel pages show a channel's videos, newest first, and never its Shorts.
+- **A calmer Home (Experimental).** **Home → Calm** keeps Home to what you play, a few picks and your mixes, and it ends with the cat asleep instead of scrolling forever. **Only my music** shows nothing suggested at all.
+- **Search suggestions** have an arrow on the right that puts the words in the search box so you can keep typing. Recent searches show while you type, and each one has its own **×** to remove it.
+
+### Fixed
+- **Long songs (over about 11 minutes) play on iPhone, Android and computers.** YouTube slows any single request for more than about 10 MB to the speed of the song itself, and Pawse asked for long songs in one request, so they stalled before starting or partway through. Long songs now play from a playlist of small pieces, which also makes jumping ahead instant. On computers each request asks for at most 10 MB.
+- Pulling a page down past the top no longer shows a black band above the colour; the colour carries on up.
+
 ## [1.5.1] - 2026-10-17
 
 ### Fixed

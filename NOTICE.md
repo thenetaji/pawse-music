@@ -38,3 +38,9 @@ BotGuard Proof-of-Origin tokens for YouTube's web clients are minted in `package
 - **[Metrolist](https://github.com/mostafaalagamy/Metrolist)** (GPL-3.0). The page-side flow of `po_token.html` and `utils/potoken/*`: one minter built per integrity token, `GenerateIT` posted from the app side, renewal and cooldown.
 - **[NewPipe](https://github.com/TeamNewPipe/NewPipe)** (GPL-3.0). The WebView PO-token approach and its `GenerateIT` handling.
 - **[ReactTube](https://github.com/Duell10111/ReactTube)**. Findings only, no code: the challenge must come from the YouTube homepage with the page's `ytcfg` set as `yt.config_`, or the tokens stay in `ATTESTATION_PENDING`.
+
+## Long songs and videos
+
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Unlicense). The 10 MiB request limit (`CHUNK_SIZE` in its YouTube extractor), which `packages/innertube/src/youtube/hls.ts` and `apps/desktop/src/relay.mjs` keep every media request under.
+- **[hls.js](https://github.com/video-dev/hls.js)** (Apache-2.0). Plays YouTube videos on computers and in the web preview.
+- **[expo-video](https://github.com/expo/expo/tree/main/packages/expo-video)** (MIT). The video player on phones.
