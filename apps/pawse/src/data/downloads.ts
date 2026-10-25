@@ -313,6 +313,11 @@ export const removeDownload = (id: string) => {
   manager.remove(id);
   videoManager.remove(id);
 };
+/** Removes a video's picture, and its sound only when it came with the video rather than as a song. */
+export const removeVideoDownload = (id: string) => {
+  videoManager.remove(id);
+  if (index.getState().entries[id]?.track.kind === "video") manager.remove(id);
+};
 export function removeAllDownloads(): void {
   for (const id of Object.keys(index.getState().entries)) manager.remove(id);
   for (const id of Object.keys(videoIndex.getState().entries))

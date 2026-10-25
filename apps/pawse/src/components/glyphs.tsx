@@ -38,6 +38,15 @@ export const RefreshGlyph = (p: P) => (
   <Stroke d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" {...p} />
 );
 export const CloseGlyph = (p: P) => <Stroke d="M6 6l12 12M18 6L6 18" {...p} />;
+/** Marks a title or thumbnail swapped in from DeArrow. */
+export const DeArrowMark = ({ size = 12 }: { size?: number }) => (
+  <Stroke
+    d="M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18zM12 7.5v8M8.5 12.5l3.5 3.5 3.5-3.5"
+    size={size}
+    color="rgba(140,180,255,0.9)"
+    weight={2.4}
+  />
+);
 export const ArrowUp = (p: P) => <Stroke d="M12 19V5M6 11l6-6 6 6" {...p} />;
 export const ArrowDown = (p: P) => <Stroke d="M12 5v14M6 13l6 6 6-6" {...p} />;
 /** An arrow into a tray: importing. */

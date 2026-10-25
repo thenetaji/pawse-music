@@ -150,6 +150,7 @@ export default function SearchPage() {
               value={text}
               onChangeText={setText}
               onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
               onSubmitEditing={() => submit(text)}
               placeholder="Songs, artists, albums"
               placeholderTextColor="rgba(255,255,255,0.4)"

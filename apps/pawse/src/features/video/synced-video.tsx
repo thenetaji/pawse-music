@@ -28,8 +28,6 @@ export function SyncedVideo({
     p.muted = true;
     // Never take the audio session from the music player.
     p.audioMixingMode = "mixWithOthers";
-    p.staysActiveInBackground = false;
-    p.showNowPlayingNotification = false;
   });
   useEffect(() => {
     let seekedAt = 0;

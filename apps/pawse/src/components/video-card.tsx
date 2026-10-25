@@ -15,9 +15,10 @@ import { minimizeWatch, openWatch, useWatch } from "../features/watch/store";
 import { blockChannel } from "../lib/block";
 import { useBranding } from "../lib/community";
 import { rightClick } from "../lib/context-menu";
-import { go, push } from "../lib/nav";
+import { go } from "../lib/nav";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
+import { DeArrowMark } from "./glyphs";
 import { PressScale } from "./ui";
 
 export const clock = (sec?: number) => {
@@ -147,9 +148,12 @@ export const VideoCard = memo(function VideoCard({
           <Text style={styles.title} numberOfLines={2}>
             {brand?.title ?? video.title}
           </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {videoMeta(video, !hideChannel)}
-          </Text>
+          <View style={styles.metaRow}>
+            {brand?.title || brand?.thumbnail ? <DeArrowMark /> : null}
+            <Text style={styles.metaText} numberOfLines={1}>
+              {videoMeta(video, !hideChannel)}
+            </Text>
+          </View>
         </View>
         <PressScale
           hitSlop={10}
@@ -185,9 +189,12 @@ export const VideoRow = memo(function VideoRow({
         <Text style={styles.rowTitle} numberOfLines={2}>
           {brand?.title ?? video.title}
         </Text>
-        <Text style={styles.meta} numberOfLines={2}>
-          {videoMeta(video)}
-        </Text>
+        <View style={styles.metaRow}>
+          {brand?.title || brand?.thumbnail ? <DeArrowMark /> : null}
+          <Text style={styles.metaText} numberOfLines={2}>
+            {videoMeta(video)}
+          </Text>
+        </View>
       </View>
     </PressScale>
   );
@@ -254,6 +261,8 @@ const styles = StyleSheet.create({
     ...display("700"),
   },
   meta: { color: "rgba(255,255,255,0.55)", fontSize: 13, marginTop: 3 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3 },
+  metaText: { flexShrink: 1, color: "rgba(255,255,255,0.55)", fontSize: 13 },
   row: {
     flexDirection: "row",
     gap: 12,

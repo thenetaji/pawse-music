@@ -66,9 +66,21 @@ final class PlaylistServer {
       }
     }
     l.newConnectionHandler = { [weak self] connection in
+      // Only the phone itself may connect: the playlists hold signed media urls.
+      guard Self.isLoopback(connection.endpoint) else { return connection.cancel() }
       self?.serve(connection)
     }
     l.start(queue: queue)
+  }
+
+  private static func isLoopback(_ endpoint: NWEndpoint) -> Bool {
+    guard case let .hostPort(host, _) = endpoint else { return false }
+    switch host {
+    case let .ipv4(a): return a.isLoopback
+    case let .ipv6(a): return a.isLoopback || a.asIPv4?.isLoopback == true
+    case let .name(n, _): return n == "localhost"
+    @unknown default: return false
+    }
   }
 
   private func finish(_ port: UInt16) {

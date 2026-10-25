@@ -40,9 +40,19 @@ export const useWatch = create<WatchState>(() => ({
 }));
 
 /** Opens a video full screen; the same video already in the mini player just grows back. */
-export function openWatch(v: WatchSeed, t?: number, o?: { back?: boolean }) {
+export function openWatch(
+  v: WatchSeed,
+  t?: number,
+  o?: {
+    back?: boolean;
+    /** Autoplay: stay in the mini player if that's where the video was. */
+    keepMode?: boolean;
+  },
+) {
   const s = useWatch.getState();
-  if (s.id === v.id && t === undefined) {
+  if (s.id === v.id) {
+    // The same video keeps its player; a time just moves it there.
+    if (t !== undefined) s.player?.seek(t);
     useWatch.setState({ mode: "full" });
     return;
   }
@@ -57,7 +67,7 @@ export function openWatch(v: WatchSeed, t?: number, o?: { back?: boolean }) {
     id: v.id,
     t,
     seed: v,
-    mode: "full",
+    mode: o?.keepMode ? s.mode : "full",
     player: null,
     playing: false,
     progress: 0,

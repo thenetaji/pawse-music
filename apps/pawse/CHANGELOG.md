@@ -2,6 +2,32 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [Unreleased]
+
+### Added
+- **Landscape full screen.** Swipe up on a video, or tap the full-screen button, and it turns sideways and fills the screen; swipe down or tap the button again to come back.
+- **A small DeArrow mark** (a blue arrow in a circle) next to a video's views when DeArrow changed its title or picture. On the watch page, tap it to see the original title.
+- **Try again** on a video that stops playing, which picks up from the same moment. It sits beside **Play the downloaded copy** when you have one.
+
+### Fixed
+- **Tapping a playing video shows the controls every time.** Before, taps stopped working after a few seconds until you minimised the video.
+- **Opening a video while music plays, then minimising it, no longer closes the video.** The music used to start again by itself and push the video out.
+- **The mini player on iPhone** shows one picture instead of two copies fighting over the video.
+- **A minimised video stays minimised** when autoplay moves on to the next one.
+- **The end card goes away** when you play the video again from the mini player, a chapter or a comment's timestamp.
+- **Removing a downloaded video keeps the song** if you downloaded the song too.
+- **Pull down on Home** now refreshes the video rows and mixes, not only the YouTube Music picks.
+- **Search filters come back** after you tap into the search box and close the keyboard.
+- **Comments that fail to load** say so, with a tap to try again, instead of loading forever.
+- **The song's lock-screen info on iPhone** is no longer cleared when the Video side opens or closes.
+- Minimising a video keeps your exact spot for Continue, and sharing a video on iPhone no longer pastes the link twice.
+- The tiny video server on iPhone turns away any connection that isn't from the phone itself.
+
+### Changed
+- **Smoother minimise and expand**, with the video easing down and fading into the mini player.
+- **The Video side of the player** has rounded corners instead of a hard-edged box.
+- **A calmer mini player swipe.** Swiping to skip moves less and settles without the bounce.
+
 ## [1.10.0] - 2026-10-25
 
 ### Added

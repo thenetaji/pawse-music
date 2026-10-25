@@ -49,6 +49,11 @@ let current:
   | { id: string; stream: VideoStream; playlists: Map<string, Promise<string>> }
   | undefined;
 
+/** Drops the resolved stream, so the next load fetches fresh media urls. */
+export const forgetStream = () => {
+  current = undefined;
+};
+
 async function streamFor(id: string, host: PlaylistHost) {
   if (current?.id === id && current.stream.expiresAt - Date.now() > FRESH_MS)
     return current;

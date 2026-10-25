@@ -1,3 +1,5 @@
+import { bestThumbnail } from "@pawse/music-core";
+import { Image } from "expo-image";
 import {
   Platform,
   Pressable,
@@ -15,7 +17,15 @@ import { VideoSurface } from "../video/watch-player";
 import { closeWatch, expandWatch, useWatch } from "./store";
 
 /** The video, small, in the mini player slot: tap to grow it back, play or pause, or close it. */
-export function WatchMini({ inline }: { inline?: boolean }) {
+export function WatchMini({
+  inline,
+  still,
+}: {
+  inline?: boolean;
+  /** A picture instead of the live video: iOS draws the tab-bar slot twice, and two views on one player fight. */
+  still?: boolean;
+}) {
+  const thumbs = useWatch((s) => s.seed?.thumbnails);
   const player = useWatch((s) => s.player);
   const playing = useWatch((s) => s.playing);
   const title = useWatch((s) => s.title);
@@ -37,10 +47,18 @@ export function WatchMini({ inline }: { inline?: boolean }) {
         style={[styles.row, inline && styles.inline]}
       >
         <View style={[styles.pic, { width: (h * 16) / 9, height: h }]}>
-          <VideoSurface
-            surface={player.surface}
-            style={StyleSheet.absoluteFill}
-          />
+          {still ? (
+            <Image
+              source={bestThumbnail(thumbs ?? [], 240)}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+            />
+          ) : (
+            <VideoSurface
+              surface={player.surface}
+              style={StyleSheet.absoluteFill}
+            />
+          )}
         </View>
         <View style={styles.text}>
           <Text style={styles.title} numberOfLines={1}>

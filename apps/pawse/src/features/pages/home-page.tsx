@@ -34,7 +34,7 @@ import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
-import { useResource } from "../../lib/use-resource";
+import { refreshResources, useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
 import { ContinueCard, VideoShelf, YourPeople } from "../home/home-blocks";
 import { showTrackActions } from "../library/track-actions";
@@ -132,7 +132,10 @@ export default function HomePage() {
       title={greeting()}
       tab="home"
       background={<TopGlow />}
-      onRefresh={home.reload}
+      onRefresh={() => {
+        home.reload();
+        refreshResources(["watch:", "home:mixes"]);
+      }}
       refreshing={false}
       onEndReached={full ? loadMore : undefined}
       right={

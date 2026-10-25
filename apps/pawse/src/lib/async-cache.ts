@@ -7,12 +7,15 @@ const IDLE: Entry<never> = { loading: false, at: 0 };
 export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
   const entries = new Map<string, Entry<T>>();
   const listeners = new Set<() => void>();
+  // The last loader per key, so a refresh can run it again without its component.
+  const loaders = new Map<string, () => Promise<T>>();
   const emit = () => listeners.forEach((l) => l());
   const subscribe = (l: () => void) => (
     listeners.add(l), () => void listeners.delete(l)
   );
 
   function load(key: string, loader: () => Promise<T>, force = false) {
+    loaders.set(key, loader);
     const e = entries.get(key);
     if (
       e?.loading ||
@@ -73,10 +76,17 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
     entries.clear();
     emit();
   };
+
+  /** Reloads every loaded key that starts with one of these, keeping what's shown until the new copy lands. */
+  const refresh = (prefixes: string[]) => {
+    for (const [key, loader] of loaders)
+      if (prefixes.some((p) => key.startsWith(p))) load(key, loader, true);
+  };
   return {
     use,
     load,
     clear,
+    refresh,
     seed,
     peek: (key: string) => entries.get(key)?.data,
   };

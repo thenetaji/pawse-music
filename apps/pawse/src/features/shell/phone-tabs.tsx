@@ -98,7 +98,7 @@ function Accessory() {
   const placement = NativeTabs.BottomAccessory.usePlacement();
   const videoMini = useVideoMini();
   return videoMini ? (
-    <WatchMini inline={placement === "inline"} />
+    <WatchMini inline={placement === "inline"} still={placement === "inline"} />
   ) : (
     <MiniPlayer inline={placement === "inline"} />
   );

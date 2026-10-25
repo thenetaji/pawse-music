@@ -34,6 +34,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { showSheet } from "../../components/action-sheet";
+import { DeArrowMark } from "../../components/glyphs";
 import { Spinner } from "../../components/spinner";
 import { showToast } from "../../components/toast";
 import {
@@ -51,7 +52,7 @@ import {
 import { ytAccount } from "../../data/clients";
 import {
   downloadVideo,
-  removeDownload,
+  removeVideoDownload,
   useVideoDownload,
 } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
@@ -73,6 +74,7 @@ import { setSetting, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import {
+  forgetStream,
   type Quality,
   type VideoSource,
   videoSource,
@@ -133,6 +135,7 @@ export function WatchSession({ id }: { id: string }) {
   const src = loaded?.src;
   const error = loaded?.error;
   const [ended, setEnded] = useState(false);
+  const [reload, setReload] = useState(0);
   const [started, setStarted] = useState(false);
   const [at, setAt] = useState(0);
   const atRef = useRef(0);
@@ -150,27 +153,36 @@ export function WatchSession({ id }: { id: string }) {
 
   const setError = (message: string) => {
     logEvent("video-failed", `${id}: ${message}`);
-    setLoaded({ error: message });
+    setLoaded((was) => ({ ...was, error: message }));
   };
   // Sponsor reads and plugs are jumped over as playback reaches them.
   const savedAt = useRef(0);
+  const keepSpot = (sec: number) => {
+    savedAt.current = sec;
+    recordWatch({
+      id,
+      title: brand?.title ?? v?.title ?? seed?.title ?? "",
+      thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
+      channel: v?.channel ?? seed?.channel,
+      pos: sec,
+      dur: src?.stream.durationSec ?? v?.durationSec ?? 0,
+    });
+  };
+  // A fresh stream after an error, picking up where it stopped.
+  const retry = () => {
+    haptic.light();
+    forgetStream();
+    setStarted(false);
+    setLoaded({ start: atRef.current > 0 ? atRef.current : undefined });
+    setReload((n) => n + 1);
+  };
   const onTime = (sec: number) => {
     setAt(sec);
     atRef.current = sec;
     const dur = src?.stream.durationSec ?? v?.durationSec;
     if (dur) useWatch.setState({ progress: Math.min(1, sec / dur) });
     // Progress is kept every few seconds, so Home can offer to continue.
-    if (Math.abs(sec - savedAt.current) > 8) {
-      savedAt.current = sec;
-      recordWatch({
-        id,
-        title: brand?.title ?? v?.title ?? seed?.title ?? "",
-        thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
-        channel: v?.channel ?? seed?.channel,
-        pos: sec,
-        dur: src?.stream.durationSec ?? v?.durationSec ?? 0,
-      });
-    }
+    if (Math.abs(sec - savedAt.current) > 8) keepSpot(sec);
     if (sec > 0 && !started) setStarted(true);
     const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
     if (!seg) return;
@@ -220,7 +232,8 @@ export function WatchSession({ id }: { id: string }) {
   const related = d?.related.filter(keep) ?? [];
   const next = related[0];
   const onEnd = () => {
-    if (autoplay && next) return openWatch(next);
+    // A minimised video stays minimised when the next one starts.
+    if (autoplay && next) return openWatch(next, undefined, { keepMode: true });
     setEnded(true);
   };
 
@@ -233,8 +246,17 @@ export function WatchSession({ id }: { id: string }) {
     onError: setError,
     onFrame: setFrame,
     onTrack: (h, fps) => setTrack(`${h}p${(fps ?? 30) > 30 ? "60" : ""}`),
-    onPlaying: (on) => useWatch.setState({ playing: on }),
+    onPlaying: (on) => {
+      useWatch.setState({ playing: on });
+      if (on) setEnded(false);
+    },
   });
+
+  // Minimising keeps the exact spot for Continue watching, not the last 8-second save.
+  useEffect(() => {
+    if (mode === "mini" && atRef.current > 0) keepSpot(atRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // The mini player shows and controls this same player.
   useEffect(() => {
@@ -288,7 +310,7 @@ export function WatchSession({ id }: { id: string }) {
           live &&
           setLoaded((was) => ({
             src: s,
-            start: was?.src ? atRef.current : (t ?? resumeAt(id)),
+            start: was?.src ? atRef.current : (was?.start ?? t ?? resumeAt(id)),
           })),
       )
       .catch((e: Error) => {
@@ -300,7 +322,7 @@ export function WatchSession({ id }: { id: string }) {
     };
     // t only matters for the first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, quality]);
+  }, [id, quality, reload]);
 
   // Slides up when opened, down into the mini player when shrunk; a drag on the video follows the finger.
   const y = useSharedValue(height);
@@ -417,10 +439,9 @@ export function WatchSession({ id }: { id: string }) {
   const hasBack = useWatch((s) => s.back.length > 0);
   const share = () => {
     haptic.light();
-    void Share.share({
-      url: `https://youtu.be/${id}`,
-      message: `https://youtu.be/${id}`,
-    });
+    const link = `https://youtu.be/${id}`;
+    // iOS shares the url on its own; a message too would paste the link twice.
+    void Share.share(Platform.OS === "ios" ? { url: link } : { message: link });
   };
   // Saved with the title shown here (DeArrow's, when it has one).
   const asTrack = () =>
@@ -469,7 +490,7 @@ export function WatchSession({ id }: { id: string }) {
           {
             label: "Remove download",
             destructive: true,
-            onPress: () => removeDownload(id),
+            onPress: () => removeVideoDownload(id),
           },
         ],
       });
@@ -479,7 +500,7 @@ export function WatchSession({ id }: { id: string }) {
           {
             label: "Cancel download",
             destructive: true,
-            onPress: () => removeDownload(id),
+            onPress: () => removeVideoDownload(id),
           },
         ],
       });
@@ -568,22 +589,26 @@ export function WatchSession({ id }: { id: string }) {
             contentFit="cover"
             blurRadius={error ? 12 : undefined}
           />
-          {error && offlineCopy ? null : error ? (
-            <Text style={styles.veilText}>
-              This video won’t play right now.
-            </Text>
-          ) : (
+          {error ? null : (
             <View style={styles.spin}>
               <Spinner size={30} />
             </View>
           )}
         </View>
       ) : null}
-      {error && offlineCopy ? (
-        <View style={styles.veil}>
-          <PressScale onPress={playOffline} style={styles.offlineBtn}>
-            <Text style={styles.offlineText}>Play the downloaded copy</Text>
-          </PressScale>
+      {error ? (
+        <View style={[styles.veil, styles.failed]}>
+          <Text style={styles.veilText}>This video won’t play right now.</Text>
+          <View style={styles.failRow}>
+            <PressScale onPress={retry} style={styles.offlineBtn}>
+              <Text style={styles.offlineText}>Try again</Text>
+            </PressScale>
+            {offlineCopy ? (
+              <PressScale onPress={playOffline} style={styles.offlineBtn}>
+                <Text style={styles.offlineText}>Play the downloaded copy</Text>
+              </PressScale>
+            ) : null}
+          </View>
         </View>
       ) : null}
       {ended ? (
@@ -620,12 +645,29 @@ export function WatchSession({ id }: { id: string }) {
             <Text style={styles.title} numberOfLines={2}>
               {title}
             </Text>
-            <Text style={styles.meta} numberOfLines={1}>
-              {(calm ? [v.publishedText] : [v.viewsText, v.publishedText])
-                .filter(Boolean)
-                .join(" · ")}
-              <Text style={styles.metaMore}> ...more</Text>
-            </Text>
+            <View style={styles.metaRow}>
+              {brand?.title || brand?.thumbnail ? (
+                <Pressable
+                  hitSlop={10}
+                  accessibilityLabel="Changed by DeArrow"
+                  onPress={() =>
+                    showToast(
+                      brand.title
+                        ? `Original title: ${v.title}`
+                        : "Thumbnail from DeArrow",
+                    )
+                  }
+                >
+                  <DeArrowMark size={13} />
+                </Pressable>
+              ) : null}
+              <Text style={styles.metaText} numberOfLines={1}>
+                {(calm ? [v.publishedText] : [v.viewsText, v.publishedText])
+                  .filter(Boolean)
+                  .join(" · ")}
+                <Text style={styles.metaMore}> ...more</Text>
+              </Text>
+            </View>
           </Pressable>
           <View style={styles.channel}>
             <Pressable
@@ -725,7 +767,9 @@ export function WatchSession({ id }: { id: string }) {
       {!calm && d?.comments ? (
         <CommentsCard
           page={comments.data}
+          failed={!!comments.error && !comments.data}
           onPress={() => setPanel("comments")}
+          onRetry={comments.reload}
         />
       ) : null}
 
@@ -750,6 +794,8 @@ export function WatchSession({ id }: { id: string }) {
     panel === "comments" ? (
       <CommentsPanel
         first={comments.data}
+        failed={!!comments.error && !comments.data}
+        onRetry={comments.reload}
         onClose={() => setPanel(null)}
         onSeek={video.seek}
       />
@@ -1170,6 +1216,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   veilText: { color: "#fff", fontSize: 14, ...display("700") },
+  failed: { gap: 14, backgroundColor: "rgba(0,0,0,0.6)" },
+  failRow: { flexDirection: "row", gap: 10 },
   offlineBtn: {
     height: 40,
     paddingHorizontal: 18,
@@ -1180,7 +1228,8 @@ const styles = StyleSheet.create({
   offlineText: { color: "#000", fontSize: 14, ...display("800") },
   info: { paddingHorizontal: 12, paddingTop: 12 },
   title: { color: "#fff", fontSize: 18, lineHeight: 23, ...display("800") },
-  meta: { color: "rgba(255,255,255,0.6)", fontSize: 12.5, marginTop: 5 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5 },
+  metaText: { flexShrink: 1, color: "rgba(255,255,255,0.6)", fontSize: 12.5 },
   metaMore: { color: "#fff", fontWeight: "700" },
   actions: { gap: 8, paddingHorizontal: 12, marginTop: 12 },
   likePill: { paddingHorizontal: 0, gap: 0 },
