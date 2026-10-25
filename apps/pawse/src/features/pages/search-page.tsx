@@ -6,7 +6,6 @@ import {
   type SearchResults,
   type Shelf as ShelfT,
   type Track,
-  type VideoItem,
   type VideoSearchResults,
 } from "@pawse/music-core";
 import { player } from "@pawse/player";
@@ -43,7 +42,11 @@ import {
   SectionTitle,
   SkeletonRows,
 } from "../../components/ui";
-import { ChannelRow, VideoCard } from "../../components/video-card";
+import {
+  ChannelRow,
+  VideoCard,
+  VideoPlaylistRow,
+} from "../../components/video-card";
 import { useLibrary } from "../../data/library";
 import { useVideoFilter } from "../../lib/block";
 import { rightClick } from "../../lib/context-menu";
@@ -301,7 +304,7 @@ function YouTubeResults({
   const items = all.filter((x) => {
     if (seen.has(x.id)) return false;
     seen.add(x.id);
-    return x.type === "channel" || keep(x as VideoItem);
+    return x.type !== "video" || keep(x);
   });
   const musical =
     data.items.slice(0, 8).filter((x) => x.type === "video" && x.music)
@@ -365,8 +368,10 @@ function YouTubeResults({
       renderItem={({ item: x }) =>
         x.type === "channel" ? (
           <ChannelRow channel={x} />
+        ) : x.type === "playlist" ? (
+          <VideoPlaylistRow list={x} />
         ) : (
-          <VideoCard video={x as VideoItem} />
+          <VideoCard video={x} />
         )
       }
     />

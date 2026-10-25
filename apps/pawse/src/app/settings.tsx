@@ -322,6 +322,7 @@ export default function Settings() {
       </Section>
 
       <Section title="Privacy">
+        <Toggle k="incognito" label="Incognito" def={false} />
         <Toggle k="pauseHistory" label="Pause listening history" def={false} />
         <Link
           label="Clear search history"
@@ -348,6 +349,12 @@ export default function Settings() {
           }
         />
       </Section>
+      <Foot>
+        Incognito keeps nothing you play, watch or search: no history, no
+        Continue, nothing learned for recommendations, and nothing sent to
+        YouTube&apos;s history. Turn it on or off by holding the Settings button
+        on Home.
+      </Foot>
 
       {Platform.OS === "android" ? (
         <Section title="Android">

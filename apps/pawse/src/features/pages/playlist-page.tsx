@@ -66,7 +66,17 @@ function RemotePlaylist({ id }: { id: string }) {
     <Collection
       title={p.title}
       subtitle={p.author}
-      meta={p.trackCount ? `${count(p.trackCount, "song")}` : undefined}
+      meta={
+        p.trackCount
+          ? count(
+              p.trackCount,
+              tracks.filter((t) => t.kind === "video").length * 2 >
+                tracks.length
+                ? "video"
+                : "song",
+            )
+          : undefined
+      }
       thumbnails={p.thumbnails}
       tracks={tracks}
       source={{ type: "playlist", id: p.id, title: p.title }}

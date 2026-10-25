@@ -30,6 +30,7 @@ import {
   ImportGlyph,
   MinusGlyph,
   PencilGlyph,
+  PinGlyph,
   PlaylistGlyph,
   RefreshGlyph,
   TrashGlyph,
@@ -40,6 +41,9 @@ import { TrackRow } from "../../components/track-row";
 import { PressScale } from "../../components/ui";
 import { downloadMany, useDownloads } from "../../data/downloads";
 import { importPlaylist, useLibrary } from "../../data/library";
+import { useListSpot } from "../../data/list-spots";
+import { isPinned, togglePin } from "../../data/pins";
+import { isUnfinished, useWatched } from "../../data/watched";
 import { haptic } from "../../lib/haptics";
 import { count } from "../../lib/plural";
 import { autoplayMode } from "../../lib/settings";
@@ -53,6 +57,7 @@ import {
 import { MoreGlyph, PlayGlyph } from "../now-playing/icons";
 import { readable } from "../now-playing/now-palette";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
+import { openWatch } from "../watch/store";
 import { TopGlow } from "./top-glow";
 
 type Props = {
@@ -130,6 +135,44 @@ export function Collection({
       endless: autoplayMode() === "always",
     });
   };
+  // A YouTube playlist of videos (a course, a series) is watched, in order, not listened to.
+  const videoList =
+    tracks.length > 0 &&
+    tracks.filter((t) => t.kind === "video").length * 2 > tracks.length;
+  const listId = source.id ?? `title:${title}`;
+  const watch = (i: number) => {
+    const t = tracks[i];
+    if (!t) return;
+    haptic.light();
+    const seed = (x: Track) => ({
+      id: x.id,
+      title: x.title,
+      thumbnails: x.thumbnails,
+      channel: x.artists[0] && {
+        id: x.artists[0].id,
+        name: x.artists[0].name,
+      },
+    });
+    openWatch(seed(t), undefined, {
+      list: { id: listId, title, items: tracks.map(seed) },
+    });
+  };
+  const start = (i: number) => (videoList ? watch(i) : play(i));
+  // Where you stopped last time; Resume picks up there.
+  const spot = useListSpot(listId);
+  const spotAt = spot ? tracks.findIndex((t) => t.id === spot.id) : -1;
+  const spotWatch = useWatched((s) =>
+    videoList && spot ? s.list.find((w) => w.id === spot.id) : undefined,
+  );
+  // A video you finished sends Resume on to the one after it; finishing the last starts over.
+  const finished = !!spotWatch && spotWatch.pos > 5 && !isUnfinished(spotWatch);
+  const resumeAt = !finished
+    ? spotAt
+    : spotAt + 1 < tracks.length
+      ? spotAt + 1
+      : -1;
+  const canResume =
+    resumeAt > 0 || (resumeAt === 0 && !!spotWatch && !finished);
 
   const own =
     editableId ?? (source.type === "playlist" ? source.id : undefined);
@@ -189,6 +232,23 @@ export function Collection({
         </View>
       ),
       actions: [
+        ...(source.id && source.type !== "radio"
+          ? [
+              {
+                label: isPinned(source.id) ? "Unpin from Home" : "Pin to Home",
+                icon: (c: string) => (
+                  <PinGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () =>
+                  togglePin({
+                    kind: source.type === "album" ? "album" : "playlist",
+                    id: source.id ?? "",
+                    title,
+                    thumbnails,
+                  }),
+              },
+            ]
+          : []),
         ...(tracks.length
           ? [
               {
@@ -367,12 +427,12 @@ export function Collection({
                   </IconBtn>
                   <PressScale
                     disabled={!tracks.length}
-                    onPress={() => play(0)}
+                    onPress={() => start(canResume ? resumeAt : 0)}
                     style={[styles.btn, styles.primary]}
                   >
                     <PlayGlyph size={18} color="#000" />
                     <Text style={[styles.btnText, { color: "#000" }]}>
-                      Play
+                      {canResume ? "Resume" : videoList ? "Watch" : "Play"}
                     </Text>
                   </PressScale>
                   <PressScale
@@ -410,6 +470,16 @@ export function Collection({
                   ) : null}
                 </View>
               ) : null}
+              {canResume ? (
+                <Text style={styles.spot} numberOfLines={1}>
+                  {finished ? "Next up" : "Stopped at"}:{" "}
+                  {tracks[resumeAt]?.title}
+                  {"  ·  "}
+                  <Text style={styles.startOver} onPress={() => start(0)}>
+                    Start over
+                  </Text>
+                </Text>
+              ) : null}
             </View>
           </View>
         }
@@ -433,7 +503,7 @@ export function Collection({
               track={item}
               index={index + 1}
               showArt={!numbered}
-              onPress={() => play(index)}
+              onPress={() => start(index)}
               subtitle={
                 numbered
                   ? item.artists.map((a) => a.name).join(", ")
@@ -764,6 +834,13 @@ const styles = StyleSheet.create({
   },
   primary: { backgroundColor: "#fff" },
   btnText: { color: "#fff", fontSize: 16, ...display("700") },
+  spot: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13.5,
+    marginTop: 12,
+    textAlign: "center",
+  },
+  startOver: { color: "#fff", ...display("700") },
   icon: {
     width: 48,
     height: 48,

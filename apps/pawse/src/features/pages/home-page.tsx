@@ -17,8 +17,11 @@ import {
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Circle, Path } from "react-native-svg";
+import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
 import { CaughtUp } from "../../components/caught-up";
+import { IncognitoGlyph } from "../../components/glyphs";
+import { IncognitoChip } from "../../components/incognito-chip";
 import { useTabRoot } from "../../components/page";
 import { Shelf } from "../../components/shelf";
 import { TrackRow } from "../../components/track-row";
@@ -38,6 +41,7 @@ import { useVideoFilter } from "../../lib/block";
 import { rightClick } from "../../lib/context-menu";
 import { yt, ytv } from "../../lib/engine";
 import { HOME_SECTIONS, useHomeSections } from "../../lib/home-sections";
+import { setIncognito, useIncognito } from "../../lib/incognito";
 import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { autoplayMode, useSetting } from "../../lib/settings";
@@ -56,6 +60,7 @@ export default function HomePage() {
   useTabRoot("home");
   const accent = useAccent();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
+  const incognito = useIncognito();
   const videos = useSetting("videos", true);
   const sections = useHomeSections().filter(
     (s) =>
@@ -184,9 +189,23 @@ export default function HomePage() {
       onEndReached={full ? loadMore : undefined}
       right={
         <View style={styles.headRight}>
+          <IncognitoChip />
           <HomeCat />
           <PressScale
             onPress={() => push("/settings")}
+            onLongPress={() =>
+              showSheet({
+                actions: [
+                  {
+                    label: incognito
+                      ? "Turn off incognito"
+                      : "Turn on incognito",
+                    icon: (c) => <IncognitoGlyph size={22} color={c} />,
+                    onPress: () => setIncognito(!incognito),
+                  },
+                ],
+              })
+            }
             style={styles.gear}
             hitSlop={Platform.OS === "android" ? 5 : undefined}
             accessibilityLabel="Settings"
@@ -299,7 +318,9 @@ function Picks({
             {b.shelf ? (
               <Shelf shelf={b.shelf} removable />
             ) : b.video ? (
-              <VideoCard video={b.video} />
+              <View style={b.first && styles.afterShelf}>
+                <VideoCard video={b.video} />
+              </View>
             ) : null}
           </Animated.View>
         ))
@@ -319,16 +340,27 @@ function Picks({
 
 // Two music shelves, then three videos, and so on; whichever runs out, the other keeps going.
 function weave(shelves: ShelfT[], videos: VideoItem[]) {
-  const out: { key: string; shelf?: ShelfT; video?: VideoItem }[] = [];
+  const out: {
+    key: string;
+    shelf?: ShelfT;
+    video?: VideoItem;
+    /** The first video after a shelf, which needs room above it. */
+    first?: boolean;
+  }[] = [];
   let v = 0;
+  const addVideos = (list: VideoItem[]) =>
+    list.forEach((video) =>
+      out.push({
+        key: `v${v++}:${video.id}`,
+        video,
+        first: !!out[out.length - 1]?.shelf,
+      }),
+    );
   shelves.forEach((shelf, i) => {
     out.push({ key: `s${i}:${shelf.title}`, shelf });
-    if (i % 2 === 1)
-      for (const video of videos.slice(v, v + 3))
-        out.push({ key: `v${v++}:${video.id}`, video });
+    if (i % 2 === 1) addVideos(videos.slice(v, v + 3));
   });
-  for (const video of videos.slice(v))
-    out.push({ key: `v${v++}:${video.id}`, video });
+  addVideos(videos.slice(v));
   return out;
 }
 
@@ -550,6 +582,7 @@ function greeting() {
 }
 
 const styles = StyleSheet.create({
+  afterShelf: { marginTop: 28 },
   headRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   gear: {
     width: 38,

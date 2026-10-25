@@ -11,6 +11,9 @@ export type WatchSeed = {
   channel?: VideoItem["channel"];
 };
 
+/** A playlist being watched in order: Up next and autoplay follow it. */
+export type WatchList = { id: string; title: string; items: WatchSeed[] };
+
 interface WatchState {
   /** The video being watched; null when nothing is. */
   id: string | null;
@@ -28,6 +31,7 @@ interface WatchState {
   channel?: string;
   /** Videos this session came from, newest last, for the previous button. */
   back: WatchSeed[];
+  list?: WatchList;
 }
 
 export const useWatch = create<WatchState>(() => ({
@@ -47,13 +51,20 @@ export function openWatch(
     back?: boolean;
     /** Autoplay: stay in the mini player if that's where the video was. */
     keepMode?: boolean;
+    /** Watching a playlist; null leaves the one playing. Unset keeps it while the video is in it. */
+    list?: WatchList | null;
   },
 ) {
   const s = useWatch.getState();
+  const list =
+    o?.list === null
+      ? undefined
+      : (o?.list ??
+        (s.list?.items.some((x) => x.id === v.id) ? s.list : undefined));
   if (s.id === v.id) {
     // The same video keeps its player; a time just moves it there.
     if (t !== undefined) s.player?.seek(t);
-    useWatch.setState({ mode: "full" });
+    useWatch.setState({ mode: "full", list });
     return;
   }
   // Going on from a video remembers it; going back drops it.
@@ -73,6 +84,7 @@ export function openWatch(
     progress: 0,
     title: v.title,
     channel: v.channel?.name,
+    list,
   });
 }
 
@@ -85,6 +97,7 @@ export const closeWatch = () =>
     player: null,
     playing: false,
     seed: undefined,
+    list: undefined,
   });
 
 /** The mini player slot shows the video instead of the song while a video sits there. */

@@ -30,8 +30,19 @@ export interface VideoFeed {
   continuation?: string;
 }
 
+/** A YouTube playlist (or course) of videos. */
+export interface VideoPlaylistItem {
+  type: "playlist";
+  id: string;
+  title: string;
+  author?: string;
+  /** "80 videos" */
+  countText?: string;
+  thumbnails: Thumbnail[];
+}
+
 export interface VideoSearchResults {
-  items: (VideoItem | ChannelItem)[];
+  items: (VideoItem | ChannelItem | VideoPlaylistItem)[];
   continuation?: string;
 }
 

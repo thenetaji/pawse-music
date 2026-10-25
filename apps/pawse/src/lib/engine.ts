@@ -64,7 +64,7 @@ export function startEngine() {
     },
     onPlayed: (track: Track, playedSec: number) => {
       const lib = useLibrary.getState();
-      if (lib.settings.pauseHistory) return;
+      if (lib.settings.pauseHistory || lib.settings.incognito) return;
       lib.recordPlay(track);
       if (
         lib.settings.cookies &&

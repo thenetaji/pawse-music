@@ -16,6 +16,8 @@ import { useLibrary } from "../data/library";
 import { startAndroidPill } from "../features/island/android-pill";
 import { startIslandController } from "../features/island/island";
 import { NowPaletteSync } from "../features/now-playing/now-palette";
+import { startListSpotRecorder } from "../features/playback/list-spot-recorder";
+import { startNowPlayingGuard } from "../features/playback/now-playing-guard";
 import { startResumeController } from "../features/playback/resume-after-interruption";
 import { WatchHost } from "../features/watch/watch-host";
 import { startEngine } from "../lib/engine";
@@ -37,6 +39,8 @@ export default function RootLayout() {
     const stopIsland = startIslandController();
     const stopPill = startAndroidPill();
     const stopResume = startResumeController();
+    const stopGuard = startNowPlayingGuard();
+    const stopSpots = startListSpotRecorder();
     const stopBackup = startAutoBackup();
     const stopJournal = startJournalRecorder();
     // First launch: meet the cat once the persisted library has loaded.
@@ -51,6 +55,8 @@ export default function RootLayout() {
       stopIsland();
       stopPill?.();
       stopResume();
+      stopGuard();
+      stopSpots();
       stopBackup();
       stopJournal();
       unsub();

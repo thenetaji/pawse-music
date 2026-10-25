@@ -98,7 +98,7 @@ Pawse installs through **SideStore**, which you set up once with a computer (it 
 https://raw.githubusercontent.com/thenetaji/pawse-music/main/sources/sidestore.json
 ```
 
-**[The iPhone guide](docs/IPHONE.md)** walks through installing SideStore, the 7-day limit, and fixes for "Untrusted Developer", an app with a cloud icon and sign-in errors.
+**[The iPhone guide](docs/IPHONE.md)** walks through installing SideStore, updates and the 7-day limit. Its [advanced troubleshooting](docs/IPHONE.md#advanced-troubleshooting) covers a missing Update button, the app limit, going back to an older version and a clean reinstall.
 
 ### Android
 You need Android 7.0 or newer.

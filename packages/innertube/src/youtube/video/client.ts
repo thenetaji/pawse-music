@@ -57,6 +57,8 @@ export interface YouTubeVideoOptions {
   visitorData?: string;
   /** Cookie header for www.youtube.com when signed in; without it the feeds are signed out. */
   cookies?: () => string | undefined;
+  /** True while searches should go out signed out, so they stay out of the account's search history. */
+  privateSearch?: () => boolean;
   /** Topics the signed-out home searches (YouTube's own signed-out home is empty). */
   homeTopics?: string[];
   /** Remote stream-client list for resolveStream; null (default) keeps the built-in chain. */
@@ -321,7 +323,11 @@ export class YouTubeVideo {
   /** Videos and channels only; playlists, Shorts, ads and mixes are dropped. */
   async search(q: string, continuation?: string): Promise<VideoSearchResults> {
     return parseVideoSearch(
-      await this.call("search", continuation ? { continuation } : { query: q }),
+      await this.call(
+        "search",
+        continuation ? { continuation } : { query: q },
+        this.opts.privateSearch?.(),
+      ),
     );
   }
 

@@ -1,7 +1,9 @@
 import { getProgress, usePlayerStore } from "@pawse/player";
 import { useVideoPlayer, type VideoPlayer, VideoView } from "expo-video";
 import { useEffect } from "react";
-import type { StyleProp, ViewStyle } from "react-native";
+import { Platform, type StyleProp, type ViewStyle } from "react-native";
+
+import { reclaimNowPlaying } from "../playback/now-playing-guard";
 
 // Closer than this and the picture is left alone; a nudge every half second keeps lips in time.
 const DRIFT_SEC = 0.35;
@@ -26,8 +28,9 @@ export function SyncedVideo({
   const contentType = uri.startsWith("file:") ? "progressive" : "hls";
   const video = useVideoPlayer({ uri, contentType }, (p) => {
     p.muted = true;
-    // Never take the audio session from the music player.
-    p.audioMixingMode = "mixWithOthers";
+    // iOS: "mix" would cost the song its Dynamic Island and lock screen; it's one app, so nothing is taken.
+    // Android: mixing keeps the music's audio focus.
+    p.audioMixingMode = Platform.OS === "ios" ? "doNotMix" : "mixWithOthers";
   });
   useEffect(() => {
     let seekedAt = 0;
@@ -47,7 +50,11 @@ export function SyncedVideo({
     };
     tick();
     const timer = setInterval(tick, TICK_MS);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      // The player is released with this view, and that resets the audio session.
+      reclaimNowPlaying();
+    };
   }, [video]);
   return (
     <VideoView

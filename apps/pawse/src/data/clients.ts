@@ -55,6 +55,7 @@ export const ytv = new YouTubeVideo({
   hl: languageCode(settings().language),
   gl: gl(regionCode(settings().region)),
   cookies: () => settings().cookies ?? undefined,
+  privateSearch: () => !!settings().incognito,
   sandbox: youtubeSandbox,
   poToken: poTokenProvider,
   platform: Platform.OS,

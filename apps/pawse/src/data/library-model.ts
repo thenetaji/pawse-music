@@ -85,6 +85,8 @@ export type Settings = {
   hiddenFromHome: string[];
   // Privacy
   pauseHistory: boolean;
+  /** Nothing played, watched or searched is kept or sent to YouTube's history. */
+  incognito: boolean;
   // Android
   androidPill: boolean;
   /** Pill offset from its default spot, dp. */
@@ -162,6 +164,7 @@ export const DEFAULT_SETTINGS: Settings = {
   explicitFilter: false,
   hiddenFromHome: [],
   pauseHistory: false,
+  incognito: false,
   androidPill: false,
   androidPillOffset: 0,
   videos: true,
