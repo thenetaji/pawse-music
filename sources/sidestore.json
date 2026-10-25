@@ -11,12 +11,22 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.11.1",
+          "buildVersion": "11101",
+          "date": "2026-10-25",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.11.1/Pawse.ipa",
+          "size": 24721448,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Incognito. Turn it on in Settings → Privacy, or hold the Settings button on Home. While it's on, nothing you play, watch or search is kept: no listening or watch history, no Continue, no search history, nothing learned for recommendations, and nothing sent to YouTube's history (video searches go out signed out). An Incognito chip on Home shows it's on; tap it to turn it off.\n• Resume a playlist where you stopped. A playlist's page offers Resume and says where you stopped, with Start over beside it. A music playlist picks up at the song you were on. A YouTube playlist of videos (a course, a series) opens the video you were on at your spot, or the next one if you finished it.\n• Watch a YouTube playlist in order. Playlists of videos show Watch instead of Play, and tapping one opens the watch page with the rest of the list under it (\"2 of 13\"). Each video plays the next when it ends.\n• YouTube playlists in Search. The All tab shows playlists and courses beside videos and channels, with how many videos each has.\n• Pin a playlist or album to Home from its ⋯ menu, or by holding a playlist in Search. It sits in the Pinned row with your pinned videos.\n• A red bar on videos you've watched, everywhere videos show up: how far you got, or the whole width when you finished it.\n\nFixed:\n• The Dynamic Island and lock-screen player on iPhone stay with the music. Opening, closing or switching videos, or the Video side of the player, could make iPhone treat Pawse as background audio and drop them until something else played.\n• Tapping a video shows or hides the controls straight away, anywhere on the picture. Before, a tap waited to see if a double tap followed, so a quick second tap on a side skipped 10 seconds instead. Double tap now skips only on the left and right thirds.\n• SideStore's What's New shows the release notes instead of \"nil\".\n• Pinch to zoom in full screen, like YouTube: pinch out and the video fills the whole screen, under the notch too; pinch in to see all of it again. Pinching no longer counts as taps that skip the video.\n• Full screen is only the video. The status bar is hidden and the thin progress line goes away with the controls.\n• Choices in menus are readable on iPhone. Lists like playback speed and quality showed the unpicked choices in black on the dark menu; they're white now, and the picked one is always bright enough to see.\n• Room between music and videos in Home's endless feed: a video no longer sits right against the shelf above it."
+        },
+        {
           "version": "1.11.0",
           "buildVersion": "11100",
           "date": "2026-10-25",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.11.0/Pawse.ipa",
           "size": 24707972,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Focus mode (Settings, or Edit Home). One switch takes away comments, view and like counts, Up next, autoplay and YouTube's suggestions, and Home ends when you're caught up. Each part also has its own switch: hide comments, hide counts, hide Up next, plain thumbnails (a still from the middle of the video instead of the clickbait picture), honest titles, hide search suggestions, and a break reminder that pauses the video every 15 to 90 minutes. It replaces the Calm watch page.\n• Full or Focus Home. Edit Home starts with the two: Full has everything and ends in a feed that keeps going, with YouTube videos between the music; Focus keeps only what you follow, play and pin.\n• Pin to Home. Pin any video, channel, playlist, album, artist or song from its ⋯ menu, and it sits in a Pinned row near the top of Home. Press and hold a pin to move it or unpin it.\n• Subscribe without signing in. The Subscribe button is on every channel page and watch page. Signed out, your subscriptions live on the phone and fill Your people and New from your channels; signed in, they go to YouTube too.\n• Unsubscribe from Your people. Press and hold a channel or artist there to open it, pin it or unsubscribe.\n• Channel pages have a Subscribe button, a ⋯ menu (pin, share, don't show this channel) and pull to refresh.\n• A music mark (♪) on videos YouTube files as music.\n• Menus for albums, artists and playlists. Press and hold one to save it, follow, pin it or share it.\n• Remove from history in a watched video's menu, and the Watched and Liked videos rows open the menu on a long press.\n• Landscape full screen. Swipe up on a video, or tap the full-screen button, and it turns sideways and fills the screen; swipe down or tap the button again to come back.\n• A small DeArrow mark (a blue arrow in a circle) next to a video's views when DeArrow changed its title or picture. On the watch page, tap it to see the original title.\n• Try again on a video that stops playing, which picks up from the same moment. It sits beside Play the downloaded copy when you have one.\n\nFixed:\n• The Video side of the player shows the real music video. Most YouTube Music songs are audio uploads whose \"video\" is the album cover. Pawse now finds the song's official music video, and when a song has none, Video is struck through instead of showing a still picture. Watch video in a song's menu opens the music video too.\n• Tapping Home (or Explore, Library) again goes back to the top, and from the top it refreshes, like YouTube.\n• Pull to refresh shows that it's working and waits for the new feed.\n• Tapping a playing video shows the controls every time. Before, taps stopped working after a few seconds until you minimised the video.\n• Opening a video while music plays, then minimising it, no longer closes the video. The music used to start again by itself and push the video out.\n• The mini player on iPhone shows one picture instead of two copies fighting over the video.\n• A minimised video stays minimised when autoplay moves on to the next one.\n• The end card goes away when you play the video again from the mini player, a chapter or a comment's timestamp.\n• Removing a downloaded video keeps the song if you downloaded the song too.\n• Pull down on Home now refreshes the video rows and mixes, not only the YouTube Music picks.\n• Search filters come back after you tap into the search box and close the keyboard.\n• Comments that fail to load say so, with a tap to try again, instead of loading forever.\n• The song's lock-screen info on iPhone is no longer cleared when the Video side opens or closes.\n• Minimising a video keeps your exact spot for Continue, and sharing a video on iPhone no longer pastes the link twice.\n• The tiny video server on iPhone turns away any connection that isn't from the phone itself.\n\nChanged:\n• Search's All tab searches YouTube, videos and channels, and loads more as you scroll. When YouTube says the results are music, the matching songs sit on top, ready to play. Songs, Albums, Artists and Playlists still search YouTube Music.\n• Home starts as Full: Suggested videos and the endless feed are on unless you changed Home before. Choose Focus in Edit Home for a Home that ends.\n• No bar at the top when you scroll Home, Explore or Library: the page runs to the top of the screen.\n• New icons throughout, from one set (Lucide), in place of hand-drawn ones.\n• Better menus. The video menu shows the video on top, with Save, Download and Share, then Listen, Pin to Home, Go to channel and Don't show. Choices like quality, speed and settings lists have a tick on the right instead of a ✓ in the text.\n• Smoother minimise and expand, with the video easing down and fading into the mini player.\n• The Video side of the player has rounded corners instead of a hard-edged box.\n• A calmer mini player swipe. Swiping to skip moves less and settles without the bounce."
         },
         {
           "version": "1.10.0",
@@ -24,7 +34,8 @@
           "date": "2026-10-25",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.10.0/Pawse.ipa",
           "size": 24664948,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• A new Home. It opens with Continue: the video you were partway through (with how long is left) or the last song, whichever is newer. Your people follows: the channels you subscribe to and the artists you follow, with a dot when one has posted in the last two days. Then the latest videos from your channels, Jump back in, your mixes, For you and Liked lately, and Home ends there.\n• Edit Home. Turn each section on or off and move it up or down (Settings, or the button at the bottom of Home). YouTube's suggestions, the video feed and the YouTube Music picks, are off until you turn them on; with picks on, Home keeps going like before.\n• Videos pick up where you left off. Open a video you stopped partway and it starts from there.\n• A YouTube filter in Search for videos and channels from all of YouTube.\n• Comments. The watch page shows the comment count and the top comment; tap for all of them, with replies, likes and the creator's hearts. Times like 1:23 in a comment jump the video there.\n• Subscribe and like from the watch page when signed in, with the subscriber count beside the channel.\n• Calm watch page (Settings): no comments, counts or Up next.\n• YouTube's player controls. Tap the video for previous, play/pause and next, the time, full screen, an autoplay switch and settings (quality and playback speed). Double-tap either side to skip 10 seconds. Drag the red bar along the bottom to seek, with the time and chapter showing as you go. The controls fade away while the video plays.\n• Download videos to watch offline, in the quality you pick (with its size). A downloaded video shows up in Downloads, plays without a connection in the player with its picture on the Video side, and the watch page offers the downloaded copy when it can't stream.\n• Save to playlist from the watch page and from any video's ⋯ menu.\n• Liked videos and Watched rows in Library.\n• The video mini player shows how far through you are.\n\nChanged:\n• The watch page feels like YouTube. The video stays at the top while the page scrolls under it, the status bar above it is black, and the glow now spreads out below the video instead of above it. The title opens the full description; Up next is full-width videos.\n• Like and dislike work when you're signed out too. They're kept on the phone, and also go to YouTube when you're signed in. Videos you dislike stop showing up in feeds and Up next.\n• A smaller Song | Video switch in the player, dark and out of the way, so it no longer sits across faces in the artwork; the top of the artwork is darker behind it.\n• Videos are on for everyone and no longer under Experimental. The Watch tab is gone: Home and Search cover music and videos, and All videos on Home opens the full list of your subscriptions. Settings has a YouTube videos switch for music only.\n• The Calm / Everything / Only my music choice became Edit Home. Anyone on \"Only my music\" keeps mixes and For you off."
         },
         {
           "version": "1.9.0",
@@ -32,7 +43,8 @@
           "date": "2026-10-25",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.9.0/Pawse.ipa",
           "size": 24622065,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Fixed:\n• Videos play on iPhone. iPhone's player won't open a playlist saved on the phone, so videos never started. Pawse now hands playlists to the player through a tiny server that only the phone itself can reach.\n• Long songs on iPhone get the same fix. The faster path for songs over about 10 minutes, from 1.6.0, never actually ran on iPhone; it does now.\n\nAdded:\n• Videos keep playing when you leave them, like YouTube. Drag a video down (or go back) and it shrinks into the mini player above the tabs, still playing. Tap it to grow it back; ✕ closes it. Starting a song closes it too, since only one plays at a time. On computers it floats above the player bar, and Esc shrinks it.\n• The video page loads with its shape already there: the title and picture from the card you tapped show at once, with placeholders for the rest instead of a black box.\n• Every quality, and Auto. Videos come in every H.264 quality YouTube has (144p to 1080p60). Auto moves between them as your connection allows and shows the one playing (Auto · 720p60). Change it on any video with the Quality button; the video carries on from the same moment. Set the default in Experimental → Video quality.\n• Song | Video switch in the player for YouTube songs. Video shows the song's video in place of the cover, muted and in time with the music; it plays, pauses and seeks with the song. The ⤢ button opens the full video. Turn the switch off in Experimental.\n• Experimental has its own page in Settings, so Settings stays short.\n• Share on a video, and a ⋯ menu on every video card.\n• Video problems go into Settings → About → Diagnostics, so a report says what went wrong.\n\nChanged:\n• Watch looks like YouTube. No big title or bar at the top: the search box sits under the clock, videos run edge to edge on phones, and computers get a grid.\n• The video page is full screen, not a card over the page behind it, so there's no gap or rounded edge above the video. It slides up when it opens. The Edge-to-edge setting is gone; this is how it always looks now.\n• The video page puts the channel first, then a row of buttons: likes, Quality, Listen and Share."
         },
         {
           "version": "1.8.0",
@@ -40,7 +52,8 @@
           "date": "2026-10-25",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.8.0/Pawse.ipa",
           "size": 24598370,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Crossfade. Settings → Playback → Crossfade (3 to 12 seconds) fades a song out over its last seconds and fades the next one in, so songs no longer stop dead. Pawse plays one song at a time, so the two don't overlap; it's a soft hand-off rather than a DJ mix. Off by default, and a song on repeat never fades.\n• Edge-to-edge video (Experimental). The video fills the top of the screen, like YouTube, with no close arrow above it. Swipe down or go back to close it, or press Esc on computers.\n• Dislikes on videos (Experimental). Show dislikes puts the like and dislike counts under a video, with a bar for the share of likes. Dislike counts are estimates from Return YouTube Dislike.\n\nChanged:\n• The video page glows like YouTube's ambient mode. A soft, blurred copy of the picture lights the black around the player, then fades to true black, so OLED screens stay dark below it. On computers the glow follows the video as it plays; on phones it comes from the thumbnail."
         },
         {
           "version": "1.7.0",
@@ -48,7 +61,8 @@
           "date": "2026-10-25",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.7.0/Pawse.ipa",
           "size": 24594928,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Music videos skip their talking. Intros, skits and outros in music videos are jumped over, using SponsorBlock's community-marked \"non-music\" parts. A short note says when it happens. Settings → Experimental → Skip non-music parts turns it off.\n• Videos skip sponsor reads, self-promotion and \"like and subscribe\" reminders (SponsorBlock). Skip sponsors in Experimental turns it off.\n• Honest titles and thumbnails. Video titles and thumbnails come from DeArrow's community, without the all-caps clickbait and shocked faces, wherever someone has written a better one.\n• Block channels and words. Long-press a video (or right-click on computers) to block its channel. Add words in Settings → Experimental → Blocked channels and words to hide every video with them in the title. Blocked videos stay out of Watch, search and Up next.\n• Song ⇄ Video. With YouTube videos on, a video button at the top of the player opens the song's video right where the song is, and the music pauses.\n\nChanged:\n• Pawse asks SponsorBlock and DeArrow by the first characters of a hash of the video, so they never learn which video you're watching."
         },
         {
           "version": "1.6.0",
@@ -56,7 +70,8 @@
           "date": "2026-10-25",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.6.0/Pawse.ipa",
           "size": 22446558,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• YouTube videos, without the noise (Experimental). Turn on Settings → Experimental → YouTube videos and a Watch tab appears: your subscriptions when you're signed in, a feed when you're not, and video search. Shorts, ads and mixes never show up. Videos play in the phone's own player, with full screen, picture in picture and background play.\n• When a video ends, nothing starts by itself: Replay, Next or Done. Play the next video in Experimental turns autoplay back on.\n• On a video: chapters you can tap to jump to, the description, Up next, and Listen, which hands the video's sound to Pawse's music player so it plays like a song.\n• Watch video in a song's menu opens its video when YouTube videos is on.\n• Channel pages show a channel's videos, newest first, and never its Shorts.\n• A calmer Home (Experimental). Home → Calm keeps Home to what you play, a few picks and your mixes, and it ends with the cat asleep instead of scrolling forever. Only my music shows nothing suggested at all.\n• Search suggestions have an arrow on the right that puts the words in the search box so you can keep typing. Recent searches show while you type, and each one has its own × to remove it.\n\nFixed:\n• Long songs (over about 11 minutes) play on iPhone, Android and computers. YouTube slows any single request for more than about 10 MB to the speed of the song itself, and Pawse asked for long songs in one request, so they stalled before starting or partway through. Long songs now play from a playlist of small pieces, which also makes jumping ahead instant. On computers each request asks for at most 10 MB.\n• Pulling a page down past the top no longer shows a black band above the colour; the colour carries on up."
         },
         {
           "version": "1.5.1",
@@ -64,7 +79,8 @@
           "date": "2026-10-17",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.5.1/Pawse.ipa",
           "size": 24121098,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Fixed:\n• Long songs (from about 20 minutes up to hours) no longer stall before they start on iPhone. Pawse gave every song 8 seconds to start, but iPhone reads through a long file before playing it. Pawse then gave up, tried YouTube another way and started over, again and again. Long songs now get up to a minute to start and skip Pawse's song cache.\n• A long song that's slow to start no longer marks a way of reaching YouTube as bad for your other songs."
         },
         {
           "version": "1.5.0",
@@ -72,7 +88,8 @@
           "date": "2026-10-17",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.5.0/Pawse.ipa",
           "size": 24120196,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Pull down on Library to refresh your YouTube Music likes and playlists. A playlist you make on YouTube also shows up by itself when you open Library or come back to Pawse, instead of hours later.\n• Pull down on a YouTube playlist to see songs added to it on YouTube.\n• More in a Pawse playlist's ⋯ menu:\n  - Rename\n  - Duplicate\n  - Delete playlist\n  - Update from YouTube, for playlists you brought over from YouTube\n• After Select songs in your own playlist, a − button removes them all at once.\n• Tapping the tab you're on scrolls the page back to the top. On Android, it first goes back to the tab's first page.\n\nFixed:\n• A new, empty playlist had no ⋯ menu, so it couldn't be renamed or deleted.\n• Import → A playlist link: the keyboard no longer covers the link field. Go on the keyboard starts the import, and the result shows at the top.\n• Long tracks like hours of white noise or rain no longer keep loading on iPhone. Pawse tried to download them from the start into its song cache, which is too small for them, so they could stall and jumping ahead barely worked. Tracks that big now stream straight from YouTube and skip the cache. They also no longer download in full when they're up next."
         },
         {
           "version": "1.4.0",
@@ -80,7 +97,8 @@
           "date": "2026-10-12",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.4.0/Pawse.ipa",
           "size": 24115938,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Sign in with your browser on computers. Use my browser opens YouTube Music in your browser; sign in there with Firefox and Pawse picks up your account by itself within a few seconds. Google never sees Pawse, so it can't turn it away, and passkeys and 2-step verification work as usual. Pawse finds Firefox, Firefox Developer Edition and Nightly, including Flatpak and Snap installs, and keeps up with Google's refreshes for as long as you stay signed in to Firefox. This follows yt-dlp's --cookies-from-browser.\n• Right-click on computers opens the same menu a long press opens on a phone: songs in lists, song cards on Home and in search, Jump back in tiles, and lyrics lines (to share them).\n• On computers, queue rows and downloads have a ⋯ button and a right-click menu for what phones do by swiping: Play now, Play next, Add to playlist and Remove from queue in the queue; Play, Song options and Delete download in Downloads. On Home and in History, a song's right-click menu has Remove from Home & history.\n\nFixed:\n• \"Couldn't sign you in: this browser or app may not be secure\" in Pawse's own Google sign-in window on Mac, Windows and Linux. Sign in here instead gets through again."
         },
         {
           "version": "1.3.0",
@@ -88,7 +106,8 @@
           "date": "2026-10-12",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.3.0/Pawse.ipa",
           "size": 24114276,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Add to your YouTube Music playlists. When you're signed in, Add to playlist lists your YouTube Music playlists next to your Pawse ones, and the song goes into the playlist on YouTube too. Changes reach YouTube at the same gentle pace as likes.\n• Add many songs at once. The ⋯ button on any playlist or album adds every song to a playlist, or lets you pick songs with Select songs. In the queue, Save adds the song playing now and everything up next.\n• Playlist tools. From a Pawse playlist's ⋯ menu: Sort by date added, title, artist or most played (the new order is saved), Merge another playlist in (songs already there are skipped, and you can delete the other one afterwards) and Remove repeats.\n• A short note at the top of the screen tells you where songs went, or that YouTube didn't take them.\n\nFixed:\n• Add to playlist only offered \"New playlist\" when your playlists were all on YouTube Music.\n• Skipping no longer bounces back to the start of the song. If the next songs can't play, Pawse keeps playing the song you were on and tells you, instead of jumping back to its start.\n• One song YouTube won't play no longer makes Pawse stop asking YouTube in that way for every song. A way of asking now only rests after it fails on two different songs.\n• When YouTube Music's website or the embedded player says one song is unavailable, Pawse still tries the other ways for that song."
         },
         {
           "version": "1.2.0",
@@ -96,7 +115,8 @@
           "date": "2026-10-12",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.2.0/Pawse.ipa",
           "size": 24099168,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• More ways to reach YouTube. Pawse now asks the way YouTube Music's own website does (with a \"proof of origin\" token from a hidden page), the way YouTube's TV app does, and the way an embedded player does, before falling back to the visionOS ways it used until now. Fewer songs get stuck or skipped.\n• Follows yt-dlp. The list of ways to ask YouTube and the code that unlocks YouTube's song links come straight from yt-dlp, so when yt-dlp adapts to a YouTube change, Pawse can pick it up quickly. Credits for yt-dlp, NewPipe, Metrolist, BgUtils and others are in NOTICE.md.\n• Songs you've played replay from your phone. A song in Pawse's cache plays from the phone instead of downloading again, which saves data and keeps YouTube happier.\n\nChanged:\n• When YouTube asks \"are you a bot?\", Pawse backs off for 15 minutes (then 30, then 60 if it keeps asking) instead of trying again and again, and plays the song from JioSaavn or your downloads meanwhile.\n• A YouTube song that stops partway through picks up where it stopped through another way of asking YouTube; the way that failed rests for 30 minutes.\n• If three songs in a row can't start, Pawse stops and tells you instead of skipping through your whole queue.\n• Pawse keeps one visitor id instead of looking new to YouTube every time, and fetches only the next song ahead instead of two.\n\nFixed:\n• Sleep timer: \"End of this song\" stops the music. It used to slip to the next song and keep playing. The timed sleep timer now keeps time correctly when the phone sleeps.\n• Songs played in data-saver quality no longer go silent halfway while the time keeps running. iPhone read these songs as twice their length."
         },
         {
           "version": "1.1.0",
@@ -104,7 +124,8 @@
           "date": "2026-10-11",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.1.0/Pawse.ipa",
           "size": 24001482,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Sign in on Mac, Windows and Linux. Continue with Google opens Google's own sign-in window; once YouTube Music opens there, Pawse brings in your feed, likes and playlists, just like on a phone.\n• On computers, your YouTube session is stored encrypted with the system's keychain (Keychain on Mac, Windows' built-in encryption, KWallet or GNOME Keyring on Linux). On a Linux computer without a keyring, you stay signed in until you quit Pawse.\n\nChanged:\n• Pawse uses your account more gently. Search, artist and album pages, charts and new releases load signed out, so your account is only used for your feed, library, likes and history.\n• Signed-in requests come at a person's pace: a few at once, then about one every 2 seconds.\n• Likes, dislikes and follows reach YouTube 2.5 to 4.5 seconds apart, and at most 40 an hour; the rest wait their turn.\n• Library sync runs every 6 to 9 hours instead of exactly every 6.\n• If YouTube pushes back on your account, Pawse stops using it for 30 minutes and never retries those requests. Music keeps playing, since it always plays signed out."
         },
         {
           "version": "1.0.2",
@@ -112,7 +133,8 @@
           "date": "2026-10-11",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.0.2/Pawse.ipa",
           "size": 24000030,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• One download for every Mac: Pawse-mac.dmg runs on Apple silicon and Intel Macs.\n• Windows on ARM: the same Setup.exe installs the right app on Intel, AMD and Snapdragon PCs.\n• Fedora, RHEL and openSUSE get an .rpm, and every Linux file now comes for ARM computers too.\n\nFixed:\n• Computer: YouTube songs play again. Pawse asked YouTube over one kind of internet address and fetched the song over another, and YouTube refused it.\n• Computer: the visionOS app fallback reaches YouTube instead of failing with \"Failed to fetch\".\n• Linux: the window has Pawse's icon instead of a blank one.\n• The welcome screens stay phone-sized on a big window instead of stretching edge to edge.\n• Settings → About and the diagnostics log show the computer app's real version."
         },
         {
           "version": "1.0.1",
@@ -120,7 +142,8 @@
           "date": "2026-10-11",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.0.1/Pawse.ipa",
           "size": 21866129,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Fixed:\n• A fresh install no longer opens on \"Something went sideways\" (Cannot read properties of undefined). Pawse now starts cleanly before you've played anything."
         },
         {
           "version": "1.0.0",
@@ -128,7 +151,8 @@
           "date": "2026-10-10",
           "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.0.0/Pawse.ipa",
           "size": 21866174,
-          "minOSVersion": "16.4"
+          "minOSVersion": "16.4",
+          "localizedDescription": "Pawse's first stable release.\n\nChanged:\n• The island shows the time left by default: a ring in the song's colour that fills as it plays, with the time counting down inside. Pick the cat instead in Settings → Cat → Bubble shows.\n• The cat's big island player (press and hold) drops play and skip, since iOS's own player has them. Instead: bigger artwork in a glowing ring of the song's colour, the cat or a big time ring, the time bar, and Like and Dislike around the cat's mood line.\n• The Lock Screen card is useful now: the cat's take on the song, Like and Dislike buttons, and a bar in the song's colour.\n• Settings → Cat → Like and dislike on the island turns those buttons off.\n\nFixed:\n• A YouTube song that gets stuck before it starts no longer stalls: Pawse checks its link longer on slow connections and moves on to the next way of asking YouTube."
         }
       ]
     }
