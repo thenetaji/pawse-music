@@ -98,7 +98,16 @@ export default function SearchPage() {
     Keyboard.dismiss();
   };
 
+  // Puts a suggestion in the field to keep typing from it, like YouTube's arrow.
+  const fill = (q: string) => {
+    setText(`${q} `);
+    input.current?.focus();
+  };
   const typing = focused && !!debounced;
+  const needle = debounced.toLowerCase();
+  const typedRecent = recent
+    .filter((r) => r.toLowerCase().includes(needle))
+    .slice(0, 3);
   return (
     <View style={styles.root}>
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
@@ -189,38 +198,26 @@ export default function SearchPage() {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingBottom: bottom }}
         >
-          {(suggestions.data ?? []).map((s) => (
-            <Pressable
-              key={s}
-              onPress={() => submit(s)}
-              android_ripple={RIPPLE}
-              style={({ pressed }) => [
-                styles.sugg,
-                pressed && !RIPPLE && styles.pressed,
-              ]}
-            >
-              <Svg
-                width={15}
-                height={15}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="rgba(255,255,255,0.4)"
-                strokeWidth={2.4}
-                strokeLinecap="round"
-              >
-                <Circle cx="11" cy="11" r="7" />
-                <Path d="M20 20l-3.5-3.5" />
-              </Svg>
-              <Text style={styles.suggText} numberOfLines={1}>
-                {s}
-              </Text>
-            </Pressable>
+          {typedRecent.map((s) => (
+            <SuggestionRow
+              key={`r:${s}`}
+              text={s}
+              recent
+              onPick={submit}
+              onFill={fill}
+            />
           ))}
+          {(suggestions.data ?? [])
+            .filter((s) => !typedRecent.includes(s))
+            .map((s) => (
+              <SuggestionRow key={s} text={s} onPick={submit} onFill={fill} />
+            ))}
         </ScrollView>
       ) : !query ? (
         <EmptySearch
           recent={recent}
           onPick={submit}
+          onFill={fill}
           bottom={bottom}
           accent={accent}
         />
@@ -247,14 +244,99 @@ export default function SearchPage() {
 
 type Tile = { title: string; params: string; color?: string };
 
+const DIM = "rgba(255,255,255,0.4)";
+
+/** One suggestion or past search: tap searches, the arrow fills the field, × forgets a past search. */
+function SuggestionRow({
+  text,
+  recent,
+  onPick,
+  onFill,
+}: {
+  text: string;
+  recent?: boolean;
+  onPick: (q: string) => void;
+  onFill: (q: string) => void;
+}) {
+  return (
+    <Animated.View layout={LinearTransition.duration(200)}>
+      <Pressable
+        onPress={() => onPick(text)}
+        android_ripple={RIPPLE}
+        style={({ pressed }) => [
+          styles.sugg,
+          pressed && !RIPPLE && styles.pressed,
+        ]}
+      >
+        <Svg
+          width={16}
+          height={16}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={DIM}
+          strokeWidth={2.4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {recent ? (
+            <>
+              <Circle cx="12" cy="12" r="8.5" />
+              <Path d="M12 7.5V12l3 2" />
+            </>
+          ) : (
+            <>
+              <Circle cx="11" cy="11" r="7" />
+              <Path d="M20 20l-3.5-3.5" />
+            </>
+          )}
+        </Svg>
+        <Text style={styles.suggText} numberOfLines={1}>
+          {text}
+        </Text>
+        {recent ? (
+          <Pressable
+            hitSlop={6}
+            accessibilityLabel={`Remove ${text} from recent searches`}
+            onPress={() => useLibrary.getState().removeSearch(text)}
+            style={styles.suggAction}
+          >
+            <CloseGlyph size={10} weight={2.6} color={DIM} />
+          </Pressable>
+        ) : null}
+        <Pressable
+          hitSlop={6}
+          accessibilityLabel={`Search for ${text}…`}
+          onPress={() => onFill(text)}
+          style={styles.suggAction}
+        >
+          <Svg
+            width={17}
+            height={17}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={DIM}
+            strokeWidth={2.4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <Path d="M18 18L7 7M7 15V7h8" />
+          </Svg>
+        </Pressable>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 function EmptySearch({
   recent,
   onPick,
+  onFill,
   bottom,
   accent,
 }: {
   recent: string[];
   onPick: (q: string) => void;
+  onFill: (q: string) => void;
   bottom: number;
   accent: string;
 }) {
@@ -277,20 +359,13 @@ function EmptySearch({
             </Pressable>
           </View>
           {recent.slice(0, 6).map((s) => (
-            <Pressable
+            <SuggestionRow
               key={s}
-              onPress={() => onPick(s)}
-              android_ripple={RIPPLE}
-              style={({ pressed }) => [
-                styles.sugg,
-                pressed && !RIPPLE && styles.pressed,
-              ]}
-            >
-              <Text style={styles.recentIcon}>↺</Text>
-              <Text style={styles.suggText} numberOfLines={1}>
-                {s}
-              </Text>
-            </Pressable>
+              text={s}
+              recent
+              onPick={onPick}
+              onFill={onFill}
+            />
           ))}
         </View>
       ) : null}
@@ -630,6 +705,14 @@ const styles = StyleSheet.create({
   },
   pressed: { backgroundColor: "rgba(255,255,255,0.06)" },
   suggText: { flex: 1, color: "#fff", fontSize: 17 },
+  suggAction: {
+    width: 34,
+    height: 34,
+    marginRight: -8,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   recentHead: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -640,12 +723,6 @@ const styles = StyleSheet.create({
   },
   recentTitle: { color: "#fff", fontSize: 20, ...display("800") },
   clearAll: { fontSize: 15, fontWeight: "600" },
-  recentIcon: {
-    color: "rgba(255,255,255,0.4)",
-    fontSize: 17,
-    width: 15,
-    textAlign: "center",
-  },
   ideas: {
     flexDirection: "row",
     flexWrap: "wrap",

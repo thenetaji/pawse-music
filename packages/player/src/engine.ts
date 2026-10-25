@@ -59,8 +59,10 @@ const CACHE_BYTES = 256 * 1024 * 1024;
 const PRELOAD_WINDOW = 1;
 // Near the end of a song, retry a next-song prefetch that failed earlier.
 const NEAR_END_SEC = 30;
-// Longer streams (about 17 min at 128 kbps and up) skip the disk cache: iOS then plays them direct, by range.
-const CACHE_MAX_STREAM_BYTES = 16 * 1024 * 1024;
+// googlevideo slows one request for more than 10 MiB (about 11 min at 128 kbps) to playback speed, so the
+// cache proxy, which fetches a song in one request, only takes smaller ones; longer ones play from their playlist.
+const CACHE_MAX_STREAM_BYTES = 10 * 1024 * 1024;
+const HLS_MIME = "application/x-mpegURL";
 
 export { POS_KEY, QUEUE_KEY };
 
@@ -84,6 +86,9 @@ const failedVia = new Map<string, Set<string>>(); // track id -> stream sources 
 const avoidVia = new Map<string, number>(); // source -> until; failed on this device, tried last (latest last)
 const strikes = new Map<string, Map<string, number>>(); // source -> track id -> when it failed there
 const fromDisk = new WeakSet<ResolvedStream>(); // streams restored from storage, maybe for another network
+const onPlaylist = new Set<string>(); // entry keys the native queue holds as a byte-range playlist
+// A player that couldn't open a playlist plays long songs direct for the rest of the session.
+let playlistsOff = false;
 let failedStarts = 0;
 let userScan = false;
 let changedAt = 0;
@@ -221,7 +226,8 @@ async function loadStreams(): Promise<void> {
     if (typeof via === "string" && until > now && !avoidVia.has(via))
       avoidVia.set(via, until);
   for (const [id, st] of d.streams ?? []) {
-    if (streams.has(id) || typeof st?.url !== "string") continue;
+    // Playlists live in the cache folder, which the system may have cleared.
+    if (streams.has(id) || typeof st?.url !== "string" || st.playlist) continue;
     if (!isFresh(st.expiresAt) || avoidVia.has(st.via)) continue;
     streams.set(id, st);
     fromDisk.add(st);
@@ -299,21 +305,33 @@ const headersOf = (st: ResolvedStream) =>
 const streamBytes = (st: ResolvedStream) =>
   st.contentLength ?? ((st.durationSec ?? 0) * st.bitrate) / 8;
 const cacheable = (st: ResolvedStream) =>
-  st.via !== "local" && streamBytes(st) <= CACHE_MAX_STREAM_BYTES;
+  st.via !== "local" &&
+  !st.playlist &&
+  streamBytes(st) <= CACHE_MAX_STREAM_BYTES;
+const playlistOf = (st: ResolvedStream) =>
+  playlistsOff ? undefined : st.playlist;
 
 function mediaItem(key: string, track: Track): MediaItem {
   const st = streams.get(track.id);
   const ok = st && isFresh(st.expiresAt);
   if (ok) live.set(key, st.expiresAt);
   else live.delete(key);
-  const headers = ok ? headersOf(st) : undefined;
+  const playlist = ok ? playlistOf(st) : undefined;
+  if (playlist) onPlaylist.add(key);
+  else onPlaylist.delete(key);
+  const headers = ok ? (playlist ? st.headers : headersOf(st)) : undefined;
   const relayed = ok && opts?.streamUrl ? opts.streamUrl(st) : undefined;
+  const uri = playlist ?? st?.url;
   return {
     mediaId: key,
     url: !ok
       ? PLACEHOLDER + key
-      : (relayed ?? (headers ? { uri: st.url, headers } : st.url)),
-    mimeType: ok ? st.mimeType.split(";")[0] : undefined,
+      : (relayed ?? (headers ? { uri: uri!, headers } : uri!)),
+    mimeType: ok
+      ? playlist
+        ? HLS_MIME
+        : st.mimeType.split(";")[0]
+      : undefined,
     // Keyed by song, not URL (which changes every resolve), so a replay plays from the disk cache.
     cacheKey:
       ok && cacheable(st)
@@ -680,6 +698,21 @@ async function onError(e: PlaybackErrorEvent): Promise<void> {
   if (!track) return;
   const gen = navGen;
   const position = TrackPlayer.getProgress().position || savedPos;
+  // The player can't open a playlist (an error, or stuck before the first second): play long songs direct from now on.
+  const playlistFailed =
+    e.code === "source" || ((e.code as string) === "stalled" && position < 1);
+  if (playlistFailed && onPlaylist.has(key) && st && !playlistsOff) {
+    playlistsOff = true;
+    diag("playlist-off", `${track.id}: ${e.message}`);
+    changedAt = Date.now();
+    for (const k of [...onPlaylist]) {
+      const at = s.keys.indexOf(k);
+      if (at >= 0) TrackPlayer.replaceMediaItem(at, itemAt(at));
+    }
+    if (position > 0) TrackPlayer.seekTo(position);
+    if (wantPlay) TrackPlayer.play();
+    return;
+  }
   const last = retried.get(key);
   // A source error (HTTP status, unreadable file) blames the stream's source, so the next source gets a turn.
   // A YouTube URL that stalls counts too: at the start AVPlayer just buffers a refused URL, mid-song it is a PO-token 403.
@@ -750,11 +783,14 @@ function stallMs(): number {
   return Math.min(STALL_START_MAX_MS, STALL_MS + min * STALL_START_PER_MIN_MS);
 }
 
-/** The current song plays straight from its source, not through the disk cache (for the diagnostics log). */
-function directNow(): boolean {
+/** How the current song reaches the player, for the diagnostics log: its playlist, direct, or through the cache. */
+function pathNow(): string {
+  const key = get().keys[get().index];
   const track = get().tracks[get().index];
   const st = track && streams.get(track.id);
-  return !!st && st.via !== "local" && !cacheable(st);
+  if (!st || st.via === "local") return "";
+  if (onPlaylist.has(key)) return " (playlist)";
+  return cacheable(st) ? "" : " (direct)";
 }
 
 function tick(): void {
@@ -970,7 +1006,7 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
         if (nativeState === PlaybackState.Buffering && wantPlay)
           void onError({
             code: "stalled",
-            message: `Playback stalled after ${Math.round(ms / 1000)} s${directNow() ? " (direct)" : ""}`,
+            message: `Playback stalled after ${Math.round(ms / 1000)} s${pathNow()}`,
           } as unknown as PlaybackErrorEvent);
       }, ms);
     }
@@ -1300,6 +1336,8 @@ export function __resetForTests(): void {
   strikes.clear();
   failedStarts = 0;
   changedAt = 0;
+  onPlaylist.clear();
+  playlistsOff = false;
   clearTimeout(streamsTimer);
   nativeLoaded = false;
   sleepKey = undefined;

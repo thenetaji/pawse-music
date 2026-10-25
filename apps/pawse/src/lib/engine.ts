@@ -9,12 +9,13 @@ import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
 import { readyArtwork, startArtwork } from "./artwork";
 import { logEvent } from "./diagnostics";
+import { withPlaylist } from "./long-stream";
 import { relayStream } from "./net";
 import { noteStall } from "./quality";
 import { autoplayMode } from "./settings";
 import { clearResources } from "./use-resource";
 
-export { lyricsService, saavn, yt } from "../data/clients";
+export { lyricsService, saavn, yt, ytv } from "../data/clients";
 
 const settings = () => useLibrary.getState().settings;
 
@@ -38,7 +39,10 @@ useLibrary.subscribe((st) => {
 let started: Promise<void> | null = null;
 export function startEngine() {
   started ??= setupPlayer({
-    resolver,
+    resolver: {
+      resolve: (t, o) =>
+        resolver.resolve(t, o).then((st) => withPlaylist(t.id, st)),
+    },
     catalog: yt,
     storage: playerStorage,
     pauseOnDisconnect: settings().pauseOnDisconnect,

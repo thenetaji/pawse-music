@@ -4,6 +4,7 @@ import { Platform, StyleSheet, View } from "react-native";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOnline } from "../../data/downloads";
+import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
 import { useAccent } from "../now-playing/now-palette";
@@ -12,6 +13,7 @@ import { useAccent } from "../now-playing/now-palette";
 export function PhoneTabs() {
   const accent = useAccent();
   const hasTrack = usePlayerSelect((s) => !!s.current);
+  const watch = useSetting("ytMode", false);
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <NativeTabs
@@ -31,6 +33,17 @@ export function PhoneTabs() {
         >
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
+        </NativeTabs.Trigger>
+        <NativeTabs.Trigger
+          name="(watch)"
+          hidden={!watch}
+          contentStyle={{ backgroundColor: "#000" }}
+        >
+          <NativeTabs.Trigger.Label>Watch</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon
+            sf="play.rectangle.fill"
+            md="smart_display"
+          />
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(explore)"

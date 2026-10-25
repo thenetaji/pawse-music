@@ -14,6 +14,8 @@ import Svg, { Circle, Path } from "react-native-svg";
 import { Artwork } from "../../components/artwork";
 import { useTabRoot } from "../../components/page";
 import { Shelf } from "../../components/shelf";
+import { CaughtUp } from "../../components/caught-up";
+import { TrackRow } from "../../components/track-row";
 import {
   CatState,
   Chip,
@@ -43,9 +45,11 @@ export default function HomePage() {
   useTabRoot("home");
   const accent = useAccent();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
+  const style = useSetting<"full" | "calm" | "mine">("homeStyle", "full");
+  const full = style === "full";
   const [chip, setChip] = useState<string | undefined>();
   const home = useResource<HomeFeed>(
-    `home:${chip ?? ""}`,
+    full ? `home:${chip ?? ""}` : null,
     () => yt.home(chip),
     { keep: true },
   );
@@ -123,7 +127,7 @@ export default function HomePage() {
       background={<TopGlow />}
       onRefresh={home.reload}
       refreshing={false}
-      onEndReached={loadMore}
+      onEndReached={full ? loadMore : undefined}
       right={
         <View style={styles.headRight}>
           <HomeCat />
@@ -139,8 +143,9 @@ export default function HomePage() {
       }
     >
       <CatLine />
-      {!signedIn ? <SignInCard accent={accent} /> : null}
-      {home.data?.chips.length ? (
+      {!signedIn && full ? <SignInCard accent={accent} /> : null}
+      {!full ? <QuietHome mine={style === "mine"} /> : null}
+      {full && home.data?.chips.length ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -157,11 +162,11 @@ export default function HomePage() {
           ))}
         </ScrollView>
       ) : null}
-      {!chip ? <JumpBackIn /> : null}
-      {!chip ? <ForYou part="lead" /> : null}
-      {!chip ? <Mixes /> : null}
-      {!chip ? <ForYou part="rest" /> : null}
-      {home.data ? (
+      {full && !chip ? <JumpBackIn /> : null}
+      {full && !chip ? <ForYou part="lead" /> : null}
+      {full && !chip ? <Mixes /> : null}
+      {full && !chip ? <ForYou part="rest" /> : null}
+      {!full ? null : home.data ? (
         shelves.map((s, i) => (
           <Animated.View
             key={`${s.title}${i}`}
@@ -180,10 +185,40 @@ export default function HomePage() {
       ) : (
         <SkeletonShelves />
       )}
-      {home.data ? (
+      {full && home.data ? (
         <EndSpinner loading={loadingMore} onPress={loadMore} />
       ) : null}
     </Screen>
+  );
+}
+
+// Calm and "only my music" Home: what you play and like, a few picks for Calm, then it ends.
+function QuietHome({ mine }: { mine: boolean }) {
+  const liked = useLibrary((s) => s.liked);
+  const recent = liked.slice(0, 8);
+  return (
+    <>
+      <JumpBackIn max={mine ? 8 : 6} />
+      {!mine ? <ForYou part="lead" /> : null}
+      {!mine ? <Mixes /> : null}
+      {recent.length ? (
+        <View>
+          <SectionTitle title="Liked lately" />
+          {recent.map((t, i) => (
+            <TrackRow
+              key={t.id}
+              track={t}
+              onPress={() =>
+                void player.play(recent, i, {
+                  source: { type: "library", title: "Liked songs" },
+                })
+              }
+            />
+          ))}
+        </View>
+      ) : null}
+      <CaughtUp />
+    </>
   );
 }
 
@@ -246,7 +281,7 @@ function ForYou({ part }: { part: "lead" | "rest" }) {
 }
 
 // "Jump back in": your recent plays as big tiles, one tap to resume.
-function JumpBackIn() {
+function JumpBackIn({ max = 6 }: { max?: number }) {
   const history = useLibrary((s) => s.history);
   const keep = useHomeKeep();
   const seen = new Set<string>();
@@ -255,7 +290,7 @@ function JumpBackIn() {
     if (seen.has(h.track.id) || !keep(h.track)) continue;
     seen.add(h.track.id);
     recent.push(h.track);
-    if (recent.length === 6) break;
+    if (recent.length === max) break;
   }
   if (recent.length < 2) return null;
   return (

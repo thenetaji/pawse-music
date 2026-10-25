@@ -23,6 +23,7 @@ import { Cat, type CatColor } from "../cat/cat";
 import { useAccent } from "../now-playing/now-palette";
 import {
   ExploreIcon,
+  WatchIcon,
   GearIcon,
   HomeIcon,
   LibraryIcon,
@@ -38,6 +39,7 @@ export const DESKTOP_MIN_WIDTH = 900;
 
 const NAV = [
   { name: "home", href: "/", label: "Home", Icon: HomeIcon },
+  { name: "watch", href: "/watch", label: "Watch", Icon: WatchIcon },
   { name: "explore", href: "/explore", label: "Explore", Icon: ExploreIcon },
   { name: "search", href: "/search", label: "Search", Icon: SearchIcon },
   { name: "library", href: "/library", label: "Library", Icon: LibraryIcon },
@@ -71,13 +73,14 @@ export function DesktopShell() {
 
 function Sidebar() {
   const accent = useAccent();
+  const watch = useSetting("ytMode", false);
   return (
     <View style={styles.sidebar}>
       <View style={styles.brand}>
         <Text style={styles.wordmark}>Pawse</Text>
       </View>
       <View style={styles.nav}>
-        {NAV.map((n) => (
+        {NAV.filter((n) => watch || n.name !== "watch").map((n) => (
           <TabTrigger key={n.name} name={n.name} asChild>
             <NavItem label={n.label} Icon={n.Icon} accent={accent} />
           </TabTrigger>

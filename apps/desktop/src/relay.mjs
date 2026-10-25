@@ -14,6 +14,18 @@ const DROP = new Set([
   "connection",
   "content-length",
 ]);
+// googlevideo slows one request for more than 10 MiB to playback speed; the player asks for the rest as it needs it.
+const MEDIA_CHUNK = 10 << 20;
+
+/** A media range capped at MEDIA_CHUNK bytes (open-ended `bytes=N-` included); other ranges pass as they are. */
+export function capRange(range) {
+  const m = /^bytes=(\d+)-(\d*)$/.exec(range ?? "bytes=0-");
+  if (!m) return range;
+  const start = Number(m[1]);
+  const end = m[2] ? Number(m[2]) : Number.POSITIVE_INFINITY;
+  return `bytes=${start}-${Math.min(end, start + MEDIA_CHUNK - 1)}`;
+}
+
 const PASS_BACK = [
   "content-type",
   "content-length",
@@ -37,6 +49,8 @@ export async function relay(request, fetchImpl = fetch) {
   try {
     Object.assign(headers, JSON.parse(url.searchParams.get("h") ?? "{}"));
   } catch {}
+  if (/^https:\/\/[^/]*googlevideo\.com\//.test(target))
+    headers.range = capRange(headers.range);
   if (/^https:\/\/music\.youtube\.com\//.test(target))
     Object.assign(headers, {
       origin: "https://music.youtube.com",

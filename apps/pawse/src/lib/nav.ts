@@ -1,7 +1,7 @@
 import { type Href, router } from "expo-router";
 
 // Detail pages exist under every tab; push them inside whichever tab is active so the tab bar stays.
-export type Tab = "home" | "explore" | "search" | "library";
+export type Tab = "home" | "watch" | "explore" | "search" | "library";
 let tab: Tab = "home";
 export const setActiveTab = (t: Tab) => void (tab = t);
 

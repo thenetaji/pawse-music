@@ -215,6 +215,8 @@ export interface ResolvedStream {
   durationSec?: number;
   /** Which client or source produced it, for diagnostics. */
   via: string;
+  /** A local HLS playlist over small byte ranges of `url`: googlevideo throttles a long file fetched in one request. */
+  playlist?: string;
 }
 
 export class StreamError extends Error {
@@ -275,3 +277,4 @@ export function bestThumbnail(
 export function artistLine(artists: ArtistRef[]): string {
   return artists.map((a) => a.name).join(", ");
 }
+export type * from "./video";

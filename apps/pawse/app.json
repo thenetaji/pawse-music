@@ -65,6 +65,13 @@
       "@bacons/apple-targets",
       "expo-sharing",
       [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "ios": {

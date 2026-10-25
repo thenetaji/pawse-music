@@ -682,3 +682,32 @@ test("a skip you ask for looks past songs that can't play, and the old song carr
   expect(usePlayerStore.getState().index).toBe(0);
   expect(tp.play).toHaveBeenCalled();
 });
+
+test("a long song with a playlist plays from it, outside the cache; a player that can't open it plays the song direct from then on", async () => {
+  const byClient = clientResolver(["youtube:a", "youtube:b"]);
+  const long = jest.fn(async (t: Pick<Track, "id">, o?: ResolveOptions) => ({
+    ...(await byClient(t, o)),
+    contentLength: 90 * 1024 * 1024,
+    playlist: `file:///cache/hls/${t.id}.m3u8`,
+  }));
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve: long }, onDiagnostic: diag });
+  await player.play(tracks("rain", "sea"));
+  await flush();
+  const item = native.queue[0] as { mimeType?: string; cacheKey?: string };
+  expect(urlAt(0)).toBe("file:///cache/hls/rain.m3u8");
+  expect(item.mimeType).toBe("application/x-mpegURL");
+  expect(item.cacheKey).toBeUndefined();
+  await rntp.__emit("event.playback-error", {
+    code: "source",
+    message: "Cannot open",
+  });
+  await flush();
+  expect(urlAt(0)).toMatch("/rain/youtube:a/");
+  expect(diag).toHaveBeenCalledWith("playlist-off", expect.anything());
+  // The source wasn't to blame, and the next song skips its playlist too.
+  expect(long).toHaveBeenCalledTimes(2);
+  await player.next();
+  await flush();
+  expect(urlAt(1)).toMatch("/sea/youtube:a/");
+});

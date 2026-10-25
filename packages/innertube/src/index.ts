@@ -65,3 +65,14 @@ export {
   type ResolveAttempt,
   resolveYouTubeStream,
 } from "./youtube/stream";
+export {
+  fetchSegmentIndex,
+  hlsMaster,
+  hlsMediaPlaylist,
+  parseSegmentIndex,
+  type Segment,
+  type SegmentIndex,
+  smallSegments,
+  THROTTLE_BYTES,
+} from "./youtube/hls";
+export * from "./youtube/video";
