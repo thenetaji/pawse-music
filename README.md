@@ -89,28 +89,13 @@ Not sure which Mac you have? Open the Apple menu, then **About This Mac**. If yo
 ### iPhone
 You need iOS 16.4 or newer. The Dynamic Island and the Lock Screen card need iOS 17 or newer.
 
-1. Install **SideStore** on your iPhone, once. It isn't on the App Store; you put it on with a computer:
-   1. On the iPhone, get **LocalDevVPN** from the App Store, open it and tap **Connect**.
-   2. On a Mac, Windows or Linux computer, download **[iloader](https://iloader.app)** (Windows also needs iTunes; Linux needs `usbmuxd`).
-   3. Plug in the iPhone and tap **Trust**. In iloader, sign in with your Apple Account and pick **Install SideStore (Stable)**.
-   4. On the iPhone, open **Settings → General → VPN & Device Management**, tap your Apple Account and **Trust**. If asked, turn on **Settings → Privacy & Security → Developer Mode**.
-   5. Open SideStore and sign in with the same Apple Account.
+Pawse installs through **SideStore**, which you set up once with a computer (it isn't on the App Store). Then, in SideStore, open **Sources** → **+** → paste this, and install **Pawse**:
 
-   Stuck? SideStore's [full guide](https://docs.sidestore.io/docs/installation/prerequisites) has every step with pictures.
-2. In SideStore, open **Sources** → tap **+** → paste:
-   ```
-   https://raw.githubusercontent.com/thenetaji/pawse-music/main/sources/sidestore.json
-   ```
-3. Tap **Pawse** → **Install**.
-4. In SideStore settings, turn on **Background Refresh**, so the app keeps working past 7 days (a free Apple ID limit).
+```
+https://raw.githubusercontent.com/thenetaji/pawse-music/main/sources/sidestore.json
+```
 
-**LocalDevVPN must be on** whenever SideStore installs or refreshes an app. If sign-in fails with error **-80045**, change the Anisette server in SideStore's settings and try again.
-
-**Other ways.** Download **[Pawse.ipa](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa)** and install it with **AltStore** or **Sideloadly**. Both let you pick an IPA file from your computer.
-
-**The 7-day limit.** A free Apple ID lets an app run for 7 days, then it stops opening. When that happens, open SideStore and refresh Pawse. Your library stays.
-
-**The Dynamic Island.** The cat lives in the Dynamic Island on iPhones that have one (iPhone 14 Pro and newer). Other iPhones get the Lock Screen card instead. Pick its look in **Settings → Cat → Dynamic Island style**: the cat with sound bars, sound bars only, or the time left.
+**[The iPhone guide](docs/IPHONE.md)** walks through installing SideStore, the 7-day limit, and fixes for "Untrusted Developer", an app with a cloud icon and sign-in errors.
 
 ### Android
 You need Android 7.0 or newer.
