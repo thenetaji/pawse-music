@@ -33,6 +33,7 @@ import { display } from "../../lib/type";
 import { WatchIcon } from "../shell/icons";
 import { showPlaylistPicker } from "./playlist-tools";
 import { showSongInfo } from "./song-info";
+import { openWatch } from "../watch/store";
 
 // Menu icons share one size and a lighter stroke than the 18 px glyphs.
 const I = 22;
@@ -139,7 +140,14 @@ export function showTrackActions(
             {
               label: "Watch video",
               icon: (c: string) => <WatchIcon size={I} color={c} />,
-              onPress: () => leave(() => push(`/video/${track.id}`)),
+              onPress: () =>
+                leave(() =>
+                  openWatch({
+                    id: track.id,
+                    title: track.title,
+                    thumbnails: track.thumbnails,
+                  }),
+                ),
             },
           ]
         : []),

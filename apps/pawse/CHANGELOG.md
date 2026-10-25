@@ -9,6 +9,8 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **Long songs on iPhone** get the same fix. The faster path for songs over about 10 minutes, from 1.6.0, never actually ran on iPhone; it does now.
 
 ### Added
+- **Videos keep playing when you leave them, like YouTube.** Drag a video down (or go back) and it shrinks into the mini player above the tabs, still playing. Tap it to grow it back; ✕ closes it. Starting a song closes it too, since only one plays at a time. On computers it floats above the player bar, and Esc shrinks it.
+- **The video page loads with its shape already there**: the title and picture from the card you tapped show at once, with placeholders for the rest instead of a black box.
 - **Every quality, and Auto.** Videos come in every H.264 quality YouTube has (144p to 1080p60). **Auto** moves between them as your connection allows and shows the one playing (**Auto · 720p60**). Change it on any video with the **Quality** button; the video carries on from the same moment. Set the default in **Experimental → Video quality**.
 - **Song | Video switch** in the player for YouTube songs. **Video** shows the song's video in place of the cover, muted and in time with the music; it plays, pauses and seeks with the song. The ⤢ button opens the full video. Turn the switch off in Experimental.
 - **Experimental has its own page** in Settings, so Settings stays short.
@@ -17,7 +19,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ### Changed
 - **Watch looks like YouTube.** No big title or bar at the top: the search box sits under the clock, videos run edge to edge on phones, and computers get a grid.
-- **The video fills the top of the screen**, with no close arrow. Swipe down or go back to close it (Esc on computers). The Edge-to-edge setting is gone; this is how it always looks now.
+- **The video page is full screen**, not a card over the page behind it, so there's no gap or rounded edge above the video. It slides up when it opens. The Edge-to-edge setting is gone; this is how it always looks now.
 - The video page puts the channel first, then a row of buttons: likes, **Quality**, **Listen** and **Share**.
 
 ## [1.8.0] - 2026-10-25

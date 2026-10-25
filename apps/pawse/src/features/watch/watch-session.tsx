@@ -4,12 +4,12 @@ import {
   type VideoDetail,
   type VideoItem,
 } from "@pawse/music-core";
-import { player, usePlayerStore } from "@pawse/player";
+import { player as music, usePlayerStore } from "@pawse/player";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  BackHandler,
   Pressable,
   ScrollView,
   Share,
@@ -18,19 +18,40 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
-import { CatState, PressScale, SectionTitle } from "../../components/ui";
+import type { SkipSegment } from "@pawse/innertube";
+import { showSheet } from "../../components/action-sheet";
+import { Spinner } from "../../components/spinner";
+import { showToast } from "../../components/toast";
+import {
+  CatState,
+  PressScale,
+  SectionTitle,
+  Skeleton,
+} from "../../components/ui";
 import {
   clock,
   openChannel,
   VideoRow,
   videoMeta,
 } from "../../components/video-card";
-import { ytv } from "../../lib/engine";
+import { useVideoFilter } from "../../lib/block";
+import { skipNote, useBranding, videoSkips } from "../../lib/community";
 import { logEvent } from "../../lib/diagnostics";
+import { compact, useVotes } from "../../lib/dislikes";
+import { ytv } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
@@ -40,59 +61,98 @@ import {
   type VideoSource,
   videoSource,
 } from "../../lib/video-stream";
-import { showSheet } from "../../components/action-sheet";
-import { compact, useVotes } from "../../lib/dislikes";
-import { showToast } from "../../components/toast";
-import { useVideoFilter } from "../../lib/block";
-import { skipNote, useBranding, videoSkips } from "../../lib/community";
-import type { SkipSegment } from "@pawse/innertube";
-import { type VideoHandle, VideoPlayer } from "../video/video-player";
+import { useWatchPlayer, VideoSurface } from "../video/watch-player";
+import { closeWatch, minimizeWatch, openWatch, useWatch } from "./store";
 
 const MAX_W = 980;
 // Room above the page for a pull-down bounce, so the glow never shows a gap.
 const OVERSCROLL = 600;
+// A drag this far down (or a flick) shrinks the video into the mini player.
+const DISMISS_PX = 110;
+const DISMISS_V = 900;
 
-/** One video: the player glowing with its own picture on black, then chapters, the description and what's next. */
-export default function VideoPage() {
-  const { id, t } = useLocalSearchParams<{ id: string; t?: string }>();
+/** One watch session: the video full screen over the whole app, or shrunk into the mini player while it keeps playing. */
+export function WatchSession({ id }: { id: string }) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const mode = useWatch((s) => s.mode);
+  const seed = useWatch((s) => s.seed);
+  const t = useWatch((s) => s.t);
   const pref = useSetting("videoPreferred", "auto");
   const autoplay = useSetting("videoAutoplay", false);
   const w = Math.min(width, MAX_W);
   const detail = useResource<VideoDetail>(`video:${id}`, () => ytv.video(id));
-  // A quality picked on this page, keyed by video; otherwise the default from Settings.
-  const [picked, setPicked] = useState<{ id: string; q: Quality }>();
-  const quality: Quality =
-    picked?.id === id ? picked.q : typeof pref === "number" ? pref : "auto";
-  // Keyed by video, so moving to another video starts clean without resetting in an effect.
+  const [quality, setQuality] = useState<Quality>(
+    typeof pref === "number" ? pref : "auto",
+  );
   const [loaded, setLoaded] = useState<{
-    id: string;
     src?: VideoSource;
     error?: string;
-    /** Where playback picks up: the link's ?t= at first, the current spot after a quality switch. */
+    /** Where playback picks up: the song's spot at first, the current spot after a quality switch. */
     start?: number;
   }>();
-  const [endedKey, setEndedKey] = useState<string | null>(null);
-  const src = loaded?.id === id ? loaded.src : undefined;
-  const error = loaded?.id === id ? loaded.error : undefined;
-  const ended = endedKey === id;
-  const setError = (message: string) => {
-    logEvent("video-failed", `${id}: ${message}`);
-    setLoaded({ id, error: message });
-  };
-  const setEnded = (on: boolean) => setEndedKey(on ? id : null);
+  const src = loaded?.src;
+  const error = loaded?.error;
+  const [ended, setEnded] = useState(false);
+  const [started, setStarted] = useState(false);
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState(0);
   const atRef = useRef(0);
-  const [track, setTrack] = useState<{ id: string; label: string }>();
-  const handle = useRef<VideoHandle>(null);
+  const [track, setTrack] = useState<string>();
+  const [frame, setFrame] = useState<string>();
   const skips = useRef<SkipSegment[]>([]);
   const keep = useVideoFilter();
   const brand = useBranding(id);
 
+  const setError = (message: string) => {
+    logEvent("video-failed", `${id}: ${message}`);
+    setLoaded({ error: message });
+  };
+  // Sponsor reads and plugs are jumped over as playback reaches them.
+  const onTime = (sec: number) => {
+    setAt(sec);
+    atRef.current = sec;
+    if (sec > 0 && !started) setStarted(true);
+    const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
+    if (!seg) return;
+    video.seek(seg.end);
+    showToast(skipNote(seg.category));
+  };
+
+  const d = detail.data;
+  const v = d?.video;
+  const related = d?.related.filter(keep) ?? [];
+  const next = related[0];
+  const onEnd = () => {
+    if (autoplay && next) return openWatch(next);
+    setEnded(true);
+  };
+
+  const video = useWatchPlayer({
+    uri: src?.uri,
+    headers: src?.stream.headers,
+    startAt: loaded?.start,
+    onTime,
+    onEnd,
+    onError: setError,
+    onFrame: setFrame,
+    onTrack: (h, fps) => setTrack(`${h}p${(fps ?? 30) > 30 ? "60" : ""}`),
+    onPlaying: (on) => useWatch.setState({ playing: on }),
+  });
+
+  // The mini player shows and controls this same player.
   useEffect(() => {
-    skips.current = [];
+    useWatch.setState({ player: video });
+  }, [video]);
+  const title = brand?.title ?? v?.title ?? seed?.title;
+  useEffect(() => {
+    useWatch.setState({
+      title,
+      channel: v?.channel?.name ?? seed?.channel?.name,
+    });
+  }, [title, v?.channel?.name, seed?.channel?.name]);
+
+  useEffect(() => {
     let live = true;
     void videoSkips(id).then((s) => {
       if (live) skips.current = s;
@@ -102,22 +162,17 @@ export default function VideoPage() {
     };
   }, [id]);
 
-  // Sponsor reads and plugs are jumped over as playback reaches them.
-  const onTime = (sec: number) => {
-    setAt(sec);
-    atRef.current = sec;
-    const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
-    if (!seg) return;
-    handle.current?.seek(seg.end);
-    showToast(skipNote(seg.category));
-  };
-
-  // A video takes over from the music, the way another app's video would.
+  // A video takes over from the music; music starting again closes a video waiting in the mini player.
   useEffect(() => {
     const st = usePlayerStore.getState().status;
     if (st === "playing" || st === "buffering" || st === "loading")
-      player.pause();
-  }, []);
+      music.pause();
+    return usePlayerStore.subscribe((s, prev) => {
+      if (s.status !== "playing" || prev.status === "playing") return;
+      video.pause();
+      if (useWatch.getState().mode === "mini") closeWatch();
+    });
+  }, [video]);
 
   // The old quality keeps playing until the new one is ready, then it carries on from the same moment.
   useEffect(() => {
@@ -127,37 +182,70 @@ export default function VideoPage() {
         (s) =>
           live &&
           setLoaded((was) => ({
-            id,
             src: s,
-            start:
-              was?.id === id && was.src
-                ? atRef.current
-                : t
-                  ? Number(t)
-                  : undefined,
+            start: was?.src ? atRef.current : t,
           })),
       )
       .catch((e: Error) => {
         logEvent("video-failed", `${id}: ${e.message}`);
-        if (live) setLoaded({ id, error: e.message });
+        if (live) setLoaded({ error: e.message });
       });
     return () => {
       live = false;
     };
-    // t only matters for the first load of a video.
+    // t only matters for the first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, quality]);
 
-  const playing = track?.id === id ? track.label : undefined;
+  // Slides up when opened, down into the mini player when shrunk; a drag on the video follows the finger.
+  const y = useSharedValue(height);
+  useEffect(() => {
+    y.set(withTiming(mode === "full" ? 0 : height, { duration: 280 }));
+  }, [mode, height, y]);
+  const drag = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetY(12)
+    .failOffsetX([-24, 24])
+    .onUpdate((e) => y.set(Math.max(0, e.translationY)))
+    .onEnd((e) => {
+      if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
+        haptic.light();
+        minimizeWatch();
+      } else y.set(withSpring(0, { damping: 18, stiffness: 220 }));
+    });
+  const sheet = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: y.value },
+      { scale: interpolate(y.value, [0, height], [1, 0.9], "clamp") },
+    ],
+    borderRadius: interpolate(y.value, [0, 160], [0, 28], "clamp"),
+  }));
+
+  // Back (Android) and Esc (computers) shrink the video rather than lose it.
+  useEffect(() => {
+    if (mode !== "full") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      minimizeWatch();
+      return true;
+    });
+    if (typeof document === "undefined") return () => sub.remove();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && minimizeWatch();
+    document.addEventListener("keydown", onKey);
+    return () => {
+      sub.remove();
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [mode]);
+
   const qualityLabel =
     src?.quality === "auto"
-      ? playing
-        ? `Auto · ${playing}`
+      ? track
+        ? `Auto · ${track}`
         : "Auto"
       : (src?.quality ?? "Quality");
   const pickQuality = () => {
     if (!src) return;
-    const choose = (q: Quality) => () => setPicked({ id, q });
+    const choose = (q: Quality) => () => setQuality(q);
     showSheet({
       header: <Text style={styles.sheetTitle}>Quality</Text>,
       actions: [
@@ -180,34 +268,10 @@ export default function VideoPage() {
       message: `https://youtu.be/${id}`,
     });
   };
-
-  const d = detail.data;
-  const v = d?.video;
-  const thumb = v ? bestThumbnail(v.thumbnails, 480) : undefined;
-  // The glow follows the playing picture where a player can share frames, else the thumbnail.
-  const [frame, setFrame] = useState<{ id: string; uri: string }>();
-  const glow =
-    frame?.id === id ? frame.uri : `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
-  const stageH = (w * 9) / 16;
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && router.back();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
-  const related = d?.related.filter(keep) ?? [];
-  const next = related[0];
-
-  const onEnd = () => {
-    if (autoplay && next) return router.replace(`/video/${next.id}`);
-    setEnded(true);
-  };
-
   const listen = () => {
     if (!v) return;
     haptic.light();
-    const track: Track = {
+    const song: Track = {
       id: v.id,
       source: "youtube",
       title: v.title,
@@ -216,19 +280,28 @@ export default function VideoPage() {
       thumbnails: v.thumbnails,
       kind: "video",
     };
-    router.back();
-    void player.play([track], 0, {
+    closeWatch();
+    void music.play([song], 0, {
       source: { type: "other", title: "From Watch" },
     });
   };
 
+  const thumb =
+    bestThumbnail(v?.thumbnails ?? seed?.thumbnails ?? [], 720) ??
+    `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+  // The glow follows the playing picture where a player can share frames, else the thumbnail.
+  const glow = frame ?? `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+  const stageH = (w * 9) / 16;
   const chapter = d?.chapters.reduce<number>(
     (cur, c, i) => (c.startSec <= at ? i : cur),
     -1,
   );
 
   return (
-    <View style={styles.root}>
+    <Animated.View
+      style={[styles.root, sheet]}
+      pointerEvents={mode === "full" ? "auto" : "none"}
+    >
       <ScrollView
         contentContainerStyle={{
           paddingBottom: insets.bottom + 40,
@@ -237,68 +310,62 @@ export default function VideoPage() {
       >
         <Ambient uri={glow} height={insets.top + stageH + 220} />
         <View style={{ width: w }}>
-          {/* Full width like YouTube: a swipe down, back or Esc closes it. */}
-          <View
-            style={[styles.stage, { height: stageH, marginTop: insets.top }]}
-          >
-            {src ? (
-              <VideoPlayer
-                ref={handle}
-                uri={src.uri}
-                headers={src.stream.headers}
-                poster={thumb}
-                style={StyleSheet.absoluteFill}
-                onEnd={onEnd}
-                onTime={onTime}
-                startAt={loaded?.start}
-                onError={setError}
-                onFrame={(uri) => setFrame({ id, uri })}
-                onTrack={(h, fps) =>
-                  setTrack({
-                    id,
-                    label: `${h}p${(fps ?? 30) > 30 ? "60" : ""}`,
-                  })
-                }
-              />
-            ) : thumb ? (
-              <Image
-                source={thumb}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                blurRadius={error ? 12 : 0}
-              />
-            ) : null}
-            {!src ? (
-              <View style={styles.veil}>
-                <Text style={styles.veilText}>
-                  {error ? "This video won't play right now." : "Loading…"}
-                </Text>
+          {/* Full width like YouTube; drag the video down to keep it playing in the mini player. */}
+          <GestureDetector gesture={drag}>
+            <View style={{ paddingTop: insets.top }}>
+              <View style={[styles.stage, { height: stageH }]}>
+                {src && mode === "full" ? (
+                  <VideoSurface
+                    surface={video.surface}
+                    controls
+                    style={StyleSheet.absoluteFill}
+                  />
+                ) : null}
+                {!started ? (
+                  <View style={styles.veil} pointerEvents="none">
+                    <Image
+                      source={thumb}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      blurRadius={error ? 12 : 0}
+                    />
+                    {error ? (
+                      <Text style={styles.veilText}>
+                        This video won’t play right now.
+                      </Text>
+                    ) : (
+                      <View style={styles.spin}>
+                        <Spinner size={30} />
+                      </View>
+                    )}
+                  </View>
+                ) : null}
+                {ended ? (
+                  <EndCard
+                    next={next}
+                    onReplay={() => {
+                      setEnded(false);
+                      video.replay();
+                    }}
+                    onNext={() => next && openWatch(next)}
+                    onDone={closeWatch}
+                  />
+                ) : null}
               </View>
-            ) : null}
-            {ended ? (
-              <EndCard
-                next={next}
-                onReplay={() => {
-                  setEnded(false);
-                  handle.current?.replay();
-                }}
-                onNext={() => next && router.replace(`/video/${next.id}`)}
-                onDone={() => router.back()}
-              />
-            ) : null}
-          </View>
+            </View>
+          </GestureDetector>
 
           {v ? (
             <Animated.View entering={FadeInDown.duration(360)}>
-              <Text style={styles.title}>{brand?.title ?? v.title}</Text>
+              <Text style={styles.title}>{title}</Text>
               <Text style={styles.meta}>{videoMeta(v, false)}</Text>
               <View style={styles.channel}>
                 <Pressable
                   onPress={() => {
                     const cid = v.channel?.id;
                     if (!cid) return;
-                    router.back();
-                    setTimeout(() => openChannel(cid), 250);
+                    minimizeWatch();
+                    openChannel(cid);
                   }}
                   style={styles.channelHit}
                 >
@@ -339,7 +406,9 @@ export default function VideoPage() {
               action="Try again"
               onAction={detail.reload}
             />
-          ) : null}
+          ) : (
+            <DetailSkeleton title={seed?.title} />
+          )}
 
           {d?.chapters.length ? (
             <View>
@@ -352,7 +421,7 @@ export default function VideoPage() {
                 {d.chapters.map((c, i) => (
                   <PressScale
                     key={`${c.startSec}${i}`}
-                    onPress={() => handle.current?.seek(c.startSec)}
+                    onPress={() => video.seek(c.startSec)}
                     style={[styles.chapter, i === chapter && styles.chapterOn]}
                   >
                     <Text style={styles.chapterTime}>
@@ -383,16 +452,49 @@ export default function VideoPage() {
             <View>
               <SectionTitle title="Up next" />
               {related.slice(0, 12).map((r) => (
-                <VideoRow
-                  key={r.id}
-                  video={r}
-                  onPress={() => router.replace(`/video/${r.id}`)}
-                />
+                <VideoRow key={r.id} video={r} onPress={() => openWatch(r)} />
               ))}
             </View>
           ) : null}
         </View>
       </ScrollView>
+    </Animated.View>
+  );
+}
+
+// The page's shape while it loads: the title (or the one the card already knew), the channel, the buttons, Up next.
+function DetailSkeleton({ title }: { title?: string }) {
+  return (
+    <View style={styles.skeleton}>
+      {title ? (
+        <Text style={[styles.title, styles.flush]}>{title}</Text>
+      ) : (
+        <>
+          <Skeleton w="92%" h={18} r={6} />
+          <Skeleton w="60%" h={18} r={6} style={{ marginTop: 8 }} />
+        </>
+      )}
+      <Skeleton w="45%" h={12} r={5} style={{ marginTop: 12 }} />
+      <View style={styles.skelRow}>
+        <Skeleton w={38} h={38} r={19} />
+        <Skeleton w={140} h={14} r={5} />
+      </View>
+      <View style={styles.skelRow}>
+        <Skeleton w={150} h={36} r={18} />
+        <Skeleton w={110} h={36} r={18} />
+        <Skeleton w={90} h={36} r={18} />
+      </View>
+      <Skeleton w={110} h={20} r={6} style={{ marginTop: 34 }} />
+      {[0, 1, 2, 3].map((i) => (
+        <View key={i} style={styles.skelRow}>
+          <Skeleton w={150} h={84} r={12} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <Skeleton w="90%" h={14} r={5} />
+            <Skeleton w="70%" h={14} r={5} />
+            <Skeleton w="50%" h={11} r={5} />
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -555,7 +657,32 @@ function Ambient({ uri, height }: { uri: string; height: number }) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#000" },
+  // Over the whole app, above the tabs; slides down into the mini player.
+  root: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "#000",
+    overflow: "hidden",
+  },
+  spin: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  skeleton: { paddingHorizontal: 16, paddingTop: 18 },
+  skelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 18,
+  },
+  flush: { marginTop: 0, marginHorizontal: 0 },
   ambient: { position: "absolute", left: 0, right: 0, overflow: "hidden" },
   // Scaled past the edges so the blur doesn't fade to dark at the sides.
   ambientImage: {

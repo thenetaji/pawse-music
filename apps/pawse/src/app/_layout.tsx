@@ -21,6 +21,7 @@ import { startEngine } from "../lib/engine";
 import { getSetting, useSetting } from "../lib/settings";
 import { checkOnLaunch } from "../lib/updates";
 import { YouTubeSandboxHost } from "../lib/youtube-sandbox";
+import { WatchHost } from "../features/watch/watch-host";
 
 export { ErrorScreen as ErrorBoundary } from "../components/error-screen";
 
@@ -76,9 +77,10 @@ export default function RootLayout() {
               options={{ ...modal, gestureEnabled: true }}
             />
             <Stack.Screen name="queue" options={modal} />
+            {/* Links only: it hands the video to the watch overlay and steps aside. */}
             <Stack.Screen
               name="video/[id]"
-              options={{ ...modal, gestureEnabled: true }}
+              options={{ presentation: "transparentModal", animation: "none" }}
             />
             <Stack.Screen name="settings" options={modal} />
             <Stack.Screen name="about" options={modal} />
@@ -97,6 +99,7 @@ export default function RootLayout() {
               }}
             />
           </Stack>
+          <WatchHost />
           <ActionSheetHost />
           <ToastHost />
           <YouTubeSandboxHost />

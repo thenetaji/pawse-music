@@ -17,6 +17,8 @@ import { emitTabReselect, type Tab } from "../../lib/nav";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
+import { useVideoMini } from "../watch/store";
+import { WatchMini } from "../watch/watch-mini";
 import { useAccent } from "../now-playing/now-palette";
 import {
   ExploreIcon,
@@ -39,6 +41,7 @@ const NAV = [
 export function DockTabs() {
   const accent = useAccent();
   const hasTrack = usePlayerSelect((s) => !!s.current);
+  const videoMini = useVideoMini();
   const { bottom } = useSafeAreaInsets();
   const watch = useSetting("ytMode", false);
   return (
@@ -55,7 +58,7 @@ export function DockTabs() {
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        {hasTrack ? (
+        {hasTrack || videoMini ? (
           <View style={styles.player}>
             {/* A faint wash of the song's colour gives the card depth instead of flat grey. */}
             <LinearGradient
@@ -65,7 +68,7 @@ export function DockTabs() {
               style={StyleSheet.absoluteFill}
               pointerEvents="none"
             />
-            <MiniPlayer />
+            {videoMini ? <WatchMini /> : <MiniPlayer />}
           </View>
         ) : null}
         <View style={styles.bar}>

@@ -13,6 +13,7 @@ import { blockChannel } from "../lib/block";
 import { useBranding } from "../lib/community";
 import { rightClick } from "../lib/context-menu";
 import { go, push } from "../lib/nav";
+import { openWatch } from "../features/watch/store";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
 import { PressScale } from "./ui";
@@ -30,7 +31,13 @@ export const videoMeta = (v: VideoItem, channel = true) =>
     .filter(Boolean)
     .join(" · ");
 
-export const openVideo = (v: Pick<VideoItem, "id">) => push(`/video/${v.id}`);
+export const openVideo = (v: VideoItem) =>
+  openWatch({
+    id: v.id,
+    title: v.title,
+    thumbnails: v.thumbnails,
+    channel: v.channel,
+  });
 export const openChannel = (id: string) => go(`/channel/${id}`);
 
 /** Long press: block the channel, so none of its videos show again. */

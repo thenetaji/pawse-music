@@ -15,6 +15,7 @@ import {
   showTrackActions,
 } from "../features/library/track-actions";
 import { NowPlayingView } from "../features/now-playing/now-playing-view";
+import { openWatch } from "../features/watch/store";
 import { lyricsService } from "../lib/engine";
 import { logEvent } from "../lib/diagnostics";
 import { push } from "../lib/nav";
@@ -119,7 +120,16 @@ export default function NowPlaying() {
         watch && current.source === "youtube"
           ? () => {
               const at = Math.floor(getProgress().position);
-              leavePlayer(() => push(`/video/${current.id}?t=${at}`));
+              leavePlayer(() =>
+                openWatch(
+                  {
+                    id: current.id,
+                    title: current.title,
+                    thumbnails: current.thumbnails,
+                  },
+                  at,
+                ),
+              );
             }
           : undefined
       }
