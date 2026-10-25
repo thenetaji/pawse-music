@@ -43,6 +43,8 @@ import { useSongArt } from "../../lib/song-art";
 import { display } from "../../lib/type";
 import { songVibe } from "../../lib/vibe";
 import type { CatMood } from "../cat/cat";
+import { WatchIcon } from "../shell/icons";
+import { SyncedVideo } from "../video/synced-video";
 import { AirPlay } from "./airplay";
 import { CatScrubber } from "./cat-scrubber";
 import { ColorField } from "./color-field";
@@ -58,10 +60,8 @@ import {
   QueueGlyph,
 } from "./icons";
 import { LyricsView } from "./lyrics-view";
-import { SyncedVideo } from "../video/synced-video";
-import { SongVideoSwitch } from "./song-video-switch";
-import { WatchIcon } from "../shell/icons";
 import { useNowPalette } from "./now-palette";
+import { SongVideoSwitch } from "./song-video-switch";
 
 export type NowPlayingStatus =
   | "idle"
@@ -376,9 +376,11 @@ export function NowPlayingView(p: NowPlayingProps) {
               style={[styles.fade, { bottom: 0, height: heroH * 0.5 }]}
             />
           </View>
+          {/* Darkens the top of the artwork so the header reads as its own band, off people's faces. */}
           <LinearGradient
-            colors={["rgba(0,0,0,0.42)", "rgba(0,0,0,0)"]}
-            style={[styles.scrim, { height: insets.top + 90 }]}
+            colors={["rgba(0,0,0,0.6)", "rgba(0,0,0,0.25)", "rgba(0,0,0,0)"]}
+            locations={[0, 0.55, 1]}
+            style={[styles.scrim, { height: insets.top + 120 }]}
           />
           <LinearGradient
             colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.45)"]}

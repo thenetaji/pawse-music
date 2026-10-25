@@ -2,15 +2,26 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
-## [Unreleased]
+## [1.10.0] - 2026-10-25
 
 ### Added
 - **A new Home.** It opens with **Continue**: the video you were partway through (with how long is left) or the last song, whichever is newer. **Your people** follows: the channels you subscribe to and the artists you follow, with a dot when one has posted in the last two days. Then the latest videos from your channels, Jump back in, your mixes, For you and Liked lately, and Home ends there.
 - **Edit Home.** Turn each section on or off and move it up or down (Settings, or the button at the bottom of Home). YouTube's suggestions, the video feed and the YouTube Music picks, are off until you turn them on; with picks on, Home keeps going like before.
 - **Videos pick up where you left off.** Open a video you stopped partway and it starts from there.
 - **A YouTube filter in Search** for videos and channels from all of YouTube.
+- **Comments.** The watch page shows the comment count and the top comment; tap for all of them, with replies, likes and the creator's hearts. Times like 1:23 in a comment jump the video there.
+- **Subscribe and like from the watch page** when signed in, with the subscriber count beside the channel.
+- **Calm watch page** (Settings): no comments, counts or Up next.
+- **YouTube's player controls.** Tap the video for previous, play/pause and next, the time, full screen, an autoplay switch and settings (quality and playback speed). Double-tap either side to skip 10 seconds. Drag the red bar along the bottom to seek, with the time and chapter showing as you go. The controls fade away while the video plays.
+- **Download videos** to watch offline, in the quality you pick (with its size). A downloaded video shows up in Downloads, plays without a connection in the player with its picture on the Video side, and the watch page offers the downloaded copy when it can't stream.
+- **Save to playlist** from the watch page and from any video's ⋯ menu.
+- **Liked videos and Watched** rows in Library.
+- The video mini player shows how far through you are.
 
 ### Changed
+- **The watch page feels like YouTube.** The video stays at the top while the page scrolls under it, the status bar above it is black, and the glow now spreads out below the video instead of above it. The title opens the full description; Up next is full-width videos.
+- **Like and dislike work when you're signed out too.** They're kept on the phone, and also go to YouTube when you're signed in. Videos you dislike stop showing up in feeds and Up next.
+- **A smaller Song | Video switch** in the player, dark and out of the way, so it no longer sits across faces in the artwork; the top of the artwork is darker behind it.
 - **Videos are on for everyone** and no longer under Experimental. The Watch tab is gone: Home and Search cover music and videos, and **All videos** on Home opens the full list of your subscriptions. Settings has a **YouTube videos** switch for music only.
 - The Calm / Everything / Only my music choice became Edit Home. Anyone on "Only my music" keeps mixes and For you off.
 

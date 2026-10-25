@@ -1,7 +1,6 @@
 import type { SkipSegment } from "@pawse/innertube";
 import {
   bestThumbnail,
-  type Track,
   type VideoDetail,
   type VideoItem,
 } from "@pawse/music-core";
@@ -11,6 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef, useState } from "react";
 import {
   BackHandler,
+  Platform,
   Pressable,
   ScrollView,
   Share,
@@ -43,17 +43,31 @@ import {
 import {
   clock,
   openChannel,
+  VideoCard,
   VideoRow,
-  videoMeta,
 } from "../../components/video-card";
-import { recordWatch, resumeAt } from "../../data/watched";
+import { ytAccount } from "../../data/clients";
+import {
+  downloadVideo,
+  removeDownload,
+  useVideoDownload,
+} from "../../data/downloads";
+import { useLibrary } from "../../data/library";
+import {
+  rateVideo,
+  recordWatch,
+  resumeAt,
+  useVideoRating,
+  videoTrack,
+} from "../../data/watched";
 import { useVideoFilter } from "../../lib/block";
 import { skipNote, useBranding, videoSkips } from "../../lib/community";
 import { logEvent } from "../../lib/diagnostics";
-import { compact, useVotes } from "../../lib/dislikes";
+import { useVotes } from "../../lib/dislikes";
 import { ytv } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
-import { useSetting } from "../../lib/settings";
+import { push } from "../../lib/nav";
+import { setSetting, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import {
@@ -61,12 +75,31 @@ import {
   type VideoSource,
   videoSource,
 } from "../../lib/video-stream";
-import { useWatchPlayer, VideoSurface } from "../video/watch-player";
-import { closeWatch, minimizeWatch, openWatch, useWatch } from "./store";
+import { showPlaylistPicker } from "../library/playlist-tools";
+import {
+  enterFullscreen,
+  useWatchPlayer,
+  VideoSurface,
+} from "../video/watch-player";
+import {
+  closeWatch,
+  minimizeWatch,
+  openWatch,
+  useWatch,
+  watchPrevious,
+} from "./store";
+import { VideoControls } from "./video-controls";
+import {
+  CommentsCard,
+  CommentsPanel,
+  DescriptionPanel,
+  short,
+  useComments,
+} from "./watch-panels";
+
+type Rating = "like" | "dislike" | "none";
 
 const MAX_W = 980;
-// Room above the page for a pull-down bounce, so the glow never shows a gap.
-const OVERSCROLL = 600;
 // A drag this far down (or a flick) shrinks the video into the mini player.
 const DISMISS_PX = 110;
 const DISMISS_V = 900;
@@ -95,7 +128,6 @@ export function WatchSession({ id }: { id: string }) {
   const error = loaded?.error;
   const [ended, setEnded] = useState(false);
   const [started, setStarted] = useState(false);
-  const [open, setOpen] = useState(false);
   const [at, setAt] = useState(0);
   const atRef = useRef(0);
   const [track, setTrack] = useState<string>();
@@ -103,6 +135,12 @@ export function WatchSession({ id }: { id: string }) {
   const skips = useRef<SkipSegment[]>([]);
   const keep = useVideoFilter();
   const brand = useBranding(id);
+  const calm = useSetting("videoCalm", false);
+  const signedIn = useLibrary((s) => !!s.settings.cookies);
+  // Phones keep the video pinned at the top; wide screens scroll it with the page.
+  const pinned = width < 900;
+  const [panel, setPanel] = useState<"comments" | "description" | null>(null);
+  const votes = useVotes(id);
 
   const setError = (message: string) => {
     logEvent("video-failed", `${id}: ${message}`);
@@ -113,6 +151,8 @@ export function WatchSession({ id }: { id: string }) {
   const onTime = (sec: number) => {
     setAt(sec);
     atRef.current = sec;
+    const dur = src?.stream.durationSec ?? v?.durationSec;
+    if (dur) useWatch.setState({ progress: Math.min(1, sec / dur) });
     // Progress is kept every few seconds, so Home can offer to continue.
     if (Math.abs(sec - savedAt.current) > 8) {
       savedAt.current = sec;
@@ -134,6 +174,43 @@ export function WatchSession({ id }: { id: string }) {
 
   const d = detail.data;
   const v = d?.video;
+  const comments = useComments(id, calm ? undefined : d?.comments);
+  // Your like and subscription, changed here before YouTube's copy of the page catches up.
+  const [mine, setMine] = useState<{ rating?: Rating; subscribed?: boolean }>(
+    {},
+  );
+  // Likes are kept on the phone too, so they work signed out; signed in they go to YouTube as well.
+  const local = useVideoRating(id);
+  const rating: Rating =
+    mine.rating ?? (local !== "none" ? local : (d?.rating ?? "none"));
+  const subscribed = mine.subscribed ?? d?.subscribed ?? false;
+  const base = d?.likes ?? votes?.likes;
+  const likes =
+    base === undefined
+      ? undefined
+      : base + (rating === "like" ? 1 : 0) - (d?.rating === "like" ? 1 : 0);
+  const rate = (r: Rating) => {
+    if (!v) return;
+    haptic.light();
+    setMine((m) => ({ ...m, rating: r }));
+    rateVideo({ ...v, title: title ?? v.title }, r);
+    if (r === "like") showToast("Added to Liked videos");
+    if (signedIn)
+      ytAccount
+        .rate(id, r)
+        .catch(() => showToast("Saved here; YouTube didn’t take it"));
+  };
+  const toggleSubscribe = () => {
+    const cid = v?.channel?.id;
+    if (!cid) return;
+    haptic.light();
+    const on = !subscribed;
+    setMine((m) => ({ ...m, subscribed: on }));
+    ytAccount.subscribe(cid, on).catch(() => {
+      setMine((m) => ({ ...m, subscribed: !on }));
+      showToast("Couldn't save that");
+    });
+  };
   const related = d?.related.filter(keep) ?? [];
   const next = related[0];
   const onEnd = () => {
@@ -234,21 +311,21 @@ export function WatchSession({ id }: { id: string }) {
     borderRadius: interpolate(y.value, [0, 160], [0, 28], "clamp"),
   }));
 
-  // Back (Android) and Esc (computers) shrink the video rather than lose it.
+  // Back (Android) and Esc (computers) close a panel, then shrink the video rather than lose it.
   useEffect(() => {
     if (mode !== "full") return;
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      minimizeWatch();
-      return true;
-    });
-    if (typeof document === "undefined") return () => sub.remove();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && minimizeWatch();
+    const back = () => (panel ? setPanel(null) : minimizeWatch());
+    if (typeof document === "undefined") {
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        back();
+        return true;
+      });
+      return () => sub.remove();
+    }
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && back();
     document.addEventListener("keydown", onKey);
-    return () => {
-      sub.remove();
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [mode]);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mode, panel]);
 
   const qualityLabel =
     src?.quality === "auto"
@@ -274,6 +351,31 @@ export function WatchSession({ id }: { id: string }) {
       ],
     });
   };
+  const [speed, setSpeed] = useState(1);
+  const pickSpeed = () =>
+    showSheet({
+      header: <Text style={styles.sheetTitle}>Playback speed</Text>,
+      actions: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => ({
+        label: `${r === speed ? "✓  " : ""}${r === 1 ? "Normal" : `${r}×`}`,
+        onPress: () => {
+          setSpeed(r);
+          video.setRate(r);
+        },
+      })),
+    });
+  const pickSettings = () =>
+    showSheet({
+      actions: [
+        { label: "Quality", sub: qualityLabel, onPress: pickQuality },
+        {
+          label: "Playback speed",
+          sub: speed === 1 ? "Normal" : `${speed}×`,
+          onPress: pickSpeed,
+        },
+      ],
+    });
+  const playing = useWatch((s) => s.playing);
+  const hasBack = useWatch((s) => s.back.length > 0);
   const share = () => {
     haptic.light();
     void Share.share({
@@ -281,22 +383,98 @@ export function WatchSession({ id }: { id: string }) {
       message: `https://youtu.be/${id}`,
     });
   };
+  // Saved with the title shown here (DeArrow's, when it has one).
+  const asTrack = () =>
+    videoTrack(
+      {
+        id,
+        title: title ?? "",
+        thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
+        channel: v?.channel ?? seed?.channel,
+      },
+      src?.stream.durationSec ?? v?.durationSec,
+    );
   const listen = () => {
     if (!v) return;
     haptic.light();
-    const song: Track = {
-      id: v.id,
-      source: "youtube",
-      title: v.title,
-      artists: [{ id: v.channel?.id, name: v.channel?.name ?? "YouTube" }],
-      durationSec: src?.stream.durationSec ?? v.durationSec,
-      thumbnails: v.thumbnails,
-      kind: "video",
-    };
     closeWatch();
-    void music.play([song], 0, {
+    void music.play([asTrack()], 0, {
       source: { type: "other", title: "From Watch" },
     });
+  };
+  // A downloaded video plays offline in the music player, its picture on the Video side.
+  const playOffline = () => {
+    closeWatch();
+    setSetting("npVideo", true);
+    void music.play([asTrack()], 0, {
+      source: { type: "other", title: "Downloads" },
+    });
+    push("/now-playing");
+  };
+  const dl = useVideoDownload(id);
+  const offlineCopy = dl.state === "done";
+  const downloadLabel =
+    dl.state === "done"
+      ? "Downloaded"
+      : dl.state === "downloading" || dl.state === "queued"
+        ? `${Math.round(dl.progress * 100)}%`
+        : dl.state === "error"
+          ? "Retry"
+          : "Download";
+  const pickDownload = () => {
+    haptic.light();
+    if (dl.state === "done")
+      return showSheet({
+        actions: [
+          { label: "Play offline", onPress: playOffline },
+          {
+            label: "Remove download",
+            destructive: true,
+            onPress: () => removeDownload(id),
+          },
+        ],
+      });
+    if (dl.state === "downloading" || dl.state === "queued")
+      return showSheet({
+        actions: [
+          {
+            label: "Cancel download",
+            destructive: true,
+            onPress: () => removeDownload(id),
+          },
+        ],
+      });
+    const st = src?.stream;
+    const sizes = new Map<number, number | undefined>();
+    for (const p of st?.variants ?? []) {
+      const h = p.height ?? 0;
+      if (h > 1080 || (sizes.has(h) && (p.fps ?? 30) > 30)) continue;
+      sizes.set(
+        h,
+        p.contentLength && st?.audio.contentLength
+          ? p.contentLength + st.audio.contentLength
+          : undefined,
+      );
+    }
+    const heights = sizes.size ? [...sizes.keys()] : [720, 480, 360];
+    const go = (h: number) => () => {
+      downloadVideo(asTrack(), h);
+      showToast("Downloading. It’ll be in Downloads.");
+    };
+    showSheet({
+      header: <Text style={styles.sheetTitle}>Download</Text>,
+      actions: heights
+        .filter((h) => h >= 144)
+        .map((h) => ({
+          label: `${h}p`,
+          sub: sizes.get(h) ? `About ${mb(sizes.get(h)!)}` : undefined,
+          onPress: go(h),
+        })),
+    });
+  };
+  const save = () => {
+    haptic.light();
+    showPlaylistPicker([asTrack()]);
   };
 
   const thumb =
@@ -310,167 +488,271 @@ export function WatchSession({ id }: { id: string }) {
     -1,
   );
 
+  const stage = (
+    // Drag the video down to keep it playing in the mini player.
+    <GestureDetector gesture={drag}>
+      <View style={[styles.stage, { width: w, height: stageH }]}>
+        {src && mode === "full" ? (
+          <VideoSurface
+            surface={video.surface}
+            controls
+            style={StyleSheet.absoluteFill}
+          />
+        ) : null}
+        {src && started && !ended && mode === "full" ? (
+          <VideoControls
+            at={at}
+            dur={src.stream.durationSec ?? v?.durationSec}
+            playing={playing}
+            chapters={d?.chapters ?? []}
+            canPrev={at > 3 || hasBack}
+            canNext={!!next}
+            autoplay={autoplay}
+            onToggle={video.toggle}
+            onSeek={video.seek}
+            onPrev={() => (at > 3 ? video.seek(0) : watchPrevious())}
+            onNext={() => next && openWatch(next)}
+            onMinimize={minimizeWatch}
+            onSettings={pickSettings}
+            onFullscreen={enterFullscreen}
+            onAutoplay={(on) => {
+              setSetting("videoAutoplay", on);
+              showToast(on ? "Autoplay is on" : "Autoplay is off");
+            }}
+          />
+        ) : null}
+        {!started ? (
+          <View style={styles.veil} pointerEvents="none">
+            <Image
+              source={thumb}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              blurRadius={error ? 12 : undefined}
+            />
+            {error && offlineCopy ? null : error ? (
+              <Text style={styles.veilText}>
+                This video won’t play right now.
+              </Text>
+            ) : (
+              <View style={styles.spin}>
+                <Spinner size={30} />
+              </View>
+            )}
+          </View>
+        ) : null}
+        {error && offlineCopy ? (
+          <View style={styles.veil}>
+            <PressScale onPress={playOffline} style={styles.offlineBtn}>
+              <Text style={styles.offlineText}>Play the downloaded copy</Text>
+            </PressScale>
+          </View>
+        ) : null}
+        {ended ? (
+          <EndCard
+            next={next}
+            onReplay={() => {
+              setEnded(false);
+              video.replay();
+            }}
+            onNext={() => next && openWatch(next)}
+            onDone={closeWatch}
+          />
+        ) : null}
+      </View>
+    </GestureDetector>
+  );
+
+  const details = (
+    <>
+      <Ambient uri={glow} />
+      {v ? (
+        <Animated.View entering={FadeInDown.duration(320)}>
+          <Pressable
+            onPress={() => setPanel("description")}
+            style={styles.info}
+          >
+            <Text style={styles.title} numberOfLines={2}>
+              {title}
+            </Text>
+            <Text style={styles.meta} numberOfLines={1}>
+              {(calm ? [v.publishedText] : [v.viewsText, v.publishedText])
+                .filter(Boolean)
+                .join(" · ")}
+              <Text style={styles.metaMore}> ...more</Text>
+            </Text>
+          </Pressable>
+          <View style={styles.channel}>
+            <Pressable
+              onPress={() => v.channel?.id && openChannel(v.channel.id)}
+              style={styles.channelHit}
+            >
+              {v.channel?.avatar ? (
+                <Image
+                  source={bestThumbnail(v.channel.avatar, 88)}
+                  style={styles.avatar}
+                />
+              ) : null}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.channelName} numberOfLines={1}>
+                  {v.channel?.name}
+                </Text>
+                {d?.subscribersText && !calm ? (
+                  <Text style={styles.subs} numberOfLines={1}>
+                    {d.subscribersText}
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+            {signedIn && v.channel?.id ? (
+              <PressScale
+                onPress={toggleSubscribe}
+                style={[styles.subBtn, subscribed && styles.subBtnOn]}
+              >
+                <Text style={[styles.subText, subscribed && styles.subTextOn]}>
+                  {subscribed ? "Subscribed" : "Subscribe"}
+                </Text>
+              </PressScale>
+            ) : null}
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.actions}
+          >
+            <LikePill
+              likes={calm ? undefined : likes}
+              dislikes={calm ? undefined : votes?.dislikes}
+              rating={rating}
+              onRate={rate}
+            />
+            <Pill icon={<ShareGlyph />} label="Share" onPress={share} />
+            {Platform.OS !== "web" ? (
+              <Pill
+                icon={<DownloadGlyph done={offlineCopy} />}
+                label={downloadLabel}
+                onPress={pickDownload}
+              />
+            ) : null}
+            <Pill icon={<SaveGlyph />} label="Save" onPress={save} />
+            <Pill
+              icon={<GearGlyph />}
+              label={qualityLabel}
+              onPress={pickQuality}
+            />
+            <Pill icon={<HeadphonesGlyph />} label="Listen" onPress={listen} />
+          </ScrollView>
+        </Animated.View>
+      ) : detail.error ? (
+        <CatState
+          kind="error"
+          message="Couldn't open this video."
+          action="Try again"
+          onAction={detail.reload}
+        />
+      ) : (
+        <DetailSkeleton title={seed?.title} />
+      )}
+
+      {d?.chapters.length ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chapters}
+        >
+          {d.chapters.map((c, i) => (
+            <PressScale
+              key={`${c.startSec}${i}`}
+              onPress={() => video.seek(c.startSec)}
+              style={[styles.chapter, i === chapter && styles.chapterOn]}
+            >
+              <Text style={styles.chapterTime}>
+                {clock(c.startSec) || "0:00"}
+              </Text>
+              <Text style={styles.chapterTitle} numberOfLines={2}>
+                {c.title}
+              </Text>
+            </PressScale>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {!calm && d?.comments ? (
+        <CommentsCard
+          page={comments.data}
+          onPress={() => setPanel("comments")}
+        />
+      ) : null}
+
+      {!calm && related.length ? (
+        <View style={styles.upNext}>
+          {pinned ? (
+            related.slice(0, 16).map((r) => <VideoCard key={r.id} video={r} />)
+          ) : (
+            <>
+              <SectionTitle title="Up next" />
+              {related.slice(0, 16).map((r) => (
+                <VideoRow key={r.id} video={r} onPress={() => openWatch(r)} />
+              ))}
+            </>
+          )}
+        </View>
+      ) : null}
+    </>
+  );
+
+  const sheetPanel =
+    panel === "comments" ? (
+      <CommentsPanel
+        first={comments.data}
+        onClose={() => setPanel(null)}
+        onSeek={video.seek}
+      />
+    ) : panel === "description" && d ? (
+      <DescriptionPanel
+        detail={d}
+        title={title}
+        likes={calm ? undefined : likes}
+        onClose={() => setPanel(null)}
+        onSeek={video.seek}
+      />
+    ) : null;
+
   return (
     <Animated.View
       style={[styles.root, sheet]}
       pointerEvents={mode === "full" ? "auto" : "none"}
     >
-      <ScrollView
-        contentContainerStyle={{
-          paddingBottom: insets.bottom + 40,
-          alignItems: "center",
-        }}
-      >
-        <Ambient uri={glow} height={insets.top + stageH + 220} />
-        <View style={{ width: w }}>
-          {/* Full width like YouTube; drag the video down to keep it playing in the mini player. */}
-          <GestureDetector gesture={drag}>
-            <View style={{ paddingTop: insets.top }}>
-              <View style={[styles.stage, { height: stageH }]}>
-                {src && mode === "full" ? (
-                  <VideoSurface
-                    surface={video.surface}
-                    controls
-                    style={StyleSheet.absoluteFill}
-                  />
-                ) : null}
-                {!started ? (
-                  <View style={styles.veil} pointerEvents="none">
-                    <Image
-                      source={thumb}
-                      style={StyleSheet.absoluteFill}
-                      contentFit="cover"
-                      blurRadius={error ? 12 : 0}
-                    />
-                    {error ? (
-                      <Text style={styles.veilText}>
-                        This video won’t play right now.
-                      </Text>
-                    ) : (
-                      <View style={styles.spin}>
-                        <Spinner size={30} />
-                      </View>
-                    )}
-                  </View>
-                ) : null}
-                {ended ? (
-                  <EndCard
-                    next={next}
-                    onReplay={() => {
-                      setEnded(false);
-                      video.replay();
-                    }}
-                    onNext={() => next && openWatch(next)}
-                    onDone={closeWatch}
-                  />
-                ) : null}
-              </View>
-            </View>
-          </GestureDetector>
-
-          {v ? (
-            <Animated.View entering={FadeInDown.duration(360)}>
-              <Text style={styles.title}>{title}</Text>
-              <Text style={styles.meta}>{videoMeta(v, false)}</Text>
-              <View style={styles.channel}>
-                <Pressable
-                  onPress={() => {
-                    const cid = v.channel?.id;
-                    if (!cid) return;
-                    minimizeWatch();
-                    openChannel(cid);
-                  }}
-                  style={styles.channelHit}
-                >
-                  {v.channel?.avatar ? (
-                    <Image
-                      source={bestThumbnail(v.channel.avatar, 88)}
-                      style={styles.avatar}
-                    />
-                  ) : null}
-                  <Text style={styles.channelName} numberOfLines={1}>
-                    {v.channel?.name}
-                  </Text>
-                </Pressable>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.actions}
-              >
-                <VoteBar id={id} />
-                <Pill
-                  icon={<GearGlyph />}
-                  label={qualityLabel}
-                  onPress={pickQuality}
-                />
-                <Pill
-                  icon={<HeadphonesGlyph />}
-                  label="Listen"
-                  onPress={listen}
-                />
-                <Pill icon={<ShareGlyph />} label="Share" onPress={share} />
-              </ScrollView>
-            </Animated.View>
-          ) : detail.error ? (
-            <CatState
-              kind="error"
-              message="Couldn't open this video."
-              action="Try again"
-              onAction={detail.reload}
-            />
-          ) : (
-            <DetailSkeleton title={seed?.title} />
-          )}
-
-          {d?.chapters.length ? (
-            <View>
-              <SectionTitle title="Chapters" />
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chapters}
-              >
-                {d.chapters.map((c, i) => (
-                  <PressScale
-                    key={`${c.startSec}${i}`}
-                    onPress={() => video.seek(c.startSec)}
-                    style={[styles.chapter, i === chapter && styles.chapterOn]}
-                  >
-                    <Text style={styles.chapterTime}>
-                      {clock(c.startSec) || "0:00"}
-                    </Text>
-                    <Text style={styles.chapterTitle} numberOfLines={2}>
-                      {c.title}
-                    </Text>
-                  </PressScale>
-                ))}
-              </ScrollView>
-            </View>
+      {pinned ? (
+        // Phones: the video stays at the top like YouTube's; only the page below it scrolls.
+        <>
+          <View style={{ height: insets.top, backgroundColor: "#000" }} />
+          {stage}
+          <View style={{ flex: 1 }}>
+            <ScrollView
+              contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+            >
+              {details}
+            </ScrollView>
+            {sheetPanel}
+          </View>
+        </>
+      ) : (
+        <>
+          <ScrollView
+            contentContainerStyle={{
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom + 40,
+              alignItems: "center",
+            }}
+          >
+            {stage}
+            <View style={{ width: w }}>{details}</View>
+          </ScrollView>
+          {sheetPanel ? (
+            <View style={[styles.side, { top: insets.top }]}>{sheetPanel}</View>
           ) : null}
-
-          {d?.description ? (
-            <Pressable onPress={() => setOpen(!open)} style={styles.desc}>
-              <Text
-                style={styles.descText}
-                numberOfLines={open ? undefined : 3}
-              >
-                {d.description}
-              </Text>
-              <Text style={styles.more}>{open ? "Less" : "More"}</Text>
-            </Pressable>
-          ) : null}
-
-          {related.length ? (
-            <View>
-              <SectionTitle title="Up next" />
-              {related.slice(0, 12).map((r) => (
-                <VideoRow key={r.id} video={r} onPress={() => openWatch(r)} />
-              ))}
-            </View>
-          ) : null}
-        </View>
-      </ScrollView>
+        </>
+      )}
     </Animated.View>
   );
 }
@@ -531,6 +813,38 @@ function Pill({
   );
 }
 
+const mb = (bytes: number) =>
+  bytes >= 1e9
+    ? `${(bytes / 1e9).toFixed(1)} GB`
+    : `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+
+const DownloadGlyph = ({ done }: { done?: boolean }) => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path
+      d={
+        done
+          ? "M5 12.5l4.5 4.5L19 7.5"
+          : "M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"
+      }
+      stroke="#fff"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const SaveGlyph = () => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 6h11M4 12h11M4 18h7M18 14v7M14.5 17.5h7"
+      stroke="#fff"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
 const GearGlyph = () => (
   <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
     <Path
@@ -559,38 +873,57 @@ const ShareGlyph = () => (
   </Svg>
 );
 
-// Likes beside Return YouTube Dislike's estimate, with a thin bar of the share that liked it.
-function VoteBar({ id }: { id: string }) {
-  const v = useVotes(id);
-  if (!v) return null;
-  const share = v.likes + v.dislikes ? v.likes / (v.likes + v.dislikes) : 1;
+// Like and dislike in one pill, like YouTube's; counts are hidden on the calm page.
+function LikePill({
+  likes,
+  dislikes,
+  rating,
+  onRate,
+}: {
+  likes?: number;
+  dislikes?: number;
+  rating: Rating;
+  onRate: (r: Rating) => void;
+}) {
   return (
-    <Animated.View
-      entering={FadeIn.duration(240)}
-      style={[styles.pill, styles.votes]}
-    >
-      <Thumb up />
-      <Text style={styles.voteText}>{compact(v.likes)}</Text>
-      <Thumb />
-      <Text style={styles.voteText}>{compact(v.dislikes)}</Text>
-      <View style={styles.voteTrack}>
-        <View style={[styles.voteFill, { width: `${share * 100}%` }]} />
-      </View>
-    </Animated.View>
+    <View style={[styles.pill, styles.likePill]}>
+      <Pressable
+        onPress={() => onRate(rating === "like" ? "none" : "like")}
+        style={styles.likeHalf}
+        accessibilityLabel="Like"
+      >
+        <Thumb up on={rating === "like"} />
+        {likes !== undefined ? (
+          <Text style={styles.pillText}>{short(likes)}</Text>
+        ) : null}
+      </Pressable>
+      <View style={styles.likeRule} />
+      <Pressable
+        onPress={() => onRate(rating === "dislike" ? "none" : "dislike")}
+        style={styles.likeHalf}
+        accessibilityLabel="Dislike"
+      >
+        <Thumb on={rating === "dislike"} />
+        {dislikes !== undefined ? (
+          <Text style={styles.pillText}>{short(dislikes)}</Text>
+        ) : null}
+      </Pressable>
+    </View>
   );
 }
 
-const Thumb = ({ up }: { up?: boolean }) => (
+const Thumb = ({ up, on }: { up?: boolean; on?: boolean }) => (
   <Svg
-    width={15}
-    height={15}
+    width={17}
+    height={17}
     viewBox="0 0 24 24"
     fill="none"
     style={up ? undefined : { transform: [{ rotate: "180deg" }] }}
   >
     <Path
       d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3zm0 0 4-8a2 2 0 0 1 2 2v4h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.3 20H7"
-      stroke="rgba(255,255,255,0.75)"
+      stroke="#fff"
+      fill={on ? "#fff" : "none"}
       strokeWidth={2}
       strokeLinejoin="round"
     />
@@ -645,14 +978,10 @@ const HeadphonesGlyph = () => (
   </Svg>
 );
 
-/** YouTube's ambient mode: the picture, blurred past recognition, lighting the black around the player. */
-function Ambient({ uri, height }: { uri: string; height: number }) {
-  const total = height + OVERSCROLL;
+/** YouTube's ambient mode: the picture, blurred past recognition, glowing out from under the video onto black. */
+function Ambient({ uri }: { uri: string }) {
   return (
-    <View
-      pointerEvents="none"
-      style={[styles.ambient, { top: -OVERSCROLL, height: total }]}
-    >
+    <View pointerEvents="none" style={styles.ambient}>
       <Image
         source={uri}
         style={styles.ambientImage}
@@ -661,8 +990,8 @@ function Ambient({ uri, height }: { uri: string; height: number }) {
         transition={1400}
       />
       <LinearGradient
-        colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.35)", "#000"]}
-        locations={[0, (OVERSCROLL + height * 0.55) / total, 1]}
+        colors={["rgba(0,0,0,0.25)", "rgba(0,0,0,0.7)", "#000"]}
+        locations={[0, 0.5, 1]}
         style={StyleSheet.absoluteFill}
       />
     </View>
@@ -696,7 +1025,14 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   flush: { marginTop: 0, marginHorizontal: 0 },
-  ambient: { position: "absolute", left: 0, right: 0, overflow: "hidden" },
+  ambient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 300,
+    overflow: "hidden",
+  },
   // Scaled past the edges so the blur doesn't fade to dark at the sides.
   ambientImage: {
     position: "absolute",
@@ -707,7 +1043,8 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     transform: [{ scale: 1.35 }],
   },
-  stage: { backgroundColor: "#000", overflow: "hidden" },
+  // Not clipped, so the seek bar's handle can sit on the video's bottom edge like YouTube's.
+  stage: { backgroundColor: "#000", zIndex: 2 },
   sheetTitle: {
     color: "#fff",
     fontSize: 17,
@@ -726,21 +1063,41 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   veilText: { color: "#fff", fontSize: 14, ...display("700") },
-  title: {
-    color: "#fff",
-    fontSize: 20,
-    lineHeight: 25,
-    marginTop: 16,
-    marginHorizontal: 16,
-    ...display("800"),
+  offlineBtn: {
+    height: 40,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    justifyContent: "center",
+    backgroundColor: "#fff",
   },
-  meta: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 13.5,
-    marginTop: 5,
-    marginHorizontal: 16,
+  offlineText: { color: "#000", fontSize: 14, ...display("800") },
+  info: { paddingHorizontal: 12, paddingTop: 12 },
+  title: { color: "#fff", fontSize: 18, lineHeight: 23, ...display("800") },
+  meta: { color: "rgba(255,255,255,0.6)", fontSize: 12.5, marginTop: 5 },
+  metaMore: { color: "#fff", fontWeight: "700" },
+  actions: { gap: 8, paddingHorizontal: 12, marginTop: 12 },
+  likePill: { paddingHorizontal: 0, gap: 0 },
+  likeHalf: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    height: 36,
+    paddingHorizontal: 14,
   },
-  actions: { gap: 8, paddingHorizontal: 16, marginTop: 14 },
+  likeRule: { width: 1, height: 20, backgroundColor: "rgba(255,255,255,0.25)" },
+  subs: { color: "rgba(255,255,255,0.55)", fontSize: 12, marginTop: 1 },
+  subBtn: {
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  subBtnOn: { backgroundColor: "rgba(255,255,255,0.14)" },
+  subText: { color: "#000", fontSize: 14, ...display("800") },
+  subTextOn: { color: "#fff" },
+  upNext: { marginTop: 20 },
+  side: { position: "absolute", right: 0, bottom: 0, width: 420 },
   pill: {
     flexDirection: "row",
     alignItems: "center",
@@ -751,32 +1108,17 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.12)",
   },
   pillText: { color: "#fff", fontSize: 14, ...display("700") },
-  votes: { gap: 6 },
-  voteText: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    marginRight: 8,
-    ...display("700"),
-  },
-  voteTrack: {
-    width: 44,
-    height: 3,
-    borderRadius: 2,
-    overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.18)",
-  },
-  voteFill: { height: 3, backgroundColor: "rgba(255,255,255,0.75)" },
   channel: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginTop: 16,
-    marginHorizontal: 16,
+    marginTop: 14,
+    marginHorizontal: 12,
   },
   channelHit: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#222" },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#222" },
   channelName: { flex: 1, color: "#fff", fontSize: 15.5, ...display("700") },
-  chapters: { gap: 10, paddingHorizontal: 16 },
+  chapters: { gap: 10, paddingHorizontal: 12, marginTop: 16 },
   chapter: {
     width: 150,
     padding: 12,
@@ -795,15 +1137,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     ...display("700"),
   },
-  desc: {
-    marginHorizontal: 16,
-    marginTop: 18,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.07)",
-  },
-  descText: { color: "rgba(255,255,255,0.85)", fontSize: 14, lineHeight: 20 },
-  more: { color: "#fff", fontSize: 13, marginTop: 6, ...display("800") },
   end: {
     position: "absolute",
     top: 0,

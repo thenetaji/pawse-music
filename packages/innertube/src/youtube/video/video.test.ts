@@ -1,4 +1,5 @@
 import {
+  parseComments,
   parseLockup,
   parseVideoDetail,
   parseVideoFeed,
@@ -391,5 +392,135 @@ describe("videoLadder", () => {
     ]);
     expect(ladder.map((f) => f.itag)).toEqual([299, 137, 9136, 160]);
     expect(videoLadder(ladder, 720).map((f) => f.itag)).toEqual([9136, 160]);
+  });
+});
+
+describe("comments", () => {
+  const entity = (key: string, id: string, extra: object = {}) => ({
+    entityKey: key,
+    payload: {
+      commentEntityPayload: {
+        properties: {
+          commentId: id,
+          content: { content: `text ${id}` },
+          publishedTime: "2 days ago",
+          replyLevel: 0,
+        },
+        author: {
+          channelId: "UCa",
+          displayName: "@a",
+          avatarThumbnailUrl: "https://a",
+        },
+        toolbar: { likeCountNotliked: "12", replyCount: "3" },
+        ...extra,
+      },
+    },
+  });
+  const page = {
+    onResponseReceivedEndpoints: [
+      {
+        reloadContinuationItemsCommand: {
+          continuationItems: [
+            {
+              commentsHeaderRenderer: {
+                countText: { runs: [{ text: "5,207" }, { text: " Comments" }] },
+              },
+            },
+          ],
+        },
+      },
+      {
+        reloadContinuationItemsCommand: {
+          continuationItems: [
+            {
+              commentThreadRenderer: {
+                commentViewModel: {
+                  commentViewModel: { commentKey: "k1", toolbarStateKey: "s1" },
+                },
+                replies: {
+                  commentRepliesRenderer: {
+                    contents: [
+                      {
+                        continuationItemRenderer: {
+                          continuationEndpoint: {
+                            continuationCommand: { token: "R1" },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+            {
+              continuationItemRenderer: {
+                continuationEndpoint: {
+                  continuationCommand: { token: "NEXT" },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ],
+    frameworkUpdates: {
+      entityBatchUpdate: {
+        mutations: [
+          entity("k1", "c1"),
+          {
+            entityKey: "s1",
+            payload: {
+              engagementToolbarStateEntityPayload: {
+                heartState: "TOOLBAR_HEART_STATE_HEARTED",
+              },
+            },
+          },
+        ],
+      },
+    },
+  };
+
+  it("joins the list's keys to the comment entities", () => {
+    const p = parseComments(page);
+    expect(p.count).toBe("5,207");
+    expect(p.continuation).toBe("NEXT");
+    expect(p.items).toEqual([
+      {
+        id: "c1",
+        text: "text c1",
+        author: { id: "UCa", name: "@a", avatar: "https://a" },
+        published: "2 days ago",
+        likes: "12",
+        replies: "3",
+        repliesToken: "R1",
+        hearted: true,
+      },
+    ]);
+  });
+
+  it("reads replies, which are bare view models", () => {
+    const p = parseComments({
+      onResponseReceivedEndpoints: [
+        {
+          appendContinuationItemsAction: {
+            continuationItems: [{ commentViewModel: { commentKey: "k2" } }],
+          },
+        },
+      ],
+      frameworkUpdates: {
+        entityBatchUpdate: {
+          mutations: [
+            entity("k2", "c2", {
+              properties: {
+                commentId: "c2",
+                content: { content: "hi" },
+                replyLevel: 1,
+              },
+            }),
+          ],
+        },
+      },
+    });
+    expect(p.items[0]).toMatchObject({ id: "c2", text: "hi", reply: true });
   });
 });

@@ -1,3 +1,5 @@
+import { localVideo } from "../data/downloads";
+import { publishPlaylist } from "./playlists";
 import {
   buildMutedVideo,
   buildVideoSource,
@@ -5,7 +7,6 @@ import {
   type Quality,
   type VideoSource,
 } from "./video-ladder";
-import { publishPlaylist } from "./playlists";
 
 export type { Quality, QualityOption, VideoSource } from "./video-ladder";
 
@@ -19,5 +20,8 @@ export const videoSource = (
   quality: Quality,
 ): Promise<VideoSource> => buildVideoSource(host, id, quality);
 
-export const mutedVideo = (id: string, maxHeight: number): Promise<string> =>
-  buildMutedVideo(host, id, maxHeight);
+/** A downloaded picture plays from the phone, so the Video side works offline. */
+export const mutedVideo = (id: string, maxHeight: number): Promise<string> => {
+  const local = localVideo(id);
+  return local ? Promise.resolve(local) : buildMutedVideo(host, id, maxHeight);
+};

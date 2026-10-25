@@ -21,7 +21,7 @@ import {
 } from "../lib/net";
 import { isLowData, useLowData } from "../lib/quality";
 import { autoDownloadMode } from "../lib/settings";
-import { resolver, setLocalLookup } from "./clients";
+import { resolver, setLocalLookup, ytv } from "./clients";
 import {
   createDownloadManager,
   type DownloadDeps,
@@ -137,6 +137,19 @@ function fileDeps(dir: () => Directory): FileDeps {
   };
 }
 
+async function canDownload(): Promise<true | "wifi" | "offline"> {
+  const s = await Network.getNetworkStateAsync();
+  if (s.isConnected === false || s.isInternetReachable === false)
+    return "offline";
+  if (
+    settings().wifiOnly &&
+    s.type !== Network.NetworkStateType.WIFI &&
+    s.type !== Network.NetworkStateType.ETHERNET
+  )
+    return "wifi";
+  return true;
+}
+
 const manager = createDownloadManager(index, live, {
   ...fileDeps(downloadsDir),
   resolve: (track) =>
@@ -144,18 +157,55 @@ const manager = createDownloadManager(index, live, {
       quality: settings().downloadQuality,
       remoteOnly: true,
     }),
-  async canDownload() {
-    const s = await Network.getNetworkStateAsync();
-    if (s.isConnected === false || s.isInternetReachable === false)
-      return "offline";
-    if (
-      settings().wifiOnly &&
-      s.type !== Network.NetworkStateType.WIFI &&
-      s.type !== Network.NetworkStateType.ETHERNET
-    )
-      return "wifi";
-    return true;
+  canDownload,
+});
+
+// A downloaded video is its sound (an ordinary download, so it plays in the music player) plus a picture-only file
+// that plays muted alongside it, the way the player's Video side does online.
+const videoIndex = create<IndexState>()(
+  persist(() => ({ entries: {} }), {
+    name: "pawse.video-downloads.v1",
+    storage: createJSONStorage(() => kv),
+    version: 1,
+  }),
+);
+const videoLive = create<LiveState>()(() => ({ progress: {} }));
+const videoDir = lazyDir("video-downloads");
+// The height each video was asked for, so a restart resumes the same file.
+const videoHeights = create<{ h: Record<string, number> }>()(
+  persist(() => ({ h: {} }), {
+    name: "pawse.video-heights.v1",
+    storage: createJSONStorage(() => kv),
+    version: 1,
+  }),
+);
+const VIDEO_HEIGHT = 720;
+
+const videoManager = createDownloadManager(videoIndex, videoLive, {
+  ...fileDeps(videoDir),
+  saveArt: async () => undefined,
+  async resolve(track) {
+    const s = await ytv.resolveStream(track.id, { maxHeight: 4320 });
+    const max = videoHeights.getState().h[track.id] ?? VIDEO_HEIGHT;
+    const fits = s.variants.filter((p) => (p.height ?? 0) <= max);
+    const top = fits[0]?.height;
+    // The tallest that fits; at that height 30 fps when there's a choice, as it's half the size.
+    const v =
+      fits.find((p) => p.height === top && (p.fps ?? 30) <= 30) ??
+      fits[0] ??
+      s.variants[s.variants.length - 1];
+    return {
+      url: v.url,
+      mimeType: v.mimeType,
+      bitrate: v.bitrate,
+      contentLength: v.contentLength,
+      expiresAt: s.expiresAt,
+      headers: s.headers,
+      durationSec: s.durationSec,
+      via: s.via,
+    };
   },
+  canDownload,
 });
 
 /** Low quality on mobile data, or Wi-Fi only, keeps caching off mobile data. */
@@ -259,18 +309,70 @@ export function downloadMany(tracks: Track[]): void {
     tracks.filter((t) => t.source !== "local" && !adoptCached(t)),
   );
 }
-export const removeDownload = (id: string) => manager.remove(id);
+export const removeDownload = (id: string) => {
+  manager.remove(id);
+  videoManager.remove(id);
+};
 export function removeAllDownloads(): void {
   for (const id of Object.keys(index.getState().entries)) manager.remove(id);
+  for (const id of Object.keys(videoIndex.getState().entries))
+    videoManager.remove(id);
+}
+
+/** Saves a video for offline: its sound as a download, and its picture at up to `height`. */
+export function downloadVideo(track: Track, height: number): void {
+  if (!native) return;
+  videoHeights.setState((s) => ({ h: { ...s.h, [track.id]: height } }));
+  download(track);
+  videoManager.download(track);
+}
+
+/** file:// uri of a downloaded video's picture. */
+export function localVideo(id: string): string | undefined {
+  if (!native) return undefined;
+  const e = videoIndex.getState().entries[id];
+  if (e?.state !== "done" || !e.file) return undefined;
+  const f = new File(videoDir(), e.file);
+  return f.exists ? f.uri : undefined;
+}
+
+/** A video download's state and 0–1 progress across its sound and picture. */
+export function useVideoDownload(id: string): {
+  state: DownloadState | undefined;
+  progress: number;
+} {
+  const a = useDownload(id);
+  const vState = useStore(videoIndex, (s) => s.entries[id]?.state);
+  const p = useStore(
+    videoLive,
+    useShallow((s) => s.progress[id] ?? { bytes: 0, total: undefined }),
+  );
+  const vProgress =
+    vState === "done" ? 1 : p.total ? Math.min(1, p.bytes / p.total) : 0;
+  if (!vState) return { state: undefined, progress: 0 };
+  const states = [a.state, vState];
+  const state: DownloadState = states.includes("error")
+    ? "error"
+    : states.every((x) => x === "done")
+      ? "done"
+      : states.includes("downloading")
+        ? "downloading"
+        : "queued";
+  // The picture is most of the bytes.
+  return { state, progress: a.progress * 0.15 + vProgress * 0.85 };
 }
 export const retryDownloads = () => manager.retryFailed();
 
 /** Bytes on disk for downloads (finished plus in progress). */
 export function storageUsed(): number {
-  const progress = live.getState().progress;
-  return Object.values(index.getState().entries).reduce(
-    (sum, e) => sum + (progress[e.id]?.bytes ?? e.bytes),
-    0,
+  const used = (store: typeof index, progress: LiveState["progress"]) =>
+    Object.values(store.getState().entries).reduce(
+      (sum, e) => sum + (progress[e.id]?.bytes ?? e.bytes),
+      0,
+    );
+  return (
+    used(index, live.getState().progress) +
+    used(videoIndex, videoLive.getState().progress)
   );
 }
 
@@ -452,7 +554,9 @@ if (native) {
   Network.addNetworkStateListener(() => {
     void manager.pump();
     void cacheManager.pump();
+    void videoManager.pump();
   });
   manager.resumeAll();
   cacheManager.resumeAll();
+  videoManager.resumeAll();
 }
