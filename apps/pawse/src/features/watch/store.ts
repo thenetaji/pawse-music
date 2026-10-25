@@ -26,6 +26,8 @@ interface WatchState {
   progress: number;
   title?: string;
   channel?: string;
+  /** Videos this session came from, newest last, for the previous button. */
+  back: WatchSeed[];
 }
 
 export const useWatch = create<WatchState>(() => ({
@@ -34,16 +36,24 @@ export const useWatch = create<WatchState>(() => ({
   player: null,
   playing: false,
   progress: 0,
+  back: [],
 }));
 
 /** Opens a video full screen; the same video already in the mini player just grows back. */
-export function openWatch(v: WatchSeed, t?: number) {
+export function openWatch(v: WatchSeed, t?: number, o?: { back?: boolean }) {
   const s = useWatch.getState();
   if (s.id === v.id && t === undefined) {
     useWatch.setState({ mode: "full" });
     return;
   }
+  // Going on from a video remembers it; going back drops it.
+  const back = o?.back
+    ? s.back.slice(0, -1)
+    : s.id && s.seed
+      ? [...s.back, s.seed].slice(-30)
+      : [];
   useWatch.setState({
+    back,
     id: v.id,
     t,
     seed: v,
@@ -60,6 +70,7 @@ export const minimizeWatch = () => useWatch.setState({ mode: "mini" });
 export const expandWatch = () => useWatch.setState({ mode: "full" });
 export const closeWatch = () =>
   useWatch.setState({
+    back: [],
     id: null,
     player: null,
     playing: false,
@@ -69,3 +80,11 @@ export const closeWatch = () =>
 /** The mini player slot shows the video instead of the song while a video sits there. */
 export const useVideoMini = () =>
   useWatch((s) => !!s.id && s.mode === "mini" && !!s.player);
+
+/** Back to the video before this one in the session. */
+export function watchPrevious(): boolean {
+  const prev = useWatch.getState().back.at(-1);
+  if (!prev) return false;
+  openWatch(prev, undefined, { back: true });
+  return true;
+}

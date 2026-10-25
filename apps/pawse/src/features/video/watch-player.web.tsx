@@ -19,6 +19,13 @@ const play = (v: HTMLVideoElement) => void v.play().catch(() => {});
 const setControls = (v: HTMLVideoElement, on: boolean) => {
   v.controls = on;
 };
+const setRate = (v: HTMLVideoElement, r: number) => {
+  v.playbackRate = r;
+};
+
+let enterFull: (() => void) | undefined;
+/** Full screen with the browser's own controls, which go away again on the way out. */
+export const enterFullscreen = () => enterFull?.();
 
 /** Chromium has no HLS of its own, so hls.js feeds the playlist to a <video> element that lives for the session. */
 export function useWatchPlayer(
@@ -98,6 +105,7 @@ export function useWatchPlayer(
       },
       toggle: () => (video.paused ? play(video) : video.pause()),
       pause: () => video.pause(),
+      setRate: (r: number) => setRate(video, r),
     }),
     [video],
   );
@@ -118,7 +126,23 @@ export function VideoSurface({
     const node = box.current as unknown as HTMLElement | null;
     if (!node) return;
     node.appendChild(surface);
-    setControls(surface, !!controls);
+    // The page draws its own controls.
+    setControls(surface, false);
+    if (!controls) return;
+    const exit = () => {
+      if (!document.fullscreenElement) setControls(surface, false);
+    };
+    document.addEventListener("fullscreenchange", exit);
+    enterFull = () => {
+      setControls(surface, true);
+      void surface
+        .requestFullscreen?.()
+        .catch(() => setControls(surface, false));
+    };
+    return () => {
+      document.removeEventListener("fullscreenchange", exit);
+      enterFull = undefined;
+    };
   }, [surface, controls]);
   return <View ref={box} style={[styles.box, style]} />;
 }

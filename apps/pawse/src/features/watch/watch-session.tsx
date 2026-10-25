@@ -76,8 +76,19 @@ import {
   videoSource,
 } from "../../lib/video-stream";
 import { showPlaylistPicker } from "../library/playlist-tools";
-import { useWatchPlayer, VideoSurface } from "../video/watch-player";
-import { closeWatch, minimizeWatch, openWatch, useWatch } from "./store";
+import {
+  enterFullscreen,
+  useWatchPlayer,
+  VideoSurface,
+} from "../video/watch-player";
+import {
+  closeWatch,
+  minimizeWatch,
+  openWatch,
+  useWatch,
+  watchPrevious,
+} from "./store";
+import { VideoControls } from "./video-controls";
 import {
   CommentsCard,
   CommentsPanel,
@@ -340,6 +351,31 @@ export function WatchSession({ id }: { id: string }) {
       ],
     });
   };
+  const [speed, setSpeed] = useState(1);
+  const pickSpeed = () =>
+    showSheet({
+      header: <Text style={styles.sheetTitle}>Playback speed</Text>,
+      actions: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => ({
+        label: `${r === speed ? "✓  " : ""}${r === 1 ? "Normal" : `${r}×`}`,
+        onPress: () => {
+          setSpeed(r);
+          video.setRate(r);
+        },
+      })),
+    });
+  const pickSettings = () =>
+    showSheet({
+      actions: [
+        { label: "Quality", sub: qualityLabel, onPress: pickQuality },
+        {
+          label: "Playback speed",
+          sub: speed === 1 ? "Normal" : `${speed}×`,
+          onPress: pickSpeed,
+        },
+      ],
+    });
+  const playing = useWatch((s) => s.playing);
+  const hasBack = useWatch((s) => s.back.length > 0);
   const share = () => {
     haptic.light();
     void Share.share({
@@ -461,6 +497,28 @@ export function WatchSession({ id }: { id: string }) {
             surface={video.surface}
             controls
             style={StyleSheet.absoluteFill}
+          />
+        ) : null}
+        {src && started && !ended && mode === "full" ? (
+          <VideoControls
+            at={at}
+            dur={src.stream.durationSec ?? v?.durationSec}
+            playing={playing}
+            chapters={d?.chapters ?? []}
+            canPrev={at > 3 || hasBack}
+            canNext={!!next}
+            autoplay={autoplay}
+            onToggle={video.toggle}
+            onSeek={video.seek}
+            onPrev={() => (at > 3 ? video.seek(0) : watchPrevious())}
+            onNext={() => next && openWatch(next)}
+            onMinimize={minimizeWatch}
+            onSettings={pickSettings}
+            onFullscreen={enterFullscreen}
+            onAutoplay={(on) => {
+              setSetting("videoAutoplay", on);
+              showToast(on ? "Autoplay is on" : "Autoplay is off");
+            }}
           />
         ) : null}
         {!started ? (
@@ -985,7 +1043,8 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     transform: [{ scale: 1.35 }],
   },
-  stage: { backgroundColor: "#000", overflow: "hidden" },
+  // Not clipped, so the seek bar's handle can sit on the video's bottom edge like YouTube's.
+  stage: { backgroundColor: "#000", zIndex: 2 },
   sheetTitle: {
     color: "#fff",
     fontSize: 17,
