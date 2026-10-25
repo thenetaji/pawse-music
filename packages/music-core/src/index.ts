@@ -31,6 +31,10 @@ export interface Track {
   explicit?: boolean;
   /** 'song' = official audio (square art); 'video' = music video or user upload. */
   kind?: "song" | "video";
+  /** A video that is the artist's official music video (YouTube's OMV). */
+  official?: boolean;
+  /** For a song: its official music video, when YouTube Music pairs one. */
+  musicVideoId?: string;
   /** YouTube's loudness offset in dB, used for normalisation once the stream is resolved. */
   loudnessDb?: number;
   /** Set when the track was liked or added from an album or playlist. */

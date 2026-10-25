@@ -95,6 +95,8 @@ export type NowPlayingProps = {
     /** The video-only playlist, once it's ready. */
     uri?: string;
     failed?: boolean;
+    /** The song has no music video: the switch shows that and stays on Song. */
+    none?: boolean;
     onChange: (on: boolean) => void;
   };
   /** Tapping the title opens the album; tapping the artist opens the artist. */
@@ -130,7 +132,7 @@ export function NowPlayingView(p: NowPlayingProps) {
       s.status === "loading",
   );
   const lyricsMode = p.mode === "lyrics";
-  const videoOn = !!p.video?.on && !lyricsMode;
+  const videoOn = !!p.video?.on && !p.video.none && !lyricsMode;
 
   // Paused: the artwork dims and settles back a touch.
   const live = useSharedValue(playing ? 1 : 0);
@@ -419,7 +421,11 @@ export function NowPlayingView(p: NowPlayingProps) {
           </Pressable>
           {p.video && !lyricsMode ? (
             <View style={styles.context}>
-              <SongVideoSwitch on={p.video.on} onChange={p.video.onChange} />
+              <SongVideoSwitch
+                on={p.video.on && !p.video.none}
+                none={p.video.none}
+                onChange={p.video.onChange}
+              />
             </View>
           ) : (
             <>

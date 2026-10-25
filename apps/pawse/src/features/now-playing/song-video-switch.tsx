@@ -4,6 +4,8 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { NoVideoGlyph } from "../../components/glyphs";
+import { showToast } from "../../components/toast";
 import { haptic } from "../../lib/haptics";
 import { display } from "../../lib/type";
 
@@ -12,15 +14,22 @@ const W = 62;
 /** YouTube Music's Song | Video switch: what fills the top of the player. */
 export function SongVideoSwitch({
   on,
+  none,
   onChange,
 }: {
   on: boolean;
+  /** No music video for this song: Video is struck through and only says so. */
+  none?: boolean;
   onChange: (on: boolean) => void;
 }) {
   const knob = useAnimatedStyle(() => ({
     transform: [{ translateX: withTiming(on ? W : 0, { duration: 220 }) }],
   }));
   const pick = (v: boolean) => () => {
+    if (v && none) {
+      haptic.light();
+      return showToast("This song has no music video");
+    }
     if (v === on) return;
     haptic.light();
     onChange(v);
@@ -36,9 +45,17 @@ export function SongVideoSwitch({
             onPress={pick(i === 1)}
             style={styles.seg}
             accessibilityRole="tab"
-            accessibilityState={{ selected: sel }}
+            accessibilityState={{ selected: sel, disabled: i === 1 && none }}
+            accessibilityLabel={i === 1 && none ? "No video" : label}
           >
-            <Text style={[styles.label, sel && styles.labelOn]}>{label}</Text>
+            {i === 1 && none ? (
+              <View style={styles.none}>
+                <NoVideoGlyph size={13} color="rgba(255,255,255,0.45)" />
+                <Text style={[styles.label, styles.labelNone]}>{label}</Text>
+              </View>
+            ) : (
+              <Text style={[styles.label, sel && styles.labelOn]}>{label}</Text>
+            )}
           </Pressable>
         );
       })}
@@ -68,4 +85,6 @@ const styles = StyleSheet.create({
   seg: { width: W, height: 26, alignItems: "center", justifyContent: "center" },
   label: { color: "rgba(255,255,255,0.85)", fontSize: 13, ...display("700") },
   labelOn: { color: "#000" },
+  none: { flexDirection: "row", alignItems: "center", gap: 3 },
+  labelNone: { color: "rgba(255,255,255,0.45)" },
 });

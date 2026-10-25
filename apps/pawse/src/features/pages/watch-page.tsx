@@ -21,12 +21,13 @@ import { CloseGlyph } from "../../components/glyphs";
 import { useTabRoot } from "../../components/page";
 import { CatState, Chip, Screen, SkeletonShelves } from "../../components/ui";
 import { ChannelRow, VideoCard } from "../../components/video-card";
-import { useLibrary } from "../../data/library";
+import { subscriptionsFeed } from "../../data/channels";
 import { useVideoFilter } from "../../lib/block";
 import { ytv } from "../../lib/engine";
 import { useHomeSections } from "../../lib/home-sections";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
+import { useHasSubs } from "../home/home-blocks";
 import { useAccent } from "../now-playing/now-palette";
 
 type Feed = "home" | "subs";
@@ -46,7 +47,7 @@ export default function WatchPage({
 }) {
   useTabRoot(pushed ? "home" : "watch");
   const accent = useAccent();
-  const signedIn = useLibrary((s) => !!s.settings.cookies);
+  const signedIn = useHasSubs();
   // YouTube's suggestions end after a page unless they're switched on in Edit Home.
   const suggest = useHomeSections().some((s) => s.id === "ytvideos" && s.on);
   const [feed, setFeed] = useState<Feed>(start ?? (signedIn ? "subs" : "home"));
@@ -61,7 +62,7 @@ export default function WatchPage({
       query
         ? ytv.search(query)
         : feed === "subs"
-          ? ytv.subscriptions()
+          ? subscriptionsFeed()
           : ytv.home(),
     { keep: !query },
   );
@@ -85,7 +86,7 @@ export default function WatchPage({
     const next: Promise<Page> = query
       ? ytv.search(query, cont)
       : feed === "subs"
-        ? ytv.subscriptions(cont)
+        ? subscriptionsFeed(cont)
         : ytv.home(cont);
     next
       .then((r) =>

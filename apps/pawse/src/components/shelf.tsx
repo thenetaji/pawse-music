@@ -5,14 +5,26 @@ import {
   type Track,
 } from "@pawse/music-core";
 import { player } from "@pawse/player";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  FlatList,
+  Platform,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useLibrary } from "../data/library";
+import { isPinned, togglePin } from "../data/pins";
 import { showTrackActions } from "../features/library/track-actions";
 import { rightClick } from "../lib/context-menu";
 import { useContentWidth } from "../lib/layout";
 import { go } from "../lib/nav";
 import { autoplayMode } from "../lib/settings";
 import { display } from "../lib/type";
+import { showSheet } from "./action-sheet";
 import { Artwork } from "./artwork";
+import { ArtistGlyph, PinGlyph, PlusGlyph, ShareGlyph } from "./glyphs";
 import { TrackRow } from "./track-row";
 
 const CARD = 152;
@@ -34,6 +46,73 @@ export function openItem(item: CatalogItem, siblings?: CatalogItem[]) {
   void player.play(tracks as Track[], at, {
     radio: autoplayMode() !== "off",
     source: { type: "other" },
+  });
+}
+
+/** Long press on an album, artist or playlist: save or follow, pin to Home, share. */
+export function showItemActions(item: CatalogItem) {
+  if (item.type === "track") return showTrackActions(item);
+  const lib = useLibrary.getState();
+  const title = item.type === "artist" ? item.name : item.title;
+  const link =
+    item.type === "album"
+      ? `https://music.youtube.com/browse/${item.id}`
+      : item.type === "artist"
+        ? `https://music.youtube.com/channel/${item.id}`
+        : `https://music.youtube.com/playlist?list=${item.id}`;
+  const keep =
+    item.type === "album"
+      ? {
+          label: lib.isAlbumSaved(item.id)
+            ? "Remove from Library"
+            : "Save to Library",
+          icon: (c: string) => <PlusGlyph size={22} color={c} />,
+          onPress: () => void lib.toggleSaveAlbum(item),
+        }
+      : item.type === "artist"
+        ? {
+            label: lib.isFollowing(item.id) ? "Unfollow" : "Follow",
+            icon: (c: string) => <ArtistGlyph size={22} color={c} />,
+            onPress: () => void lib.toggleFollowArtist(item),
+          }
+        : undefined;
+  showSheet({
+    header: (
+      <View style={styles.sheetHead}>
+        <Artwork
+          thumbnails={item.thumbnails}
+          size={48}
+          radius={8}
+          round={item.type === "artist"}
+          seed={title}
+        />
+        <Text style={styles.sheetTitle} numberOfLines={2}>
+          {title}
+        </Text>
+      </View>
+    ),
+    actions: [
+      ...(keep ? [keep] : []),
+      {
+        label: isPinned(item.id) ? "Unpin from Home" : "Pin to Home",
+        icon: (c) => <PinGlyph size={22} color={c} />,
+        onPress: () =>
+          togglePin({
+            kind: item.type,
+            id: item.id,
+            title,
+            thumbnails: item.thumbnails,
+          }),
+      },
+      {
+        label: "Share",
+        icon: (c) => <ShareGlyph size={22} color={c} />,
+        onPress: () =>
+          void Share.share(
+            Platform.OS === "ios" ? { url: link } : { message: link },
+          ),
+      },
+    ],
   });
 }
 
@@ -183,14 +262,16 @@ export function Card({
   return (
     <Pressable
       onPress={() => openItem(item, siblings)}
-      onLongPress={
+      onLongPress={() =>
         item.type === "track"
-          ? () => showTrackActions(item, { removable })
-          : undefined
+          ? showTrackActions(item, { removable })
+          : showItemActions(item)
       }
-      {...(item.type === "track"
-        ? rightClick(() => showTrackActions(item, { removable }))
-        : {})}
+      {...rightClick(() =>
+        item.type === "track"
+          ? showTrackActions(item, { removable })
+          : showItemActions(item),
+      )}
       style={({ pressed }) => [
         { width: wide ? size * 1.6 : size },
         pressed && { opacity: 0.7 },
@@ -234,6 +315,8 @@ export function Card({
 }
 
 const styles = StyleSheet.create({
+  sheetHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sheetTitle: { flex: 1, color: "#fff", fontSize: 16, ...display("800") },
   shelf: { marginTop: 26 },
   head: { paddingHorizontal: 20, marginBottom: 10 },
   kicker: {

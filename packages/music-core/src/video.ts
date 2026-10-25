@@ -12,6 +12,8 @@ export interface VideoItem {
   publishedText?: string;
   thumbnails: Thumbnail[];
   live?: boolean;
+  /** YouTube files it as music (it would open as a radio): a song, music video or mix. */
+  music?: boolean;
 }
 
 export interface ChannelItem {
@@ -79,6 +81,8 @@ export interface ChannelPage {
   banner?: Thumbnail[];
   videos: VideoItem[];
   continuation?: string;
+  /** Signed in: whether the account is subscribed. */
+  subscribed?: boolean;
 }
 
 export interface StreamPart {

@@ -4,6 +4,7 @@ import { Platform, StyleSheet, View } from "react-native";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOnline } from "../../data/downloads";
+import { activeTab, emitTabReselect, type Tab } from "../../lib/nav";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
 import { useAccent } from "../now-playing/now-palette";
@@ -21,6 +22,13 @@ export function PhoneTabs() {
         tintColor={accent}
         minimizeBehavior="onScrollDown"
         blurEffect="systemChromeMaterialDark"
+        screenListeners={({ route }) => ({
+          // A tap on the tab you're on: our pages scroll up, or refresh from the top.
+          tabPress: () => {
+            const t = route.name.replace(/[()]/g, "") as Tab;
+            if (t === activeTab()) emitTabReselect(t);
+          },
+        })}
       >
         {/* The mini player slot appears only once something is loaded. */}
         {Platform.OS === "ios" && (hasTrack || videoMini) ? (
@@ -30,6 +38,7 @@ export function PhoneTabs() {
         ) : null}
         <NativeTabs.Trigger
           name="(home)"
+          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
@@ -48,6 +57,7 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(explore)"
+          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
@@ -55,6 +65,7 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(library)"
+          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>

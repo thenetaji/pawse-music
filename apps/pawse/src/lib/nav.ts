@@ -4,6 +4,7 @@ import { type Href, router } from "expo-router";
 export type Tab = "home" | "watch" | "explore" | "search" | "library";
 let tab: Tab = "home";
 export const setActiveTab = (t: Tab) => void (tab = t);
+export const activeTab = () => tab;
 
 // A tap on the tab you're already on scrolls its page to the top (iOS's tab bar does this natively).
 const reselect = new Set<(t: Tab) => void>();

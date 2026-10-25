@@ -3,22 +3,37 @@ import {
   type ChannelItem,
   type VideoItem,
 } from "@pawse/music-core";
+import { player } from "@pawse/player";
 import { Image } from "expo-image";
 import { memo } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Share, StyleSheet, Text, View } from "react-native";
 
 import { downloadVideo } from "../data/downloads";
-import { videoTrack } from "../data/watched";
+import { isPinned, togglePin } from "../data/pins";
+import { removeWatched, useWatched, videoTrack } from "../data/watched";
 import { showPlaylistPicker } from "../features/library/playlist-tools";
 import { MoreGlyph } from "../features/now-playing/icons";
 import { minimizeWatch, openWatch, useWatch } from "../features/watch/store";
 import { blockChannel } from "../lib/block";
 import { useBranding } from "../lib/community";
 import { rightClick } from "../lib/context-menu";
+import { plainThumb, useFocus } from "../lib/focus";
 import { go } from "../lib/nav";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
-import { DeArrowMark } from "./glyphs";
+import {
+  ChannelGlyph,
+  DeArrowMark,
+  DownloadGlyph,
+  HeadphonesGlyph,
+  HideGlyph,
+  MusicGlyph,
+  PinGlyph,
+  PlaylistGlyph,
+  ShareGlyph,
+  TrashGlyph,
+} from "./glyphs";
+import { showToast } from "./toast";
 import { PressScale } from "./ui";
 
 export const clock = (sec?: number) => {
@@ -29,8 +44,12 @@ export const clock = (sec?: number) => {
   return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
 };
 
-export const videoMeta = (v: VideoItem, channel = true) =>
-  [channel ? v.channel?.name : undefined, v.viewsText, v.publishedText]
+export const videoMeta = (v: VideoItem, channel = true, counts = true) =>
+  [
+    channel ? v.channel?.name : undefined,
+    counts ? v.viewsText : undefined,
+    v.publishedText,
+  ]
     .filter(Boolean)
     .join(" · ");
 
@@ -48,30 +67,100 @@ export const openChannel = (id: string) => {
   go(`/channel/${id}`);
 };
 
-/** Long press: block the channel, so none of its videos show again. */
+/** The ⋯ menu on any video: the picture and title on top, then everything you can do with it. */
 export function showVideoActions(v: VideoItem) {
   const ch = v.channel;
   const id = ch?.id;
+  const track = videoTrack(v);
+  const link = `https://youtu.be/${v.id}`;
   showSheet({
-    actions: [
-      { label: "Open", onPress: () => openVideo(v) },
+    header: (
+      <View style={styles.sheetHead}>
+        <Image
+          source={bestThumbnail(v.thumbnails, 240)}
+          style={styles.sheetThumb}
+          contentFit="cover"
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sheetTitle} numberOfLines={2}>
+            {v.title}
+          </Text>
+          {ch ? (
+            <Text style={styles.sheetSub} numberOfLines={1}>
+              {ch.name}
+            </Text>
+          ) : null}
+        </View>
+      </View>
+    ),
+    quick: [
       {
-        label: "Save to playlist",
-        onPress: () => showPlaylistPicker([videoTrack(v)]),
+        label: "Save",
+        icon: (c) => <PlaylistGlyph size={22} color={c} />,
+        onPress: () => showPlaylistPicker([track]),
       },
       ...(Platform.OS !== "web"
         ? [
             {
               label: "Download",
-              sub: "720p, for watching offline",
-              onPress: () => downloadVideo(videoTrack(v), 720),
+              icon: (c: string) => <DownloadGlyph size={22} color={c} />,
+              onPress: () => {
+                downloadVideo(track, 720);
+                showToast("Downloading in 720p");
+              },
+            },
+          ]
+        : []),
+      {
+        label: "Share",
+        icon: (c) => <ShareGlyph size={22} color={c} />,
+        onPress: () =>
+          void Share.share(
+            Platform.OS === "ios" ? { url: link } : { message: link },
+          ),
+      },
+    ],
+    actions: [
+      {
+        label: "Listen",
+        sub: "Plays as audio in the music player",
+        icon: (c) => <HeadphonesGlyph size={22} color={c} />,
+        onPress: () =>
+          void player.play([track], 0, {
+            source: { type: "other", title: "From YouTube" },
+          }),
+      },
+      {
+        label: isPinned(v.id) ? "Unpin from Home" : "Pin to Home",
+        icon: (c) => <PinGlyph size={22} color={c} />,
+        onPress: () =>
+          togglePin({
+            kind: "video",
+            id: v.id,
+            title: v.title,
+            sub: ch?.name,
+            thumbnails: v.thumbnails,
+          }),
+      },
+      ...(useWatched.getState().list.some((w) => w.id === v.id)
+        ? [
+            {
+              label: "Remove from history",
+              icon: (c: string) => <TrashGlyph size={22} color={c} />,
+              onPress: () => removeWatched(v.id),
             },
           ]
         : []),
       ...(ch && id
         ? [
             {
-              label: `Block ${ch.name}`,
+              label: "Go to channel",
+              icon: (c: string) => <ChannelGlyph size={22} color={c} />,
+              onPress: () => openChannel(id),
+            },
+            {
+              label: `Don't show ${ch.name}`,
+              icon: (c: string) => <HideGlyph size={22} color={c} />,
               destructive: true,
               onPress: () => blockChannel({ id, name: ch.name }),
             },
@@ -127,6 +216,8 @@ export const VideoCard = memo(function VideoCard({
   const avatar =
     video.channel?.avatar && bestThumbnail(video.channel.avatar, 88);
   const brand = useBranding(video.id);
+  const focus = useFocus();
+  const pic = focus.plainThumbs ? plainThumb(video.id) : brand?.thumbnail;
   return (
     <PressScale
       onPress={() => openVideo(video)}
@@ -134,7 +225,7 @@ export const VideoCard = memo(function VideoCard({
       {...rightClick(() => showVideoActions(video))}
       style={tile ? styles.tile : styles.card}
     >
-      <Thumb v={video} src={brand?.thumbnail} bleed={!tile} />
+      <Thumb v={video} src={pic} bleed={!tile} />
       <View style={[styles.info, !tile && styles.infoPad]}>
         {avatar && !hideChannel ? (
           <PressScale
@@ -149,9 +240,16 @@ export const VideoCard = memo(function VideoCard({
             {brand?.title ?? video.title}
           </Text>
           <View style={styles.metaRow}>
+            {video.music ? (
+              <MusicGlyph
+                size={12}
+                color="rgba(255,255,255,0.6)"
+                weight={2.4}
+              />
+            ) : null}
             {brand?.title || brand?.thumbnail ? <DeArrowMark /> : null}
             <Text style={styles.metaText} numberOfLines={1}>
-              {videoMeta(video, !hideChannel)}
+              {videoMeta(video, !hideChannel, focus.counts)}
             </Text>
           </View>
         </View>
@@ -177,6 +275,8 @@ export const VideoRow = memo(function VideoRow({
   onPress?: () => void;
 }) {
   const brand = useBranding(video.id);
+  const focus = useFocus();
+  const pic = focus.plainThumbs ? plainThumb(video.id) : brand?.thumbnail;
   return (
     <PressScale
       onPress={onPress ?? (() => openVideo(video))}
@@ -184,15 +284,18 @@ export const VideoRow = memo(function VideoRow({
       {...rightClick(() => showVideoActions(video))}
       style={styles.row}
     >
-      <Thumb v={video} width={150} src={brand?.thumbnail} />
+      <Thumb v={video} width={150} src={pic} />
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle} numberOfLines={2}>
           {brand?.title ?? video.title}
         </Text>
         <View style={styles.metaRow}>
+          {video.music ? (
+            <MusicGlyph size={12} color="rgba(255,255,255,0.6)" weight={2.4} />
+          ) : null}
           {brand?.title || brand?.thumbnail ? <DeArrowMark /> : null}
           <Text style={styles.metaText} numberOfLines={2}>
-            {videoMeta(video)}
+            {videoMeta(video, true, focus.counts)}
           </Text>
         </View>
       </View>
@@ -220,6 +323,20 @@ export function ChannelRow({ channel }: { channel: ChannelItem }) {
 }
 
 const styles = StyleSheet.create({
+  sheetHead: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sheetThumb: {
+    width: 96,
+    height: 54,
+    borderRadius: 8,
+    backgroundColor: "#16151b",
+  },
+  sheetTitle: {
+    color: "#fff",
+    fontSize: 15,
+    lineHeight: 19,
+    ...display("700"),
+  },
+  sheetSub: { color: "rgba(255,255,255,0.55)", fontSize: 13, marginTop: 2 },
   card: { marginBottom: 20 },
   tile: { flex: 1, marginBottom: 22 },
   bleed: { borderRadius: 0 },

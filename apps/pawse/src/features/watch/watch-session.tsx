@@ -8,6 +8,14 @@ import { player as music, usePlayerStore } from "@pawse/player";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
+import CircleArrowDown from "lucide-react-native/icons/circle-arrow-down";
+import CircleCheck from "lucide-react-native/icons/circle-check";
+import Headphones from "lucide-react-native/icons/headphones";
+import ListPlus from "lucide-react-native/icons/list-plus";
+import ShareIcon from "lucide-react-native/icons/share";
+import SlidersHorizontal from "lucide-react-native/icons/sliders-horizontal";
+import ThumbsDownIcon from "lucide-react-native/icons/thumbs-down";
+import ThumbsUpIcon from "lucide-react-native/icons/thumbs-up";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BackHandler,
@@ -32,9 +40,13 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Path } from "react-native-svg";
-import { showSheet } from "../../components/action-sheet";
-import { DeArrowMark } from "../../components/glyphs";
+import { SheetNote, showSheet } from "../../components/action-sheet";
+import {
+  DeArrowMark,
+  PinGlyph,
+  QualityGlyph,
+  SpeedGlyph,
+} from "../../components/glyphs";
 import { Spinner } from "../../components/spinner";
 import { showToast } from "../../components/toast";
 import {
@@ -49,6 +61,7 @@ import {
   VideoCard,
   VideoRow,
 } from "../../components/video-card";
+import { setSubscribed, useSubscribed } from "../../data/channels";
 import { ytAccount } from "../../data/clients";
 import {
   downloadVideo,
@@ -56,6 +69,7 @@ import {
   useVideoDownload,
 } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { isPinned, togglePin } from "../../data/pins";
 import {
   rateVideo,
   recordWatch,
@@ -68,6 +82,7 @@ import { skipNote, useBranding, videoSkips } from "../../lib/community";
 import { logEvent } from "../../lib/diagnostics";
 import { useVotes } from "../../lib/dislikes";
 import { ytv } from "../../lib/engine";
+import { noteWatching, useFocus } from "../../lib/focus";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { setSetting, useSetting } from "../../lib/settings";
@@ -144,7 +159,7 @@ export function WatchSession({ id }: { id: string }) {
   const skips = useRef<SkipSegment[]>([]);
   const keep = useVideoFilter();
   const brand = useBranding(id);
-  const calm = useSetting("videoCalm", false);
+  const focus = useFocus();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
   // Phones keep the video pinned at the top; wide screens scroll it with the page.
   const pinned = width < 900;
@@ -179,6 +194,21 @@ export function WatchSession({ id }: { id: string }) {
   const onTime = (sec: number) => {
     setAt(sec);
     atRef.current = sec;
+    if (noteWatching()) {
+      video.pause();
+      showSheet({
+        header: (
+          <SheetNote
+            title="Time for a break?"
+            body="You asked Pawse to check in. The video is paused."
+          />
+        ),
+        actions: [
+          { label: "Keep watching", onPress: () => video.toggle() },
+          { label: "Close the video", onPress: closeWatch },
+        ],
+      });
+    }
     const dur = src?.stream.durationSec ?? v?.durationSec;
     if (dur) useWatch.setState({ progress: Math.min(1, sec / dur) });
     // Progress is kept every few seconds, so Home can offer to continue.
@@ -192,16 +222,14 @@ export function WatchSession({ id }: { id: string }) {
 
   const d = detail.data;
   const v = d?.video;
-  const comments = useComments(id, calm ? undefined : d?.comments);
+  const comments = useComments(id, focus.comments ? d?.comments : undefined);
   // Your like and subscription, changed here before YouTube's copy of the page catches up.
-  const [mine, setMine] = useState<{ rating?: Rating; subscribed?: boolean }>(
-    {},
-  );
+  const [mine, setMine] = useState<{ rating?: Rating }>({});
   // Likes are kept on the phone too, so they work signed out; signed in they go to YouTube as well.
   const local = useVideoRating(id);
   const rating: Rating =
     mine.rating ?? (local !== "none" ? local : (d?.rating ?? "none"));
-  const subscribed = mine.subscribed ?? d?.subscribed ?? false;
+  const subscribed = useSubscribed(v?.channel?.id, d?.subscribed);
   const base = d?.likes ?? votes?.likes;
   const likes =
     base === undefined
@@ -220,14 +248,11 @@ export function WatchSession({ id }: { id: string }) {
   };
   const toggleSubscribe = () => {
     const cid = v?.channel?.id;
-    if (!cid) return;
+    if (!cid || !v?.channel) return;
     haptic.light();
-    const on = !subscribed;
-    setMine((m) => ({ ...m, subscribed: on }));
-    ytAccount.subscribe(cid, on).catch(() => {
-      setMine((m) => ({ ...m, subscribed: !on }));
-      showToast("Couldn't save that");
-    });
+    const { name, avatar } = v.channel;
+    // Signed out, the subscription lives on this phone and feeds Home.
+    setSubscribed({ id: cid, name, avatar }, !subscribed);
   };
   const related = d?.related.filter(keep) ?? [];
   const next = related[0];
@@ -398,15 +423,16 @@ export function WatchSession({ id }: { id: string }) {
     if (!src) return;
     const choose = (q: Quality) => () => setQuality(q);
     showSheet({
-      header: <Text style={styles.sheetTitle}>Quality</Text>,
+      title: "Quality",
       actions: [
         {
-          label: src.quality === "auto" ? `✓  ${qualityLabel}` : "Auto",
-          sub: "Changes with your connection",
+          label: src.quality === "auto" ? qualityLabel : "Auto",
+          checked: src.quality === "auto",
           onPress: choose("auto"),
         },
         ...src.options.map((o) => ({
-          label: src.quality === o.key ? `✓  ${o.key}` : o.key,
+          label: o.key,
+          checked: src.quality === o.key,
           onPress: choose(o.key),
         })),
       ],
@@ -415,9 +441,10 @@ export function WatchSession({ id }: { id: string }) {
   const [speed, setSpeed] = useState(1);
   const pickSpeed = () =>
     showSheet({
-      header: <Text style={styles.sheetTitle}>Playback speed</Text>,
+      title: "Playback speed",
       actions: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => ({
-        label: `${r === speed ? "✓  " : ""}${r === 1 ? "Normal" : `${r}×`}`,
+        label: r === 1 ? "Normal" : `${r}×`,
+        checked: r === speed,
         onPress: () => {
           setSpeed(r);
           video.setRate(r);
@@ -427,11 +454,28 @@ export function WatchSession({ id }: { id: string }) {
   const pickSettings = () =>
     showSheet({
       actions: [
-        { label: "Quality", sub: qualityLabel, onPress: pickQuality },
+        {
+          label: "Quality",
+          sub: qualityLabel,
+          icon: (c) => <QualityGlyph size={22} color={c} />,
+          onPress: pickQuality,
+        },
         {
           label: "Playback speed",
           sub: speed === 1 ? "Normal" : `${speed}×`,
+          icon: (c) => <SpeedGlyph size={22} color={c} />,
           onPress: pickSpeed,
+        },
+        {
+          label: isPinned(id) ? "Unpin from Home" : "Pin to Home",
+          icon: (c) => <PinGlyph size={22} color={c} />,
+          onPress: () =>
+            togglePin({
+              kind: "video",
+              id,
+              title: title ?? "",
+              thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
+            }),
         },
       ],
     });
@@ -613,7 +657,7 @@ export function WatchSession({ id }: { id: string }) {
       ) : null}
       {ended ? (
         <EndCard
-          next={next}
+          next={focus.upNext ? next : undefined}
           onReplay={() => {
             setEnded(false);
             video.replay();
@@ -662,7 +706,10 @@ export function WatchSession({ id }: { id: string }) {
                 </Pressable>
               ) : null}
               <Text style={styles.metaText} numberOfLines={1}>
-                {(calm ? [v.publishedText] : [v.viewsText, v.publishedText])
+                {(focus.counts
+                  ? [v.viewsText, v.publishedText]
+                  : [v.publishedText]
+                )
                   .filter(Boolean)
                   .join(" · ")}
                 <Text style={styles.metaMore}> ...more</Text>
@@ -684,14 +731,14 @@ export function WatchSession({ id }: { id: string }) {
                 <Text style={styles.channelName} numberOfLines={1}>
                   {v.channel?.name}
                 </Text>
-                {d?.subscribersText && !calm ? (
+                {d?.subscribersText && focus.counts ? (
                   <Text style={styles.subs} numberOfLines={1}>
                     {d.subscribersText}
                   </Text>
                 ) : null}
               </View>
             </Pressable>
-            {signedIn && v.channel?.id ? (
+            {v.channel?.id ? (
               <PressScale
                 onPress={toggleSubscribe}
                 style={[styles.subBtn, subscribed && styles.subBtnOn]}
@@ -708,8 +755,8 @@ export function WatchSession({ id }: { id: string }) {
             contentContainerStyle={styles.actions}
           >
             <LikePill
-              likes={calm ? undefined : likes}
-              dislikes={calm ? undefined : votes?.dislikes}
+              likes={focus.counts ? likes : undefined}
+              dislikes={focus.counts ? votes?.dislikes : undefined}
               rating={rating}
               onRate={rate}
             />
@@ -764,7 +811,7 @@ export function WatchSession({ id }: { id: string }) {
         </ScrollView>
       ) : null}
 
-      {!calm && d?.comments ? (
+      {focus.comments && d?.comments ? (
         <CommentsCard
           page={comments.data}
           failed={!!comments.error && !comments.data}
@@ -773,7 +820,7 @@ export function WatchSession({ id }: { id: string }) {
         />
       ) : null}
 
-      {!calm && related.length ? (
+      {focus.upNext && related.length ? (
         <View style={styles.upNext}>
           {pinned ? (
             related.slice(0, 16).map((r) => <VideoCard key={r.id} video={r} />)
@@ -803,7 +850,7 @@ export function WatchSession({ id }: { id: string }) {
       <DescriptionPanel
         detail={d}
         title={title}
-        likes={calm ? undefined : likes}
+        likes={focus.counts ? likes : undefined}
         onClose={() => setPanel(null)}
         onSeek={video.seek}
       />
@@ -913,62 +960,22 @@ const mb = (bytes: number) =>
     ? `${(bytes / 1e9).toFixed(1)} GB`
     : `${Math.max(1, Math.round(bytes / 1e6))} MB`;
 
-const DownloadGlyph = ({ done }: { done?: boolean }) => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d={
-        done
-          ? "M5 12.5l4.5 4.5L19 7.5"
-          : "M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"
-      }
-      stroke="#fff"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+const DownloadGlyph = ({ done }: { done?: boolean }) =>
+  done ? (
+    <CircleCheck size={17} color="#fff" strokeWidth={2} />
+  ) : (
+    <CircleArrowDown size={17} color="#fff" strokeWidth={2} />
+  );
 
-const SaveGlyph = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M4 6h11M4 12h11M4 18h7M18 14v7M14.5 17.5h7"
-      stroke="#fff"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-    />
-  </Svg>
-);
+const SaveGlyph = () => <ListPlus size={17} color="#fff" strokeWidth={2} />;
 
 const GearGlyph = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M4 7h10M18 7h2M4 17h4M12 17h8"
-      stroke="#fff"
-      strokeWidth={2}
-      strokeLinecap="round"
-    />
-    <Path
-      d="M16 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM10 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
-      stroke="#fff"
-      strokeWidth={2}
-    />
-  </Svg>
+  <SlidersHorizontal size={17} color="#fff" strokeWidth={2} />
 );
 
-const ShareGlyph = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M14 5l7 7-7 7M21 12H10a6 6 0 0 0-6 6v1"
-      stroke="#fff"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+const ShareGlyph = () => <ShareIcon size={17} color="#fff" strokeWidth={2} />;
 
-// Like and dislike in one pill, like YouTube's; counts are hidden on the calm page.
+// Like and dislike in one pill, like YouTube's; counts are hidden in Focus mode.
 function LikePill({
   likes,
   dislikes,
@@ -1007,23 +1014,12 @@ function LikePill({
   );
 }
 
-const Thumb = ({ up, on }: { up?: boolean; on?: boolean }) => (
-  <Svg
-    width={17}
-    height={17}
-    viewBox="0 0 24 24"
-    fill="none"
-    style={up ? undefined : { transform: [{ rotate: "180deg" }] }}
-  >
-    <Path
-      d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3zm0 0 4-8a2 2 0 0 1 2 2v4h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.3 20H7"
-      stroke="#fff"
-      fill={on ? "#fff" : "none"}
-      strokeWidth={2}
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+const Thumb = ({ up, on }: { up?: boolean; on?: boolean }) => {
+  const Icon = up ? ThumbsUpIcon : ThumbsDownIcon;
+  return (
+    <Icon size={17} color="#fff" strokeWidth={2} fill={on ? "#fff" : "none"} />
+  );
+};
 
 // When a video ends nothing starts by itself: replay, go on, or stop here.
 function EndCard({
@@ -1062,15 +1058,7 @@ function EndCard({
 }
 
 const HeadphonesGlyph = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2zm16 0a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2z"
-      stroke="#fff"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
+  <Headphones size={17} color="#fff" strokeWidth={2} />
 );
 
 /** Landscape without rotating the app: the video turned on its side over everything, status bar hidden.

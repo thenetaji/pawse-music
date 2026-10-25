@@ -34,7 +34,7 @@ export function useResource<T>(
     data?: T;
     error?: Error;
     loading: boolean;
-    reload: () => void;
+    reload: () => Promise<void>;
   };
 }
 

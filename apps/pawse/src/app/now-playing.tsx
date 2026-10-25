@@ -21,6 +21,7 @@ import { lyricsService } from "../lib/engine";
 import { push } from "../lib/nav";
 import { setSetting, useSetting } from "../lib/settings";
 import { openAlbum, openArtist } from "../lib/song-links";
+import { useSongVideo } from "../lib/song-video";
 import { useResource } from "../lib/use-resource";
 import { mutedVideo } from "../lib/video-stream";
 
@@ -61,8 +62,11 @@ export default function NowPlaying() {
   const inPlayer = useSetting("videoInPlayer", true);
   const videoOn = useSetting("npVideo", false);
   const canVideo = watch && inPlayer && current?.source === "youtube";
-  // The id alone: the compiler would read current.id while memoizing, even with no song yet.
-  const videoId = canVideo && videoOn ? current?.id : undefined;
+  // A song's picture is its official music video; null when it has none.
+  const songVideo = useSongVideo(
+    watch && current?.source === "youtube" ? current : undefined,
+  );
+  const videoId = canVideo && videoOn ? (songVideo ?? undefined) : undefined;
   const muted = useResource<string>(videoId ? `muted:${videoId}` : null, () =>
     mutedVideo(videoId!, 480).catch((e: Error) => {
       logEvent("video-failed", `${videoId} (player): ${e.message}`);
@@ -112,18 +116,19 @@ export default function NowPlaying() {
               on: videoOn,
               uri: muted.data ?? undefined,
               failed: !!muted.error,
+              none: songVideo === null,
               onChange: (on) => setSetting("npVideo", on),
             }
           : undefined
       }
       onVideo={
-        watch && current.source === "youtube"
+        watch && current.source === "youtube" && songVideo
           ? () => {
               const at = Math.floor(getProgress().position);
               leavePlayer(() =>
                 openWatch(
                   {
-                    id: current.id,
+                    id: songVideo,
                     title: current.title,
                     thumbnails: current.thumbnails,
                   },

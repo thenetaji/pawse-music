@@ -4,6 +4,7 @@ import Svg, { Path } from "react-native-svg";
 import { Foot, Link, Section } from "../components/settings-rows";
 import { Screen } from "../components/ui";
 import { useAccent } from "../features/now-playing/now-palette";
+import { setFocusMode, useFocusMode } from "../lib/focus";
 import { haptic } from "../lib/haptics";
 import {
   HOME_SECTIONS,
@@ -12,13 +13,16 @@ import {
   setHomeSections,
   useHomeSections,
 } from "../lib/home-sections";
+import { push } from "../lib/nav";
 import { useSetting } from "../lib/settings";
+import { display } from "../lib/type";
 
 /** Home's sections: switch each on or off and move them up or down. */
 export default function EditHome() {
   const list = useHomeSections();
   const videos = useSetting("videos", true);
   const accent = useAccent();
+  const focus = useFocusMode();
   const shown = list.filter(
     (s) => videos || !HOME_SECTIONS.find((d) => d.id === s.id)?.videos,
   );
@@ -38,6 +42,26 @@ export default function EditHome() {
   };
   return (
     <Screen title="Edit Home" back bottomInset={60}>
+      <View style={styles.styleRow}>
+        {(
+          [
+            [false, "Full", "Everything, then a feed that keeps going"],
+            [true, "Focus", "Only what you follow and pinned"],
+          ] as const
+        ).map(([on, label, note]) => (
+          <Pressable
+            key={label}
+            onPress={() => {
+              haptic.tick();
+              setFocusMode(on);
+            }}
+            style={[styles.style, focus === on && { borderColor: accent }]}
+          >
+            <Text style={styles.styleLabel}>{label}</Text>
+            <Text style={styles.note}>{note}</Text>
+          </Pressable>
+        ))}
+      </View>
       <Section title="Sections">
         {shown.map((s, i) => {
           const d = HOME_SECTIONS.find((x) => x.id === s.id)!;
@@ -69,9 +93,13 @@ export default function EditHome() {
         })}
       </Section>
       <Foot>
-        With the YouTube suggestions off, Home shows what you follow and play,
-        then ends. Turn on YouTube Music picks for a feed that keeps going.
+        Focus keeps Home to what you follow, play and pin, and it ends when
+        you&apos;re caught up. Full adds suggestions and an endless feed. Either
+        way, switch any section here.
       </Foot>
+      <Section title="Focus mode">
+        <Link label="More Focus settings" onPress={() => push("/focus")} />
+      </Section>
       <Section title="Start over">
         <Link label="Reset Home" onPress={resetHomeSections} />
       </Section>
@@ -124,6 +152,22 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.08)",
   },
   arrows: { gap: 2 },
+  styleRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  style: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  styleLabel: { color: "#fff", fontSize: 16, ...display("800") },
   arrow: {
     width: 28,
     height: 22,
