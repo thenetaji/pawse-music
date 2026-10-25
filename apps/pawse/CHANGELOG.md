@@ -16,6 +16,8 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **The Dynamic Island and lock-screen player on iPhone stay with the music.** Opening, closing or switching videos, or the Video side of the player, could make iPhone treat Pawse as background audio and drop them until something else played.
 - **Tapping a video shows or hides the controls straight away, anywhere on the picture.** Before, a tap waited to see if a double tap followed, so a quick second tap on a side skipped 10 seconds instead. Double tap now skips only on the left and right thirds.
 - **SideStore's What's New shows the release notes** instead of "nil".
+- **Pinch to zoom in full screen**, like YouTube: pinch out and the video fills the whole screen, under the notch too; pinch in to see all of it again. Pinching no longer counts as taps that skip the video.
+- **Full screen is only the video.** The status bar is hidden and the thin progress line goes away with the controls.
 - **Choices in menus are readable on iPhone.** Lists like playback speed and quality showed the unpicked choices in black on the dark menu; they're white now, and the picked one is always bright enough to see.
 - **Room between music and videos** in Home's endless feed: a video no longer sits right against the shelf above it.
 

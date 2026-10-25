@@ -120,6 +120,8 @@ export function VideoSurface({
 }: {
   surface: SurfaceRef;
   controls?: boolean;
+  /** Pinch zoom is phone only; the browser has its own full screen. */
+  fill?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const box = useRef<View>(null);

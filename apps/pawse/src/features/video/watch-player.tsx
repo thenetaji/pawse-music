@@ -121,10 +121,13 @@ export function useWatchPlayer(o: WatchPlayerOptions): WatchPlayer {
 export function VideoSurface({
   surface,
   controls,
+  fill,
   style,
 }: {
   surface: SurfaceRef;
   controls?: boolean;
+  /** Fill the view, cropping the edges, instead of showing the whole picture. */
+  fill?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const view = useRef<VideoView>(null);
@@ -146,7 +149,7 @@ export function VideoSurface({
       player={surface}
       style={style}
       nativeControls={full}
-      contentFit="contain"
+      contentFit={fill ? "cover" : "contain"}
       allowsPictureInPicture
       startsPictureInPictureAutomatically
       fullscreenOptions={{ enable: true }}

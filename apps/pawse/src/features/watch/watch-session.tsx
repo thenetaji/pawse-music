@@ -21,6 +21,7 @@ import {
   BackHandler,
   Platform,
   Pressable,
+  StatusBar as RNStatusBar,
   ScrollView,
   Share,
   StyleSheet,
@@ -370,10 +371,14 @@ export function WatchSession({ id }: { id: string }) {
   }, [mode, height, y]);
   // Our own full screen: the video turned on its side over everything (phones), the browser's elsewhere.
   const [fs, setFs] = useState(false);
+  // Pinched out in full screen: the picture fills the screen, edge to edge, cropping a little.
+  // Each time full screen opens it starts fitted.
+  const [fill, setFill] = useState(false);
   const fullscreen = Platform.OS !== "web" || width < 600;
   const toggleFs = () => {
     haptic.light();
     if (!fullscreen) return enterFullscreen();
+    setFill(false);
     setFs((f) => !f);
   };
   // Down shrinks the video into the mini player, up goes full screen, like YouTube. Built once, not per frame.
@@ -381,6 +386,7 @@ export function WatchSession({ id }: { id: string }) {
     () =>
       Gesture.Pan()
         .runOnJS(true)
+        .maxPointers(1)
         .activeOffsetY([-12, 12])
         .failOffsetX([-24, 24])
         .onUpdate((e) => y.set(Math.max(0, e.translationY) * 0.85))
@@ -396,6 +402,7 @@ export function WatchSession({ id }: { id: string }) {
             (e.translationY < -FULL_PX || e.velocityY < -DISMISS_V)
           ) {
             haptic.light();
+            setFill(false);
             setFs(true);
           }
         }),
@@ -612,7 +619,12 @@ export function WatchSession({ id }: { id: string }) {
         <VideoSurface
           surface={video.surface}
           controls
-          style={StyleSheet.absoluteFill}
+          fill={fs && fill}
+          // Filling runs under the notch and home bar too; the controls stay clear of them.
+          style={[
+            StyleSheet.absoluteFill,
+            fs && fill && { left: -insets.top, right: -insets.bottom },
+          ]}
         />
       ) : null}
       {src && started && !ended && mode === "full" ? (
@@ -632,6 +644,7 @@ export function WatchSession({ id }: { id: string }) {
           onSettings={pickSettings}
           onFullscreen={toggleFs}
           fullscreen={fs}
+          onZoom={setFill}
           getTime={video.time}
           onAutoplay={(on) => {
             setSetting("videoAutoplay", on);
@@ -1112,6 +1125,7 @@ function FullscreenLayer({
     () =>
       Gesture.Pan()
         .runOnJS(true)
+        .maxPointers(1)
         .activeOffsetY(16)
         .failOffsetX([-30, 30])
         .onEnd((e) => {
@@ -1122,6 +1136,11 @@ function FullscreenLayer({
         }),
     [onExit],
   );
+  // Belt and braces: hide the status bar directly too, so nothing sits over the turned video.
+  useEffect(() => {
+    RNStatusBar.setHidden(true, "fade");
+    return () => RNStatusBar.setHidden(false, "fade");
+  }, []);
   return (
     <Animated.View entering={FadeIn.duration(200)} style={styles.full}>
       <StatusBar hidden />

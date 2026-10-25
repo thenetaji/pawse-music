@@ -16,6 +16,8 @@ const SKIP_SEC = 10;
 const DOUBLE_MS = 300;
 // Double tap skips only in the outer thirds; the middle just shows and hides the controls.
 const SIDE = 0.35;
+// Fingers lifting just after a pinch aren't a tap.
+const PINCH_GRACE_MS = 400;
 
 export type ControlsProps = {
   at: number;
@@ -37,6 +39,8 @@ export type ControlsProps = {
   onSettings: () => void;
   onFullscreen: () => void;
   onAutoplay: (on: boolean) => void;
+  /** Full screen only: pinch out fills the screen, pinch in fits the whole picture. Must be stable. */
+  onZoom?: (fill: boolean) => void;
 };
 
 /** Each tap answers at once, like YouTube: it shows or hides the controls, and a quick second
@@ -46,13 +50,16 @@ function tapGesture(o: {
   setShown: (f: (s: boolean) => boolean) => void;
   onTap: () => void;
   onSkip: (side: -1 | 1) => void;
+  /** A pinch is under way or just ended: its fingers aren't taps. */
+  pinching: () => boolean;
 }) {
   const last = { at: 0, side: 0, was: true, skipping: false };
   return Gesture.Tap()
     .runOnJS(true)
+    .maxDistance(20)
     .maxDuration(600)
     .onEnd((e, ok) => {
-      if (!ok) return;
+      if (!ok || o.pinching()) return;
       const side =
         e.x < o.width * SIDE ? -1 : e.x > o.width * (1 - SIDE) ? 1 : 0;
       const now = Date.now();
@@ -75,12 +82,42 @@ function tapGesture(o: {
     });
 }
 
+/** Taps, and in full screen a pinch beside them; the tap ignores fingers that were pinching. */
+function stageGesture(
+  o: Omit<Parameters<typeof tapGesture>[0], "pinching"> & {
+    onZoom?: (fill: boolean) => void;
+  },
+) {
+  const pinch = { at: 0, on: false };
+  const taps = tapGesture({
+    ...o,
+    pinching: () => pinch.on || Date.now() - pinch.at < PINCH_GRACE_MS,
+  });
+  const { onZoom } = o;
+  if (!onZoom) return taps;
+  const zoom = Gesture.Pinch()
+    .runOnJS(true)
+    .onStart(() => {
+      pinch.on = true;
+    })
+    .onEnd((e) => {
+      if (e.scale > 1.08) onZoom(true);
+      else if (e.scale < 0.92) onZoom(false);
+    })
+    .onFinalize(() => {
+      pinch.on = false;
+      pinch.at = Date.now();
+    });
+  return Gesture.Simultaneous(zoom, taps);
+}
+
 /** YouTube's player chrome: tap for controls, double-tap a side to skip 10 s, drag the red bar to seek. */
 export function VideoControls(p: ControlsProps) {
   const [shown, setShown] = useState(true);
   // Bumped by every touch so the hide timer starts over.
   const [poke, setPoke] = useState(0);
   const [skip, setSkip] = useState<{ side: -1 | 1; n: number }>();
+  const [zoomNote, setZoomNote] = useState<string>();
   const [scrub, setScrub] = useState<number>();
   const [barW, setBarW] = useState(0);
   const [stageW, setStageW] = useState(0);
@@ -91,6 +128,11 @@ export function VideoControls(p: ControlsProps) {
     const t = setTimeout(() => setShown(false), HIDE_MS);
     return () => clearTimeout(t);
   }, [shown, p.playing, poke, scrub]);
+  useEffect(() => {
+    if (!zoomNote) return;
+    const t = setTimeout(() => setZoomNote(undefined), 900);
+    return () => clearTimeout(t);
+  }, [zoomNote]);
   useEffect(() => {
     if (!skip) return;
     const t = setTimeout(() => setSkip(undefined), 700);
@@ -106,9 +148,11 @@ export function VideoControls(p: ControlsProps) {
 
   const { onSeek, getTime } = p;
   // Built once per layout, never per frame: a gesture rebuilt while a finger is down drops the tap (iOS, Android).
-  const taps = useMemo(
+  // Two fingers are a pinch, never taps: pinching used to read as a double tap and skip.
+  const { onZoom, fullscreen } = p;
+  const stage = useMemo(
     () =>
-      tapGesture({
+      stageGesture({
         width: stageW,
         setShown,
         onTap: () => setPoke((n) => n + 1),
@@ -119,14 +163,22 @@ export function VideoControls(p: ControlsProps) {
           );
           setSkip((s) => ({ side, n: s?.side === side ? s.n + 1 : 1 }));
         },
+        onZoom:
+          fullscreen && onZoom
+            ? (fill) => {
+                onZoom(fill);
+                setZoomNote(fill ? "Zoomed to fill" : "Original");
+              }
+            : undefined,
       }),
-    [stageW, dur, onSeek, getTime],
+    [stageW, dur, onSeek, getTime, fullscreen, onZoom],
   );
   const drag = useMemo(() => {
     const at = (x: number) =>
       barW && dur ? Math.max(0, Math.min(dur, (x / barW) * dur)) : 0;
     return Gesture.Pan()
       .runOnJS(true)
+      .maxPointers(1)
       .minDistance(0)
       .onBegin((e) => {
         setShown(true);
@@ -160,9 +212,20 @@ export function VideoControls(p: ControlsProps) {
         setStageW(e.nativeEvent.layout.width);
       }}
     >
-      <GestureDetector gesture={taps}>
+      <GestureDetector gesture={stage}>
         <View style={StyleSheet.absoluteFill} collapsable={false} />
       </GestureDetector>
+
+      {zoomNote ? (
+        <Animated.View
+          entering={FadeIn.duration(120)}
+          exiting={FadeOut.duration(200)}
+          pointerEvents="none"
+          style={styles.zoomWrap}
+        >
+          <Text style={styles.zoomNote}>{zoomNote}</Text>
+        </Animated.View>
+      ) : null}
 
       {skip ? (
         <Animated.View
@@ -271,44 +334,47 @@ export function VideoControls(p: ControlsProps) {
         </Animated.View>
       ) : null}
 
-      {/* Always there as a thin line; with the controls up it grows a handle and takes a drag anywhere along it. */}
-      <GestureDetector gesture={drag}>
-        <View
-          style={styles.barHit}
-          onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
-          collapsable={false}
-        >
-          <View style={[styles.track, shown && styles.trackOn]}>
-            <View
-              style={[styles.fill, { width: `${frac * 100}%` }]}
-              pointerEvents="none"
-            />
-            {shown && dur
-              ? p.chapters
-                  .filter((c) => c.startSec > 0)
-                  .map((c) => (
-                    <View
-                      key={c.startSec}
-                      style={[
-                        styles.tick,
-                        { left: `${(c.startSec / dur) * 100}%` },
-                      ]}
-                    />
-                  ))
-              : null}
+      {/* A thin line under the video (gone in full screen until the controls are up); with the controls
+          up it grows a handle and takes a drag anywhere along it. */}
+      {shown || !p.fullscreen ? (
+        <GestureDetector gesture={drag}>
+          <View
+            style={styles.barHit}
+            onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
+            collapsable={false}
+          >
+            <View style={[styles.track, shown && styles.trackOn]}>
+              <View
+                style={[styles.fill, { width: `${frac * 100}%` }]}
+                pointerEvents="none"
+              />
+              {shown && dur
+                ? p.chapters
+                    .filter((c) => c.startSec > 0)
+                    .map((c) => (
+                      <View
+                        key={c.startSec}
+                        style={[
+                          styles.tick,
+                          { left: `${(c.startSec / dur) * 100}%` },
+                        ]}
+                      />
+                    ))
+                : null}
+            </View>
+            {shown ? (
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.handle,
+                  scrub !== undefined && styles.handleBig,
+                  { left: barW * frac - (scrub !== undefined ? 9 : 6) },
+                ]}
+              />
+            ) : null}
           </View>
-          {shown ? (
-            <View
-              pointerEvents="none"
-              style={[
-                styles.handle,
-                scrub !== undefined && styles.handleBig,
-                { left: barW * frac - (scrub !== undefined ? 9 : 6) },
-              ]}
-            />
-          ) : null}
-        </View>
-      </GestureDetector>
+        </GestureDetector>
+      ) : null}
     </View>
   );
 }
@@ -488,6 +554,25 @@ const styles = StyleSheet.create({
   skipL: { left: 0, borderTopRightRadius: 999, borderBottomRightRadius: 999 },
   skipR: { right: 0, borderTopLeftRadius: 999, borderBottomLeftRadius: 999 },
   skipText: { color: "#fff", fontSize: 13, ...display("700") },
+  zoomWrap: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  zoomNote: {
+    color: "#fff",
+    fontSize: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    ...display("700"),
+  },
   // Straddles the video's bottom edge, so a drag can start just under the picture too.
   barHit: {
     position: "absolute",
