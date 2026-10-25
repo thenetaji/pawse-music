@@ -89,13 +89,22 @@ Not sure which Mac you have? Open the Apple menu, then **About This Mac**. If yo
 ### iPhone
 You need iOS 16.4 or newer. The Dynamic Island and the Lock Screen card need iOS 17 or newer.
 
-1. Install **SideStore** on your iPhone, once: follow [this guide](https://docs.sidestore.io/docs/installation/prerequisites) (you need a computer one time).
+1. Install **SideStore** on your iPhone, once. It isn't on the App Store; you put it on with a computer:
+   1. On the iPhone, get **LocalDevVPN** from the App Store, open it and tap **Connect**.
+   2. On a Mac, Windows or Linux computer, download **[iloader](https://iloader.app)** (Windows also needs iTunes; Linux needs `usbmuxd`).
+   3. Plug in the iPhone and tap **Trust**. In iloader, sign in with your Apple Account and pick **Install SideStore (Stable)**.
+   4. On the iPhone, open **Settings → General → VPN & Device Management**, tap your Apple Account and **Trust**. If asked, turn on **Settings → Privacy & Security → Developer Mode**.
+   5. Open SideStore and sign in with the same Apple Account.
+
+   Stuck? SideStore's [full guide](https://docs.sidestore.io/docs/installation/prerequisites) has every step with pictures.
 2. In SideStore, open **Sources** → tap **+** → paste:
    ```
    https://raw.githubusercontent.com/thenetaji/pawse-music/main/sources/sidestore.json
    ```
 3. Tap **Pawse** → **Install**.
 4. In SideStore settings, turn on **Background Refresh**, so the app keeps working past 7 days (a free Apple ID limit).
+
+**LocalDevVPN must be on** whenever SideStore installs or refreshes an app. If sign-in fails with error **-80045**, change the Anisette server in SideStore's settings and try again.
 
 **Other ways.** Download **[Pawse.ipa](https://github.com/thenetaji/pawse-music/releases/latest/download/Pawse.ipa)** and install it with **AltStore** or **Sideloadly**. Both let you pick an IPA file from your computer.
 
