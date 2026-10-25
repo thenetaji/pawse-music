@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pawse",
     "slug": "pawse",
-    "description": "A free music player for YouTube Music, with a cat in your Dynamic Island.",
+    "description": "A free music and video app for YouTube Music and YouTube, with a cat in your Dynamic Island.",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

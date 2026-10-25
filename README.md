@@ -5,7 +5,7 @@
 <h1 align="center">Pawse</h1>
 
 <p align="center">
-  <b>A free music player for iPhone, Android, Mac, Windows and Linux, with a cat in your Dynamic Island.</b><br />
+  <b>A free music and video app for iPhone, Android, Mac, Windows and Linux. YouTube Music and YouTube without the noise, with a cat in your Dynamic Island.</b><br />
   <sub>Say it like "pause": a cat's paws, and the button you press on music.</sub>
 </p>
 
@@ -43,7 +43,19 @@
   </tr>
 </table>
 
-Also: word-by-word lyrics, a sleep timer, the same loudness for every song, songs that keep playing offline, and a little mouse that keeps teasing the cat.
+Also: word-by-word lyrics, crossfade, a sleep timer, the same loudness for every song, songs that keep playing offline, and a little mouse that keeps teasing the cat.
+
+### YouTube, without the noise
+
+Turn on **Settings → Experimental → YouTube videos** and a **Watch** tab appears. It's YouTube the way you'd want it:
+
+- **No Shorts, no ads, no mixes.** Your subscriptions when you're signed in, a feed when you're not, and video search.
+- **A home you shape.** **Calm** stops the feed after one page; **Only my music** shows nothing suggested at all. Block channels, and words in titles, and they're gone everywhere.
+- **Nothing plays by itself.** When a video ends you get Replay, Next or Done.
+- **Skips the boring parts.** Sponsor reads, self-promotion and "like and subscribe" are jumped over ([SponsorBlock](https://sponsor.ajay.app)), and so is the talking in music videos.
+- **Honest titles and thumbnails** from [DeArrow](https://dearrow.ajay.app), without the all-caps clickbait. **Dislike counts** come back too ([Return YouTube Dislike](https://returnyoutubedislike.com)).
+- **Made for OLED.** The picture glows softly onto true black around the player, like YouTube's ambient mode. You can also turn on edge-to-edge video.
+- **Song ⇄ Video.** Open a song's video right where the song is, or hand a video's sound to the music player with **Listen**. Full screen, picture in picture and background play work as usual.
 
 <p align="center">
   <img src="docs/images/desktop.jpg" width="760" alt="Pawse on a computer: Now Playing with the artwork and live lyrics side by side" /><br />
@@ -101,7 +113,7 @@ You need Android 7.0 or newer.
 
 **The cat pill around the camera.** In Pawse, go to **Settings → Android** and turn on the pill. Android asks for **Display over other apps**. Allow it for Pawse.
 
-**Music stops in the background?** Some phones (Samsung, Xiaomi, Oppo, Vivo and others) close music apps to save battery. Open **Settings → Android → Keep playing in the background** and allow Pawse there.
+**Music stops in the background?** Some phones (Samsung, Xiaomi, Oppo, Vivo and others) close music and video apps to save battery. Open **Settings → Android → Keep playing in the background** and allow Pawse there.
 
 ### Mac
 One file works on every Mac, Apple silicon and Intel, on macOS 12 or newer.
@@ -164,7 +176,8 @@ Deleting the app deletes its data. Export first.
 
 ## Good to know
 
-- **No account needed.** Signing in to YouTube Music is optional. It only brings your own home feed, likes and playlists. (Signing in is phone-only for now.)
+- **No account needed.** Signing in to YouTube is optional. It only brings your own home feed, likes, playlists and subscriptions. (Signing in is phone-only for now.)
+- **Experimental means early.** YouTube videos and the features around them live in **Settings → Experimental** while they settle in. Turn them off and Pawse is a music player again.
 - **Your data stays on your device.** No ads, no tracking, no Pawse servers. Your Google sign-in is kept in the iPhone Keychain or the Android Keystore.
 - **Something wrong?** Open an [issue](https://github.com/thenetaji/pawse-music/issues/new/choose) and paste the log from **Settings → About → Diagnostics**.
 
@@ -178,10 +191,10 @@ Deleting the app deletes its data. Export first.
 | Folder | What's inside |
 | --- | --- |
 | `apps/pawse` | The app: screens, the cat, the Dynamic Island and lock screen (`targets/`), native modules (`modules/`). |
-| `apps/desktop` | The Mac, Windows and Linux app: the app's web build in an Electron window, with a small relay for YouTube and audio. |
-| `packages/music-core` | Shared types for music, streams and lyrics. |
-| `packages/innertube` | YouTube Music, JioSaavn and the lyrics sources. |
-| `packages/player` | Playback: queue, radio, stream refresh and loudness. |
+| `apps/desktop` | The Mac, Windows and Linux app: the app's web build in an Electron window, with a small relay for YouTube, audio and video. |
+| `packages/music-core` | Shared types for music, videos, streams and lyrics. |
+| `packages/innertube` | YouTube Music, YouTube videos, JioSaavn, SponsorBlock, DeArrow and the lyrics sources. |
+| `packages/player` | Playback: queue, radio, stream refresh, loudness, crossfade and segment skips. |
 | `packages/config` | Shared TypeScript and lint settings. |
 
 </details>
@@ -190,11 +203,11 @@ Deleting the app deletes its data. Export first.
 
 Pawse is free and open source under the [GPL-3.0](LICENSE). It plays audio with [@rntp/player](https://rntp.dev), which is free for personal use only, so read [NOTICE.md](NOTICE.md) before you build something on top of it.
 
-Pawse isn't affiliated with YouTube, Google, Apple or JioSaavn. Please use it for your own listening.
+Pawse isn't affiliated with YouTube, Google, Apple, JioSaavn, SponsorBlock, DeArrow or Return YouTube Dislike. Please use it for your own listening and watching.
 
 ## Credits
 
-YouTube playback follows [yt-dlp](https://github.com/yt-dlp/yt-dlp): its client list is synced from yt-dlp, and its [ejs](https://github.com/yt-dlp/ejs) solver (with meriyah and astring inside) is bundled. Licences and links are in [NOTICE.md](NOTICE.md).
+YouTube playback follows [yt-dlp](https://github.com/yt-dlp/yt-dlp): its client list is synced from yt-dlp, and its [ejs](https://github.com/yt-dlp/ejs) solver (with meriyah and astring inside) is bundled. Videos play with [hls.js](https://github.com/video-dev/hls.js) on computers and [expo-video](https://github.com/expo/expo/tree/main/packages/expo-video) on phones. Skip segments and titles come from [SponsorBlock and DeArrow](https://sponsor.ajay.app), and dislike counts from [Return YouTube Dislike](https://returnyoutubedislike.com). Licences and links are in [NOTICE.md](NOTICE.md).
 
 ## Thanks
 

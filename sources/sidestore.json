@@ -7,7 +7,7 @@
       "name": "Pawse",
       "bundleIdentifier": "com.thenetaji.pawse",
       "developerName": "thenetaji",
-      "localizedDescription": "A free music player for YouTube Music, with a cat in your Dynamic Island.",
+      "localizedDescription": "A free music and video app for YouTube Music and YouTube, with no Shorts or ads and a cat in your Dynamic Island.",
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {

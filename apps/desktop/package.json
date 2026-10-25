@@ -93,7 +93,7 @@
       ],
       "category": "Audio",
       "icon": "build/icon.png",
-      "synopsis": "A free music player with a cat",
+      "synopsis": "A free music and video app with a cat",
       "maintainer": "thenetaji <thenetaji@users.noreply.github.com>",
       "syncDesktopName": true,
       "executableName": "pawse"
