@@ -393,6 +393,8 @@ export default function Settings() {
       </Section>
       <BackupNote />
 
+      <ExperimentalSection />
+
       <Section title="About">
         <Link label="About Pawse" onPress={() => push("/about")} />
         {Platform.OS !== "web" ? <UpdateRow tint={accent} /> : null}
@@ -790,3 +792,46 @@ const styles = StyleSheet.create({
   accent: { width: 30, height: 30, borderRadius: 15 },
   accentOn: { borderWidth: 3, borderColor: "#fff" },
 });
+
+// Early features to try before they become part of Pawse.
+function ExperimentalSection() {
+  const yt = useSetting("ytMode", false);
+  return (
+    <>
+      <Section title="Experimental">
+        <Toggle k="ytMode" label="YouTube videos" def={false} />
+        {yt ? (
+          <>
+            <Toggle k="videoAutoplay" label="Play the next video" def={false} />
+            <Pick
+              k="videoQuality"
+              label="Video quality"
+              def={720}
+              options={[
+                [480, "480p"],
+                [720, "720p"],
+                [1080, "1080p"],
+              ]}
+            />
+          </>
+        ) : null}
+        <Pick
+          k="homeStyle"
+          label="Home"
+          def="full"
+          options={[
+            ["full", "Everything"],
+            ["calm", "Calm"],
+            ["mine", "Only my music"],
+          ]}
+        />
+      </Section>
+      <Foot>
+        {yt ? "Watch adds YouTube videos without Shorts. " : ""}
+        Calm keeps Home to your music and a few picks, and it ends instead of
+        scrolling forever. Only my music shows nothing suggested. These may
+        change or go away.
+      </Foot>
+    </>
+  );
+}

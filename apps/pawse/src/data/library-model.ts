@@ -87,6 +87,15 @@ export type Settings = {
   androidPill: boolean;
   /** Pill offset from its default spot, dp. */
   androidPillOffset: number;
+  // Experimental
+  /** YouTube videos: a Watch tab, video search and a video player. */
+  ytMode: boolean;
+  /** full: everything YouTube suggests; calm: your music and a few picks, and Home ends; mine: nothing suggested. */
+  homeStyle: "full" | "calm" | "mine";
+  /** Highest video height to stream. */
+  videoQuality: number;
+  /** Start the next video when one ends. */
+  videoAutoplay: boolean;
   // Onboarding
   onboarded: boolean;
   seedArtists: ArtistSummary[];
@@ -135,6 +144,10 @@ export const DEFAULT_SETTINGS: Settings = {
   pauseHistory: false,
   androidPill: false,
   androidPillOffset: 0,
+  ytMode: false,
+  homeStyle: "full",
+  videoQuality: 720,
+  videoAutoplay: false,
   onboarded: false,
   seedArtists: [],
   seedLanguages: [],

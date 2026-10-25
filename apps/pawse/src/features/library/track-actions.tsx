@@ -25,10 +25,12 @@ import { download, isDownloaded, removeDownload } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
+import { getSetting } from "../../lib/settings";
 import { removeSong } from "../../lib/remove-song";
 import { useShareCard } from "../../lib/share-card-store";
 import { openAlbum, openArtist } from "../../lib/song-links";
 import { display } from "../../lib/type";
+import { WatchIcon } from "../shell/icons";
 import { showPlaylistPicker } from "./playlist-tools";
 import { showSongInfo } from "./song-info";
 
@@ -132,6 +134,15 @@ export function showTrackActions(
         onPress: () =>
           void player.playRadio({ videoId: track.id, title: track.title }),
       },
+      ...(track.source === "youtube" && getSetting("ytMode", false)
+        ? [
+            {
+              label: "Watch video",
+              icon: (c: string) => <WatchIcon size={I} color={c} />,
+              onPress: () => leave(() => push(`/video/${track.id}`)),
+            },
+          ]
+        : []),
       {
         label: "Go to album",
         icon: (c) => <AlbumGlyph size={I} weight={W} color={c} />,

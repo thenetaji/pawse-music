@@ -109,3 +109,10 @@ export const RepeatIcon = ({
     ) : null}
   </Svg>
 );
+
+export const WatchIcon = ({ size = 22, color = "#fff" }: P) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Rect x="2.5" y="4.5" width="19" height="15" rx="4" fill={color} />
+    <Path d="M10 9.2v5.6l4.8-2.8z" fill="#000" />
+  </Svg>
+);

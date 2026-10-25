@@ -3,6 +3,7 @@ import {
   JioSaavn,
   LyricsService,
   YouTubeMusic,
+  YouTubeVideo,
 } from "@pawse/innertube";
 import type {
   CatalogItem,
@@ -47,6 +48,17 @@ const raw = new YouTubeMusic({
     logEvent("request-failed", `${endpoint}: ${(e as Error)?.message ?? e}`),
 });
 prewarmPoToken();
+
+// YouTube mode's catalog (www.youtube.com, Shorts already dropped), signed in with the same account.
+export const ytv = new YouTubeVideo({
+  fetch: appFetch,
+  hl: languageCode(settings().language),
+  gl: gl(regionCode(settings().region)),
+  cookies: () => settings().cookies ?? undefined,
+  sandbox: youtubeSandbox,
+  poToken: poTokenProvider,
+  platform: Platform.OS,
+});
 useLibrary.subscribe((s) =>
   raw.setLocale(
     languageCode(s.settings.language),

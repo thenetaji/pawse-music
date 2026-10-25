@@ -32,6 +32,7 @@ export * from "./library-model";
 type Library = LibraryData & {
   addSearch(q: string): void;
   clearSearches(): void;
+  removeSearch(q: string): void;
   toggleLike(track: Track): boolean;
   isLiked(id: string): boolean;
   /** Thumbs-down; true when the song is now disliked. Calling it again undoes it. */
@@ -126,6 +127,10 @@ export const useLibrary = create<Library>()(
           ].slice(0, 12),
         })),
       clearSearches: () => set({ recentSearches: [] }),
+      removeSearch: (q) =>
+        set((s) => ({
+          recentSearches: s.recentSearches.filter((x) => x !== q),
+        })),
       toggleLike(track) {
         const on = !get().liked.some((t) => t.id === track.id);
         // Liking a disliked song clears the dislike first.

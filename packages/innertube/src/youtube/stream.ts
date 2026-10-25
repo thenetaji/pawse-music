@@ -25,6 +25,11 @@ export interface AdaptiveFormat {
   approxDurationMs?: string;
   signatureCipher?: string;
   cipher?: string;
+  width?: number;
+  height?: number;
+  fps?: number;
+  initRange?: { start: string; end: string };
+  indexRange?: { start: string; end: string };
 }
 
 const PLAYER_URL =
@@ -154,6 +159,13 @@ export interface ResolveOptions {
   sandbox?: JsSandbox;
   /** BotGuard tokens for clients that `need` pot; without it those clients are skipped. */
   poToken?: PoTokenProvider;
+  /** Picks the adaptive format to resolve instead of the AAC pick (video callers). */
+  pick?: (
+    formats: AdaptiveFormat[] | undefined,
+    ciphered: boolean,
+  ) => AdaptiveFormat | undefined;
+  /** Gets the format that was resolved and the `youtube:<client>` that served it. */
+  onFormat?: (format: AdaptiveFormat, via: string) => void;
 }
 
 export interface ResolveAttempt {
@@ -323,16 +335,15 @@ async function tryClient(
   const bad = playabilityError(data?.playabilityStatus);
   if (bad) throw bad;
   const sd = data?.streamingData;
-  const format = pickAudioFormat(
-    sd?.adaptiveFormats,
-    o.quality,
-    o.opus,
-    !!o.sandbox,
-  );
+  const format = o.pick
+    ? o.pick(sd?.adaptiveFormats, !!o.sandbox)
+    : pickAudioFormat(sd?.adaptiveFormats, o.quality, o.opus, !!o.sandbox);
   if (!format)
     throw new StreamError(
       "no_audio",
-      `no ${o.opus ? "AAC or Opus" : "AAC"} format with a ${o.sandbox ? "usable" : "direct"} url`,
+      o.pick
+        ? "no matching format with a usable url"
+        : `no ${o.opus ? "AAC or Opus" : "AAC"} format with a ${o.sandbox ? "usable" : "direct"} url`,
     );
   let mediaUrl = format.url;
   const ciphered = !!(format.signatureCipher || format.cipher);
@@ -378,6 +389,7 @@ async function tryClient(
   }
   const ttl = Number(sd?.expiresInSeconds);
   const ms = Number(format.approxDurationMs);
+  o.onFormat?.(format, viaOf(c));
   return {
     url,
     mimeType: format.mimeType ?? "audio/mp4",

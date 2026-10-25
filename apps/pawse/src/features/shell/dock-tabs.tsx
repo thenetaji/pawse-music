@@ -14,14 +14,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { haptic } from "../../lib/haptics";
 import { emitTabReselect, type Tab } from "../../lib/nav";
+import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
 import { useAccent } from "../now-playing/now-palette";
-import { ExploreIcon, HomeIcon, LibraryIcon, SearchIcon } from "./icons";
+import {
+  ExploreIcon,
+  HomeIcon,
+  LibraryIcon,
+  SearchIcon,
+  WatchIcon,
+} from "./icons";
 import { OfflineBanner } from "./phone-tabs";
 
 const NAV = [
   { name: "home", href: "/", label: "Home", Icon: HomeIcon },
+  { name: "watch", href: "/watch", label: "Watch", Icon: WatchIcon },
   { name: "explore", href: "/explore", label: "Explore", Icon: ExploreIcon },
   { name: "library", href: "/library", label: "Library", Icon: LibraryIcon },
   { name: "search", href: "/search", label: "Search", Icon: SearchIcon },
@@ -32,6 +40,7 @@ export function DockTabs() {
   const accent = useAccent();
   const hasTrack = usePlayerSelect((s) => !!s.current);
   const { bottom } = useSafeAreaInsets();
+  const watch = useSetting("ytMode", false);
   return (
     <Tabs style={styles.root}>
       <TabSlot />
@@ -60,7 +69,7 @@ export function DockTabs() {
           </View>
         ) : null}
         <View style={styles.bar}>
-          {NAV.map((n) => (
+          {NAV.filter((n) => watch || n.name !== "watch").map((n) => (
             <TabTrigger key={n.name} name={n.name} resetOnFocus asChild>
               <Item
                 tab={n.name}

@@ -76,6 +76,10 @@ export default function RootLayout() {
               options={{ ...modal, gestureEnabled: true }}
             />
             <Stack.Screen name="queue" options={modal} />
+            <Stack.Screen
+              name="video/[id]"
+              options={{ ...modal, gestureEnabled: true }}
+            />
             <Stack.Screen name="settings" options={modal} />
             <Stack.Screen name="about" options={modal} />
             <Stack.Screen name="sign-in" options={modal} />
