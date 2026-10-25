@@ -7,6 +7,8 @@ import { Image } from "expo-image";
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { MoreGlyph } from "../features/now-playing/icons";
+
 import { blockChannel } from "../lib/block";
 import { useBranding } from "../lib/community";
 import { rightClick } from "../lib/context-menu";
@@ -55,13 +57,18 @@ function Thumb({
   v,
   width,
   src,
+  bleed,
 }: {
   v: VideoItem;
   width?: number;
   src?: string;
+  /** Edge to edge, square corners. */
+  bleed?: boolean;
 }) {
   return (
-    <View style={[styles.thumb, width ? { width } : null]}>
+    <View
+      style={[styles.thumb, width ? { width } : null, bleed && styles.bleed]}
+    >
       <Image
         source={src ?? bestThumbnail(v.thumbnails, 720)}
         style={StyleSheet.absoluteFill}
@@ -77,13 +84,17 @@ function Thumb({
   );
 }
 
-/** A wide 16:9 card: the thumbnail first, then the channel's face and two lines of title. */
+/** A wide 16:9 card: the thumbnail first, then the channel's face and two lines of title.
+ * On phones the picture runs edge to edge, like YouTube; in a grid it's a rounded tile. */
 export const VideoCard = memo(function VideoCard({
   video,
   hideChannel,
+  tile,
 }: {
   video: VideoItem;
   hideChannel?: boolean;
+  /** In a multi-column grid: rounded picture, no side padding. */
+  tile?: boolean;
 }) {
   const avatar =
     video.channel?.avatar && bestThumbnail(video.channel.avatar, 88);
@@ -93,10 +104,10 @@ export const VideoCard = memo(function VideoCard({
       onPress={() => openVideo(video)}
       onLongPress={() => showVideoActions(video)}
       {...rightClick(() => showVideoActions(video))}
-      style={styles.card}
+      style={tile ? styles.tile : styles.card}
     >
-      <Thumb v={video} src={brand?.thumbnail} />
-      <View style={styles.info}>
+      <Thumb v={video} src={brand?.thumbnail} bleed={!tile} />
+      <View style={[styles.info, !tile && styles.infoPad]}>
         {avatar && !hideChannel ? (
           <PressScale
             onPress={() => video.channel?.id && openChannel(video.channel.id)}
@@ -113,6 +124,14 @@ export const VideoCard = memo(function VideoCard({
             {videoMeta(video, !hideChannel)}
           </Text>
         </View>
+        <PressScale
+          hitSlop={10}
+          onPress={() => showVideoActions(video)}
+          style={styles.more}
+          accessibilityLabel="More"
+        >
+          <MoreGlyph size={18} color="rgba(255,255,255,0.8)" />
+        </PressScale>
       </View>
     </PressScale>
   );
@@ -167,7 +186,9 @@ export function ChannelRow({ channel }: { channel: ChannelItem }) {
 }
 
 const styles = StyleSheet.create({
-  card: { paddingHorizontal: 16, marginBottom: 22 },
+  card: { marginBottom: 20 },
+  tile: { flex: 1, marginBottom: 22 },
+  bleed: { borderRadius: 0 },
   thumb: {
     width: "100%",
     aspectRatio: 16 / 9,
@@ -190,6 +211,8 @@ const styles = StyleSheet.create({
   },
   live: { backgroundColor: "#e5332a" },
   info: { flexDirection: "row", gap: 12, marginTop: 11 },
+  infoPad: { paddingLeft: 14, paddingRight: 6 },
+  more: { paddingHorizontal: 6, paddingTop: 2 },
   avatar: {
     width: 36,
     height: 36,

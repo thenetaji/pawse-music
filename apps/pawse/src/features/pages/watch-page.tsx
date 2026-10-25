@@ -28,7 +28,6 @@ import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { useAccent } from "../now-playing/now-palette";
-import { TopGlow } from "./top-glow";
 
 type Feed = "home" | "subs";
 type Page = {
@@ -104,6 +103,9 @@ export default function WatchPage() {
     Keyboard.dismiss();
   };
 
+  // Phones get one edge-to-edge column; wider screens a grid of tiles.
+  const [width, setWidth] = useState(0);
+  const cols = width >= 1050 ? 3 : width >= 640 ? 2 : 1;
   const keep = useVideoFilter();
   const seen = new Set<string>();
   const unique = items.filter(
@@ -116,8 +118,8 @@ export default function WatchPage() {
   return (
     <Screen
       title="Watch"
+      bare
       tab="watch"
-      background={<TopGlow height={300} />}
       onRefresh={first.reload}
       refreshing={false}
       onEndReached={loadMore}
@@ -178,19 +180,34 @@ export default function WatchPage() {
           Results for “{query}”
         </Text>
       ) : null}
-      <View style={{ height: 16 }} />
+      <View
+        style={{ height: 16 }}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      />
       {first.data ? (
         unique.length ? (
-          unique.map((x, i) => (
+          rows(unique, cols).map((row, i) => (
             <Animated.View
-              key={x.id}
+              key={row[0].id}
               entering={FadeInDown.duration(380).delay(Math.min(i, 6) * 50)}
+              style={cols > 1 ? styles.gridRow : undefined}
             >
-              {x.type === "channel" ? (
-                <ChannelRow channel={x} />
-              ) : (
-                <VideoCard video={x as VideoItem} />
+              {row.map((x) =>
+                x.type === "channel" ? (
+                  <ChannelRow key={x.id} channel={x} />
+                ) : (
+                  <VideoCard
+                    key={x.id}
+                    video={x as VideoItem}
+                    tile={cols > 1}
+                  />
+                ),
               )}
+              {cols > 1 && row.length < cols && row[0].type !== "channel"
+                ? Array.from({ length: cols - row.length }, (_, k) => (
+                    <View key={k} style={{ flex: 1 }} />
+                  ))
+                : null}
             </Animated.View>
           ))
         ) : (
@@ -217,7 +234,32 @@ export default function WatchPage() {
   );
 }
 
+type Item = (VideoFeed | VideoSearchResults)["items"][number];
+
+/** Groups the feed into grid rows; a channel always gets a row of its own. */
+function rows(items: Item[], cols: number): Item[][] {
+  if (cols === 1) return items.map((x) => [x]);
+  const out: Item[][] = [];
+  let row: Item[] = [];
+  for (const x of items) {
+    if (x.type === "channel") {
+      if (row.length) out.push(row);
+      out.push([x]);
+      row = [];
+      continue;
+    }
+    row.push(x);
+    if (row.length === cols) {
+      out.push(row);
+      row = [];
+    }
+  }
+  if (row.length) out.push(row);
+  return out;
+}
+
 const styles = StyleSheet.create({
+  gridRow: { flexDirection: "row", gap: 16, paddingHorizontal: 16 },
   field: {
     flexDirection: "row",
     alignItems: "center",

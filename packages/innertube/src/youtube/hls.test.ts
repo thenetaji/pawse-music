@@ -1,4 +1,9 @@
-import { hlsMediaPlaylist, parseSegmentIndex, smallSegments } from "./hls";
+import {
+  hlsMaster,
+  hlsMediaPlaylist,
+  parseSegmentIndex,
+  smallSegments,
+} from "./hls";
 
 // ftyp (24) + moov (16) + a version-0 sidx with two references, as YouTube's DASH audio starts.
 function head(): Uint8Array {
@@ -43,4 +48,27 @@ test("the playlist maps the init part and every fragment to byte ranges of the o
 
 test("a head cut before the sidx ends gives no index", () => {
   expect(parseSegmentIndex(head().slice(0, 80))).toBeUndefined();
+});
+
+test("a master with several qualities lists each over one audio group", () => {
+  const v = (height: number) => ({
+    uri: `v${height}.m3u8`,
+    mimeType: 'video/mp4; codecs="avc1.4d401f"',
+    bitrate: height * 1000,
+    width: (height * 16) / 9,
+    height,
+    fps: 30,
+  });
+  const text = hlsMaster([v(480), v(1080)], {
+    uri: "a.m3u8",
+    mimeType: 'audio/mp4; codecs="mp4a.40.2"',
+    bitrate: 128000,
+  });
+  const lines = text.split("\n");
+  expect(lines.filter((l) => l.startsWith("#EXT-X-MEDIA"))).toHaveLength(1);
+  const infs = lines.filter((l) => l.startsWith("#EXT-X-STREAM-INF"));
+  expect(infs).toHaveLength(2);
+  expect(infs[0]).toContain("BANDWIDTH=608000");
+  expect(infs[0]).toContain('CODECS="avc1.4d401f,mp4a.40.2"');
+  expect(lines[lines.indexOf(infs[1]) + 1]).toBe("v1080.m3u8");
 });

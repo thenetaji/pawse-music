@@ -67,6 +67,7 @@ declare class PawseActivityNative extends NativeModule<Events> {
   listBackupFiles(): Promise<string[]>;
   readBackupFileHead(name: string, bytes: number): Promise<string | null>;
   deleteBackupFile(name: string): Promise<boolean>;
+  servePlaylist(name: string, text: string): Promise<string | null>;
 }
 
 const native =
@@ -126,6 +127,14 @@ export const PawseActivity = {
     return native
       ? native.setArtwork(url).catch(() => null)
       : Promise.resolve(null);
+  },
+
+  /** The native build can serve HLS playlists on localhost (AVPlayer won't play them from files). */
+  playlists: typeof native?.servePlaylist === "function",
+
+  /** Serves an HLS playlist on localhost and returns its http URL; null when unavailable. */
+  servePlaylist(name: string, text: string): Promise<string | null> {
+    return call((n) => n.servePlaylist(name, text), null);
   },
 
   /** Square, bar-free JPEG from the first usable url, as a file URI; null when none loads. */

@@ -18,22 +18,31 @@ type Props = {
   onError?: (message: string) => void;
   /** A small still of the playing picture every few seconds, for the ambient glow (web only). */
   onFrame?: (uri: string) => void;
+  /** The picture height (and frame rate) now playing, as Auto moves between qualities. */
+  onTrack?: (height: number, fps?: number) => void;
+  /** Sent with every media request (phones; computers go through the relay). */
+  headers?: Record<string, string>;
 };
 
 /** Chromium has no HLS of its own, so hls.js feeds the playlist to a plain video element. */
 export const VideoPlayer = forwardRef<VideoHandle, Props>(function VideoPlayer(
-  { uri, poster, startAt, style, onEnd, onTime, onError, onFrame },
+  { uri, poster, startAt, style, onEnd, onTime, onError, onFrame, onTrack },
   ref,
 ) {
   const el = useRef<HTMLVideoElement>(null);
-  const cb = useRef({ onEnd, onTime, onError, onFrame });
-  cb.current = { onEnd, onTime, onError, onFrame };
+  const cb = useRef({ onEnd, onTime, onError, onFrame, onTrack });
+  cb.current = { onEnd, onTime, onError, onFrame, onTrack };
   useEffect(() => {
     const video = el.current;
     if (!video) return;
     const hls = new Hls({ maxBufferLength: 30 });
     hls.on(Hls.Events.ERROR, (_e, d) => {
       if (d.fatal) cb.current.onError?.(d.details);
+    });
+    hls.on(Hls.Events.LEVEL_SWITCHED, (_e, d) => {
+      const level = hls.levels[d.level];
+      if (level?.height)
+        cb.current.onTrack?.(level.height, level.frameRate || undefined);
     });
     hls.loadSource(uri);
     hls.attachMedia(video);

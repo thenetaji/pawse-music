@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -21,7 +22,6 @@ import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
-import { ChevronLeft } from "../../components/glyphs";
 import { CatState, PressScale, SectionTitle } from "../../components/ui";
 import {
   clock,
@@ -30,11 +30,17 @@ import {
   videoMeta,
 } from "../../components/video-card";
 import { ytv } from "../../lib/engine";
+import { logEvent } from "../../lib/diagnostics";
 import { haptic } from "../../lib/haptics";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
-import { type VideoSource, videoSource } from "../../lib/video-stream";
+import {
+  type Quality,
+  type VideoSource,
+  videoSource,
+} from "../../lib/video-stream";
+import { showSheet } from "../../components/action-sheet";
 import { compact, useVotes } from "../../lib/dislikes";
 import { showToast } from "../../components/toast";
 import { useVideoFilter } from "../../lib/block";
@@ -43,7 +49,6 @@ import type { SkipSegment } from "@pawse/innertube";
 import { type VideoHandle, VideoPlayer } from "../video/video-player";
 
 const MAX_W = 980;
-const INSET = 12;
 // Room above the page for a pull-down bounce, so the glow never shows a gap.
 const OVERSCROLL = 600;
 
@@ -52,27 +57,35 @@ export default function VideoPage() {
   const { id, t } = useLocalSearchParams<{ id: string; t?: string }>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const quality = useSetting("videoQuality", 720);
+  const pref = useSetting("videoPreferred", "auto");
   const autoplay = useSetting("videoAutoplay", false);
-  // Edge to edge drops the close arrow; a swipe down, back or Esc closes instead.
-  const edge = useSetting("videoEdge", false);
   const w = Math.min(width, MAX_W);
   const detail = useResource<VideoDetail>(`video:${id}`, () => ytv.video(id));
-  // Keyed by video and quality, so moving to another video starts clean without resetting in an effect.
-  const key = `${id}:${quality}`;
+  // A quality picked on this page, keyed by video; otherwise the default from Settings.
+  const [picked, setPicked] = useState<{ id: string; q: Quality }>();
+  const quality: Quality =
+    picked?.id === id ? picked.q : typeof pref === "number" ? pref : "auto";
+  // Keyed by video, so moving to another video starts clean without resetting in an effect.
   const [loaded, setLoaded] = useState<{
-    key: string;
+    id: string;
     src?: VideoSource;
     error?: string;
+    /** Where playback picks up: the link's ?t= at first, the current spot after a quality switch. */
+    start?: number;
   }>();
   const [endedKey, setEndedKey] = useState<string | null>(null);
-  const src = loaded?.key === key ? loaded.src : undefined;
-  const error = loaded?.key === key ? loaded.error : undefined;
-  const ended = endedKey === key;
-  const setError = (message: string) => setLoaded({ key, error: message });
-  const setEnded = (on: boolean) => setEndedKey(on ? key : null);
+  const src = loaded?.id === id ? loaded.src : undefined;
+  const error = loaded?.id === id ? loaded.error : undefined;
+  const ended = endedKey === id;
+  const setError = (message: string) => {
+    logEvent("video-failed", `${id}: ${message}`);
+    setLoaded({ id, error: message });
+  };
+  const setEnded = (on: boolean) => setEndedKey(on ? id : null);
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState(0);
+  const atRef = useRef(0);
+  const [track, setTrack] = useState<{ id: string; label: string }>();
   const handle = useRef<VideoHandle>(null);
   const skips = useRef<SkipSegment[]>([]);
   const keep = useVideoFilter();
@@ -92,6 +105,7 @@ export default function VideoPage() {
   // Sponsor reads and plugs are jumped over as playback reaches them.
   const onTime = (sec: number) => {
     setAt(sec);
+    atRef.current = sec;
     const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
     if (!seg) return;
     handle.current?.seek(seg.end);
@@ -105,16 +119,67 @@ export default function VideoPage() {
       player.pause();
   }, []);
 
+  // The old quality keeps playing until the new one is ready, then it carries on from the same moment.
   useEffect(() => {
     let live = true;
-    const k = `${id}:${quality}`;
     videoSource(id, quality)
-      .then((s) => live && setLoaded({ key: k, src: s }))
-      .catch((e: Error) => live && setLoaded({ key: k, error: e.message }));
+      .then(
+        (s) =>
+          live &&
+          setLoaded((was) => ({
+            id,
+            src: s,
+            start:
+              was?.id === id && was.src
+                ? atRef.current
+                : t
+                  ? Number(t)
+                  : undefined,
+          })),
+      )
+      .catch((e: Error) => {
+        logEvent("video-failed", `${id}: ${e.message}`);
+        if (live) setLoaded({ id, error: e.message });
+      });
     return () => {
       live = false;
     };
+    // t only matters for the first load of a video.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, quality]);
+
+  const playing = track?.id === id ? track.label : undefined;
+  const qualityLabel =
+    src?.quality === "auto"
+      ? playing
+        ? `Auto · ${playing}`
+        : "Auto"
+      : (src?.quality ?? "Quality");
+  const pickQuality = () => {
+    if (!src) return;
+    const choose = (q: Quality) => () => setPicked({ id, q });
+    showSheet({
+      header: <Text style={styles.sheetTitle}>Quality</Text>,
+      actions: [
+        {
+          label: src.quality === "auto" ? `✓  ${qualityLabel}` : "Auto",
+          sub: "Changes with your connection",
+          onPress: choose("auto"),
+        },
+        ...src.options.map((o) => ({
+          label: src.quality === o.key ? `✓  ${o.key}` : o.key,
+          onPress: choose(o.key),
+        })),
+      ],
+    });
+  };
+  const share = () => {
+    haptic.light();
+    void Share.share({
+      url: `https://youtu.be/${id}`,
+      message: `https://youtu.be/${id}`,
+    });
+  };
 
   const d = detail.data;
   const v = d?.video;
@@ -123,7 +188,7 @@ export default function VideoPage() {
   const [frame, setFrame] = useState<{ id: string; uri: string }>();
   const glow =
     frame?.id === id ? frame.uri : `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
-  const stageH = ((edge ? w : w - INSET * 2) * 9) / 16;
+  const stageH = (w * 9) / 16;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -170,43 +235,30 @@ export default function VideoPage() {
           alignItems: "center",
         }}
       >
-        <Ambient
-          uri={glow}
-          height={insets.top + (edge ? 0 : 48) + stageH + 220}
-        />
+        <Ambient uri={glow} height={insets.top + stageH + 220} />
         <View style={{ width: w }}>
-          {edge ? null : (
-            <View style={[styles.bar, { paddingTop: insets.top + 6 }]}>
-              <Pressable
-                hitSlop={12}
-                onPress={() => router.back()}
-                style={styles.close}
-                accessibilityLabel="Close"
-              >
-                <View style={{ transform: [{ rotate: "-90deg" }] }}>
-                  <ChevronLeft size={18} weight={2.6} />
-                </View>
-              </Pressable>
-            </View>
-          )}
+          {/* Full width like YouTube: a swipe down, back or Esc closes it. */}
           <View
-            style={[
-              styles.stage,
-              { height: stageH },
-              edge && [styles.edge, { marginTop: insets.top }],
-            ]}
+            style={[styles.stage, { height: stageH, marginTop: insets.top }]}
           >
             {src ? (
               <VideoPlayer
                 ref={handle}
                 uri={src.uri}
+                headers={src.stream.headers}
                 poster={thumb}
                 style={StyleSheet.absoluteFill}
                 onEnd={onEnd}
                 onTime={onTime}
-                startAt={t ? Number(t) : undefined}
+                startAt={loaded?.start}
                 onError={setError}
                 onFrame={(uri) => setFrame({ id, uri })}
+                onTrack={(h, fps) =>
+                  setTrack({
+                    id,
+                    label: `${h}p${(fps ?? 30) > 30 ? "60" : ""}`,
+                  })
+                }
               />
             ) : thumb ? (
               <Image
@@ -240,7 +292,6 @@ export default function VideoPage() {
             <Animated.View entering={FadeInDown.duration(360)}>
               <Text style={styles.title}>{brand?.title ?? v.title}</Text>
               <Text style={styles.meta}>{videoMeta(v, false)}</Text>
-              <VoteBar id={id} />
               <View style={styles.channel}>
                 <Pressable
                   onPress={() => {
@@ -261,11 +312,25 @@ export default function VideoPage() {
                     {v.channel?.name}
                   </Text>
                 </Pressable>
-                <PressScale onPress={listen} style={styles.listen}>
-                  <HeadphonesGlyph />
-                  <Text style={styles.listenText}>Listen</Text>
-                </PressScale>
               </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.actions}
+              >
+                <VoteBar id={id} />
+                <Pill
+                  icon={<GearGlyph />}
+                  label={qualityLabel}
+                  onPress={pickQuality}
+                />
+                <Pill
+                  icon={<HeadphonesGlyph />}
+                  label="Listen"
+                  onPress={listen}
+                />
+                <Pill icon={<ShareGlyph />} label="Share" onPress={share} />
+              </ScrollView>
             </Animated.View>
           ) : detail.error ? (
             <CatState
@@ -332,13 +397,63 @@ export default function VideoPage() {
   );
 }
 
+function Pill({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <PressScale onPress={onPress} style={styles.pill}>
+      {icon}
+      <Text style={styles.pillText} numberOfLines={1}>
+        {label}
+      </Text>
+    </PressScale>
+  );
+}
+
+const GearGlyph = () => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 7h10M18 7h2M4 17h4M12 17h8"
+      stroke="#fff"
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+    <Path
+      d="M16 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM10 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"
+      stroke="#fff"
+      strokeWidth={2}
+    />
+  </Svg>
+);
+
+const ShareGlyph = () => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M14 5l7 7-7 7M21 12H10a6 6 0 0 0-6 6v1"
+      stroke="#fff"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 // Likes beside Return YouTube Dislike's estimate, with a thin bar of the share that liked it.
 function VoteBar({ id }: { id: string }) {
   const v = useVotes(id);
   if (!v) return null;
   const share = v.likes + v.dislikes ? v.likes / (v.likes + v.dislikes) : 1;
   return (
-    <Animated.View entering={FadeIn.duration(240)} style={styles.votes}>
+    <Animated.View
+      entering={FadeIn.duration(240)}
+      style={[styles.pill, styles.votes]}
+    >
       <Thumb up />
       <Text style={styles.voteText}>{compact(v.likes)}</Text>
       <Thumb />
@@ -407,7 +522,7 @@ const HeadphonesGlyph = () => (
   <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
     <Path
       d="M4 15v-3a8 8 0 0 1 16 0v3M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2zm16 0a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2z"
-      stroke="#000"
+      stroke="#fff"
       strokeWidth={2.2}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -452,24 +567,14 @@ const styles = StyleSheet.create({
     opacity: 0.85,
     transform: [{ scale: 1.35 }],
   },
-  bar: { paddingHorizontal: 14, paddingBottom: 8 },
-  close: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+  stage: { backgroundColor: "#000", overflow: "hidden" },
+  sheetTitle: {
+    color: "#fff",
+    fontSize: 17,
+    textAlign: "center",
+    marginBottom: 4,
+    ...display("800"),
   },
-  // Inset and rounded, so the glow wraps the video like YouTube's ambient mode.
-  stage: {
-    marginHorizontal: INSET,
-    borderRadius: 18,
-    backgroundColor: "#000",
-    overflow: "hidden",
-    borderCurve: "continuous",
-  },
-  edge: { marginHorizontal: 0, borderRadius: 0 },
   veil: {
     position: "absolute",
     top: 0,
@@ -495,13 +600,18 @@ const styles = StyleSheet.create({
     marginTop: 5,
     marginHorizontal: 16,
   },
-  votes: {
+  actions: { gap: 8, paddingHorizontal: 16, marginTop: 14 },
+  pill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginTop: 10,
-    marginHorizontal: 16,
+    gap: 7,
+    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
+  pillText: { color: "#fff", fontSize: 14, ...display("700") },
+  votes: { gap: 6 },
   voteText: {
     color: "rgba(255,255,255,0.8)",
     fontSize: 13,
@@ -509,8 +619,7 @@ const styles = StyleSheet.create({
     ...display("700"),
   },
   voteTrack: {
-    flex: 1,
-    maxWidth: 120,
+    width: 44,
     height: 3,
     borderRadius: 2,
     overflow: "hidden",
@@ -527,16 +636,6 @@ const styles = StyleSheet.create({
   channelHit: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: "#222" },
   channelName: { flex: 1, color: "#fff", fontSize: 15.5, ...display("700") },
-  listen: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    height: 36,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    backgroundColor: "#fff",
-  },
-  listenText: { color: "#000", fontSize: 14, ...display("800") },
   chapters: { gap: 10, paddingHorizontal: 16 },
   chapter: {
     width: 150,

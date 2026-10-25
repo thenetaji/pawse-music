@@ -72,11 +72,13 @@ export function parseSegmentIndex(head: Uint8Array): SegmentIndex | undefined {
   return { initSize: box.start, segments };
 }
 
-/** Fetches the head of a DASH fMP4 stream and reads its segment index; undefined when it has none. */
+/** Fetches the head of a DASH fMP4 stream and reads its segment index; undefined when it has none.
+ * `indexEnd` (the format's indexRange end, when known) keeps it to one small request. */
 export async function fetchSegmentIndex(
   f: FetchLike,
   url: string,
   headers: Record<string, string> = {},
+  indexEnd?: number,
 ): Promise<SegmentIndex | undefined> {
   const get = async (end: number) => {
     const res = await fetchWithTimeout(
@@ -91,7 +93,7 @@ export async function fetchSegmentIndex(
     if (!res.ok) throw new Error(`index HTTP ${res.status}`);
     return new Uint8Array(await res.arrayBuffer());
   };
-  let head = await get(HEAD_BYTES);
+  let head = await get(indexEnd && indexEnd > 0 ? indexEnd + 1 : HEAD_BYTES);
   const box = findSidx(head);
   if (!box) return undefined;
   if (box.end > head.length) head = await get(box.end);
@@ -126,37 +128,40 @@ export const smallSegments = (index: SegmentIndex) =>
 
 const codecsOf = (mimeType: string) => /codecs="([^"]+)"/.exec(mimeType)?.[1];
 
-/** A master playlist pairing one video playlist with one audio playlist (YouTube serves them as separate files). */
+export interface HlsVariant {
+  uri: string;
+  mimeType: string;
+  bitrate: number;
+  width?: number;
+  height?: number;
+  fps?: number;
+}
+
+/** A master playlist of one or more video playlists sharing one audio playlist (YouTube serves them as separate files).
+ * With several, the player picks between them as the network allows (Auto). */
 export function hlsMaster(
-  video: {
-    uri: string;
-    mimeType: string;
-    bitrate: number;
-    width?: number;
-    height?: number;
-    fps?: number;
-  },
+  video: HlsVariant | HlsVariant[],
   audio: { uri: string; mimeType: string; bitrate: number },
 ): string {
-  const codecs = [codecsOf(video.mimeType), codecsOf(audio.mimeType)]
-    .filter(Boolean)
-    .join(",");
-  const inf = [
-    `BANDWIDTH=${Math.round(video.bitrate + audio.bitrate)}`,
-    codecs ? `CODECS="${codecs}"` : "",
-    video.width && video.height
-      ? `RESOLUTION=${video.width}x${video.height}`
-      : "",
-    video.fps ? `FRAME-RATE=${video.fps.toFixed(3)}` : "",
-    'AUDIO="a"',
-  ].filter(Boolean);
-  return [
+  const lines = [
     "#EXTM3U",
     "#EXT-X-VERSION:7",
     "#EXT-X-INDEPENDENT-SEGMENTS",
     `#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="a",NAME="Audio",DEFAULT=YES,AUTOSELECT=YES,URI="${audio.uri}"`,
-    `#EXT-X-STREAM-INF:${inf.join(",")}`,
-    video.uri,
-    "",
-  ].join("\n");
+  ];
+  for (const v of Array.isArray(video) ? video : [video]) {
+    const codecs = [codecsOf(v.mimeType), codecsOf(audio.mimeType)]
+      .filter(Boolean)
+      .join(",");
+    const inf = [
+      `BANDWIDTH=${Math.round(v.bitrate + audio.bitrate)}`,
+      codecs ? `CODECS="${codecs}"` : "",
+      v.width && v.height ? `RESOLUTION=${v.width}x${v.height}` : "",
+      v.fps ? `FRAME-RATE=${v.fps.toFixed(3)}` : "",
+      'AUDIO="a"',
+    ].filter(Boolean);
+    lines.push(`#EXT-X-STREAM-INF:${inf.join(",")}`, v.uri);
+  }
+  lines.push("");
+  return lines.join("\n");
 }

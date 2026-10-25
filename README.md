@@ -54,8 +54,9 @@ Turn on **Settings → Experimental → YouTube videos** and a **Watch** tab app
 - **Nothing plays by itself.** When a video ends you get Replay, Next or Done.
 - **Skips the boring parts.** Sponsor reads, self-promotion and "like and subscribe" are jumped over ([SponsorBlock](https://sponsor.ajay.app)), and so is the talking in music videos.
 - **Honest titles and thumbnails** from [DeArrow](https://dearrow.ajay.app), without the all-caps clickbait. **Dislike counts** come back too ([Return YouTube Dislike](https://returnyoutubedislike.com)).
-- **Made for OLED.** The picture glows softly onto true black around the player, like YouTube's ambient mode. You can also turn on edge-to-edge video.
-- **Song ⇄ Video.** Open a song's video right where the song is, or hand a video's sound to the music player with **Listen**. Full screen, picture in picture and background play work as usual.
+- **Every quality, or Auto.** 144p to 1080p60, or Auto, which follows your connection. Change it on any video without starting over.
+- **Made for OLED.** The video fills the top of the screen and its picture glows softly onto true black, like YouTube's ambient mode.
+- **Song | Video.** Flip the switch in the player and the song's video plays in place of the cover, in time with the music. **Listen** goes the other way, handing a video's sound to the music player. Full screen, picture in picture and background play work as usual.
 
 <p align="center">
   <img src="docs/images/desktop.jpg" width="760" alt="Pawse on a computer: Now Playing with the artwork and live lyrics side by side" /><br />
