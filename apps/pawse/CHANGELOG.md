@@ -2,7 +2,7 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
-## [Unreleased]
+## [1.10.0] - 2026-10-25
 
 ### Added
 - **A new Home.** It opens with **Continue**: the video you were partway through (with how long is left) or the last song, whichever is newer. **Your people** follows: the channels you subscribe to and the artists you follow, with a dot when one has posted in the last two days. Then the latest videos from your channels, Jump back in, your mixes, For you and Liked lately, and Home ends there.
