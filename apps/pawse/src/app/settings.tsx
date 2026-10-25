@@ -43,6 +43,7 @@ import {
   currentAppIcon,
   setAppIcon,
 } from "../lib/app-icon";
+import { useBlockedCount } from "../lib/block";
 import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
 import { yt } from "../lib/engine";
 import { haptic } from "../lib/haptics";
@@ -221,6 +222,8 @@ export default function Settings() {
       </Foot>
 
       {Platform.OS !== "web" ? <DownloadOptions manage /> : null}
+
+      <VideoSettings />
 
       <Section title="Lyrics">
         <Toggle k="lyricsLine" label="Lyric line under the title" def />
@@ -807,6 +810,50 @@ const styles = StyleSheet.create({
   accent: { width: 30, height: 30, borderRadius: 15 },
   accentOn: { borderWidth: 3, borderColor: "#fff" },
 });
+
+// Videos and the Home that shows them: on for everyone, one switch for music only.
+function VideoSettings() {
+  const videos = useSetting("videos", true);
+  const blocked = useBlockedCount();
+  return (
+    <>
+      <Section title="Home and videos">
+        <Link label="Edit Home" onPress={() => push("/edit-home")} />
+        <Toggle k="videos" label="YouTube videos" def />
+        {videos ? (
+          <>
+            <Pick<"auto" | number>
+              k="videoPreferred"
+              label="Video quality"
+              def="auto"
+              options={[
+                ["auto", "Auto"],
+                [1080, "1080p"],
+                [720, "720p"],
+                [480, "480p"],
+                [360, "360p"],
+              ]}
+            />
+            <Toggle k="videoAutoplay" label="Play the next video" def={false} />
+            <Toggle k="skipSponsors" label="Skip sponsors" def />
+            <Toggle k="dearrow" label="Honest titles and thumbnails" def />
+            <Link
+              label={
+                blocked ? `Blocked (${blocked})` : "Blocked channels and words"
+              }
+              onPress={() => push("/blocked")}
+            />
+          </>
+        ) : null}
+      </Section>
+      <Foot>
+        {videos
+          ? "Videos from YouTube in Home, Search and the player, never Shorts. Auto picks the quality as your connection allows. Sponsor skips come from SponsorBlock, honest titles from DeArrow."
+          : "Pawse shows music only."}
+      </Foot>
+    </>
+  );
+}
 
 // Early features live on their own page, so Settings stays short.
 function ExperimentalSection() {

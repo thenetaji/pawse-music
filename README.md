@@ -47,10 +47,10 @@ Also: word-by-word lyrics, crossfade, a sleep timer, the same loudness for every
 
 ### YouTube, without the noise
 
-Turn on **Settings → Experimental → YouTube videos** and a **Watch** tab appears. It's YouTube the way you'd want it:
+Music and videos share one Home and one Search. It's YouTube the way you'd want it:
 
-- **No Shorts, no ads, no mixes.** Your subscriptions when you're signed in, a feed when you're not, and video search.
-- **A home you shape.** **Calm** stops the feed after one page; **Only my music** shows nothing suggested at all. Block channels, and words in titles, and they're gone everywhere.
+- **A Home that ends.** Pick up the video or song you left, see who you follow with a dot for anything new, then the latest from your channels, your mixes and your likes. Then it says you're caught up. YouTube's own suggestions stay off unless you switch them on, and **Edit Home** turns any section on or off and changes the order.
+- **No Shorts, no ads, no mixes.** Search has a **YouTube** filter for videos and channels. Block channels, and words in titles, and they're gone everywhere.
 - **Nothing plays by itself.** When a video ends you get Replay, Next or Done.
 - **Keep watching while you browse.** Drag a video down and it keeps playing in the mini player above the tabs; tap it to bring it back.
 - **Skips the boring parts.** Sponsor reads, self-promotion and "like and subscribe" are jumped over ([SponsorBlock](https://sponsor.ajay.app)), and so is the talking in music videos.

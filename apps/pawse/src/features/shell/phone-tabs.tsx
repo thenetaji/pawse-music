@@ -4,19 +4,17 @@ import { Platform, StyleSheet, View } from "react-native";
 import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOnline } from "../../data/downloads";
-import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
+import { useAccent } from "../now-playing/now-palette";
 import { useVideoMini } from "../watch/store";
 import { WatchMini } from "../watch/watch-mini";
-import { useAccent } from "../now-playing/now-palette";
 
 /** iPhone: the native tab bar, with the mini player in its bottom accessory. */
 export function PhoneTabs() {
   const accent = useAccent();
   const hasTrack = usePlayerSelect((s) => !!s.current);
   const videoMini = useVideoMini();
-  const watch = useSetting("ytMode", false);
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <NativeTabs
@@ -39,7 +37,7 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(watch)"
-          hidden={!watch}
+          hidden
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Watch</NativeTabs.Trigger.Label>

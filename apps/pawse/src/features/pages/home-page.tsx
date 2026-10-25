@@ -12,9 +12,9 @@ import {
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Circle, Path } from "react-native-svg";
 import { Artwork } from "../../components/artwork";
+import { CaughtUp } from "../../components/caught-up";
 import { useTabRoot } from "../../components/page";
 import { Shelf } from "../../components/shelf";
-import { CaughtUp } from "../../components/caught-up";
 import { TrackRow } from "../../components/track-row";
 import {
   CatState,
@@ -29,12 +29,14 @@ import { dailyMixes, useLibrary } from "../../data/library";
 import { useForYou } from "../../data/recommend";
 import { rightClick } from "../../lib/context-menu";
 import { yt } from "../../lib/engine";
+import { HOME_SECTIONS, useHomeSections } from "../../lib/home-sections";
 import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
+import { ContinueCard, VideoShelf, YourPeople } from "../home/home-blocks";
 import { showTrackActions } from "../library/track-actions";
 import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
@@ -45,8 +47,13 @@ export default function HomePage() {
   useTabRoot("home");
   const accent = useAccent();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
-  const style = useSetting<"full" | "calm" | "mine">("homeStyle", "full");
-  const full = style === "full";
+  const videos = useSetting("videos", true);
+  const sections = useHomeSections().filter(
+    (s) =>
+      s.on && (videos || !HOME_SECTIONS.find((d) => d.id === s.id)?.videos),
+  );
+  // YouTube Music's own feed is the only endless part, and it's off unless you turn it on.
+  const full = sections.some((s) => s.id === "picks");
   const [chip, setChip] = useState<string | undefined>();
   const home = useResource<HomeFeed>(
     full ? `home:${chip ?? ""}` : null,
@@ -143,9 +150,78 @@ export default function HomePage() {
       }
     >
       <CatLine />
-      {!signedIn && full ? <SignInCard accent={accent} /> : null}
-      {!full ? <QuietHome mine={style === "mine"} /> : null}
-      {full && home.data?.chips.length ? (
+      {!signedIn ? <SignInCard accent={accent} /> : null}
+      {sections.map((sec) => {
+        switch (sec.id) {
+          case "continue":
+            return <ContinueCard key={sec.id} accent={accent} />;
+          case "people":
+            return <YourPeople key={sec.id} videos={videos} accent={accent} />;
+          case "new":
+            return (
+              <VideoShelf
+                key={sec.id}
+                kind="subs"
+                title="New from your channels"
+              />
+            );
+          case "jump":
+            return <JumpBackIn key={sec.id} />;
+          case "mixes":
+            return <Mixes key={sec.id} />;
+          case "foryou":
+            return <ForYou key={sec.id} />;
+          case "liked":
+            return <LikedLately key={sec.id} />;
+          case "ytvideos":
+            return (
+              <VideoShelf key={sec.id} kind="home" title="Suggested videos" />
+            );
+          case "picks":
+            return (
+              <Picks
+                key={sec.id}
+                home={home}
+                shelves={shelves}
+                chip={chip}
+                setChip={setChip}
+                accent={accent}
+              />
+            );
+        }
+      })}
+      {full && home.data ? (
+        <EndSpinner loading={loadingMore} onPress={loadMore} />
+      ) : (
+        <>
+          <PressScale onPress={() => push("/edit-home")} style={styles.edit}>
+            <Text style={styles.editText}>Edit Home</Text>
+          </PressScale>
+          <CaughtUp />
+        </>
+      )}
+    </Screen>
+  );
+}
+
+// YouTube Music's home feed: mood chips, then shelves that keep loading as you scroll.
+function Picks({
+  home,
+  shelves,
+  chip,
+  setChip,
+  accent,
+}: {
+  home: { data?: HomeFeed; error?: Error; reload: () => void };
+  shelves: ShelfT[];
+  chip?: string;
+  setChip: (c?: string) => void;
+  accent: string;
+}) {
+  return (
+    <View>
+      <SectionTitle title="YouTube Music picks" />
+      {home.data?.chips.length ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -162,11 +238,7 @@ export default function HomePage() {
           ))}
         </ScrollView>
       ) : null}
-      {full && !chip ? <JumpBackIn /> : null}
-      {full && !chip ? <ForYou part="lead" /> : null}
-      {full && !chip ? <Mixes /> : null}
-      {full && !chip ? <ForYou part="rest" /> : null}
-      {!full ? null : home.data ? (
+      {home.data ? (
         shelves.map((s, i) => (
           <Animated.View
             key={`${s.title}${i}`}
@@ -185,40 +257,29 @@ export default function HomePage() {
       ) : (
         <SkeletonShelves />
       )}
-      {full && home.data ? (
-        <EndSpinner loading={loadingMore} onPress={loadMore} />
-      ) : null}
-    </Screen>
+    </View>
   );
 }
 
-// Calm and "only my music" Home: what you play and like, a few picks for Calm, then it ends.
-function QuietHome({ mine }: { mine: boolean }) {
+function LikedLately() {
   const liked = useLibrary((s) => s.liked);
-  const recent = liked.slice(0, 8);
+  const recent = liked.slice(0, 6);
+  if (!recent.length) return null;
   return (
-    <>
-      <JumpBackIn max={mine ? 8 : 6} />
-      {!mine ? <ForYou part="lead" /> : null}
-      {!mine ? <Mixes /> : null}
-      {recent.length ? (
-        <View>
-          <SectionTitle title="Liked lately" />
-          {recent.map((t, i) => (
-            <TrackRow
-              key={t.id}
-              track={t}
-              onPress={() =>
-                void player.play(recent, i, {
-                  source: { type: "library", title: "Liked songs" },
-                })
-              }
-            />
-          ))}
-        </View>
-      ) : null}
-      <CaughtUp />
-    </>
+    <View>
+      <SectionTitle title="Liked lately" />
+      {recent.map((t, i) => (
+        <TrackRow
+          key={t.id}
+          track={t}
+          onPress={() =>
+            void player.play(recent, i, {
+              source: { type: "library", title: "Liked songs" },
+            })
+          }
+        />
+      ))}
+    </View>
   );
 }
 
@@ -260,12 +321,10 @@ function SignInCard({ accent }: { accent: string }) {
 }
 
 // Built on the phone from your plays, likes and picks, so it works signed out too.
-function ForYou({ part }: { part: "lead" | "rest" }) {
+function ForYou() {
   const fy = useForYou();
-  const all = keepShelves(fy.shelves, useHomeKeep());
-  const list = part === "lead" ? all.slice(0, 1) : all.slice(1);
-  if (!list.length)
-    return part === "lead" && fy.loading ? <SkeletonShelves count={1} /> : null;
+  const list = keepShelves(fy.shelves, useHomeKeep());
+  if (!list.length) return fy.loading ? <SkeletonShelves count={1} /> : null;
   return (
     <>
       {list.map((s, i) => (
@@ -486,6 +545,17 @@ const styles = StyleSheet.create({
   },
   mixNo: { color: "#000", fontSize: 14, ...display("900") },
   mixName: { color: "#fff", fontSize: 14, fontWeight: "600", marginTop: 8 },
+  edit: {
+    alignSelf: "center",
+    marginTop: 30,
+    paddingHorizontal: 18,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  editText: { color: "#fff", fontSize: 14, ...display("700") },
   more: {
     alignSelf: "center",
     marginTop: 26,

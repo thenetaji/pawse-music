@@ -24,7 +24,7 @@ import { ChannelRow, VideoCard } from "../../components/video-card";
 import { useLibrary } from "../../data/library";
 import { useVideoFilter } from "../../lib/block";
 import { ytv } from "../../lib/engine";
-import { useSetting } from "../../lib/settings";
+import { useHomeSections } from "../../lib/home-sections";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { useAccent } from "../now-playing/now-palette";
@@ -36,12 +36,20 @@ type Page = {
 };
 
 /** YouTube without the noise: a feed or your subscriptions, search, and no Shorts anywhere. */
-export default function WatchPage() {
-  useTabRoot("watch");
+export default function WatchPage({
+  pushed,
+  feed: start,
+}: {
+  /** Opened from Home rather than as a tab: a back button, and Home stays the tab. */
+  pushed?: boolean;
+  feed?: Feed;
+}) {
+  useTabRoot(pushed ? "home" : "watch");
   const accent = useAccent();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
-  const calm = useSetting("homeStyle", "full") !== "full";
-  const [feed, setFeed] = useState<Feed>(signedIn ? "subs" : "home");
+  // YouTube's suggestions end after a page unless they're switched on in Edit Home.
+  const suggest = useHomeSections().some((s) => s.id === "ytvideos" && s.on);
+  const [feed, setFeed] = useState<Feed>(start ?? (signedIn ? "subs" : "home"));
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
   const input = useRef<TextInput>(null);
@@ -68,8 +76,8 @@ export default function WatchPage() {
   const cont = extra.items.length
     ? extra.continuation
     : first.data?.continuation;
-  // Calm stops after one page; searches always page.
-  const endless = !calm || !!query;
+  // Your subscriptions and searches page to the end; suggestions stop after one page.
+  const endless = feed === "subs" || suggest || !!query;
 
   const loadMore = () => {
     if (busy || !cont || !endless) return;
@@ -117,9 +125,10 @@ export default function WatchPage() {
 
   return (
     <Screen
-      title="Watch"
+      title="Videos"
       bare
-      tab="watch"
+      back={pushed}
+      tab={pushed ? undefined : "watch"}
       onRefresh={first.reload}
       refreshing={false}
       onEndReached={loadMore}

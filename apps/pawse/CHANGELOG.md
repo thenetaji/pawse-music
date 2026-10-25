@@ -2,6 +2,18 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [Unreleased]
+
+### Added
+- **A new Home.** It opens with **Continue**: the video you were partway through (with how long is left) or the last song, whichever is newer. **Your people** follows: the channels you subscribe to and the artists you follow, with a dot when one has posted in the last two days. Then the latest videos from your channels, Jump back in, your mixes, For you and Liked lately, and Home ends there.
+- **Edit Home.** Turn each section on or off and move it up or down (Settings, or the button at the bottom of Home). YouTube's suggestions, the video feed and the YouTube Music picks, are off until you turn them on; with picks on, Home keeps going like before.
+- **Videos pick up where you left off.** Open a video you stopped partway and it starts from there.
+- **A YouTube filter in Search** for videos and channels from all of YouTube.
+
+### Changed
+- **Videos are on for everyone** and no longer under Experimental. The Watch tab is gone: Home and Search cover music and videos, and **All videos** on Home opens the full list of your subscriptions. Settings has a **YouTube videos** switch for music only.
+- The Calm / Everything / Only my music choice became Edit Home. Anyone on "Only my music" keeps mixes and For you off.
+
 ## [1.9.0] - 2026-10-25
 
 ### Fixed

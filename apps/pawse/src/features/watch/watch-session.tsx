@@ -1,3 +1,4 @@
+import type { SkipSegment } from "@pawse/innertube";
 import {
   bestThumbnail,
   type Track,
@@ -30,8 +31,6 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-
-import type { SkipSegment } from "@pawse/innertube";
 import { showSheet } from "../../components/action-sheet";
 import { Spinner } from "../../components/spinner";
 import { showToast } from "../../components/toast";
@@ -47,6 +46,7 @@ import {
   VideoRow,
   videoMeta,
 } from "../../components/video-card";
+import { recordWatch, resumeAt } from "../../data/watched";
 import { useVideoFilter } from "../../lib/block";
 import { skipNote, useBranding, videoSkips } from "../../lib/community";
 import { logEvent } from "../../lib/diagnostics";
@@ -109,9 +109,22 @@ export function WatchSession({ id }: { id: string }) {
     setLoaded({ error: message });
   };
   // Sponsor reads and plugs are jumped over as playback reaches them.
+  const savedAt = useRef(0);
   const onTime = (sec: number) => {
     setAt(sec);
     atRef.current = sec;
+    // Progress is kept every few seconds, so Home can offer to continue.
+    if (Math.abs(sec - savedAt.current) > 8) {
+      savedAt.current = sec;
+      recordWatch({
+        id,
+        title: brand?.title ?? v?.title ?? seed?.title ?? "",
+        thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
+        channel: v?.channel ?? seed?.channel,
+        pos: sec,
+        dur: src?.stream.durationSec ?? v?.durationSec ?? 0,
+      });
+    }
     if (sec > 0 && !started) setStarted(true);
     const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
     if (!seg) return;
@@ -183,7 +196,7 @@ export function WatchSession({ id }: { id: string }) {
           live &&
           setLoaded((was) => ({
             src: s,
-            start: was?.src ? atRef.current : t,
+            start: was?.src ? atRef.current : (t ?? resumeAt(id)),
           })),
       )
       .catch((e: Error) => {

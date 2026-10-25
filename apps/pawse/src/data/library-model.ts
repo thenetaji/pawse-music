@@ -89,12 +89,11 @@ export type Settings = {
   androidPill: boolean;
   /** Pill offset from its default spot, dp. */
   androidPillOffset: number;
-  // Experimental
-  /** YouTube videos: a Watch tab, video search and a video player. */
-  ytMode: boolean;
-  /** full: everything YouTube suggests; calm: your music and a few picks, and Home ends; mine: nothing suggested. */
-  homeStyle: "full" | "calm" | "mine";
-  /** Highest video height to stream. */
+  // Videos
+  /** YouTube videos in Home, Search and the player. */
+  videos: boolean;
+  /** Home's sections in order, each on or off; null for the default. */
+  homeSections: { id: string; on: boolean }[] | null;
   /** "auto", or the tallest height to play by default. */
   videoPreferred: "auto" | number;
   /** The Song and Video switch at the top of the player. */
@@ -163,8 +162,8 @@ export const DEFAULT_SETTINGS: Settings = {
   pauseHistory: false,
   androidPill: false,
   androidPillOffset: 0,
-  ytMode: false,
-  homeStyle: "full",
+  videos: true,
+  homeSections: null,
   videoPreferred: "auto",
   videoInPlayer: true,
   npVideo: false,

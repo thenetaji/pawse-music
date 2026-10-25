@@ -16,13 +16,13 @@ import {
 } from "../features/library/track-actions";
 import { NowPlayingView } from "../features/now-playing/now-playing-view";
 import { openWatch } from "../features/watch/store";
-import { lyricsService } from "../lib/engine";
 import { logEvent } from "../lib/diagnostics";
+import { lyricsService } from "../lib/engine";
 import { push } from "../lib/nav";
-import { openAlbum, openArtist } from "../lib/song-links";
 import { setSetting, useSetting } from "../lib/settings";
-import { mutedVideo } from "../lib/video-stream";
+import { openAlbum, openArtist } from "../lib/song-links";
 import { useResource } from "../lib/use-resource";
+import { mutedVideo } from "../lib/video-stream";
 
 const LABEL = {
   album: "Playing from album",
@@ -44,7 +44,7 @@ export default function NowPlaying() {
   // Status and progress are read by the small parts that show them, not by the whole screen.
   const current = usePlayerSelect((s) => s.current);
   const source = usePlayerSelect((s) => s.source);
-  const watch = useSetting("ytMode", false);
+  const watch = useSetting("videos", true);
   const liked = useLibrary((s) =>
     current ? s.liked.some((t) => t.id === current.id) : false,
   );
