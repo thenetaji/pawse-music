@@ -8,6 +8,15 @@ export type BlockedChannel = { id: string; name: string };
 
 const words = () => getSetting<string[]>("blockedWords", []);
 const channels = () => getSetting<BlockedChannel[]>("blockedChannels", []);
+// Videos marked "Not interested"; the oldest drop off.
+const HIDDEN_MAX = 500;
+const hidden = () => getSetting<string[]>("hiddenVideos", []);
+
+/** "Not interested": the video leaves every feed, search and Up next. */
+export function hideVideo(id: string): void {
+  if (hidden().includes(id)) return;
+  setSetting("hiddenVideos", [id, ...hidden()].slice(0, HIDDEN_MAX));
+}
 
 /** Whether a video stays visible: not from a blocked channel, and no blocked word in its title. */
 export function useVideoFilter(): (v: VideoItem) => boolean {
@@ -17,8 +26,10 @@ export function useVideoFilter(): (v: VideoItem) => boolean {
   const lower = ws.map((w) => w.toLowerCase());
   // Videos you disliked don't come back in feeds or Up next.
   const disliked = useWatched((s) => s.disliked);
+  const notFor = useSetting<string[]>("hiddenVideos", []);
   return (v) =>
     !disliked.includes(v.id) &&
+    !notFor.includes(v.id) &&
     !(v.channel?.id && ids.has(v.channel.id)) &&
     !lower.some((w) => v.title.toLowerCase().includes(w));
 }

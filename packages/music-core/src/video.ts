@@ -14,6 +14,8 @@ export interface VideoItem {
   live?: boolean;
   /** YouTube files it as music (it would open as a radio): a song, music video or mix. */
   music?: boolean;
+  /** YouTube's own "Not interested" and "Don't recommend channel" (signed in only). */
+  feedback?: { notInterested?: string; channel?: string };
 }
 
 export interface ChannelItem {
@@ -123,4 +125,32 @@ export interface VideoStream {
   headers?: Record<string, string>;
   /** Which client produced it, for diagnostics. */
   via: string;
+  /** Other languages of the audio (dubs), when the video has them; the original first. */
+  audioTracks?: AudioTrackOption[];
+  /** The audio track playing. */
+  audioTrack?: string;
+  /** Subtitles YouTube has for the video. */
+  captions?: CaptionTrack[];
+}
+
+export interface AudioTrackOption {
+  id: string;
+  name: string;
+  original?: boolean;
+}
+
+export interface CaptionTrack {
+  url: string;
+  /** "en", "hi". */
+  lang: string;
+  name: string;
+  /** Made by speech recognition rather than by the uploader. */
+  auto?: boolean;
+}
+
+/** One line of subtitles, in seconds. */
+export interface CaptionCue {
+  start: number;
+  end: number;
+  text: string;
 }

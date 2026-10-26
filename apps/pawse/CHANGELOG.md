@@ -2,6 +2,43 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.12.0] - 2026-10-26
+
+### Added
+- **A Videos tab.** YouTube gets its own tab next to Home, with your subscriptions and an endless For you feed, search and pull to refresh. It shows while videos are on.
+- **Turn the phone to go full screen**, like YouTube: turn it sideways on a video and it fills the screen; turn it back to leave. The full-screen button and swipe up still work, and iPhone's rotation lock is respected.
+- **Up next in 5.** With autoplay on, or in a playlist, the end of a video counts down to the next one with **Cancel** and **Play now**.
+- **The title and channel at the top of full screen**, like YouTube.
+- **A spinner when the video is waiting** for more after it started (a slow network, a seek, a quality change).
+- **The lock screen and Control Center show the video's title, channel and picture.**
+- **Captions.** Tap **CC** on the video, or pick a language in the video's settings. Pawse picks captions in your phone's language, and translates when a video has none in it.
+- **Change the audio track.** Videos dubbed into other languages now play in their original language, and **Audio track** in the video's settings switches to any other one.
+- **Press and hold the video to play at 2×**, like YouTube. Let go and it's back to your speed.
+- **Drag comments and the description down to close them**, by the handle at the top.
+- **Not interested** and **Don't recommend channel** in every video's ⋯ menu. The video or channel leaves your feeds at once, and signed in, YouTube hears it too.
+
+### Fixed
+- **Gestures stay with your finger.** Dragging the video down to the mini player, swiping down out of full screen and scrubbing the seek bar now run on the display thread, so they keep up even while the page is busy. Letting go carries the speed of your swipe.
+- **The watch page stopped redrawing itself twice a second** while a video plays, which made scrolling and gestures stutter.
+- **The controls fade in the moment you tap**, instead of being rebuilt each time. The seek bar glides instead of jumping, and you feel a tick at each chapter as you scrub.
+- **Full screen really is full screen.** The phone now turns to landscape, so iPhone hides the clock, battery and status bar, and the video fills the screen.
+- **The seek bar in full screen sits above the bottom edge**, with room to grab it, instead of under the home bar.
+- **The arrow at the top of full screen leaves full screen** instead of shrinking the video into the mini player.
+- **The next video keeps full screen, your zoom and your speed**, and appears in place instead of the page sliding up again.
+- **The mini player stays on the video when the next one starts**, instead of flicking to the song or disappearing for a moment.
+- **Playback speed stays as you set it** after seeking or pausing, and carries on to the next video.
+- **Seeking a paused video keeps it paused.** Chapters and timestamps in comments and the description still play from there.
+- **Keep tapping a side to skip further**: each tap within a second adds 10 seconds.
+- **Closing a video keeps your exact spot** for Continue, not the last save a few seconds before.
+- **Unsubscribing asks first**, so a stray tap doesn't drop a channel.
+- **Listen** carries on from where the video was.
+- **When a video won't play, Pawse says why**: age-restricted, private, unavailable, or no connection.
+- Pull to refresh on the Videos feed starts it fresh instead of keeping old pages under the new ones.
+- **Swipe down in full screen to go back to portrait.** It used to read the swipe sideways, so pulling down did nothing.
+- **Pull to refresh shows a spinner** on iPhone, not just a tap of haptics.
+- **Home and the other feeds refresh** when you come back to Pawse after a while, instead of showing what was there before.
+- **Tap the tab you're on to scroll back to the top**, like YouTube.
+
 ## [1.11.1] - 2026-10-25
 
 ### Added

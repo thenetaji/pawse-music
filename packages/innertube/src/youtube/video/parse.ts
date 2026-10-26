@@ -25,6 +25,25 @@ import {
 
 type Found = VideoItem | ChannelItem | VideoPlaylistItem;
 
+// The item's menu as YouTube sends it signed in: each entry's label sits beside its feedback token.
+function feedbackOf(item: Node): VideoItem["feedback"] {
+  const out: NonNullable<VideoItem["feedback"]> = {};
+  const walk = (n: unknown, label: string, depth: number) => {
+    if (!n || typeof n !== "object" || depth > 40) return;
+    const o = n as Node;
+    const here =
+      text(o.title) || text(o.text) || String(o.title?.content ?? "") || label;
+    const token = o.feedbackEndpoint?.feedbackToken;
+    if (typeof token === "string") {
+      if (/not interested/i.test(here)) out.notInterested ??= token;
+      else if (/don.t recommend channel/i.test(here)) out.channel ??= token;
+    }
+    for (const v of Object.values(o)) walk(v, here, depth + 1);
+  };
+  walk(item, "", 0);
+  return out.notInterested || out.channel ? out : undefined;
+}
+
 // Keys whose subtree is never catalog content: ads, Shorts, nudges and page chrome.
 const SKIP_KEY =
   /^(adSlot|searchPyv|promoted|inFeedAd|compactPromoted|displayAd|videoMastheadAd|reelShelf|reelItem|shortsLockup|shortsShelf|ytdShorts|feedNudge|menu|topbar|frameworkUpdates|responseContext|engagementPanels|playerOverlays|thumbnailOverlays|overlays|onTap|navigationEndpoint)/;
@@ -142,8 +161,14 @@ export function parseVideoRenderer(v: Node): VideoItem | undefined {
     thumbnails: thumbs.length ? thumbs : fallbackThumb(id),
     ...(live ? { live: true } : {}),
     ...(isMusicNode(v) ? { music: true } : {}),
+    ...withFeedback(v),
   };
 }
+
+const withFeedback = (n: Node) => {
+  const feedback = feedbackOf(n);
+  return feedback ? { feedback } : {};
+};
 
 const isViews = (s: string) => /\b(views?|watching)\b/i.test(s);
 const isWhen = (s: string) =>
@@ -214,6 +239,7 @@ export function parseLockup(l: Node): VideoItem | undefined {
     ...(publishedText ? { publishedText } : {}),
     thumbnails: thumbs.length ? thumbs : fallbackThumb(id),
     ...(live ? { live: true } : {}),
+    ...withFeedback(l),
   };
 }
 
@@ -307,7 +333,10 @@ export function parsePlaylistLockup(l: Node): VideoPlaylistItem | undefined {
     dig(meta, "metadata", "contentMetadataViewModel", "metadataRows", 0),
     /\S/,
   );
-  const countText = findText(dig(l, "contentImage"), /\d.*\b(videos?|lessons?)\b/i);
+  const countText = findText(
+    dig(l, "contentImage"),
+    /\d.*\b(videos?|lessons?)\b/i,
+  );
   const thumbs = thumbnails(
     dig(
       l,
@@ -371,7 +400,11 @@ const findText = (
 };
 
 // The first boolean under `key`: the subscribe button and the newer subscription-state entity both use "subscribed".
-const findBool = (root: unknown, key: string, depth = 24): boolean | undefined => {
+const findBool = (
+  root: unknown,
+  key: string,
+  depth = 24,
+): boolean | undefined => {
   if (depth < 0) return undefined;
   if (Array.isArray(root)) {
     for (const x of root) {

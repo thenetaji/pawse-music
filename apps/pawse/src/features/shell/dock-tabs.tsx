@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { haptic } from "../../lib/haptics";
+import { useSetting } from "../../lib/settings";
 import { emitTabReselect, type Tab } from "../../lib/nav";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
@@ -30,7 +31,7 @@ import { OfflineBanner } from "./phone-tabs";
 
 const NAV = [
   { name: "home", href: "/", label: "Home", Icon: HomeIcon },
-  { name: "watch", href: "/watch", label: "Watch", Icon: WatchIcon },
+  { name: "watch", href: "/watch", label: "Videos", Icon: WatchIcon },
   { name: "explore", href: "/explore", label: "Explore", Icon: ExploreIcon },
   { name: "library", href: "/library", label: "Library", Icon: LibraryIcon },
   { name: "search", href: "/search", label: "Search", Icon: SearchIcon },
@@ -38,6 +39,8 @@ const NAV = [
 
 /** Android and narrow web: the mini player and the tabs share one dock that fades into the page. */
 export function DockTabs() {
+  // YouTube's feed gets its own tab while videos are on.
+  const videos = useSetting("videos", true);
   const accent = useAccent();
   const hasTrack = usePlayerSelect((s) => !!s.current);
   const videoMini = useVideoMini();
@@ -70,7 +73,7 @@ export function DockTabs() {
           </View>
         ) : null}
         <View style={styles.bar}>
-          {NAV.filter((n) => n.name !== "watch").map((n) => (
+          {NAV.filter((n) => videos || n.name !== "watch").map((n) => (
             <TabTrigger key={n.name} name={n.name} resetOnFocus asChild>
               <Item
                 tab={n.name}

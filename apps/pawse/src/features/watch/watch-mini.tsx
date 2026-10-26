@@ -31,7 +31,6 @@ export function WatchMini({
   const title = useWatch((s) => s.title);
   const channel = useWatch((s) => s.channel);
   const progress = useWatch((s) => s.progress);
-  if (!player) return null;
   const h = inline ? 30 : 40;
   return (
     <Pressable
@@ -47,7 +46,7 @@ export function WatchMini({
         style={[styles.row, inline && styles.inline]}
       >
         <View style={[styles.pic, { width: (h * 16) / 9, height: h }]}>
-          {still ? (
+          {still || !player ? (
             <Image
               source={bestThumbnail(thumbs ?? [], 240)}
               style={StyleSheet.absoluteFill}
@@ -74,7 +73,7 @@ export function WatchMini({
           hitSlop={8}
           onPress={() => {
             haptic.light();
-            player.toggle();
+            player?.toggle();
           }}
           style={styles.btn}
           accessibilityLabel={playing ? "Pause" : "Play"}
@@ -89,7 +88,7 @@ export function WatchMini({
           hitSlop={8}
           onPress={() => {
             haptic.light();
-            player.pause();
+            player?.pause();
             closeWatch();
           }}
           style={styles.btn}

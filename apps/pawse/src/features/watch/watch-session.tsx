@@ -1,6 +1,7 @@
 import type { SkipSegment } from "@pawse/innertube";
 import {
   bestThumbnail,
+  StreamError,
   type VideoDetail,
   type VideoItem,
 } from "@pawse/music-core";
@@ -41,8 +42,11 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleOnRN } from "react-native-worklets";
 import { SheetNote, showSheet } from "../../components/action-sheet";
 import {
+  AudioTrackGlyph,
+  CaptionsGlyph,
   DeArrowMark,
   PinGlyph,
   QualityGlyph,
@@ -62,7 +66,7 @@ import {
   VideoCard,
   VideoRow,
 } from "../../components/video-card";
-import { setSubscribed, useSubscribed } from "../../data/channels";
+import { useSubscribed } from "../../data/channels";
 import { ytAccount } from "../../data/clients";
 import {
   downloadVideo,
@@ -86,8 +90,16 @@ import { useVotes } from "../../lib/dislikes";
 import { ytv } from "../../lib/engine";
 import { noteWatching, useFocus } from "../../lib/focus";
 import { haptic } from "../../lib/haptics";
+import { languageName } from "../../lib/locale";
 import { push } from "../../lib/nav";
+import {
+  allowRotation,
+  lockLandscape,
+  lockPortrait,
+  onTurn,
+} from "../../lib/orientation";
 import { setSetting, useSetting } from "../../lib/settings";
+import { toggleSubscription } from "../../lib/subscribe";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import {
@@ -102,15 +114,18 @@ import {
   useWatchPlayer,
   VideoSurface,
 } from "../video/watch-player";
+import { setCaptions, setCaptionsLang, useCaptions } from "./captions";
 import {
   closeWatch,
   minimizeWatch,
   openWatch,
+  setWatchFill,
+  setWatchFullscreen,
   useWatch,
   type WatchSeed,
   watchPrevious,
 } from "./store";
-import { VideoControls } from "./video-controls";
+import { makeClock, VideoControls } from "./video-controls";
 import {
   CommentsCard,
   CommentsPanel,
@@ -144,9 +159,13 @@ export function WatchSession({ id }: { id: string }) {
   const [quality, setQuality] = useState<Quality>(
     typeof pref === "number" ? pref : "auto",
   );
+  // The audio language picked from the menu; the original until then.
+  const [audioTrack, setAudioTrack] = useState<string>();
   const [loaded, setLoaded] = useState<{
     src?: VideoSource;
     error?: string;
+    /** What to tell you when YouTube said why it won't play. */
+    why?: string;
     /** Where playback picks up: the song's spot at first, the current spot after a quality switch. */
     start?: number;
   }>();
@@ -155,8 +174,13 @@ export function WatchSession({ id }: { id: string }) {
   const [ended, setEnded] = useState(false);
   const [reload, setReload] = useState(0);
   const [started, setStarted] = useState(false);
-  const [at, setAt] = useState(0);
+  // Waiting for more video after it started: a spinner over the picture, like YouTube.
+  const [buffering, setBuffering] = useState(false);
+  // The position ticks twice a second; only the controls follow it, so the page doesn't re-render with it.
+  const [playClock] = useState(makeClock);
   const atRef = useRef(0);
+  const [pastStart, setPastStart] = useState(false);
+  const [chapter, setChapter] = useState(-1);
   const [track, setTrack] = useState<string>();
   const [frame, setFrame] = useState<string>();
   const skips = useRef<SkipSegment[]>([]);
@@ -195,8 +219,15 @@ export function WatchSession({ id }: { id: string }) {
     setReload((n) => n + 1);
   };
   const onTime = (sec: number) => {
-    setAt(sec);
+    playClock.set(sec);
     atRef.current = sec;
+    setPastStart(sec > 3);
+    setChapter(
+      d?.chapters.reduce<number>(
+        (cur, c, i) => (c.startSec <= sec ? i : cur),
+        -1,
+      ) ?? -1,
+    );
     if (noteWatching()) {
       video.pause();
       showSheet({
@@ -255,7 +286,7 @@ export function WatchSession({ id }: { id: string }) {
     haptic.light();
     const { name, avatar } = v.channel;
     // Signed out, the subscription lives on this phone and feeds Home.
-    setSubscribed({ id: cid, name, avatar }, !subscribed);
+    toggleSubscription({ id: cid, name, avatar }, subscribed);
   };
   const related = d?.related.filter(keep) ?? [];
   // A playlist opened from its page plays in order, whatever autoplay says; its end is the end.
@@ -264,10 +295,14 @@ export function WatchSession({ id }: { id: string }) {
   const inList = listAt >= 0 ? list : undefined;
   const listNext = inList?.items[listAt + 1];
   const next = inList ? listNext && asVideo(listNext) : related[0];
+  // Autoplay counts down on the end card, with a cancel, like YouTube; minimised it just goes on.
+  const [autoNext, setAutoNext] = useState(false);
   const onEnd = () => {
-    // A minimised video stays minimised when the next one starts.
-    if ((autoplay || inList) && next)
-      return openWatch(next, undefined, { keepMode: true });
+    if ((autoplay || inList) && next) {
+      if (useWatch.getState().mode === "mini")
+        return openWatch(next, undefined, { keepMode: true });
+      setAutoNext(true);
+    }
     setEnded(true);
   };
   // Where you are in the playlist, for its Resume button.
@@ -288,9 +323,39 @@ export function WatchSession({ id }: { id: string }) {
     onTrack: (h, fps) => setTrack(`${h}p${(fps ?? 30) > 30 ? "60" : ""}`),
     onPlaying: (on) => {
       useWatch.setState({ playing: on });
-      if (on) setEnded(false);
+      if (on) {
+        setEnded(false);
+        setAutoNext(false);
+      }
+    },
+    onBuffering: setBuffering,
+    meta: {
+      title: seed?.title,
+      artist: seed?.channel?.name,
+      artwork: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
     },
   });
+  // The chosen speed carries on from video to video.
+  const speed = useWatch((s) => s.speed);
+  useEffect(() => {
+    if (started && speed !== 1) video.setRate(speed);
+  }, [started, speed, video]);
+  // Press and hold the picture: 2x while the finger is down, like YouTube, then back to your speed.
+  const hold2x = (on: boolean) => {
+    if (on && !useWatch.getState().playing) video.toggle();
+    video.setRate(on ? 2 : useWatch.getState().speed);
+  };
+  // Closing (or the next video replacing this one) keeps your exact spot too.
+  const keepRef = useRef(keepSpot);
+  useEffect(() => {
+    keepRef.current = keepSpot;
+  });
+  useEffect(
+    () => () => {
+      if (atRef.current > 5) keepRef.current(atRef.current);
+    },
+    [],
+  );
 
   // Minimising keeps the exact spot for Continue watching, not the last 8-second save.
   useEffect(() => {
@@ -344,7 +409,7 @@ export function WatchSession({ id }: { id: string }) {
   // The old quality keeps playing until the new one is ready, then it carries on from the same moment.
   useEffect(() => {
     let live = true;
-    videoSource(id, quality)
+    videoSource(id, quality, audioTrack)
       .then(
         (s) =>
           live &&
@@ -355,63 +420,104 @@ export function WatchSession({ id }: { id: string }) {
       )
       .catch((e: Error) => {
         logEvent("video-failed", `${id}: ${e.message}`);
-        if (live) setLoaded({ error: e.message });
+        if (live) setLoaded({ error: e.message, why: whyNot(e) });
       });
     return () => {
       live = false;
     };
     // t only matters for the first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, quality, reload]);
+  }, [id, quality, reload, audioTrack]);
 
   // Slides up when opened, down into the mini player when shrunk; a drag on the video follows the finger.
-  const y = useSharedValue(height);
+  // Swapping videos on an open page shows the new one in place; opening one slides it up.
+  const y = useSharedValue(useWatch.getState().swapped ? 0 : height);
+  // Let go of a drag: the spring that took over keeps going instead of restarting as a slide.
+  const flung = useSharedValue(false);
+  // A spring picks up the finger's speed when a drag lets go; opening from a tap slides as before.
   useEffect(() => {
-    y.set(withTiming(mode === "full" ? 0 : height, SLIDE));
-  }, [mode, height, y]);
+    if (flung.get()) flung.set(false);
+    else y.set(withTiming(mode === "full" ? 0 : height, SLIDE));
+  }, [mode, height, y, flung]);
   // Our own full screen: the video turned on its side over everything (phones), the browser's elsewhere.
-  const [fs, setFs] = useState(false);
-  // Pinched out in full screen: the picture fills the screen, edge to edge, cropping a little.
-  // Each time full screen opens it starts fitted.
-  const [fill, setFill] = useState(false);
+  // It lives in the store so the next video keeps it, and so does the zoom.
+  const fs = useWatch((s) => s.fullscreen);
+  const fill = useWatch((s) => s.fill);
+  const fsPad = useFullscreenPad();
   const fullscreen = Platform.OS !== "web" || width < 600;
+  // Turned sideways by hand (not the button): turning upright again leaves.
+  const [byTurn, setByTurn] = useState(false);
+  // Left full screen on purpose while holding the phone sideways: don't jump straight back in.
+  const [upright, setUpright] = useState(false);
+  const enterFs = (turned: boolean) => {
+    setByTurn(turned);
+    setWatchFill(false);
+    setWatchFullscreen(true);
+  };
+  const exitFs = () => {
+    setUpright(true);
+    setWatchFullscreen(false);
+  };
   const toggleFs = () => {
     haptic.light();
     if (!fullscreen) return enterFullscreen();
-    setFill(false);
-    setFs((f) => !f);
+    if (fs) exitFs();
+    else enterFs(false);
   };
+  // Turning the phone sideways on the watch page goes full screen, as on YouTube (rotation lock respected).
+  useEffect(() => {
+    if (Platform.OS === "web" || mode !== "full" || fs || !started || upright)
+      return;
+    allowRotation();
+    const off = onTurn((sideways) => sideways && enterFs(true));
+    return () => {
+      off();
+      lockPortrait();
+    };
+  }, [mode, fs, started, upright]);
   // Down shrinks the video into the mini player, up goes full screen, like YouTube. Built once, not per frame.
-  const drag = useMemo(
-    () =>
-      Gesture.Pan()
-        .runOnJS(true)
-        .maxPointers(1)
-        .activeOffsetY([-12, 12])
-        .failOffsetX([-24, 24])
-        .onUpdate((e) => y.set(Math.max(0, e.translationY) * 0.85))
-        .onEnd((e) => {
-          if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
-            haptic.light();
-            minimizeWatch();
-            return;
-          }
-          y.set(withSpring(0, SETTLE));
-          if (
-            fullscreen &&
-            (e.translationY < -FULL_PX || e.velocityY < -DISMISS_V)
-          ) {
-            haptic.light();
-            setFill(false);
-            setFs(true);
-          }
-        }),
-    [y, fullscreen, setFs],
-  );
+  // Runs on the UI thread, so the page sticks to the finger even while JS is busy.
+  const drag = useMemo(() => {
+    const shrink = () => {
+      haptic.light();
+      minimizeWatch();
+    };
+    const grow = () => {
+      haptic.light();
+      setWatchFill(false);
+      setWatchFullscreen(true);
+    };
+    return Gesture.Pan()
+      .maxPointers(1)
+      .activeOffsetY([-12, 12])
+      .failOffsetX([-24, 24])
+      .onUpdate((e) => {
+        // Down follows the finger; up gives a little, a hint that it goes full screen.
+        y.set(
+          e.translationY > 0
+            ? e.translationY * 0.85
+            : Math.max(-36, e.translationY * 0.2),
+        );
+      })
+      .onEnd((e) => {
+        if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
+          flung.set(true);
+          y.set(withSpring(height, { ...SETTLE, velocity: e.velocityY }));
+          scheduleOnRN(shrink);
+          return;
+        }
+        y.set(withSpring(0, { ...SETTLE, velocity: e.velocityY }));
+        if (
+          fullscreen &&
+          (e.translationY < -FULL_PX || e.velocityY < -DISMISS_V)
+        )
+          scheduleOnRN(grow);
+      });
+  }, [y, fullscreen, height, flung]);
   const sheet = useAnimatedStyle(() => ({
     transform: [
       { translateY: y.value },
-      { scale: interpolate(y.value, [0, height], [1, 0.94], "clamp") },
+      { scale: interpolate(y.value, [0, height], [1, 0.9], "clamp") },
     ],
     opacity: interpolate(y.value, [height * 0.6, height], [1, 0], "clamp"),
     borderRadius: interpolate(y.value, [0, 120], [0, 24], "clamp"),
@@ -421,7 +527,7 @@ export function WatchSession({ id }: { id: string }) {
   useEffect(() => {
     if (mode !== "full") return;
     const back = () =>
-      fs ? setFs(false) : panel ? setPanel(null) : minimizeWatch();
+      fs ? exitFs() : panel ? setPanel(null) : minimizeWatch();
     if (typeof document === "undefined") {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
         back();
@@ -459,7 +565,42 @@ export function WatchSession({ id }: { id: string }) {
       ],
     });
   };
-  const [speed, setSpeed] = useState(1);
+  const cc = useCaptions(src?.stream.captions);
+  const captionName = cc.choice
+    ? cc.choice.translate
+      ? `${cc.choice.track.name} → ${languageName(cc.choice.translate)}`
+      : cc.choice.track.name
+    : "Off";
+  const pickCaptions = () =>
+    showSheet({
+      title: "Captions",
+      actions: [
+        {
+          label: "Off",
+          checked: !cc.on,
+          onPress: () => setCaptions(false),
+        },
+        ...cc.tracks.map((t) => ({
+          label: t.name,
+          checked:
+            cc.on && cc.choice?.track.url === t.url && !cc.choice?.translate,
+          onPress: () => setCaptionsLang(t.lang),
+        })),
+      ],
+    });
+  const tracks = src?.stream.audioTracks;
+  const trackName =
+    tracks?.find((t) => t.id === src?.stream.audioTrack)?.name ?? "Original";
+  const pickAudio = () =>
+    tracks &&
+    showSheet({
+      title: "Audio track",
+      actions: tracks.map((t) => ({
+        label: t.original ? `${t.name} (original)` : t.name,
+        checked: t.id === src?.stream.audioTrack,
+        onPress: () => setAudioTrack(t.id),
+      })),
+    });
   const pickSpeed = () =>
     showSheet({
       title: "Playback speed",
@@ -467,7 +608,7 @@ export function WatchSession({ id }: { id: string }) {
         label: r === 1 ? "Normal" : `${r}×`,
         checked: r === speed,
         onPress: () => {
-          setSpeed(r);
+          useWatch.setState({ speed: r });
           video.setRate(r);
         },
       })),
@@ -487,6 +628,26 @@ export function WatchSession({ id }: { id: string }) {
           icon: (c) => <SpeedGlyph size={22} color={c} />,
           onPress: pickSpeed,
         },
+        ...(cc.available
+          ? [
+              {
+                label: "Captions",
+                sub: captionName,
+                icon: (c: string) => <CaptionsGlyph size={22} color={c} />,
+                onPress: pickCaptions,
+              },
+            ]
+          : []),
+        ...(tracks
+          ? [
+              {
+                label: "Audio track",
+                sub: trackName,
+                icon: (c: string) => <AudioTrackGlyph size={22} color={c} />,
+                onPress: pickAudio,
+              },
+            ]
+          : []),
         {
           label: isPinned(id) ? "Unpin from Home" : "Pin to Home",
           icon: (c) => <PinGlyph size={22} color={c} />,
@@ -522,10 +683,14 @@ export function WatchSession({ id }: { id: string }) {
   const listen = () => {
     if (!v) return;
     haptic.light();
+    // The audio picks up where the video was, like YouTube Music's switch.
+    const from = atRef.current;
     closeWatch();
-    void music.play([asTrack()], 0, {
-      source: { type: "other", title: "From Watch" },
-    });
+    void music
+      .play([asTrack()], 0, {
+        source: { type: "other", title: "From Watch" },
+      })
+      .then(() => from > 5 && music.seekTo(from));
   };
   // A downloaded video plays offline in the music player, its picture on the Video side.
   const playOffline = () => {
@@ -608,10 +773,6 @@ export function WatchSession({ id }: { id: string }) {
   // The glow follows the playing picture where a player can share frames, else the thumbnail.
   const glow = frame ?? `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
   const stageH = (w * 9) / 16;
-  const chapter = d?.chapters.reduce<number>(
-    (cur, c, i) => (c.startSec <= at ? i : cur),
-    -1,
-  );
 
   const screen = (
     <>
@@ -620,31 +781,42 @@ export function WatchSession({ id }: { id: string }) {
           surface={video.surface}
           controls
           fill={fs && fill}
-          // Filling runs under the notch and home bar too; the controls stay clear of them.
           style={[
             StyleSheet.absoluteFill,
-            fs && fill && { left: -insets.top, right: -insets.bottom },
+            // In full screen the picture sits on the whole screen, not just the part the controls use.
+            fs && {
+              left: -fsPad.left,
+              right: -fsPad.right,
+              bottom: -fsPad.bottom,
+            },
           ]}
         />
       ) : null}
       {src && started && !ended && mode === "full" ? (
         <VideoControls
-          at={at}
+          clock={playClock}
           dur={src.stream.durationSec ?? v?.durationSec}
           playing={playing}
           chapters={d?.chapters ?? []}
-          canPrev={at > 3 || hasBack}
+          canPrev={pastStart || hasBack}
           canNext={!!next}
           autoplay={autoplay}
           onToggle={video.toggle}
           onSeek={video.seek}
-          onPrev={() => (at > 3 ? video.seek(0) : watchPrevious())}
+          onPrev={() => (atRef.current > 3 ? video.seek(0) : watchPrevious())}
           onNext={() => next && openWatch(next)}
-          onMinimize={minimizeWatch}
+          // In full screen the chevron leaves full screen, like YouTube's.
+          onMinimize={fs ? exitFs : minimizeWatch}
           onSettings={pickSettings}
           onFullscreen={toggleFs}
           fullscreen={fs}
-          onZoom={setFill}
+          onZoom={setWatchFill}
+          onHold={hold2x}
+          title={fs ? title : undefined}
+          cc={cc.available ? cc.on : undefined}
+          cues={cc.cues}
+          onCc={() => setCaptions(!cc.on)}
+          channel={fs ? v?.channel?.name : undefined}
           getTime={video.time}
           onAutoplay={(on) => {
             setSetting("videoAutoplay", on);
@@ -669,7 +841,9 @@ export function WatchSession({ id }: { id: string }) {
       ) : null}
       {error ? (
         <View style={[styles.veil, styles.failed]}>
-          <Text style={styles.veilText}>This video won’t play right now.</Text>
+          <Text style={styles.veilText}>
+            {loaded?.why ?? "This video won’t play right now."}
+          </Text>
           <View style={styles.failRow}>
             <PressScale onPress={retry} style={styles.offlineBtn}>
               <Text style={styles.offlineText}>Try again</Text>
@@ -682,14 +856,24 @@ export function WatchSession({ id }: { id: string }) {
           </View>
         </View>
       ) : null}
+      {started && buffering && !ended && !error ? (
+        <View style={styles.buffering} pointerEvents="none">
+          <View style={styles.spin}>
+            <Spinner size={30} />
+          </View>
+        </View>
+      ) : null}
       {ended ? (
         <EndCard
-          next={focus.upNext || inList ? next : undefined}
+          next={focus.upNext || inList || autoNext ? next : undefined}
+          countdown={autoNext}
+          onCancel={() => setAutoNext(false)}
           onReplay={() => {
             setEnded(false);
+            setAutoNext(false);
             video.replay();
           }}
-          onNext={() => next && openWatch(next)}
+          onNext={() => next && openWatch(next, undefined, { keepMode: true })}
           onDone={closeWatch}
         />
       ) : null}
@@ -824,7 +1008,7 @@ export function WatchSession({ id }: { id: string }) {
           {d.chapters.map((c, i) => (
             <PressScale
               key={`${c.startSec}${i}`}
-              onPress={() => video.seek(c.startSec)}
+              onPress={() => video.seek(c.startSec, true)}
               style={[styles.chapter, i === chapter && styles.chapterOn]}
             >
               <Text style={styles.chapterTime}>
@@ -885,7 +1069,7 @@ export function WatchSession({ id }: { id: string }) {
         failed={!!comments.error && !comments.data}
         onRetry={comments.reload}
         onClose={() => setPanel(null)}
-        onSeek={video.seek}
+        onSeek={(sec) => video.seek(sec, true)}
       />
     ) : panel === "description" && d ? (
       <DescriptionPanel
@@ -893,7 +1077,7 @@ export function WatchSession({ id }: { id: string }) {
         title={title}
         likes={focus.counts ? likes : undefined}
         onClose={() => setPanel(null)}
-        onSeek={video.seek}
+        onSeek={(sec) => video.seek(sec, true)}
       />
     ) : null;
 
@@ -934,7 +1118,13 @@ export function WatchSession({ id }: { id: string }) {
         </>
       )}
       {fs && mode === "full" ? (
-        <FullscreenLayer onExit={() => setFs(false)}>{screen}</FullscreenLayer>
+        <FullscreenLayer
+          byTurn={byTurn}
+          onExit={exitFs}
+          onUpright={() => setWatchFullscreen(false)}
+        >
+          {screen}
+        </FullscreenLayer>
       ) : null}
     </Animated.View>
   );
@@ -1062,6 +1252,22 @@ const Thumb = ({ up, on }: { up?: boolean; on?: boolean }) => {
   );
 };
 
+// YouTube's own reason, said plainly, like its player does; a generic line when there's none.
+function whyNot(e: Error): string | undefined {
+  if (!(e instanceof StreamError)) return undefined;
+  switch (e.code) {
+    case "age_restricted":
+      return "This video is age-restricted. Sign in to YouTube to watch it.";
+    case "unplayable":
+      // "Video unavailable", "This video is private", a region block: YouTube's words, if short.
+      return e.message.length < 120 ? e.message : "This video is unavailable.";
+    case "network":
+      return "Can't reach YouTube. Check your connection and try again.";
+    default:
+      return undefined;
+  }
+}
+
 const asVideo = (s: WatchSeed): VideoItem => ({
   type: "video",
   id: s.id,
@@ -1070,18 +1276,54 @@ const asVideo = (s: WatchSeed): VideoItem => ({
   channel: s.channel,
 });
 
-// When a video ends nothing starts by itself: replay, go on, or stop here.
+// When a video ends: replay, go on, or stop here. With autoplay (or a playlist) the next one
+// counts down from 5 first, with a cancel, like YouTube.
+const COUNTDOWN = 5;
 function EndCard({
   next,
+  countdown,
+  onCancel,
   onReplay,
   onNext,
   onDone,
 }: {
   next?: VideoItem;
+  countdown?: boolean;
+  onCancel: () => void;
   onReplay: () => void;
   onNext: () => void;
   onDone: () => void;
 }) {
+  const [left, setLeft] = useState(COUNTDOWN);
+  const counting = !!countdown && !!next;
+  useEffect(() => {
+    if (!counting) return;
+    if (left <= 0) {
+      onNext();
+      return;
+    }
+    const t = setTimeout(() => setLeft((n) => n - 1), 1000);
+    return () => clearTimeout(t);
+    // onNext opens the next video once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [counting, left]);
+  if (counting && next)
+    return (
+      <Animated.View entering={FadeIn.duration(220)} style={styles.end}>
+        <Text style={styles.endKicker}>Up next in {left}</Text>
+        <Text style={styles.endTitle} numberOfLines={2}>
+          {next.title}
+        </Text>
+        <View style={styles.endRow}>
+          <PressScale onPress={onCancel} style={styles.endBtn}>
+            <Text style={styles.endText}>Cancel</Text>
+          </PressScale>
+          <PressScale onPress={onNext} style={[styles.endBtn, styles.endDone]}>
+            <Text style={[styles.endText, { color: "#000" }]}>Play now</Text>
+          </PressScale>
+        </View>
+      </Animated.View>
+    );
   return (
     <Animated.View entering={FadeIn.duration(220)} style={styles.end}>
       <View style={styles.endRow}>
@@ -1110,55 +1352,105 @@ const HeadphonesGlyph = () => (
   <Headphones size={17} color="#fff" strokeWidth={2} />
 );
 
-/** Landscape without rotating the app: the video turned on its side over everything, status bar hidden.
- * Swipe down (in the turned picture) to leave, like YouTube. */
+// Phones turn the screen for full screen; the web (narrow windows) turns the view instead.
+const TURNS_SCREEN = Platform.OS !== "web";
+
+/** What full screen keeps the controls clear of: the notch and home bar, wherever they ended up. */
+function useFullscreenPad() {
+  const insets = useSafeAreaInsets();
+  return TURNS_SCREEN
+    ? { left: insets.left, right: insets.right, bottom: insets.bottom }
+    : { left: insets.top, right: insets.bottom, bottom: 0 };
+}
+
+/** Full screen: the phone turns to landscape (iPhone then hides the status bar), the video fills
+ * the black screen, and swiping down leaves, like YouTube. */
 function FullscreenLayer({
   children,
+  byTurn,
   onExit,
+  onUpright,
 }: {
   children: React.ReactNode;
+  /** Entered by turning the phone: it may turn back upright to leave. */
+  byTurn: boolean;
   onExit: () => void;
+  onUpright: () => void;
 }) {
   const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const exit = useMemo(
-    () =>
+  const pad = useFullscreenPad();
+  const pull = useSharedValue(0);
+  const exit = useMemo(() => {
+    const leave = () => {
+      haptic.light();
+      onExit();
+    };
+    return (
       Gesture.Pan()
-        .runOnJS(true)
         .maxPointers(1)
         .activeOffsetY(16)
         .failOffsetX([-30, 30])
+        // The picture follows the finger down and shrinks a little, like YouTube's.
+        .onUpdate((e) => pull.set(Math.max(0, e.translationY)))
         .onEnd((e) => {
           if (e.translationY > 70 || e.velocityY > 800) {
-            haptic.light();
-            onExit();
+            scheduleOnRN(leave);
+            return;
           }
-        }),
-    [onExit],
-  );
-  // Belt and braces: hide the status bar directly too, so nothing sits over the turned video.
+          pull.set(withSpring(0, { damping: 24, stiffness: 260 }));
+        })
+    );
+  }, [onExit, pull]);
+  const follow = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: pull.value * 0.5 },
+      { scale: interpolate(pull.value, [0, 300], [1, 0.88], "clamp") },
+    ],
+  }));
   useEffect(() => {
+    if (byTurn) allowRotation();
+    else lockLandscape();
     RNStatusBar.setHidden(true, "fade");
-    return () => RNStatusBar.setHidden(false, "fade");
-  }, []);
+    const off = byTurn
+      ? onTurn((sideways) => !sideways && onUpright())
+      : () => {};
+    return () => {
+      off();
+      lockPortrait();
+      RNStatusBar.setHidden(false, "fade");
+    };
+    // Set up once per full screen; onUpright only sets state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [byTurn]);
+  // Until the turn finishes the window is still tall; the turned view covers that moment on the web only.
+  const turned = TURNS_SCREEN
+    ? { position: "absolute" as const, top: 0, right: 0, bottom: 0, left: 0 }
+    : {
+        position: "absolute" as const,
+        width: height,
+        height: width,
+        left: (width - height) / 2,
+        top: (height - width) / 2,
+        // Turned clockwise: the notch ends up on the left, the home bar on the right.
+        transform: [{ rotate: "90deg" }],
+      };
   return (
     <Animated.View entering={FadeIn.duration(200)} style={styles.full}>
       <StatusBar hidden />
       <GestureDetector gesture={exit}>
         <View
-          style={{
-            position: "absolute",
-            width: height,
-            height: width,
-            left: (width - height) / 2,
-            top: (height - width) / 2,
-            // Turned clockwise: the notch ends up on the left, the home bar on the right.
-            paddingLeft: insets.top,
-            paddingRight: insets.bottom,
-            transform: [{ rotate: "90deg" }],
-          }}
+          style={[
+            turned,
+            {
+              paddingLeft: pad.left,
+              paddingRight: pad.right,
+              paddingBottom: pad.bottom,
+            },
+          ]}
         >
-          <View style={{ flex: 1 }}>{children}</View>
+          <Animated.View style={[{ flex: 1 }, follow]}>
+            {children}
+          </Animated.View>
         </View>
       </GestureDetector>
     </Animated.View>
@@ -1195,6 +1487,15 @@ const styles = StyleSheet.create({
     left: 0,
     backgroundColor: "#000",
     overflow: "hidden",
+  },
+  buffering: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
   spin: {
     width: 56,
@@ -1258,7 +1559,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.45)",
   },
-  veilText: { color: "#fff", fontSize: 14, ...display("700") },
+  veilText: {
+    color: "#fff",
+    fontSize: 14,
+    textAlign: "center",
+    paddingHorizontal: 24,
+    ...display("700"),
+  },
   failed: { gap: 14, backgroundColor: "rgba(0,0,0,0.6)" },
   failRow: { flexDirection: "row", gap: 10 },
   offlineBtn: {
@@ -1357,6 +1664,20 @@ const styles = StyleSheet.create({
   },
   endDone: { backgroundColor: "#fff" },
   endText: { color: "#fff", fontSize: 14, ...display("800") },
+  endKicker: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    ...display("700"),
+  },
+  endTitle: {
+    color: "#fff",
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 14,
+    paddingHorizontal: 24,
+    ...display("700"),
+  },
   endNext: {
     color: "rgba(255,255,255,0.6)",
     fontSize: 12.5,

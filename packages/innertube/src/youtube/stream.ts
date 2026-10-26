@@ -30,6 +30,8 @@ export interface AdaptiveFormat {
   fps?: number;
   initRange?: { start: string; end: string };
   indexRange?: { start: string; end: string };
+  /** On videos with dubbed or described audio: which language this audio is. */
+  audioTrack?: { id: string; displayName?: string; audioIsDefault?: boolean };
 }
 
 const PLAYER_URL =
@@ -173,6 +175,8 @@ export interface ResolveOptions {
   ) => AdaptiveFormat[];
   /** Gets the extra formats with their playable urls; ones that fail are left out. */
   onExtra?: (list: { format: AdaptiveFormat; url: string }[]) => void;
+  /** The player answer that was used, for what else it carries (captions, audio tracks). */
+  onPlayerData?: (data: any) => void;
 }
 
 export interface ResolveAttempt {
@@ -342,6 +346,7 @@ async function tryClient(
   const bad = playabilityError(data?.playabilityStatus);
   if (bad) throw bad;
   const sd = data?.streamingData;
+  o.onPlayerData?.(data);
   const format = o.pick
     ? o.pick(sd?.adaptiveFormats, !!o.sandbox)
     : pickAudioFormat(sd?.adaptiveFormats, o.quality, o.opus, !!o.sandbox);

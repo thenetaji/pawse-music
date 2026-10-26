@@ -132,7 +132,11 @@ export default function WatchPage({
       bare
       back={pushed}
       tab={pushed ? undefined : "watch"}
-      onRefresh={first.reload}
+      // A fresh first page drops the old pages after it.
+      onRefresh={() => {
+        setMore({ key, items: [] });
+        return first.reload();
+      }}
       refreshing={false}
       onEndReached={loadMore}
     >

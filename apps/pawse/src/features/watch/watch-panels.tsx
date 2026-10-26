@@ -1,6 +1,6 @@
 import type { CommentPage, VideoComment, VideoDetail } from "@pawse/music-core";
 import { Image } from "expo-image";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -9,8 +9,17 @@ import {
   Text,
   View,
 } from "react-native";
-import Animated, { FadeIn, SlideInDown } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  FadeIn,
+  SlideInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { CloseGlyph } from "../../components/glyphs";
 import { PressScale, Skeleton } from "../../components/ui";
@@ -72,22 +81,61 @@ function Panel({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  // Drag the top of the sheet down to close it, like YouTube's; it slides away either way.
+  const dy = useSharedValue(0);
+  const tall = useSharedValue(800);
+  const pull = useMemo(() => {
+    const away = (v = 0) => {
+      "worklet";
+      dy.set(
+        withTiming(tall.value, { duration: v > 1500 ? 160 : 220 }, (done) => {
+          if (done) scheduleOnRN(onClose);
+        }),
+      );
+    };
+    return {
+      away,
+      pan: Gesture.Pan()
+        .activeOffsetY(8)
+        .failOffsetX([-20, 20])
+        .onUpdate((e) => dy.set(Math.max(0, e.translationY)))
+        .onEnd((e) => {
+          if (e.translationY > 90 || e.velocityY > 700) away(e.velocityY);
+          else dy.set(withSpring(0, { damping: 24, stiffness: 260 }));
+        }),
+    };
+  }, [dy, tall, onClose]);
+  const slide = useAnimatedStyle(() => ({
+    transform: [{ translateY: dy.value }],
+  }));
   return (
-    <Animated.View entering={SlideInDown.duration(260)} style={styles.panel}>
-      <View style={styles.panelHead}>
-        <Text style={styles.panelTitle}>
-          {title} {count ? <Text style={styles.count}>{count}</Text> : null}
-        </Text>
-        <Pressable
-          hitSlop={12}
-          onPress={onClose}
-          style={styles.close}
-          accessibilityLabel="Close"
-        >
-          <CloseGlyph size={12} weight={3} color="#fff" />
-        </Pressable>
-      </View>
-      {children}
+    <Animated.View
+      entering={SlideInDown.duration(260)}
+      style={styles.panel}
+      onLayout={(e) => tall.set(e.nativeEvent.layout.height)}
+    >
+      <Animated.View style={[styles.fill, slide]}>
+        <GestureDetector gesture={pull.pan}>
+          <View style={styles.panelTop} collapsable={false}>
+            <View style={styles.grab} />
+            <View style={styles.panelHead}>
+              <Text style={styles.panelTitle}>
+                {title}{" "}
+                {count ? <Text style={styles.count}>{count}</Text> : null}
+              </Text>
+              <Pressable
+                hitSlop={12}
+                onPress={() => pull.away()}
+                style={styles.close}
+                accessibilityLabel="Close"
+              >
+                <CloseGlyph size={12} weight={3} color="#fff" />
+              </Pressable>
+            </View>
+          </View>
+        </GestureDetector>
+        {children}
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -402,19 +450,32 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
+  },
+  fill: {
+    flex: 1,
     backgroundColor: "#0f0f0f",
     borderTopLeftRadius: 14,
     borderTopRightRadius: 14,
     overflow: "hidden",
+  },
+  panelTop: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.12)",
+  },
+  grab: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 7,
+    backgroundColor: "rgba(255,255,255,0.3)",
   },
   panelHead: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    height: 52,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.12)",
+    height: 44,
   },
   panelTitle: { color: "#fff", fontSize: 17, ...display("800") },
   close: {

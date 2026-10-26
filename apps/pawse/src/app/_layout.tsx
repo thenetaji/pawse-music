@@ -21,6 +21,8 @@ import { startNowPlayingGuard } from "../features/playback/now-playing-guard";
 import { startResumeController } from "../features/playback/resume-after-interruption";
 import { WatchHost } from "../features/watch/watch-host";
 import { startEngine } from "../lib/engine";
+import { startFreshFeeds } from "../lib/fresh-feeds";
+import { lockPortrait } from "../lib/orientation";
 import { getSetting, useSetting } from "../lib/settings";
 import { checkOnLaunch } from "../lib/updates";
 import { YouTubeSandboxHost } from "../lib/youtube-sandbox";
@@ -39,8 +41,11 @@ export default function RootLayout() {
     const stopIsland = startIslandController();
     const stopPill = startAndroidPill();
     const stopResume = startResumeController();
+    // Android has no start-up lock; keep every screen upright until a video goes full screen.
+    lockPortrait();
     const stopGuard = startNowPlayingGuard();
     const stopSpots = startListSpotRecorder();
+    const stopFresh = startFreshFeeds();
     const stopBackup = startAutoBackup();
     const stopJournal = startJournalRecorder();
     // First launch: meet the cat once the persisted library has loaded.
@@ -57,6 +62,7 @@ export default function RootLayout() {
       stopResume();
       stopGuard();
       stopSpots();
+      stopFresh();
       stopBackup();
       stopJournal();
       unsub();

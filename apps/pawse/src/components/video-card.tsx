@@ -9,7 +9,9 @@ import { Image } from "expo-image";
 import { memo } from "react";
 import { Platform, Share, StyleSheet, Text, View } from "react-native";
 
+import { ytv } from "../data/clients";
 import { downloadVideo } from "../data/downloads";
+import { useLibrary } from "../data/library";
 import { isPinned, togglePin } from "../data/pins";
 import {
   isUnfinished,
@@ -20,7 +22,7 @@ import {
 import { showPlaylistPicker } from "../features/library/playlist-tools";
 import { MoreGlyph } from "../features/now-playing/icons";
 import { minimizeWatch, openWatch, useWatch } from "../features/watch/store";
-import { blockChannel } from "../lib/block";
+import { blockChannel, hideVideo } from "../lib/block";
 import { useBranding } from "../lib/community";
 import { rightClick } from "../lib/context-menu";
 import { plainThumb, useFocus } from "../lib/focus";
@@ -28,6 +30,7 @@ import { go } from "../lib/nav";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
 import {
+  BlockGlyph,
   ChannelGlyph,
   DeArrowMark,
   DownloadGlyph,
@@ -71,6 +74,11 @@ export const openChannel = (id: string) => {
   const w = useWatch.getState();
   if (w.id && w.mode === "full") minimizeWatch();
   go(`/channel/${id}`);
+};
+
+const tellYouTube = (token?: string) => {
+  if (token && useLibrary.getState().settings.cookies)
+    ytv.feedback(token).catch(() => {});
 };
 
 /** The ⋯ menu on any video: the picture and title on top, then everything you can do with it. */
@@ -164,11 +172,29 @@ export function showVideoActions(v: VideoItem) {
               icon: (c: string) => <ChannelGlyph size={22} color={c} />,
               onPress: () => openChannel(id),
             },
+          ]
+        : []),
+      // YouTube's two: they hide it here, and signed in they tell YouTube too.
+      {
+        label: "Not interested",
+        icon: (c: string) => <HideGlyph size={22} color={c} />,
+        onPress: () => {
+          hideVideo(v.id);
+          tellYouTube(v.feedback?.notInterested);
+          showToast("Got it. You won't see this video again");
+        },
+      },
+      ...(ch && id
+        ? [
             {
-              label: `Don't show ${ch.name}`,
-              icon: (c: string) => <HideGlyph size={22} color={c} />,
+              label: "Don't recommend channel",
+              icon: (c: string) => <BlockGlyph size={22} color={c} />,
               destructive: true,
-              onPress: () => blockChannel({ id, name: ch.name }),
+              onPress: () => {
+                blockChannel({ id, name: ch.name });
+                tellYouTube(v.feedback?.channel);
+                showToast(`You won't see ${ch.name} again`);
+              },
             },
           ]
         : []),

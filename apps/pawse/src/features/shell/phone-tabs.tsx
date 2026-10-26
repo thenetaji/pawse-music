@@ -5,6 +5,7 @@ import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOnline } from "../../data/downloads";
 import { activeTab, emitTabReselect, type Tab } from "../../lib/nav";
+import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
 import { useAccent } from "../now-playing/now-palette";
@@ -14,6 +15,8 @@ import { WatchMini } from "../watch/watch-mini";
 /** iPhone: the native tab bar, with the mini player in its bottom accessory. */
 export function PhoneTabs() {
   const accent = useAccent();
+  // YouTube's feed gets its own tab while videos are on.
+  const videos = useSetting("videos", true);
   const hasTrack = usePlayerSelect((s) => !!s.current);
   const videoMini = useVideoMini();
   return (
@@ -23,7 +26,7 @@ export function PhoneTabs() {
         minimizeBehavior="onScrollDown"
         blurEffect="systemChromeMaterialDark"
         screenListeners={({ route }) => ({
-          // A tap on the tab you're on: our pages scroll up, or refresh from the top.
+          // A tap on the tab you're on: iOS scrolls the page up itself; from the top, our pages refresh.
           tabPress: () => {
             const t = route.name.replace(/[()]/g, "") as Tab;
             if (t === activeTab()) emitTabReselect(t);
@@ -38,7 +41,6 @@ export function PhoneTabs() {
         ) : null}
         <NativeTabs.Trigger
           name="(home)"
-          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
@@ -46,10 +48,10 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(watch)"
-          hidden
+          hidden={!videos}
           contentStyle={{ backgroundColor: "#000" }}
         >
-          <NativeTabs.Trigger.Label>Watch</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Label>Videos</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon
             sf="play.rectangle.fill"
             md="smart_display"
@@ -57,7 +59,6 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(explore)"
-          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
@@ -65,7 +66,6 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(library)"
-          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>

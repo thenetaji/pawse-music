@@ -39,7 +39,7 @@ export const DESKTOP_MIN_WIDTH = 900;
 
 const NAV = [
   { name: "home", href: "/", label: "Home", Icon: HomeIcon },
-  { name: "watch", href: "/watch", label: "Watch", Icon: WatchIcon },
+  { name: "watch", href: "/watch", label: "Videos", Icon: WatchIcon },
   { name: "explore", href: "/explore", label: "Explore", Icon: ExploreIcon },
   { name: "search", href: "/search", label: "Search", Icon: SearchIcon },
   { name: "library", href: "/library", label: "Library", Icon: LibraryIcon },
@@ -73,13 +73,15 @@ export function DesktopShell() {
 
 function Sidebar() {
   const accent = useAccent();
+  // YouTube's feed gets its own place while videos are on.
+  const videos = useSetting("videos", true);
   return (
     <View style={styles.sidebar}>
       <View style={styles.brand}>
         <Text style={styles.wordmark}>Pawse</Text>
       </View>
       <View style={styles.nav}>
-        {NAV.filter((n) => n.name !== "watch").map((n) => (
+        {NAV.filter((n) => videos || n.name !== "watch").map((n) => (
           <TabTrigger key={n.name} name={n.name} asChild>
             <NavItem label={n.label} Icon={n.Icon} accent={accent} />
           </TabTrigger>
