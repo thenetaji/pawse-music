@@ -103,7 +103,7 @@ export function openWatch(
     title: v.title,
     channel: v.channel?.name,
     list,
-    swapped: !!s.id && s.mode === "full" && !o?.keepMode,
+    swapped: !!s.id && s.mode === "full",
     fullscreen: s.id ? s.fullscreen : false,
   });
 }
@@ -124,8 +124,9 @@ export const closeWatch = () =>
   });
 
 /** The mini player slot shows the video instead of the song while a video sits there. */
+// Not tied to the player: autoplay swaps players, and the slot would flick to the song between them.
 export const useVideoMini = () =>
-  useWatch((s) => !!s.id && s.mode === "mini" && !!s.player);
+  useWatch((s) => !!s.id && s.mode === "mini");
 
 /** Back to the video before this one in the session. */
 export function watchPrevious(): boolean {

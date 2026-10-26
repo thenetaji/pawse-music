@@ -20,6 +20,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **The seek bar in full screen sits above the bottom edge**, with room to grab it, instead of under the home bar.
 - **The arrow at the top of full screen leaves full screen** instead of shrinking the video into the mini player.
 - **The next video keeps full screen, your zoom and your speed**, and appears in place instead of the page sliding up again.
+- **The mini player stays on the video when the next one starts**, instead of flicking to the song or disappearing for a moment.
 - **Playback speed stays as you set it** after seeking or pausing, and carries on to the next video.
 - **Seeking a paused video keeps it paused.** Chapters and timestamps in comments and the description still play from there.
 - **Keep tapping a side to skip further**: each tap within a second adds 10 seconds.
