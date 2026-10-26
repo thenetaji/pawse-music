@@ -2,7 +2,7 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
-## [Unreleased]
+## [1.12.0] - 2026-10-26
 
 ### Added
 - **A Videos tab.** YouTube gets its own tab next to Home, with your subscriptions and an endless For you feed, search and pull to refresh. It shows while videos are on.
