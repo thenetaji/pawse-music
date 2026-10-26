@@ -18,6 +18,7 @@ const DOUBLE_MS = 300;
 const SIDE = 0.35;
 // Fingers lifting just after a pinch aren't a tap.
 const PINCH_GRACE_MS = 400;
+const SKIP_KEEP_MS = 1000;
 
 export type ControlsProps = {
   at: number;
@@ -39,6 +40,9 @@ export type ControlsProps = {
   onSettings: () => void;
   onFullscreen: () => void;
   onAutoplay: (on: boolean) => void;
+  /** Full screen shows what's playing at the top, like YouTube. */
+  title?: string;
+  channel?: string;
   /** Full screen only: pinch out fills the screen, pinch in fits the whole picture. Must be stable. */
   onZoom?: (fill: boolean) => void;
 };
@@ -63,7 +67,9 @@ function tapGesture(o: {
       const side =
         e.x < o.width * SIDE ? -1 : e.x > o.width * (1 - SIDE) ? 1 : 0;
       const now = Date.now();
-      if (side && side === last.side && now - last.at < DOUBLE_MS) {
+      // Once skipping, each tap on that side within a second adds 10 s more, like YouTube.
+      const gap = last.skipping ? SKIP_KEEP_MS : DOUBLE_MS;
+      if (side && side === last.side && now - last.at < gap) {
         const was = last.was;
         if (!last.skipping) o.setShown(() => was);
         last.at = now;
@@ -135,7 +141,7 @@ export function VideoControls(p: ControlsProps) {
   }, [zoomNote]);
   useEffect(() => {
     if (!skip) return;
-    const t = setTimeout(() => setSkip(undefined), 700);
+    const t = setTimeout(() => setSkip(undefined), SKIP_KEEP_MS);
     return () => clearTimeout(t);
   }, [skip]);
 
@@ -188,7 +194,9 @@ export function VideoControls(p: ControlsProps) {
         setShown(true);
         setScrub(at(e.x));
       })
-      .onEnd((e) => {
+      .onEnd((e, ok) => {
+        // A drag the system took over (a swipe home, a scroll) doesn't move the video.
+        if (!ok) return;
         onSeek(at(e.x));
         haptic.light();
       })
@@ -247,11 +255,30 @@ export function VideoControls(p: ControlsProps) {
           style={styles.overlay}
           pointerEvents="box-none"
         >
-          <View style={styles.top} pointerEvents="box-none">
-            <Btn onPress={act(p.onMinimize)} label="Minimise">
+          <View
+            style={[styles.top, p.fullscreen && styles.topFull]}
+            pointerEvents="box-none"
+          >
+            <Btn
+              onPress={act(p.onMinimize)}
+              label={p.fullscreen ? "Exit full screen" : "Minimise"}
+            >
               <Glyph d="M6 9l6 6 6-6" />
             </Btn>
-            <View style={{ flex: 1 }} pointerEvents="none" />
+            <View style={{ flex: 1 }} pointerEvents="none">
+              {p.title ? (
+                <>
+                  <Text style={styles.headTitle} numberOfLines={1}>
+                    {p.title}
+                  </Text>
+                  {p.channel ? (
+                    <Text style={styles.headSub} numberOfLines={1}>
+                      {p.channel}
+                    </Text>
+                  ) : null}
+                </>
+              ) : null}
+            </View>
             <View style={styles.auto}>
               <Switch
                 value={p.autoplay}
@@ -310,7 +337,10 @@ export function VideoControls(p: ControlsProps) {
             </View>
           )}
 
-          <View style={styles.bottom} pointerEvents="box-none">
+          <View
+            style={[styles.bottom, p.fullscreen && styles.bottomFull]}
+            pointerEvents="box-none"
+          >
             <View style={styles.time}>
               <Text style={styles.timeText}>
                 {clock(shownAt) || "0:00"}
@@ -339,7 +369,7 @@ export function VideoControls(p: ControlsProps) {
       {shown || !p.fullscreen ? (
         <GestureDetector gesture={drag}>
           <View
-            style={styles.barHit}
+            style={[styles.barHit, p.fullscreen && styles.barHitFull]}
             onLayout={(e) => setBarW(e.nativeEvent.layout.width)}
             collapsable={false}
           >
@@ -368,7 +398,12 @@ export function VideoControls(p: ControlsProps) {
                 style={[
                   styles.handle,
                   scrub !== undefined && styles.handleBig,
-                  { left: barW * frac - (scrub !== undefined ? 9 : 6) },
+                  {
+                    left: barW * frac - (scrub !== undefined ? 9 : 6),
+                    // Centred on the line, whatever the bar's height.
+                    top:
+                      (p.fullscreen ? 20 : 11) - (scrub !== undefined ? 9 : 6),
+                  },
                 ]}
               />
             ) : null}
@@ -482,6 +517,8 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   auto: { paddingHorizontal: 4 },
+  headTitle: { color: "#fff", fontSize: 16, ...display("700") },
+  headSub: { color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 1 },
   switch: { transform: [{ scale: 0.8 }] },
   // Rows stacked, never overlapping, so each button gets its own touches on every platform.
   center: {
@@ -582,6 +619,11 @@ const styles = StyleSheet.create({
     height: 22,
     justifyContent: "center",
   },
+  // Full screen, like YouTube: the bar sits above the bottom edge with room to grab it, the time
+  // and buttons above it.
+  barHitFull: { left: 16, right: 16, bottom: 10, height: 40 },
+  bottomFull: { paddingBottom: 46, paddingHorizontal: 14 },
+  topFull: { paddingTop: 12, paddingHorizontal: 10 },
   track: {
     height: 2,
     backgroundColor: "rgba(255,255,255,0.25)",
@@ -597,11 +639,10 @@ const styles = StyleSheet.create({
   },
   handle: {
     position: "absolute",
-    top: 5,
     width: 12,
     height: 12,
     borderRadius: 6,
     backgroundColor: RED,
   },
-  handleBig: { width: 18, height: 18, borderRadius: 9, top: 2 },
+  handleBig: { width: 18, height: 18, borderRadius: 9 },
 });

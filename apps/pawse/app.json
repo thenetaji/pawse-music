@@ -4,7 +4,7 @@
     "slug": "pawse",
     "description": "A free music and video app for YouTube Music and YouTube, with a cat in your Dynamic Island.",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "pawse",
     "userInterfaceStyle": "dark",
@@ -60,6 +60,12 @@
         }
       ],
       "expo-sqlite",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT_UP"
+        }
+      ],
       "@pawse/config/plugins/with-scene-lifecycle",
       "expo-web-browser",
       "@bacons/apple-targets",

@@ -32,6 +32,14 @@ interface WatchState {
   /** Videos this session came from, newest last, for the previous button. */
   back: WatchSeed[];
   list?: WatchList;
+  /** Landscape full screen; it stays on as the next video starts, like YouTube. */
+  fullscreen: boolean;
+  /** Pinched out in full screen: the picture fills the screen. */
+  fill: boolean;
+  /** Playback speed; kept from video to video. */
+  speed: number;
+  /** The open page swapped one video for another, so the new one appears in place instead of sliding up. */
+  swapped: boolean;
 }
 
 export const useWatch = create<WatchState>(() => ({
@@ -41,7 +49,17 @@ export const useWatch = create<WatchState>(() => ({
   playing: false,
   progress: 0,
   back: [],
+  fullscreen: false,
+  fill: false,
+  speed: 1,
+  swapped: false,
 }));
+
+export const setWatchFullscreen = (on: boolean) =>
+  useWatch.setState(
+    on ? { fullscreen: true } : { fullscreen: false, fill: false },
+  );
+export const setWatchFill = (fill: boolean) => useWatch.setState({ fill });
 
 /** Opens a video full screen; the same video already in the mini player just grows back. */
 export function openWatch(
@@ -85,10 +103,13 @@ export function openWatch(
     title: v.title,
     channel: v.channel?.name,
     list,
+    swapped: !!s.id && s.mode === "full" && !o?.keepMode,
+    fullscreen: s.id ? s.fullscreen : false,
   });
 }
 
-export const minimizeWatch = () => useWatch.setState({ mode: "mini" });
+export const minimizeWatch = () =>
+  useWatch.setState({ mode: "mini", fullscreen: false, fill: false });
 export const expandWatch = () => useWatch.setState({ mode: "full" });
 export const closeWatch = () =>
   useWatch.setState({
@@ -98,6 +119,8 @@ export const closeWatch = () =>
     playing: false,
     seed: undefined,
     list: undefined,
+    fullscreen: false,
+    fill: false,
   });
 
 /** The mini player slot shows the video instead of the song while a video sits there. */

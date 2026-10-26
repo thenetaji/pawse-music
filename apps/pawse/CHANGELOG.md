@@ -2,6 +2,30 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [Unreleased]
+
+### Added
+- **A Videos tab.** YouTube gets its own tab next to Home, with your subscriptions and an endless For you feed, search and pull to refresh. It shows while videos are on.
+- **Turn the phone to go full screen**, like YouTube: turn it sideways on a video and it fills the screen; turn it back to leave. The full-screen button and swipe up still work, and iPhone's rotation lock is respected.
+- **Up next in 5.** With autoplay on, or in a playlist, the end of a video counts down to the next one with **Cancel** and **Play now**.
+- **The title and channel at the top of full screen**, like YouTube.
+- **A spinner when the video is waiting** for more after it started (a slow network, a seek, a quality change).
+- **The lock screen and Control Center show the video's title, channel and picture.**
+
+### Fixed
+- **Full screen really is full screen.** The phone now turns to landscape, so iPhone hides the clock, battery and status bar, and the video fills the screen.
+- **The seek bar in full screen sits above the bottom edge**, with room to grab it, instead of under the home bar.
+- **The arrow at the top of full screen leaves full screen** instead of shrinking the video into the mini player.
+- **The next video keeps full screen, your zoom and your speed**, and appears in place instead of the page sliding up again.
+- **Playback speed stays as you set it** after seeking or pausing, and carries on to the next video.
+- **Seeking a paused video keeps it paused.** Chapters and timestamps in comments and the description still play from there.
+- **Keep tapping a side to skip further**: each tap within a second adds 10 seconds.
+- **Closing a video keeps your exact spot** for Continue, not the last save a few seconds before.
+- **Unsubscribing asks first**, so a stray tap doesn't drop a channel.
+- **Listen** carries on from where the video was.
+- **When a video won't play, Pawse says why**: age-restricted, private, unavailable, or no connection.
+- Pull to refresh on the Videos feed starts it fresh instead of keeping old pages under the new ones.
+
 ## [1.11.1] - 2026-10-25
 
 ### Added

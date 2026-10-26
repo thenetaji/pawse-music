@@ -5,6 +5,7 @@ import Animated, { FadeInUp, FadeOutUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOnline } from "../../data/downloads";
 import { activeTab, emitTabReselect, type Tab } from "../../lib/nav";
+import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MiniPlayer } from "../now-playing/mini-player";
 import { useAccent } from "../now-playing/now-palette";
@@ -14,6 +15,8 @@ import { WatchMini } from "../watch/watch-mini";
 /** iPhone: the native tab bar, with the mini player in its bottom accessory. */
 export function PhoneTabs() {
   const accent = useAccent();
+  // YouTube's feed gets its own tab while videos are on.
+  const videos = useSetting("videos", true);
   const hasTrack = usePlayerSelect((s) => !!s.current);
   const videoMini = useVideoMini();
   return (
@@ -46,10 +49,11 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(watch)"
-          hidden
+          hidden={!videos}
+          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
-          <NativeTabs.Trigger.Label>Watch</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Label>Videos</NativeTabs.Trigger.Label>
           <NativeTabs.Trigger.Icon
             sf="play.rectangle.fill"
             md="smart_display"

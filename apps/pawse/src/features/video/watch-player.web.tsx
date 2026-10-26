@@ -65,6 +65,10 @@ export function useWatchPlayer(
     const end = () => cb.current.onEnd?.();
     const on = () => cb.current.onPlaying?.(true);
     const off = () => cb.current.onPlaying?.(false);
+    const wait = () => cb.current.onBuffering?.(true);
+    const go = () => cb.current.onBuffering?.(false);
+    video.addEventListener("waiting", wait);
+    video.addEventListener("playing", go);
     video.addEventListener("timeupdate", time);
     video.addEventListener("ended", end);
     video.addEventListener("play", on);
@@ -89,15 +93,18 @@ export function useWatchPlayer(
       video.removeEventListener("ended", end);
       video.removeEventListener("play", on);
       video.removeEventListener("pause", off);
+      video.removeEventListener("waiting", wait);
+      video.removeEventListener("playing", go);
       video.pause();
     };
   }, [video]);
   return useMemo(
     () => ({
       surface: video,
-      seek: (sec: number) => {
+      seek: (sec: number, go?: boolean) => {
+        const over = video.ended;
         setTime(video, sec);
-        play(video);
+        if (go || over) play(video);
       },
       replay: () => {
         setTime(video, 0);

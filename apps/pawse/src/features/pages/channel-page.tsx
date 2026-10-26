@@ -14,12 +14,13 @@ import {
   SkeletonShelves,
 } from "../../components/ui";
 import { VideoCard } from "../../components/video-card";
-import { setSubscribed, useSubscribed } from "../../data/channels";
+import { useSubscribed } from "../../data/channels";
 import { isPinned, togglePin } from "../../data/pins";
 import { blockChannel } from "../../lib/block";
 import { ytv } from "../../lib/engine";
 import { useFocus } from "../../lib/focus";
 import { haptic } from "../../lib/haptics";
+import { toggleSubscription } from "../../lib/subscribe";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { MoreGlyph } from "../now-playing/icons";
@@ -130,7 +131,7 @@ export default function ChannelPage() {
             <PressScale
               onPress={() => {
                 haptic.light();
-                if (me) setSubscribed(me, !subscribed);
+                if (me) toggleSubscription(me, subscribed);
               }}
               accessibilityLabel={subscribed ? "Unsubscribe" : "Subscribe"}
               style={[

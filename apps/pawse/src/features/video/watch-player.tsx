@@ -12,7 +12,8 @@ export type SurfaceRef = VideoPlayer;
 
 export interface WatchPlayer {
   surface: SurfaceRef;
-  seek(sec: number): void;
+  /** Moves to a time; a paused video stays paused unless `play` (a chapter, a timestamp). */
+  seek(sec: number, play?: boolean): void;
   replay(): void;
   toggle(): void;
   pause(): void;
@@ -38,21 +39,35 @@ export interface WatchPlayerOptions {
   /** The picture height (and frame rate) now playing, as Auto moves between qualities. */
   onTrack?: (height: number, fps?: number) => void;
   onPlaying?: (playing: boolean) => void;
+  /** Waiting for more of the video after it started: a stall, a seek, a quality change. */
+  onBuffering?: (waiting: boolean) => void;
+  /** What the lock screen and Control Center show for the video. */
+  meta?: { title?: string; artist?: string; artwork?: string };
   /** A small still for the ambient glow (web only). */
   onFrame?: (uri: string) => void;
 }
 
 // Outside the component: the compiler treats the hook's player as read-only.
-async function load(p: VideoPlayer, src: VideoSource, start?: number) {
+// iOS puts a player back to normal speed whenever it starts playing, so the chosen speed is kept here.
+const rates = new WeakMap<VideoPlayer, number>();
+const start = (p: VideoPlayer) => {
+  p.play();
+  const r = rates.get(p);
+  if (r && r !== 1) p.playbackRate = r;
+};
+async function load(p: VideoPlayer, src: VideoSource, at?: number) {
   await p.replaceAsync(src);
-  if (start) p.currentTime = start;
-  p.play();
+  if (at) p.currentTime = at;
+  start(p);
 }
-const seekTo = (p: VideoPlayer, sec: number) => {
+const seekTo = (p: VideoPlayer, sec: number, play?: boolean) => {
+  // At the end the video has stopped; moving back means watching again.
+  const over = !!p.duration && p.currentTime >= p.duration - 0.5;
   p.currentTime = sec;
-  p.play();
+  if (play || over) start(p);
 };
 const setRate = (p: VideoPlayer, r: number) => {
+  rates.set(p, r);
   p.playbackRate = r;
 };
 const setup = (p: VideoPlayer) => {
@@ -72,9 +87,19 @@ export function useWatchPlayer(o: WatchPlayerOptions): WatchPlayer {
   useEffect(() => {
     if (!o.uri) return;
     let live = true;
+    const meta = cb.current.meta;
     load(
       player,
-      { uri: o.uri, contentType: "hls", headers: o.headers },
+      {
+        uri: o.uri,
+        contentType: "hls",
+        headers: o.headers,
+        metadata: meta && {
+          title: meta.title,
+          artist: meta.artist,
+          artwork: meta.artwork,
+        },
+      },
       cb.current.startAt,
     ).catch((e: Error) => live && cb.current.onError?.(e.message));
     return () => {
@@ -99,6 +124,7 @@ export function useWatchPlayer(o: WatchPlayerOptions): WatchPlayer {
       player.addListener("statusChange", (e) => {
         if (e.status === "error")
           cb.current.onError?.(e.error?.message ?? "Couldn't play this video");
+        cb.current.onBuffering?.(e.status === "loading");
       }),
     ];
     return () => subs.forEach((s) => s.remove());
@@ -106,9 +132,9 @@ export function useWatchPlayer(o: WatchPlayerOptions): WatchPlayer {
   return useMemo(
     () => ({
       surface: player,
-      seek: (sec: number) => seekTo(player, sec),
-      replay: () => seekTo(player, 0),
-      toggle: () => (player.playing ? player.pause() : player.play()),
+      seek: (sec: number, play?: boolean) => seekTo(player, sec, play),
+      replay: () => seekTo(player, 0, true),
+      toggle: () => (player.playing ? player.pause() : start(player)),
       pause: () => player.pause(),
       setRate: (r: number) => setRate(player, r),
       time: () => player.currentTime,
