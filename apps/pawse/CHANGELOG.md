@@ -11,6 +11,9 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **The title and channel at the top of full screen**, like YouTube.
 - **A spinner when the video is waiting** for more after it started (a slow network, a seek, a quality change).
 - **The lock screen and Control Center show the video's title, channel and picture.**
+- **Captions.** Tap **CC** on the video, or pick a language in the video's settings. Pawse picks captions in your phone's language, and translates when a video has none in it.
+- **Change the audio track.** Videos dubbed into other languages now play in their original language, and **Audio track** in the video's settings switches to any other one.
+- **Not interested** and **Don't recommend channel** in every video's ⋯ menu. The video or channel leaves your feeds at once, and signed in, YouTube hears it too.
 
 ### Fixed
 - **Full screen really is full screen.** The phone now turns to landscape, so iPhone hides the clock, battery and status bar, and the video fills the screen.
@@ -25,6 +28,10 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **Listen** carries on from where the video was.
 - **When a video won't play, Pawse says why**: age-restricted, private, unavailable, or no connection.
 - Pull to refresh on the Videos feed starts it fresh instead of keeping old pages under the new ones.
+- **Swipe down in full screen to go back to portrait.** It used to read the swipe sideways, so pulling down did nothing.
+- **Pull to refresh shows a spinner** on iPhone, not just a tap of haptics.
+- **Home and the other feeds refresh** when you come back to Pawse after a while, instead of showing what was there before.
+- **Tap the tab you're on to scroll back to the top**, like YouTube.
 
 ## [1.11.1] - 2026-10-25
 
