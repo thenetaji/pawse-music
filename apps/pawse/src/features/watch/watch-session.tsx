@@ -44,6 +44,8 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SheetNote, showSheet } from "../../components/action-sheet";
 import {
+  AudioTrackGlyph,
+  CaptionsGlyph,
   DeArrowMark,
   PinGlyph,
   QualityGlyph,
@@ -87,6 +89,7 @@ import { useVotes } from "../../lib/dislikes";
 import { ytv } from "../../lib/engine";
 import { noteWatching, useFocus } from "../../lib/focus";
 import { haptic } from "../../lib/haptics";
+import { languageName } from "../../lib/locale";
 import { push } from "../../lib/nav";
 import {
   allowRotation,
@@ -110,6 +113,7 @@ import {
   useWatchPlayer,
   VideoSurface,
 } from "../video/watch-player";
+import { setCaptions, setCaptionsLang, useCaptions } from "./captions";
 import {
   closeWatch,
   minimizeWatch,
@@ -154,6 +158,8 @@ export function WatchSession({ id }: { id: string }) {
   const [quality, setQuality] = useState<Quality>(
     typeof pref === "number" ? pref : "auto",
   );
+  // The audio language picked from the menu; the original until then.
+  const [audioTrack, setAudioTrack] = useState<string>();
   const [loaded, setLoaded] = useState<{
     src?: VideoSource;
     error?: string;
@@ -387,7 +393,7 @@ export function WatchSession({ id }: { id: string }) {
   // The old quality keeps playing until the new one is ready, then it carries on from the same moment.
   useEffect(() => {
     let live = true;
-    videoSource(id, quality)
+    videoSource(id, quality, audioTrack)
       .then(
         (s) =>
           live &&
@@ -405,7 +411,7 @@ export function WatchSession({ id }: { id: string }) {
     };
     // t only matters for the first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, quality, reload]);
+  }, [id, quality, reload, audioTrack]);
 
   // Slides up when opened, down into the mini player when shrunk; a drag on the video follows the finger.
   // Swapping videos on an open page shows the new one in place; opening one slides it up.
@@ -527,6 +533,42 @@ export function WatchSession({ id }: { id: string }) {
       ],
     });
   };
+  const cc = useCaptions(src?.stream.captions);
+  const captionName = cc.choice
+    ? cc.choice.translate
+      ? `${cc.choice.track.name} → ${languageName(cc.choice.translate)}`
+      : cc.choice.track.name
+    : "Off";
+  const pickCaptions = () =>
+    showSheet({
+      title: "Captions",
+      actions: [
+        {
+          label: "Off",
+          checked: !cc.on,
+          onPress: () => setCaptions(false),
+        },
+        ...cc.tracks.map((t) => ({
+          label: t.name,
+          checked:
+            cc.on && cc.choice?.track.url === t.url && !cc.choice?.translate,
+          onPress: () => setCaptionsLang(t.lang),
+        })),
+      ],
+    });
+  const tracks = src?.stream.audioTracks;
+  const trackName =
+    tracks?.find((t) => t.id === src?.stream.audioTrack)?.name ?? "Original";
+  const pickAudio = () =>
+    tracks &&
+    showSheet({
+      title: "Audio track",
+      actions: tracks.map((t) => ({
+        label: t.original ? `${t.name} (original)` : t.name,
+        checked: t.id === src?.stream.audioTrack,
+        onPress: () => setAudioTrack(t.id),
+      })),
+    });
   const pickSpeed = () =>
     showSheet({
       title: "Playback speed",
@@ -554,6 +596,26 @@ export function WatchSession({ id }: { id: string }) {
           icon: (c) => <SpeedGlyph size={22} color={c} />,
           onPress: pickSpeed,
         },
+        ...(cc.available
+          ? [
+              {
+                label: "Captions",
+                sub: captionName,
+                icon: (c: string) => <CaptionsGlyph size={22} color={c} />,
+                onPress: pickCaptions,
+              },
+            ]
+          : []),
+        ...(tracks
+          ? [
+              {
+                label: "Audio track",
+                sub: trackName,
+                icon: (c: string) => <AudioTrackGlyph size={22} color={c} />,
+                onPress: pickAudio,
+              },
+            ]
+          : []),
         {
           label: isPinned(id) ? "Unpin from Home" : "Pin to Home",
           icon: (c) => <PinGlyph size={22} color={c} />,
@@ -722,6 +784,9 @@ export function WatchSession({ id }: { id: string }) {
           fullscreen={fs}
           onZoom={setWatchFill}
           title={fs ? title : undefined}
+          cc={cc.available ? cc.on : undefined}
+          cues={cc.cues}
+          onCc={() => setCaptions(!cc.on)}
           channel={fs ? v?.channel?.name : undefined}
           getTime={video.time}
           onAutoplay={(on) => {

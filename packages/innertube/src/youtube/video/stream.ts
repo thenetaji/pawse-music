@@ -1,4 +1,6 @@
 import {
+  type AudioTrackOption,
+  type CaptionTrack,
   StreamError,
   type StreamPart,
   type VideoStream,
@@ -8,6 +10,7 @@ import { defaultFetch } from "../../util/http";
 import { defaultStreamClients } from "../clients";
 import {
   type AdaptiveFormat,
+  pickAudioFormat,
   type ResolveAttempt,
   type ResolveOptions,
   resolveYouTubeStream,
@@ -17,6 +20,61 @@ export interface VideoStreamOptions
   extends Partial<Omit<ResolveOptions, "pick" | "onFormat">> {
   /** Tallest picture to return (default 1080). */
   maxHeight?: number;
+  /** The audio language to play, an id from `audioTracks`; the original when unset. */
+  audioTrack?: string;
+}
+
+const isOriginal = (f: AdaptiveFormat) =>
+  /original/i.test(f.audioTrack?.displayName ?? "");
+
+/** The id of the audio to play: the one asked for, else the original language, else YouTube's default. */
+export function chooseAudioTrack(
+  formats: AdaptiveFormat[] | undefined,
+  want?: string,
+): string | undefined {
+  const dubbed = (formats ?? []).filter((f) => f.audioTrack);
+  if (!dubbed.length) return undefined;
+  if (want && dubbed.some((f) => f.audioTrack?.id === want)) return want;
+  return (
+    dubbed.find(isOriginal) ??
+    dubbed.find((f) => f.audioTrack?.audioIsDefault) ??
+    dubbed[0]
+  ).audioTrack?.id;
+}
+
+/** Each audio language once, the original first. */
+export function audioTracksOf(
+  formats: AdaptiveFormat[] | undefined,
+): AudioTrackOption[] {
+  const seen = new Map<string, AudioTrackOption>();
+  for (const f of formats ?? []) {
+    const t = f.audioTrack;
+    if (!t || seen.has(t.id)) continue;
+    seen.set(t.id, {
+      id: t.id,
+      name: (t.displayName ?? t.id).replace(/\s*original\s*/i, " ").trim(),
+      original: isOriginal(f),
+    });
+  }
+  return [...seen.values()].sort(
+    (a, b) => Number(!!b.original) - Number(!!a.original),
+  );
+}
+
+/** Caption tracks from a player answer. */
+export function captionTracksOf(data: any): CaptionTrack[] {
+  const list: any[] =
+    data?.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
+  return list
+    .filter((t) => typeof t?.baseUrl === "string")
+    .map((t) => ({
+      url: t.baseUrl,
+      lang: String(t.languageCode ?? ""),
+      name: String(
+        t.name?.simpleText ?? t.name?.runs?.[0]?.text ?? t.languageCode ?? "",
+      ),
+      auto: t.kind === "asr",
+    }));
 }
 
 const DEFAULT_MAX_HEIGHT = 1080;
@@ -101,7 +159,11 @@ export async function resolveVideoStream(
   options: VideoStreamOptions = {},
   attempts: ResolveAttempt[] = [],
 ): Promise<VideoStream> {
-  const { maxHeight = DEFAULT_MAX_HEIGHT, ...rest } = options;
+  const {
+    maxHeight = DEFAULT_MAX_HEIGHT,
+    audioTrack: wantTrack,
+    ...rest
+  } = options;
   const o: ResolveOptions = {
     fetch: defaultFetch,
     clients: defaultStreamClients(),
@@ -113,6 +175,9 @@ export async function resolveVideoStream(
   };
   let picked: { format: AdaptiveFormat; via: string } | undefined;
   let extras: { format: AdaptiveFormat; url: string }[] = [];
+  let captions: CaptionTrack[] = [];
+  let audioTracks: AudioTrackOption[] = [];
+  let audioTrack: string | undefined;
   const video = await resolveYouTubeStream(
     videoId,
     {
@@ -129,6 +194,9 @@ export async function resolveVideoStream(
       onExtra: (list) => {
         extras = list;
       },
+      onPlayerData: (data) => {
+        captions = captionTracksOf(data);
+      },
     },
     attempts,
   );
@@ -144,6 +212,19 @@ export async function resolveVideoStream(
       avoid: undefined,
       onFormat: (format) => {
         audioFormat = format;
+      },
+      // Dubbed videos carry every language; play the original (or the one asked for), not a random dub.
+      pick: (formats, ciphered) => {
+        audioTracks = audioTracksOf(formats);
+        audioTrack = chooseAudioTrack(formats, wantTrack);
+        return pickAudioFormat(
+          (formats ?? []).filter(
+            (f) => !audioTrack || f.audioTrack?.id === audioTrack,
+          ),
+          "high",
+          false,
+          ciphered,
+        );
       },
     },
     attempts,
@@ -184,5 +265,8 @@ export async function resolveVideoStream(
     expiresAt: Math.min(video.expiresAt, audio.expiresAt),
     headers: video.headers,
     via: video.via,
+    audioTracks: audioTracks.length > 1 ? audioTracks : undefined,
+    audioTrack,
+    captions: captions.length ? captions : undefined,
   };
 }

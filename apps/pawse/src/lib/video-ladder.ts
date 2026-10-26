@@ -46,7 +46,13 @@ export const qualityKey = (p: { height?: number; fps?: number }) =>
   `${p.height ?? 0}p${(p.fps ?? 30) > 30 ? "60" : ""}`;
 
 let current:
-  | { id: string; stream: VideoStream; playlists: Map<string, Promise<string>> }
+  | {
+      id: string;
+      /** The audio language asked for; undefined is the original. */
+      track?: string;
+      stream: VideoStream;
+      playlists: Map<string, Promise<string>>;
+    }
   | undefined;
 
 /** Drops the resolved stream, so the next load fetches fresh media urls. */
@@ -54,12 +60,19 @@ export const forgetStream = () => {
   current = undefined;
 };
 
-async function streamFor(id: string, host: PlaylistHost) {
-  if (current?.id === id && current.stream.expiresAt - Date.now() > FRESH_MS)
+async function streamFor(id: string, host: PlaylistHost, track?: string) {
+  if (
+    current?.id === id &&
+    current.track === track &&
+    current.stream.expiresAt - Date.now() > FRESH_MS
+  )
     return current;
   if (current?.id !== id) host.forget?.();
-  const stream = await ytv.resolveStream(id, { maxHeight: 4320 });
-  current = { id, stream, playlists: new Map() };
+  const stream = await ytv.resolveStream(id, {
+    maxHeight: 4320,
+    audioTrack: track,
+  });
+  current = { id, track, stream, playlists: new Map() };
   return current;
 }
 
@@ -68,8 +81,9 @@ export async function buildVideoSource(
   host: PlaylistHost,
   id: string,
   quality: Quality,
+  track?: string,
 ): Promise<VideoSource> {
-  const entry = await streamFor(id, host);
+  const entry = await streamFor(id, host, track);
   const { stream } = entry;
   const safe = id.replace(/\W/g, "_");
   const media = (key: string, part: StreamPart) => {
@@ -121,10 +135,12 @@ export async function buildVideoSource(
   );
   const playable = ready.filter((v) => v !== undefined);
   if (!playable.length) throw new Error("this video has no segment index");
-  const audio = await media("audio", stream.audio);
+  // Each audio language gets its own playlist name, so switching doesn't reuse the old one.
+  const lang = (stream.audioTrack ?? "main").replace(/\W/g, "_");
+  const audio = await media(`audio_${lang}`, stream.audio);
   const key = fixed && quality !== "auto" ? qualityKey(fixed) : "auto";
   const uri = await host.publish(
-    `v_${safe}_${key}_master.m3u8`,
+    `v_${safe}_${key}_${lang}_master.m3u8`,
     hlsMaster(playable, { ...stream.audio, uri: audio }),
   );
   return { uri, stream, options, quality: key };

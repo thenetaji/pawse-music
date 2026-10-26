@@ -1,3 +1,4 @@
+export { fetchCaptions, parseJson3 } from "./captions";
 export {
   CHANNEL_VIDEOS_PARAMS,
   DEFAULT_HOME_TOPICS,
@@ -22,6 +23,9 @@ export {
   parseVideoSearch,
 } from "./parse";
 export {
+  audioTracksOf,
+  captionTracksOf,
+  chooseAudioTrack,
   pickVideoFormat,
   resolveVideoStream,
   type VideoStreamOptions,

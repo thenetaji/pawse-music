@@ -26,7 +26,7 @@ export function PhoneTabs() {
         minimizeBehavior="onScrollDown"
         blurEffect="systemChromeMaterialDark"
         screenListeners={({ route }) => ({
-          // A tap on the tab you're on: our pages scroll up, or refresh from the top.
+          // A tap on the tab you're on: iOS scrolls the page up itself; from the top, our pages refresh.
           tabPress: () => {
             const t = route.name.replace(/[()]/g, "") as Tab;
             if (t === activeTab()) emitTabReselect(t);
@@ -41,7 +41,6 @@ export function PhoneTabs() {
         ) : null}
         <NativeTabs.Trigger
           name="(home)"
-          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
@@ -50,7 +49,6 @@ export function PhoneTabs() {
         <NativeTabs.Trigger
           name="(watch)"
           hidden={!videos}
-          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Videos</NativeTabs.Trigger.Label>
@@ -61,7 +59,6 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(explore)"
-          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Explore</NativeTabs.Trigger.Label>
@@ -69,7 +66,6 @@ export function PhoneTabs() {
         </NativeTabs.Trigger>
         <NativeTabs.Trigger
           name="(library)"
-          disableScrollToTop
           contentStyle={{ backgroundColor: "#000" }}
         >
           <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>

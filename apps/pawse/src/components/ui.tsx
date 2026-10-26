@@ -38,6 +38,9 @@ import { onTabReselect, type Tab } from "../lib/nav";
 import { useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import { ChevronLeft } from "./glyphs";
+import { Spinner } from "./spinner";
+
+const IOS = Platform.OS === "ios";
 
 const ANDROID = Platform.OS === "android";
 /** Android press ripple for flat, square-cornered surfaces; RN's ripple ignores borderRadius. */
@@ -167,6 +170,13 @@ export function Screen({
   const onScroll = useAnimatedScrollHandler((e) => {
     y.set(e.contentOffset.y);
   });
+  // iOS hides its own pull spinner under the top fade, so ours shows below the clock instead:
+  // it grows in as you pull and keeps turning until the new page lands.
+  const pullHint = useAnimatedStyle(() => ({
+    opacity: interpolate(y.value, [-70, -16], [1, 0], "clamp"),
+    transform: [{ scale: interpolate(y.value, [-70, -16], [1, 0.5], "clamp") }],
+  }));
+  const busy = pulling || !!refreshing;
   const big = useAnimatedStyle(() => ({
     opacity: interpolate(y.value, [0, 50], [1, 0], "clamp"),
     transform: [
@@ -202,7 +212,7 @@ export function Screen({
         refreshControl={
           onRefresh ? (
             <RefreshControl
-              tintColor="#fff"
+              tintColor={IOS ? "transparent" : "#fff"}
               refreshing={!!refreshing || pulling}
               onRefresh={pull}
             />
@@ -241,6 +251,16 @@ export function Screen({
         colors={["#000", "rgba(0,0,0,0.6)", "rgba(0,0,0,0)"]}
         style={[styles.bar, { height: insets.top + 14 }]}
       />
+      {IOS && onRefresh ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.pull, { top: insets.top + 6 }, !busy && pullHint]}
+        >
+          <View style={styles.pullBubble}>
+            <Spinner size={18} width={2.2} />
+          </View>
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -444,6 +464,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.8,
     flexShrink: 1,
     transformOrigin: "left",
+  },
+  pull: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  pullBubble: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(40,40,46,0.92)",
   },
   bar: {
     position: "absolute",

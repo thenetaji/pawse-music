@@ -1,3 +1,4 @@
+import type { CaptionCue } from "@pawse/music-core";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -7,6 +8,7 @@ import Svg, { Path } from "react-native-svg";
 import { clock } from "../../components/video-card";
 import { haptic } from "../../lib/haptics";
 import { display } from "../../lib/type";
+import { CaptionOverlay } from "./captions";
 
 const RED = "#FF0033";
 // Controls fade after this long while the video plays.
@@ -40,6 +42,10 @@ export type ControlsProps = {
   onSettings: () => void;
   onFullscreen: () => void;
   onAutoplay: (on: boolean) => void;
+  /** Captions: undefined when the video has none; the cues to show while they're on. */
+  cc?: boolean;
+  cues?: CaptionCue[];
+  onCc?: () => void;
   /** Full screen shows what's playing at the top, like YouTube. */
   title?: string;
   channel?: string;
@@ -224,6 +230,15 @@ export function VideoControls(p: ControlsProps) {
         <View style={StyleSheet.absoluteFill} collapsable={false} />
       </GestureDetector>
 
+      {p.cues?.length ? (
+        <CaptionOverlay
+          cues={p.cues}
+          time={getTime}
+          raised={shown}
+          large={!!p.fullscreen}
+        />
+      ) : null}
+
       {zoomNote ? (
         <Animated.View
           entering={FadeIn.duration(120)}
@@ -279,6 +294,17 @@ export function VideoControls(p: ControlsProps) {
                 </>
               ) : null}
             </View>
+            {p.cc !== undefined && p.onCc ? (
+              <Btn
+                onPress={act(p.onCc)}
+                label={p.cc ? "Turn captions off" : "Turn captions on"}
+              >
+                <View style={styles.ccBox}>
+                  <Text style={styles.ccText}>CC</Text>
+                  {p.cc ? <View style={styles.ccOn} /> : null}
+                </View>
+              </Btn>
+            ) : null}
             <View style={styles.auto}>
               <Switch
                 value={p.autoplay}
@@ -517,6 +543,27 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   auto: { paddingHorizontal: 4 },
+  ccBox: {
+    minWidth: 26,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1.6,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  ccText: { color: "#fff", fontSize: 10.5, ...display("800") },
+  // YouTube's red line under CC while captions are on.
+  ccOn: {
+    position: "absolute",
+    left: 2,
+    right: 2,
+    bottom: -6,
+    height: 2.5,
+    borderRadius: 2,
+    backgroundColor: RED,
+  },
   headTitle: { color: "#fff", fontSize: 16, ...display("700") },
   headSub: { color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 1 },
   switch: { transform: [{ scale: 0.8 }] },

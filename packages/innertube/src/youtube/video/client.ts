@@ -320,6 +320,11 @@ export class YouTubeVideo {
     );
   }
 
+  /** Sends one of an item's feedback tokens ("Not interested", "Don't recommend channel") to the account. */
+  async feedback(token: string): Promise<void> {
+    await this.call("feedback", { feedbackTokens: [token] });
+  }
+
   /** Videos and channels only; playlists, Shorts, ads and mixes are dropped. */
   async search(q: string, continuation?: string): Promise<VideoSearchResults> {
     return parseVideoSearch(
@@ -380,7 +385,7 @@ export class YouTubeVideo {
   /** H.264 video plus AAC audio from one signed-out stream client. */
   async resolveStream(
     videoId: string,
-    options: { maxHeight?: number; verify?: boolean } = {},
+    options: { maxHeight?: number; verify?: boolean; audioTrack?: string } = {},
   ): Promise<VideoStream> {
     const cfg = await this.config();
     this.lastResolveAttempts = [];
@@ -394,6 +399,7 @@ export class YouTubeVideo {
         visitorData: cfg.visitorData ?? this.visitorData,
         verify: options.verify ?? true,
         maxHeight: options.maxHeight,
+        audioTrack: options.audioTrack,
         sandbox: this.opts.sandbox,
         poToken: this.opts.poToken,
       },
