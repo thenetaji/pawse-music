@@ -6,6 +6,7 @@ import type {
   VideoComment,
   VideoDetail,
   VideoFeed,
+  VideoHistory,
   VideoItem,
   VideoPlaylistItem,
   VideoSearchResults,
@@ -167,8 +168,32 @@ export function parseVideoRenderer(v: Node): VideoItem | undefined {
 
 const withFeedback = (n: Node) => {
   const feedback = feedbackOf(n);
-  return feedback ? { feedback } : {};
+  const watched = progressOf(n);
+  return {
+    ...(feedback ? { feedback } : {}),
+    ...(watched !== undefined ? { watched } : {}),
+  };
 };
+
+// The red bar on a thumbnail you've watched: the old renderer's resume overlay or the lockup's progress bar.
+function progressOf(item: Node): number | undefined {
+  let found: number | undefined;
+  const walk = (n: unknown, depth: number) => {
+    if (found !== undefined || !n || typeof n !== "object" || depth > 30)
+      return;
+    const o = n as Node;
+    const pct =
+      o.thumbnailOverlayResumePlaybackRenderer?.percentDurationWatched ??
+      o.thumbnailOverlayProgressBarViewModel?.startPercent;
+    if (typeof pct === "number") {
+      found = Math.max(0, Math.min(1, pct / 100));
+      return;
+    }
+    for (const v of Object.values(o)) walk(v, depth + 1);
+  };
+  walk(item, 0);
+  return found;
+}
 
 const isViews = (s: string) => /\b(views?|watching)\b/i.test(s);
 const isWhen = (s: string) =>
@@ -367,6 +392,44 @@ export function parseVideoFeed(json: unknown): VideoFeed {
     items: onlyVideos(items),
     ...(continuation ? { continuation } : {}),
   };
+}
+
+/** The watch history page: each day's section with its heading, videos in order. */
+export function parseHistory(json: unknown): VideoHistory {
+  const items: VideoHistory["items"] = [];
+  const seen = new Set<string>();
+  let continuation: string | undefined;
+  const visit = (v: unknown, depth: number): void => {
+    if (depth > 40) return;
+    if (Array.isArray(v)) {
+      for (const x of v) visit(x, depth + 1);
+      return;
+    }
+    const o = obj(v);
+    if (!o) return;
+    const section = obj(o.itemSectionRenderer);
+    if (section) {
+      const day =
+        text(dig(section, "header", "itemSectionHeaderRenderer", "title")) ||
+        undefined;
+      const found = collect(section.contents);
+      continuation = found.continuation ?? continuation;
+      for (const video of onlyVideos(found.items)) {
+        if (seen.has(video.id)) continue;
+        seen.add(video.id);
+        items.push({ video, ...(day ? { day } : {}) });
+      }
+      return;
+    }
+    const token = tokenOfItem(o);
+    if (token) continuation = token;
+    for (const key of Object.keys(o)) {
+      if (key === "responseContext" || key === "frameworkUpdates") continue;
+      visit(o[key], depth + 1);
+    }
+  };
+  visit(json, 0);
+  return { items, ...(continuation ? { continuation } : {}) };
 }
 
 export function parseVideoSearch(json: unknown): VideoSearchResults {

@@ -25,6 +25,7 @@ import { startFreshFeeds } from "../lib/fresh-feeds";
 import { lockPortrait } from "../lib/orientation";
 import { getSetting, useSetting } from "../lib/settings";
 import { checkOnLaunch } from "../lib/updates";
+import { startYouTubeHistory } from "../lib/youtube-history";
 import { YouTubeSandboxHost } from "../lib/youtube-sandbox";
 
 export { ErrorScreen as ErrorBoundary } from "../components/error-screen";
@@ -46,6 +47,7 @@ export default function RootLayout() {
     const stopGuard = startNowPlayingGuard();
     const stopSpots = startListSpotRecorder();
     const stopFresh = startFreshFeeds();
+    const stopHistory = startYouTubeHistory();
     const stopBackup = startAutoBackup();
     const stopJournal = startJournalRecorder();
     // First launch: meet the cat once the persisted library has loaded.
@@ -63,6 +65,7 @@ export default function RootLayout() {
       stopGuard();
       stopSpots();
       stopFresh();
+      stopHistory();
       stopBackup();
       stopJournal();
       unsub();

@@ -36,12 +36,18 @@ export const useWatched = create<{
   list: Watched[];
   liked: SavedVideo[];
   disliked: string[];
+  /** Removed here on purpose: YouTube's history doesn't bring these back. */
+  forgotten: string[];
+  /** History cleared here: YouTube's older entries stay out. */
+  clearedAt: number;
 }>()(
   persist(
     () => ({
       list: [] as Watched[],
       liked: [] as SavedVideo[],
       disliked: [] as string[],
+      forgotten: [] as string[],
+      clearedAt: 0,
     }),
     {
       name: "pawse.watched.v1",
@@ -54,10 +60,51 @@ export const useWatched = create<{
 /** Records progress on a video, newest first. */
 /** Forgets a video from Watched and Continue. */
 export const removeWatched = (id: string) =>
-  useWatched.setState((s) => ({ list: s.list.filter((w) => w.id !== id) }));
+  useWatched.setState((s) => ({
+    list: s.list.filter((w) => w.id !== id),
+    forgotten: [id, ...s.forgotten.filter((x) => x !== id)].slice(0, MAX),
+  }));
 
 /** Empties the watch history. */
-export const clearWatched = () => useWatched.setState({ list: [] });
+export const clearWatched = () =>
+  useWatched.setState({ list: [], clearedAt: Date.now() });
+
+// YouTube keeps whole percents, so a spot this close to ours is the same spot.
+const SAME_SPOT_SEC = 30;
+
+/** Folds in your YouTube history: videos watched elsewhere appear, and a spot moved on YouTube wins. */
+export function mergeYouTubeHistory(items: { video: VideoItem; at: number }[]) {
+  useWatched.setState((s) => {
+    const byId = new Map(s.list.map((w) => [w.id, w]));
+    let changed = false;
+    for (const { video: v, at } of items) {
+      if (at < s.clearedAt || s.forgotten.includes(v.id)) continue;
+      const dur = v.durationSec ?? 0;
+      const pos = v.watched !== undefined && dur ? v.watched * dur : 0;
+      const mine = byId.get(v.id);
+      if (mine) {
+        if (at <= mine.at || !pos || Math.abs(pos - mine.pos) < SAME_SPOT_SEC)
+          continue;
+        byId.set(v.id, { ...mine, pos, dur: mine.dur || dur, at });
+      } else {
+        byId.set(v.id, {
+          id: v.id,
+          title: v.title,
+          thumbnails: v.thumbnails,
+          channel: v.channel,
+          pos,
+          dur,
+          at,
+        });
+      }
+      changed = true;
+    }
+    if (!changed) return s;
+    return {
+      list: [...byId.values()].sort((a, b) => b.at - a.at).slice(0, MAX),
+    };
+  });
+}
 
 export function recordWatch(w: Omit<Watched, "at">) {
   if (useLibrary.getState().settings.incognito) return;
