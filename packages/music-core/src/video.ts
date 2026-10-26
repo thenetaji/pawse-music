@@ -16,6 +16,14 @@ export interface VideoItem {
   music?: boolean;
   /** YouTube's own "Not interested" and "Don't recommend channel" (signed in only). */
   feedback?: { notInterested?: string; channel?: string };
+  /** How far you got in it, 0 to 1, from your YouTube account (signed in only). */
+  watched?: number;
+}
+
+/** Your YouTube watch history, newest first; `day` is YouTube's heading ("Today", "Monday", "Oct 3"). */
+export interface VideoHistory {
+  items: { video: VideoItem; day?: string }[];
+  continuation?: string;
 }
 
 export interface ChannelItem {

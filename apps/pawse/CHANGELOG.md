@@ -2,6 +2,16 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.12.1] - 2026-10-26
+
+### Added
+- **Your videos stay in step with YouTube.** Signed in, a video you watch in Pawse goes to your YouTube history with your spot, so the YouTube app offers to pick it up where you stopped. Videos you watched in the YouTube app show up in Pawse too, with their red bars and in Continue, whenever you open Pawse.
+- **Red bars from your YouTube account on video cards.** Feeds show how far you got in videos you watched anywhere, not just in Pawse.
+
+### Fixed
+- **Songs you play reach your YouTube history again.** YouTube had started turning the report away, so plays quietly stopped showing up there.
+- Videos you remove from history in Pawse, or a history you clear, stay gone instead of coming back from YouTube.
+
 ## [1.12.0] - 2026-10-26
 
 ### Added

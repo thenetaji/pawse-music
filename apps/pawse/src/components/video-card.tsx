@@ -214,7 +214,7 @@ function Thumb({
   /** Edge to edge, square corners. */
   bleed?: boolean;
 }) {
-  const seen = useSeen(v.id);
+  const seen = useSeen(v.id, v.watched);
   return (
     <View
       style={[styles.thumb, width ? { width } : null, bleed && styles.bleed]}
@@ -242,10 +242,11 @@ function Thumb({
 }
 
 /** How much of a video you've watched, 0 to 1; a finished one counts as all of it. */
-const useSeen = (id: string) =>
+// Your spot as kept here, else the red bar YouTube's feed sends signed in.
+const useSeen = (id: string, fromYouTube = 0) =>
   useWatched((s) => {
     const w = s.list.find((x) => x.id === id);
-    if (!w || w.pos <= 5) return 0;
+    if (!w || w.pos <= 5) return fromYouTube;
     return !w.dur || !isUnfinished(w) ? 1 : Math.min(1, w.pos / w.dur);
   });
 

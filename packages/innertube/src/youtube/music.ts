@@ -28,6 +28,7 @@ import {
   query,
 } from "../util/http";
 import { sapisidAuthorization } from "./auth";
+import { getPlayer } from "./challenge/player";
 import {
   ClientsConfig,
   clientsKeyFor,
@@ -758,10 +759,18 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     try {
       const cookie = await this.cookie();
       if (!cookie) return;
+      // Without the web player's signature timestamp YouTube answers "The page needs to be reloaded".
+      const { sts } = await getPlayer(this.f);
       const player = await this.call("player", {
         videoId,
         racyCheckOk: true,
         contentCheckOk: true,
+        playbackContext: {
+          contentPlaybackContext: {
+            html5Preference: "HTML5_PREF_WANTS",
+            signatureTimestamp: sts,
+          },
+        },
       });
       const tracking = player?.playbackTracking;
       const playbackUrl: string | undefined =

@@ -102,6 +102,7 @@ import { setSetting, useSetting } from "../../lib/settings";
 import { toggleSubscription } from "../../lib/subscribe";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
+import { reportsWatching, reportWatching } from "../../lib/youtube-history";
 import {
   forgetStream,
   type Quality,
@@ -340,6 +341,15 @@ export function WatchSession({ id }: { id: string }) {
   useEffect(() => {
     if (started && speed !== 1) video.setRate(speed);
   }, [started, speed, video]);
+  // Signed in, what you watch goes to your YouTube history with your spot, like the YouTube app.
+  useEffect(() => {
+    if (!started || !reportsWatching()) return;
+    return reportWatching(
+      id,
+      () => atRef.current,
+      () => useWatch.getState().playing,
+    );
+  }, [id, started]);
   // Press and hold the picture: 2x while the finger is down, like YouTube, then back to your speed.
   const hold2x = (on: boolean) => {
     if (on && !useWatch.getState().playing) video.toggle();

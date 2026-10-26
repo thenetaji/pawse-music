@@ -4,6 +4,7 @@ import type {
   CommentPage,
   VideoDetail,
   VideoFeed,
+  VideoHistory,
   VideoItem,
   VideoSearchResults,
   VideoStream,
@@ -13,9 +14,12 @@ import {
   defaultFetch,
   type FetchLike,
   fetchWithRetry,
+  fetchWithTimeout,
   parseCookies,
+  query,
 } from "../../util/http";
 import { sapisidAuthorization } from "../auth";
+import { getPlayer } from "../challenge/player";
 import { ClientsConfig, defaultStreamClients } from "../clients";
 import { InnerTubeError, parseYtcfg } from "../music";
 import type { JsSandbox, PoTokenProvider } from "../sandbox";
@@ -23,6 +27,7 @@ import type { ResolveAttempt } from "../stream";
 import {
   parseChannel,
   parseComments,
+  parseHistory,
   parseSuggestionsJson,
   parseVideoDetail,
   parseVideoFeed,
@@ -87,6 +92,20 @@ const hasSapisid = (c: string | undefined) => {
 };
 
 /** The www.youtube.com catalog (WEB client) for YouTube mode: videos and channels, never Shorts. */
+/** Your spot in a video, as YouTube's history keeps it. */
+export interface WatchReport {
+  /** Watched from `from` to `to` seconds; the first call also adds the video to your history. */
+  progress(from: number, to: number, playing: boolean): Promise<void>;
+}
+
+const CPN_ALPHABET =
+  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+const cpn = () =>
+  Array.from(
+    { length: 16 },
+    () => CPN_ALPHABET[Math.floor(Math.random() * 64)],
+  ).join("");
+
 export class YouTubeVideo {
   hl: string;
   gl: string;
@@ -176,16 +195,11 @@ export class YouTubeVideo {
     }
   }
 
-  /** POST to a WEB endpoint, signed in when cookies hold a SAPISID. */
-  async call(
-    endpoint: string,
-    body: Record<string, unknown>,
-    signedOut = false,
-  ): Promise<any> {
-    const cfg = await this.config();
-    const cookie = signedOut ? undefined : this.cookies?.();
+  private headers(
+    cfg: WebConfig,
+    cookie: string | undefined,
+  ): Record<string, string> {
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
       "User-Agent": WEB_UA,
       "Accept-Language": this.acceptLanguage(),
       Origin: WEB_ORIGIN,
@@ -201,6 +215,20 @@ export class YouTubeVideo {
       const auth = sapisidAuthorization(cookie as string, WEB_ORIGIN);
       if (auth) headers.Authorization = auth;
     } else headers.Cookie = "SOCS=CAI";
+    return headers;
+  }
+
+  /** POST to a WEB endpoint, signed in when cookies hold a SAPISID. */
+  async call(
+    endpoint: string,
+    body: Record<string, unknown>,
+    signedOut = false,
+  ): Promise<any> {
+    const cfg = await this.config();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...this.headers(cfg, signedOut ? undefined : this.cookies?.()),
+    };
     const res = await fetchWithRetry(
       this.f,
       `${WEB_ORIGIN}/youtubei/v1/${endpoint}?prettyPrint=false`,
@@ -318,6 +346,84 @@ export class YouTubeVideo {
         continuation ? { continuation } : { browseId: "FEsubscriptions" },
       ),
     );
+  }
+
+  /** Your watch history, newest first, each video with how far you got; needs a signed-in session. */
+  async history(continuation?: string): Promise<VideoHistory> {
+    if (!this.isSignedIn())
+      throw new Error("Sign in to YouTube to see your history");
+    return parseHistory(
+      await this.call(
+        "browse",
+        continuation ? { continuation } : { browseId: "FEhistory" },
+      ),
+    );
+  }
+
+  /** Puts a video in your watch history and keeps your spot there, as YouTube's web player does
+   * (the same stats pings yt-dlp's mark-watched sends). Undefined signed out or when YouTube gives no stats links. */
+  async watchReport(videoId: string): Promise<WatchReport | undefined> {
+    if (!this.isSignedIn()) return undefined;
+    // Without the web player's signature timestamp YouTube answers "The page needs to be reloaded".
+    const { sts } = await getPlayer(this.f);
+    const player = await this.call("player", {
+      videoId,
+      racyCheckOk: true,
+      contentCheckOk: true,
+      playbackContext: {
+        contentPlaybackContext: {
+          html5Preference: "HTML5_PREF_WANTS",
+          signatureTimestamp: sts,
+        },
+      },
+    });
+    const tracking = player?.playbackTracking;
+    const playback: string | undefined =
+      tracking?.videostatsPlaybackUrl?.baseUrl;
+    const watchtime: string | undefined =
+      tracking?.videostatsWatchtimeUrl?.baseUrl;
+    if (!playback || !watchtime) return undefined;
+    const len = Number(player?.videoDetails?.lengthSeconds) || 0;
+    const id = cpn();
+    const ping = async (
+      url: string,
+      extra: Record<string, string | number>,
+    ) => {
+      const cfg = await this.config();
+      const res = await fetchWithTimeout(
+        this.f,
+        `${url}${url.includes("?") ? "&" : "?"}${query({
+          ver: 2,
+          c: "WEB",
+          cver: cfg.clientVersion,
+          cpn: id,
+          el: "detailpage",
+          len: len.toFixed(3),
+          ...extra,
+        })}`,
+        { headers: this.headers(cfg, this.cookies?.()), credentials: "omit" },
+        TIMEOUT_MS,
+      );
+      if (!res.ok)
+        throw new InnerTubeError(res.status, `stats HTTP ${res.status}`);
+    };
+    let started = false;
+    return {
+      progress: async (from, to, playing) => {
+        const st = Math.max(0, Math.min(from, to)).toFixed(3);
+        const et = Math.max(0, to).toFixed(3);
+        if (!started) {
+          await ping(playback, { cmt: st });
+          started = true;
+        }
+        await ping(watchtime, {
+          st,
+          et,
+          cmt: et,
+          state: playing ? "playing" : "paused",
+        });
+      },
+    };
   }
 
   /** Sends one of an item's feedback tokens ("Not interested", "Don't recommend channel") to the account. */

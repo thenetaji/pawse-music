@@ -141,7 +141,11 @@ export default function Settings() {
           <>
             <AccountRow fallback={accountName} />
             <Toggle k="syncLikes" label="Sync likes and follows" def />
-            <Toggle k="reportPlays" label="Add plays to YouTube history" def />
+            <Toggle
+              k="reportPlays"
+              label="Add what you play and watch to YouTube history"
+              def
+            />
             <Link label="Sign out" danger onPress={() => void signOut()} />
           </>
         ) : (
