@@ -42,6 +42,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleOnRN } from "react-native-worklets";
 import { SheetNote, showSheet } from "../../components/action-sheet";
 import {
   AudioTrackGlyph,
@@ -124,7 +125,7 @@ import {
   type WatchSeed,
   watchPrevious,
 } from "./store";
-import { VideoControls } from "./video-controls";
+import { makeClock, VideoControls } from "./video-controls";
 import {
   CommentsCard,
   CommentsPanel,
@@ -175,8 +176,11 @@ export function WatchSession({ id }: { id: string }) {
   const [started, setStarted] = useState(false);
   // Waiting for more video after it started: a spinner over the picture, like YouTube.
   const [buffering, setBuffering] = useState(false);
-  const [at, setAt] = useState(0);
+  // The position ticks twice a second; only the controls follow it, so the page doesn't re-render with it.
+  const [playClock] = useState(makeClock);
   const atRef = useRef(0);
+  const [pastStart, setPastStart] = useState(false);
+  const [chapter, setChapter] = useState(-1);
   const [track, setTrack] = useState<string>();
   const [frame, setFrame] = useState<string>();
   const skips = useRef<SkipSegment[]>([]);
@@ -215,8 +219,15 @@ export function WatchSession({ id }: { id: string }) {
     setReload((n) => n + 1);
   };
   const onTime = (sec: number) => {
-    setAt(sec);
+    playClock.set(sec);
     atRef.current = sec;
+    setPastStart(sec > 3);
+    setChapter(
+      d?.chapters.reduce<number>(
+        (cur, c, i) => (c.startSec <= sec ? i : cur),
+        -1,
+      ) ?? -1,
+    );
     if (noteWatching()) {
       video.pause();
       showSheet({
@@ -329,6 +340,11 @@ export function WatchSession({ id }: { id: string }) {
   useEffect(() => {
     if (started && speed !== 1) video.setRate(speed);
   }, [started, speed, video]);
+  // Press and hold the picture: 2x while the finger is down, like YouTube, then back to your speed.
+  const hold2x = (on: boolean) => {
+    if (on && !useWatch.getState().playing) video.toggle();
+    video.setRate(on ? 2 : useWatch.getState().speed);
+  };
   // Closing (or the next video replacing this one) keeps your exact spot too.
   const keepRef = useRef(keepSpot);
   useEffect(() => {
@@ -416,9 +432,13 @@ export function WatchSession({ id }: { id: string }) {
   // Slides up when opened, down into the mini player when shrunk; a drag on the video follows the finger.
   // Swapping videos on an open page shows the new one in place; opening one slides it up.
   const y = useSharedValue(useWatch.getState().swapped ? 0 : height);
+  // Let go of a drag: the spring that took over keeps going instead of restarting as a slide.
+  const flung = useSharedValue(false);
+  // A spring picks up the finger's speed when a drag lets go; opening from a tap slides as before.
   useEffect(() => {
-    y.set(withTiming(mode === "full" ? 0 : height, SLIDE));
-  }, [mode, height, y]);
+    if (flung.get()) flung.set(false);
+    else y.set(withTiming(mode === "full" ? 0 : height, SLIDE));
+  }, [mode, height, y, flung]);
   // Our own full screen: the video turned on its side over everything (phones), the browser's elsewhere.
   // It lives in the store so the next video keeps it, and so does the zoom.
   const fs = useWatch((s) => s.fullscreen);
@@ -456,36 +476,48 @@ export function WatchSession({ id }: { id: string }) {
     };
   }, [mode, fs, started, upright]);
   // Down shrinks the video into the mini player, up goes full screen, like YouTube. Built once, not per frame.
-  const drag = useMemo(
-    () =>
-      Gesture.Pan()
-        .runOnJS(true)
-        .maxPointers(1)
-        .activeOffsetY([-12, 12])
-        .failOffsetX([-24, 24])
-        .onUpdate((e) => y.set(Math.max(0, e.translationY) * 0.85))
-        .onEnd((e) => {
-          if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
-            haptic.light();
-            minimizeWatch();
-            return;
-          }
-          y.set(withSpring(0, SETTLE));
-          if (
-            fullscreen &&
-            (e.translationY < -FULL_PX || e.velocityY < -DISMISS_V)
-          ) {
-            haptic.light();
-            setWatchFill(false);
-            setWatchFullscreen(true);
-          }
-        }),
-    [y, fullscreen],
-  );
+  // Runs on the UI thread, so the page sticks to the finger even while JS is busy.
+  const drag = useMemo(() => {
+    const shrink = () => {
+      haptic.light();
+      minimizeWatch();
+    };
+    const grow = () => {
+      haptic.light();
+      setWatchFill(false);
+      setWatchFullscreen(true);
+    };
+    return Gesture.Pan()
+      .maxPointers(1)
+      .activeOffsetY([-12, 12])
+      .failOffsetX([-24, 24])
+      .onUpdate((e) => {
+        // Down follows the finger; up gives a little, a hint that it goes full screen.
+        y.set(
+          e.translationY > 0
+            ? e.translationY * 0.85
+            : Math.max(-36, e.translationY * 0.2),
+        );
+      })
+      .onEnd((e) => {
+        if (e.translationY > DISMISS_PX || e.velocityY > DISMISS_V) {
+          flung.set(true);
+          y.set(withSpring(height, { ...SETTLE, velocity: e.velocityY }));
+          scheduleOnRN(shrink);
+          return;
+        }
+        y.set(withSpring(0, { ...SETTLE, velocity: e.velocityY }));
+        if (
+          fullscreen &&
+          (e.translationY < -FULL_PX || e.velocityY < -DISMISS_V)
+        )
+          scheduleOnRN(grow);
+      });
+  }, [y, fullscreen, height, flung]);
   const sheet = useAnimatedStyle(() => ({
     transform: [
       { translateY: y.value },
-      { scale: interpolate(y.value, [0, height], [1, 0.94], "clamp") },
+      { scale: interpolate(y.value, [0, height], [1, 0.9], "clamp") },
     ],
     opacity: interpolate(y.value, [height * 0.6, height], [1, 0], "clamp"),
     borderRadius: interpolate(y.value, [0, 120], [0, 24], "clamp"),
@@ -741,10 +773,6 @@ export function WatchSession({ id }: { id: string }) {
   // The glow follows the playing picture where a player can share frames, else the thumbnail.
   const glow = frame ?? `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
   const stageH = (w * 9) / 16;
-  const chapter = d?.chapters.reduce<number>(
-    (cur, c, i) => (c.startSec <= at ? i : cur),
-    -1,
-  );
 
   const screen = (
     <>
@@ -766,16 +794,16 @@ export function WatchSession({ id }: { id: string }) {
       ) : null}
       {src && started && !ended && mode === "full" ? (
         <VideoControls
-          at={at}
+          clock={playClock}
           dur={src.stream.durationSec ?? v?.durationSec}
           playing={playing}
           chapters={d?.chapters ?? []}
-          canPrev={at > 3 || hasBack}
+          canPrev={pastStart || hasBack}
           canNext={!!next}
           autoplay={autoplay}
           onToggle={video.toggle}
           onSeek={video.seek}
-          onPrev={() => (at > 3 ? video.seek(0) : watchPrevious())}
+          onPrev={() => (atRef.current > 3 ? video.seek(0) : watchPrevious())}
           onNext={() => next && openWatch(next)}
           // In full screen the chevron leaves full screen, like YouTube's.
           onMinimize={fs ? exitFs : minimizeWatch}
@@ -783,6 +811,7 @@ export function WatchSession({ id }: { id: string }) {
           onFullscreen={toggleFs}
           fullscreen={fs}
           onZoom={setWatchFill}
+          onHold={hold2x}
           title={fs ? title : undefined}
           cc={cc.available ? cc.on : undefined}
           cues={cc.cues}
@@ -1350,21 +1379,34 @@ function FullscreenLayer({
 }) {
   const { width, height } = useWindowDimensions();
   const pad = useFullscreenPad();
-  const exit = useMemo(
-    () =>
+  const pull = useSharedValue(0);
+  const exit = useMemo(() => {
+    const leave = () => {
+      haptic.light();
+      onExit();
+    };
+    return (
       Gesture.Pan()
-        .runOnJS(true)
         .maxPointers(1)
         .activeOffsetY(16)
         .failOffsetX([-30, 30])
+        // The picture follows the finger down and shrinks a little, like YouTube's.
+        .onUpdate((e) => pull.set(Math.max(0, e.translationY)))
         .onEnd((e) => {
           if (e.translationY > 70 || e.velocityY > 800) {
-            haptic.light();
-            onExit();
+            scheduleOnRN(leave);
+            return;
           }
-        }),
-    [onExit],
-  );
+          pull.set(withSpring(0, { damping: 24, stiffness: 260 }));
+        })
+    );
+  }, [onExit, pull]);
+  const follow = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: pull.value * 0.5 },
+      { scale: interpolate(pull.value, [0, 300], [1, 0.88], "clamp") },
+    ],
+  }));
   useEffect(() => {
     if (byTurn) allowRotation();
     else lockLandscape();
@@ -1406,7 +1448,9 @@ function FullscreenLayer({
             },
           ]}
         >
-          <View style={{ flex: 1 }}>{children}</View>
+          <Animated.View style={[{ flex: 1 }, follow]}>
+            {children}
+          </Animated.View>
         </View>
       </GestureDetector>
     </Animated.View>

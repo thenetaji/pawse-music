@@ -13,9 +13,14 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **The lock screen and Control Center show the video's title, channel and picture.**
 - **Captions.** Tap **CC** on the video, or pick a language in the video's settings. Pawse picks captions in your phone's language, and translates when a video has none in it.
 - **Change the audio track.** Videos dubbed into other languages now play in their original language, and **Audio track** in the video's settings switches to any other one.
+- **Press and hold the video to play at 2×**, like YouTube. Let go and it's back to your speed.
+- **Drag comments and the description down to close them**, by the handle at the top.
 - **Not interested** and **Don't recommend channel** in every video's ⋯ menu. The video or channel leaves your feeds at once, and signed in, YouTube hears it too.
 
 ### Fixed
+- **Gestures stay with your finger.** Dragging the video down to the mini player, swiping down out of full screen and scrubbing the seek bar now run on the display thread, so they keep up even while the page is busy. Letting go carries the speed of your swipe.
+- **The watch page stopped redrawing itself twice a second** while a video plays, which made scrolling and gestures stutter.
+- **The controls fade in the moment you tap**, instead of being rebuilt each time. The seek bar glides instead of jumping, and you feel a tick at each chapter as you scrub.
 - **Full screen really is full screen.** The phone now turns to landscape, so iPhone hides the clock, battery and status bar, and the video fills the screen.
 - **The seek bar in full screen sits above the bottom edge**, with room to grab it, instead of under the home bar.
 - **The arrow at the top of full screen leaves full screen** instead of shrinking the video into the mini player.
