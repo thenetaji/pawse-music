@@ -135,6 +135,20 @@ export const DEFAULT_STREAM_CLIENTS_V2: StreamClient[] = [
   webEmbedded,
 ];
 
+/**
+ * Videos on builds that solve sig/n challenges. web_music's PO token gets through when YouTube bot-checks the
+ * VISIONOS family on a phone's network; it refuses most non-music videos, so the TV and embed clients follow,
+ * then VISIONOS. Not mirrored remotely: the video client keeps its built-in list.
+ */
+export const DEFAULT_VIDEO_STREAM_CLIENTS_V2: StreamClient[] = [
+  webMusic,
+  tvSamsung,
+  webEmbedded,
+  { ...visionos("1.02"), name: "visionos", needs: [] },
+  { ...visionosApp, needs: [] },
+  { ...visionosMusic, needs: [] },
+];
+
 /** Android order (ExoPlayer), mirrored under `android` in the remote config. ANDROID_VR is gone: every format 403s since 2026-08-17. */
 export const DEFAULT_ANDROID_STREAM_CLIENTS: StreamClient[] = [
   ...DEFAULT_STREAM_CLIENTS,

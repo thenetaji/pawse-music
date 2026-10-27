@@ -20,7 +20,11 @@ import {
 } from "../../util/http";
 import { sapisidAuthorization } from "../auth";
 import { getPlayer } from "../challenge/player";
-import { ClientsConfig, defaultStreamClients } from "../clients";
+import {
+  ClientsConfig,
+  DEFAULT_VIDEO_STREAM_CLIENTS_V2,
+  defaultStreamClients,
+} from "../clients";
 import { InnerTubeError, parseYtcfg } from "../music";
 import type { JsSandbox, PoTokenProvider } from "../sandbox";
 import type { ResolveAttempt } from "../stream";
@@ -68,6 +72,8 @@ export interface YouTubeVideoOptions {
   homeTopics?: string[];
   /** Remote stream-client list for resolveStream; null (default) keeps the built-in chain. */
   clientsConfigUrl?: string | null;
+  /** The sandbox solves sig/n challenges: use the web and TV clients too (DEFAULT_VIDEO_STREAM_CLIENTS_V2). */
+  clientsV2?: boolean;
   /** Platform.OS, picks the built-in stream client list. */
   platform?: string;
   sandbox?: JsSandbox;
@@ -132,7 +138,9 @@ export class YouTubeVideo {
     this.clients = new ClientsConfig(
       this.f,
       options.clientsConfigUrl ?? null,
-      defaultStreamClients(options.platform),
+      options.clientsV2
+        ? DEFAULT_VIDEO_STREAM_CLIENTS_V2
+        : defaultStreamClients(options.platform),
     );
   }
 
