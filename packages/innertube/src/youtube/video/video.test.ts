@@ -146,6 +146,42 @@ describe("lockupViewModel", () => {
     expect(feed.items.map((i) => i.id)).toEqual(["ccccccccccc"]);
     expect(feed.continuation).toBe("next-page");
   });
+
+  it("keeps the topic chips over the feed, minus the selected one", () => {
+    const chip = (title: string, token: string, isSelected = false) => ({
+      chipCloudChipRenderer: {
+        text: { runs: [{ text: title }] },
+        navigationEndpoint: { continuationCommand: { token } },
+        isSelected,
+      },
+    });
+    const feed = parseVideoFeed({
+      header: {
+        feedFilterChipBarRenderer: {
+          contents: [
+            chip("All", "all", true),
+            chip("Music", "t-music"),
+            {
+              chipViewModel: {
+                text: "Gaming",
+                tapCommand: {
+                  innertubeCommand: {
+                    continuationCommand: { token: "t-gaming" },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+      contents: [{ richItemRenderer: { content: lockup("ccccccccccc") } }],
+    });
+    expect(feed.chips).toEqual([
+      { title: "Music", token: "t-music" },
+      { title: "Gaming", token: "t-gaming" },
+    ]);
+    expect(feed.continuation).toBeUndefined();
+  });
 });
 
 describe("shorts and ads", () => {

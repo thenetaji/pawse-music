@@ -366,7 +366,27 @@ export function useVideoDownload(id: string): {
   // The picture is most of the bytes.
   return { state, progress: a.progress * 0.15 + vProgress * 0.85 };
 }
-export const retryDownloads = () => manager.retryFailed();
+export const retryDownloads = () => {
+  manager.retryFailed();
+  videoManager.retryFailed();
+};
+
+/** Saved video pictures by id, with live progress; in Downloads a video is its sound plus this. */
+export function useVideoDownloads(): Record<string, DownloadRow> {
+  const entries = useStore(videoIndex, (s) => s.entries);
+  const progress = useStore(videoLive, (s) => s.progress);
+  return useMemo(
+    () =>
+      Object.fromEntries(
+        summarize(entries, progress).list.map((r) => [r.id, r]),
+      ),
+    [entries, progress],
+  );
+}
+
+/** The height a video was saved at (the tallest it had up to this). */
+export const videoDownloadHeight = (id: string): number =>
+  videoHeights.getState().h[id] ?? VIDEO_HEIGHT;
 
 /** Bytes on disk for downloads (finished plus in progress). */
 export function storageUsed(): number {

@@ -11,6 +11,10 @@ final class PlaylistServer {
   private var listener: NWListener?
   private var port: UInt16 = 0
   private var waiting: [(UInt16) -> Void] = []
+  /// When the listener last answered. iOS takes a suspended app's listening socket without telling it,
+  /// so after a pause the port is knocked on before it's handed out again.
+  private var checkedAt = DispatchTime(uptimeNanoseconds: 0)
+  private var probing = false
   private var playlists: [String: Data] = [:]
   private var order: [String] = []
 
@@ -38,9 +42,31 @@ final class PlaylistServer {
   }
 
   private func whenReady(_ done: @escaping (UInt16) -> Void) {
-    if listener != nil, port != 0 { return done(port) }
+    let fresh = DispatchTime.now().uptimeNanoseconds < checkedAt.uptimeNanoseconds + 1_000_000_000
+    if listener != nil, port != 0, !probing, fresh { return done(port) }
     waiting.append(done)
-    if listener != nil { return }
+    if probing { return }
+    if let l = listener, port != 0 {
+      probing = true
+      return probe(port) { [weak self] alive in
+        guard let self else { return }
+        self.probing = false
+        if alive {
+          self.checkedAt = .now()
+          return self.finish(self.port)
+        }
+        // The socket went while the app slept: listen again on a fresh port.
+        l.stateUpdateHandler = nil
+        l.cancel()
+        self.listener = nil
+        self.port = 0
+        self.listen()
+      }
+    }
+    if listener == nil { listen() }
+  }
+
+  private func listen() {
     let l: NWListener
     do {
       l = try NWListener(using: .tcp, on: .any)
@@ -53,6 +79,7 @@ final class PlaylistServer {
       switch state {
       case .ready:
         self.port = l.port?.rawValue ?? 0
+        self.checkedAt = .now()
         self.finish(self.port)
       case .failed, .cancelled:
         // A suspended app can lose its socket; the next put() starts a fresh listener.
@@ -71,6 +98,29 @@ final class PlaylistServer {
       self?.serve(connection)
     }
     l.start(queue: queue)
+  }
+
+  /// Connects to our own port; refused, or no answer within a second, means the socket is gone.
+  private func probe(_ port: UInt16, _ done: @escaping (Bool) -> Void) {
+    guard let p = NWEndpoint.Port(rawValue: port) else { return done(false) }
+    let c = NWConnection(host: "127.0.0.1", port: p, using: .tcp)
+    var settled = false
+    let settle = { (alive: Bool) in
+      guard !settled else { return }
+      settled = true
+      c.stateUpdateHandler = nil
+      c.cancel()
+      done(alive)
+    }
+    c.stateUpdateHandler = { state in
+      switch state {
+      case .ready: settle(true)
+      case .waiting, .failed, .cancelled: settle(false)
+      default: break
+      }
+    }
+    c.start(queue: queue)
+    queue.asyncAfter(deadline: .now() + 1) { settle(false) }
   }
 
   private static func isLoopback(_ endpoint: NWEndpoint) -> Bool {

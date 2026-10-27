@@ -39,7 +39,8 @@ import { dailyMixes, useLibrary } from "../../data/library";
 import { useForYou } from "../../data/recommend";
 import { useVideoFilter } from "../../lib/block";
 import { rightClick } from "../../lib/context-menu";
-import { yt, ytv } from "../../lib/engine";
+import { yt } from "../../lib/engine";
+import { forYou } from "../../lib/for-you";
 import { HOME_SECTIONS, useHomeSections } from "../../lib/home-sections";
 import { setIncognito, useIncognito } from "../../lib/incognito";
 import { push } from "../../lib/nav";
@@ -105,7 +106,7 @@ export default function HomePage() {
   // Videos for the endless feed start after the four Suggested videos shows.
   const vhome = useResource<VideoFeed>(
     full && videos ? "watch:home" : null,
-    () => ytv.home(),
+    () => forYou(),
     { keep: true },
   );
   const [vmore, setVmore] = useState<{
@@ -125,8 +126,7 @@ export default function HomePage() {
   const moreVideos = () => {
     if (!videos || loadingVideos || !vcont) return;
     setLoadingVideos(true);
-    ytv
-      .home(vcont)
+    forYou(vcont)
       .then((r) =>
         setVmore({
           items: [...vmore.items, ...r.items],

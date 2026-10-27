@@ -1,4 +1,5 @@
 import { player } from "@pawse/player";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
@@ -12,16 +13,22 @@ import {
   formatBytes,
 } from "../../components/download-options";
 import { CatState, Chip, PressScale } from "../../components/ui";
+import { clock } from "../../components/video-card";
 import {
+  type DownloadRow,
+  localArtwork,
   removeAllDownloads,
   removeDownload,
   retryDownloads,
   useCached,
   useDownloads,
   useOnline,
+  useVideoDownloads,
+  videoDownloadHeight,
 } from "../../data/downloads";
 import { hasMouse, rightClick } from "../../lib/context-menu";
 import { haptic } from "../../lib/haptics";
+import { push } from "../../lib/nav";
 import { display } from "../../lib/type";
 import { showTrackActions } from "../library/track-actions";
 import { MoreGlyph } from "../now-playing/icons";
@@ -31,11 +38,29 @@ export default function DownloadsPage() {
   const insets = useSafeAreaInsets();
   const accent = useAccent();
   const online = useOnline();
-  const { list, totalBytes, active } = useDownloads();
+  const { list: all, totalBytes, active } = useDownloads();
+  const pictures = useVideoDownloads();
   const cached = useCached();
-  const [tab, setTab] = useState<"downloads" | "kept">("downloads");
+  // A video is its sound plus its picture: one row, with both counted.
+  const videos = all
+    .filter((d) => pictures[d.id])
+    .map((d) => combine(d, pictures[d.id]));
+  const songs = all.filter((d) => !pictures[d.id]);
+  const [picked, setTab] = useState<"downloads" | "videos" | "kept">();
+  const tab =
+    picked ?? (songs.length || !videos.length ? "downloads" : "videos");
+  const list = tab === "videos" ? videos : songs;
   const done = list.filter((d) => d.state === "done");
-  const failed = list.filter((d) => d.state === "error").length;
+  const failed = [...songs, ...videos].filter(
+    (d) => d.state === "error",
+  ).length;
+  const saving =
+    active +
+    Object.values(pictures).filter(
+      (p) => p.state === "downloading" || p.state === "queued",
+    ).length;
+  const bytes =
+    totalBytes + Object.values(pictures).reduce((n, p) => n + p.bytes, 0);
   const kept = cached.list.map((c) => c.track);
   const playAt = (id: string) => {
     const i = done.findIndex((d) => d.id === id);
@@ -45,6 +70,8 @@ export default function DownloadsPage() {
       i,
       { source: { type: "library", title: "Downloads" } },
     );
+    // Videos open the player on their picture, so you see what you saved.
+    if (tab === "videos") push("/now-playing");
   };
   // The swipe-to-delete, as a menu: right-click or "⋯" on computers.
   const rowMenu = (item: (typeof list)[number]) =>
@@ -62,7 +89,7 @@ export default function DownloadsPage() {
           ? [{ label: "Play", onPress: () => playAt(item.id) }]
           : []),
         {
-          label: "Song options",
+          label: tab === "videos" ? "Video options" : "Song options",
           keepOpen: true,
           onPress: () => showTrackActions(item.track),
         },
@@ -84,18 +111,34 @@ export default function DownloadsPage() {
       </View>
       <View style={styles.summary}>
         <Text style={styles.sumText}>
-          {done.length} songs · {formatBytes(totalBytes)}
-          {active ? ` · ${active} saving` : ""}
-          {!online ? " · Offline" : ""}
+          {[
+            count(songs.filter((d) => d.state === "done").length, "song"),
+            videos.length
+              ? count(videos.filter((d) => d.state === "done").length, "video")
+              : "",
+            formatBytes(bytes),
+            saving ? `${saving} saving` : "",
+            !online ? "Offline" : "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </Text>
       </View>
       <View style={styles.tabs}>
         <Chip
-          label={`Downloads ${done.length}`}
+          label={`Songs ${songs.length}`}
           on={tab === "downloads"}
           accent={accent}
           onPress={() => setTab("downloads")}
         />
+        {videos.length ? (
+          <Chip
+            label={`Videos ${videos.length}`}
+            on={tab === "videos"}
+            accent={accent}
+            onPress={() => setTab("videos")}
+          />
+        ) : null}
         <Chip
           label={`Kept offline ${kept.length}`}
           on={tab === "kept"}
@@ -149,17 +192,10 @@ export default function DownloadsPage() {
           )}
         />
       ) : null}
-      {tab === "downloads" && list.length ? (
+      {tab !== "kept" && list.length ? (
         <View style={styles.actions}>
           <PressScale
-            onPress={() =>
-              done.length &&
-              void player.play(
-                done.map((d) => d.track),
-                0,
-                { source: { type: "library", title: "Downloads" } },
-              )
-            }
+            onPress={() => done.length && playAt(done[0].id)}
             style={[styles.btn, { backgroundColor: "#fff" }]}
           >
             <Text style={[styles.btnText, { color: "#000" }]}>Play all</Text>
@@ -188,7 +224,7 @@ export default function DownloadsPage() {
           )}
         </View>
       ) : null}
-      {tab === "downloads" ? (
+      {tab !== "kept" ? (
         <FlatList
           data={list}
           keyExtractor={(d) => d.id}
@@ -197,7 +233,11 @@ export default function DownloadsPage() {
           ListEmptyComponent={
             <CatState
               kind="empty"
-              message="Tap the download button on any song, album or playlist to keep it for offline."
+              message={
+                tab === "videos"
+                  ? "Download a video from its ⋯ menu to watch it offline."
+                  : "Tap the download button on any song, album or playlist to keep it for offline."
+              }
             />
           }
           renderItem={({ item }) => (
@@ -214,26 +254,41 @@ export default function DownloadsPage() {
             >
               <Pressable
                 onPress={() => playAt(item.id)}
+                onLongPress={() => rowMenu(item)}
                 {...rightClick(() => rowMenu(item))}
                 style={styles.row}
               >
-                <Artwork
-                  thumbnails={item.track.thumbnails}
-                  size={50}
-                  radius={7}
-                />
+                {tab === "videos" ? (
+                  <VideoThumb item={item} online={online} />
+                ) : (
+                  <Artwork
+                    thumbnails={item.track.thumbnails}
+                    size={50}
+                    radius={7}
+                  />
+                )}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.title} numberOfLines={1}>
+                  <Text
+                    style={styles.title}
+                    numberOfLines={tab === "videos" ? 2 : 1}
+                  >
                     {item.track.title}
                   </Text>
                   <Text style={styles.sub} numberOfLines={1}>
                     {item.state === "done"
-                      ? formatBytes(item.bytes)
+                      ? [
+                          tab === "videos"
+                            ? `${videoDownloadHeight(item.id)}p`
+                            : item.track.artists.map((a) => a.name).join(", "),
+                          formatBytes(item.bytes),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
                       : item.state === "error"
                         ? "Failed"
                         : item.state === "queued"
                           ? "Waiting"
-                          : `${Math.round(item.progress * 100)}%`}
+                          : `Saving ${Math.round(item.progress * 100)}%`}
                   </Text>
                   {item.state === "downloading" ? (
                     <View style={styles.bar}>
@@ -268,7 +323,58 @@ export default function DownloadsPage() {
   );
 }
 
+const count = (n: number, what: string) => `${n} ${what}${n === 1 ? "" : "s"}`;
+
+/** A video's sound and picture as one row: both sizes, one state, progress weighted by the picture. */
+function combine(sound: DownloadRow, picture: DownloadRow): DownloadRow {
+  const states = [sound.state, picture.state];
+  return {
+    ...sound,
+    bytes: sound.bytes + picture.bytes,
+    state: states.includes("error")
+      ? "error"
+      : states.every((x) => x === "done")
+        ? "done"
+        : states.includes("downloading")
+          ? "downloading"
+          : "queued",
+    progress: sound.progress * 0.15 + picture.progress * 0.85,
+  };
+}
+
+function VideoThumb({ item, online }: { item: DownloadRow; online: boolean }) {
+  const web = `https://i.ytimg.com/vi/${item.id}/mqdefault.jpg`;
+  const uri = online ? web : (localArtwork(item.id) ?? web);
+  const length = clock(item.track.durationSec);
+  return (
+    <View style={styles.thumb}>
+      <Image source={uri} style={StyleSheet.absoluteFill} contentFit="cover" />
+      {length ? <Text style={styles.badge}>{length}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  thumb: {
+    width: 128,
+    aspectRatio: 16 / 9,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#16151b",
+  },
+  badge: {
+    position: "absolute",
+    right: 5,
+    bottom: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 5,
+    overflow: "hidden",
+    color: "#fff",
+    fontSize: 11,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    ...display("700"),
+  },
   root: { flex: 1, backgroundColor: "#000" },
   head: {
     flexDirection: "row",

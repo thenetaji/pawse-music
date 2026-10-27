@@ -194,8 +194,14 @@ export function WatchSession({ id }: { id: string }) {
   const [panel, setPanel] = useState<"comments" | "description" | null>(null);
   const votes = useVotes(id);
 
+  // The local playlist server can be gone after the phone slept; one quiet retry gets a fresh one.
+  const retried = useRef(false);
   const setError = (message: string) => {
     logEvent("video-failed", `${id}: ${message}`);
+    if (!retried.current && /connect to the server/i.test(message)) {
+      retried.current = true;
+      return freshStream();
+    }
     setLoaded((was) => ({ ...was, error: message }));
   };
   // Sponsor reads and plugs are jumped over as playback reaches them.
@@ -214,11 +220,14 @@ export function WatchSession({ id }: { id: string }) {
   // A fresh stream after an error, picking up where it stopped.
   const retry = () => {
     haptic.light();
+    freshStream();
+  };
+  function freshStream() {
     forgetStream();
     setStarted(false);
     setLoaded({ start: atRef.current > 0 ? atRef.current : undefined });
     setReload((n) => n + 1);
-  };
+  }
   const onTime = (sec: number) => {
     playClock.set(sec);
     atRef.current = sec;

@@ -278,7 +278,7 @@ export default function SearchPage() {
 }
 
 // All of YouTube: edge-to-edge videos and channels, never Shorts, minus anything blocked.
-// When YouTube files the top results as music, the matching songs come first, ready to play.
+// When YouTube files the top results as music, the best song leads, then a few more, then the videos, each titled.
 function YouTubeResults({
   data,
   query,
@@ -317,7 +317,10 @@ function YouTubeResults({
     .filter(
       (i): i is Extract<CatalogItem, { type: "track" }> => i.type === "track",
     )
-    .slice(0, 3);
+    .slice(0, 4);
+  // Songs still loading hold their place, so the videos don't jump down when they land.
+  const withSongs =
+    musical && (songs.data ? topSongs.length > 0 : !songs.error);
   const loadMore = () => {
     if (!cont || loading) return;
     setLoading(true);
@@ -351,16 +354,31 @@ function YouTubeResults({
       onEndReachedThreshold={0.8}
       contentContainerStyle={{ paddingTop: 12, paddingBottom: bottom }}
       ListHeaderComponent={
-        topSongs.length ? (
-          <View style={{ marginBottom: 16 }}>
-            <SectionTitle title="Songs" onMore={() => onFilter("songs")} />
-            {topSongs.map((t) => (
-              <TrackRow
-                key={t.id}
-                track={t as Track}
-                onPress={() => openItem(t, topSongs)}
-              />
-            ))}
+        withSongs ? (
+          <View>
+            {topSongs.length ? (
+              <TopResult item={topSongs[0]} />
+            ) : (
+              <SkeletonRows count={1} />
+            )}
+            {topSongs.length !== 1 ? (
+              <SectionTitle title="Songs" onMore={() => onFilter("songs")} />
+            ) : null}
+            {topSongs.length ? (
+              topSongs
+                .slice(1)
+                .map((t) => (
+                  <TrackRow
+                    key={t.id}
+                    track={t as Track}
+                    onPress={() => openItem(t, topSongs)}
+                  />
+                ))
+            ) : (
+              <SkeletonRows count={3} />
+            )}
+            <View style={{ height: 12 }} />
+            <SectionTitle title="Videos" />
           </View>
         ) : null
       }
