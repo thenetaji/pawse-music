@@ -58,6 +58,8 @@ export const ytv = new YouTubeVideo({
   privateSearch: () => !!settings().incognito,
   sandbox: youtubeSandbox,
   poToken: poTokenProvider,
+  // Same as music: with the sandbox, web_music's PO token gets videos past a bot check on VISIONOS.
+  clientsV2: !!youtubeSandbox,
   platform: Platform.OS,
 });
 useLibrary.subscribe((s) =>
