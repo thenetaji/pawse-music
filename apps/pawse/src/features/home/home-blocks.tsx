@@ -35,7 +35,7 @@ import { isPinned, togglePin } from "../../data/pins";
 import { isUnfinished, useWatched, type Watched } from "../../data/watched";
 import { useVideoFilter } from "../../lib/block";
 import { rightClick } from "../../lib/context-menu";
-import { ytv } from "../../lib/engine";
+import { forYou } from "../../lib/for-you";
 import { go, push } from "../../lib/nav";
 import { autoplayMode } from "../../lib/settings";
 import { display } from "../../lib/type";
@@ -54,7 +54,7 @@ export const useHasSubs = () => {
   return signedIn || local;
 };
 const useVideoHome = (on: boolean) =>
-  useResource<VideoFeed>(on ? "watch:home" : null, () => ytv.home(), {
+  useResource<VideoFeed>(on ? "watch:home" : null, () => forYou(), {
     keep: true,
   });
 

@@ -1,4 +1,5 @@
 import type {
+  FeedChip,
   VideoFeed,
   VideoItem,
   VideoSearchResults,
@@ -26,15 +27,31 @@ import {
   VideoPlaylistRow,
 } from "../../components/video-card";
 import { subscriptionsFeed } from "../../data/channels";
+import { useLibrary } from "../../data/library";
 import { useVideoFilter } from "../../lib/block";
 import { ytv } from "../../lib/engine";
+import { forYou } from "../../lib/for-you";
 import { useHomeSections } from "../../lib/home-sections";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { useHasSubs } from "../home/home-blocks";
 import { useAccent } from "../now-playing/now-palette";
 
-type Feed = "home" | "subs";
+/** Subscriptions, For you, or a topic chip by its title. */
+type Feed = "home" | "subs" | (string & {});
+// Signed out, YouTube sends no chips; these stand in, each its popular videos this week.
+const TOPICS = [
+  "Music",
+  "Gaming",
+  "News",
+  "Podcasts",
+  "Live",
+  "Comedy",
+  "Cooking",
+  "Sports",
+  "Science",
+  "Tech",
+];
 type Page = {
   items: (VideoFeed | VideoSearchResults)["items"];
   continuation?: string;
@@ -59,6 +76,16 @@ export default function WatchPage({
   const [query, setQuery] = useState("");
   const input = useRef<TextInput>(null);
 
+  // Signed in, the chips are YouTube's own, from the top of your feed; signed out, a fixed set of topics.
+  const account = useLibrary((s) => !!s.settings.cookies);
+  const forYouFeed = useResource<VideoFeed>("watch:home", () => forYou(), {
+    keep: true,
+  });
+  const chips: FeedChip[] = account
+    ? (forYouFeed.data?.chips ?? [])
+    : TOPICS.map((t) => ({ title: t, token: "" }));
+  const chip = chips.find((c) => c.title === feed);
+
   const key = query ? `watch:q:${query}` : `watch:${feed}`;
   const first = useResource<Page>(
     key,
@@ -67,7 +94,11 @@ export default function WatchPage({
         ? ytv.search(query)
         : feed === "subs"
           ? subscriptionsFeed()
-          : ytv.home(),
+          : feed === "home"
+            ? forYou()
+            : chip?.token
+              ? ytv.home(chip.token)
+              : ytv.topic(feed),
     { keep: !query },
   );
   const [more, setMore] = useState<{ key: string } & Page>({
@@ -81,8 +112,8 @@ export default function WatchPage({
   const cont = extra.items.length
     ? extra.continuation
     : first.data?.continuation;
-  // Your subscriptions and searches page to the end; suggestions stop after one page.
-  const endless = feed === "subs" || suggest || !!query;
+  // Subscriptions, topics and searches page to the end; suggestions stop after one page.
+  const endless = feed !== "home" || suggest || !!query;
 
   const loadMore = () => {
     if (busy || !cont || !endless) return;
@@ -91,7 +122,9 @@ export default function WatchPage({
       ? ytv.search(query, cont)
       : feed === "subs"
         ? subscriptionsFeed(cont)
-        : ytv.home(cont);
+        : feed === "home"
+          ? forYou(cont)
+          : ytv.home(cont);
     next
       .then((r) =>
         setMore({
@@ -171,24 +204,35 @@ export default function WatchPage({
           </Pressable>
         ) : null}
       </View>
-      {!query && signedIn ? (
+      {!query ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chips}
         >
-          <Chip
-            label="Subscriptions"
-            on={feed === "subs"}
-            accent={accent}
-            onPress={() => setFeed("subs")}
-          />
+          {signedIn ? (
+            <Chip
+              label="Subscriptions"
+              on={feed === "subs"}
+              accent={accent}
+              onPress={() => setFeed("subs")}
+            />
+          ) : null}
           <Chip
             label="For you"
             on={feed === "home"}
             accent={accent}
             onPress={() => setFeed("home")}
           />
+          {chips.map((c) => (
+            <Chip
+              key={c.title}
+              label={c.title}
+              on={feed === c.title}
+              accent={accent}
+              onPress={() => setFeed(c.title)}
+            />
+          ))}
         </ScrollView>
       ) : null}
       {query ? (

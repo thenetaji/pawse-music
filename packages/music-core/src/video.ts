@@ -38,6 +38,14 @@ export interface VideoFeed {
   items: VideoItem[];
   /** Opaque token for the next page. */
   continuation?: string;
+  /** YouTube's topic chips over a signed-in home feed (Music, Gaming, Live…); "All" is the feed itself. */
+  chips?: FeedChip[];
+}
+
+/** One topic over the home feed; its videos load through `home(token)`. */
+export interface FeedChip {
+  title: string;
+  token: string;
 }
 
 /** A YouTube playlist (or course) of videos. */

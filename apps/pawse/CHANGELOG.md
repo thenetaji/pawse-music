@@ -2,6 +2,20 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.12.2] - 2026-10-27
+
+### Added
+- **Topics on the Videos tab**, like YouTube's chips. Signed in, they're YouTube's own for your account (Music, Gaming, Live and the rest); signed out, Music, Gaming, News, Podcasts, Live, Comedy, Cooking, Sports, Science and Tech, each with the week's popular videos. Every one scrolls on and on.
+
+### Changed
+- **For you is new each time you open Pawse.** Signed out, it's built the way YouTube builds it: videos like the ones you watched lately, woven into the popular ones, in a different order each time. Videos you've already watched stay out of it, signed in too. Suggested videos on Home comes from the same feed.
+- **Downloads splits Songs from Videos.** Saved videos get their own tab with their picture, length, quality and full size (sound and picture together), and one progress bar each. The top line counts songs and videos apart. Press and hold any row for its menu.
+- **Search results have titles.** When you search for music, the best song leads as the top result, then **Songs**, then **Videos**, and the songs keep their place while they load instead of pushing the videos down.
+
+### Fixed
+- **Videos play after Pawse has been in the background.** iPhone could close the connection Pawse plays videos through while the app slept, and every video then failed with "Could not connect to the server" until Pawse was restarted. Pawse now checks the connection and opens a new one, and quietly tries the video once more if it still fails.
+- **Downloaded videos show their video.** Playing one from Downloads opened the player on the song side, so you only heard it. It now opens on the picture, offline too, even with the player's Video side switched off in Settings. **Retry** in Downloads now retries failed video pictures as well.
+
 ## [1.12.1] - 2026-10-26
 
 ### Added

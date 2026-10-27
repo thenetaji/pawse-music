@@ -2,6 +2,7 @@ import type {
   ChannelItem,
   ChannelPage,
   CommentPage,
+  FeedChip,
   Thumbnail,
   VideoComment,
   VideoDetail,
@@ -388,10 +389,41 @@ const onlyVideos = (items: Found[]): VideoItem[] =>
 /** Home, subscriptions and any browse continuation. */
 export function parseVideoFeed(json: unknown): VideoFeed {
   const { items, continuation } = collect(json);
+  const chips = chipsOf(json);
   return {
     items: onlyVideos(items),
     ...(continuation ? { continuation } : {}),
+    ...(chips.length ? { chips } : {}),
   };
+}
+
+/** The chip bar over the home feed, old renderer or new view model; the selected chip ("All") is left out. */
+export function chipsOf(json: unknown): FeedChip[] {
+  const out: FeedChip[] = [];
+  const visit = (v: unknown, depth: number): void => {
+    if (depth > 30) return;
+    if (Array.isArray(v)) {
+      for (const x of v) visit(x, depth + 1);
+      return;
+    }
+    const o = obj(v);
+    if (!o) return;
+    const chip = obj(o.chipCloudChipRenderer) ?? obj(o.chipViewModel);
+    if (chip) {
+      const title = text(chip.text).trim();
+      const token = firstKey(chip, "token");
+      const selected = chip.isSelected === true || chip.selected === true;
+      if (title && token && !selected && !out.some((c) => c.title === title))
+        out.push({ title, token });
+      return;
+    }
+    for (const key of Object.keys(o)) {
+      if (key === "responseContext" || key === "frameworkUpdates") continue;
+      visit(o[key], depth + 1);
+    }
+  };
+  visit(json, 0);
+  return out;
 }
 
 /** The watch history page: each day's section with its heading, videos in order. */

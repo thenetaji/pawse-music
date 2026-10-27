@@ -9,6 +9,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import { CatState } from "../components/ui";
+import { localVideo } from "../data/downloads";
 import { useLibrary } from "../data/library";
 import {
   shareLyric,
@@ -60,8 +61,13 @@ export default function NowPlaying() {
   );
   // Song | Video: the switch remembers its side from song to song.
   const inPlayer = useSetting("videoInPlayer", true);
-  const videoOn = useSetting("npVideo", false);
-  const canVideo = watch && inPlayer && current?.source === "youtube";
+  const npVideo = useSetting("npVideo", false);
+  // A downloaded video opens on its picture; the switch still flips it, for this one only.
+  const saved = !!current && !!localVideo(current.id);
+  const [pick, setPick] = useState<{ id: string; on: boolean }>();
+  const videoOn = pick && pick.id === current?.id ? pick.on : npVideo || saved;
+  const canVideo =
+    watch && (inPlayer || saved) && current?.source === "youtube";
   // A song's picture is its official music video; null when it has none.
   const songVideo = useSongVideo(
     watch && current?.source === "youtube" ? current : undefined,
@@ -117,7 +123,10 @@ export default function NowPlaying() {
               uri: muted.data ?? undefined,
               failed: !!muted.error,
               none: songVideo === null,
-              onChange: (on) => setSetting("npVideo", on),
+              onChange: (on) => {
+                setPick({ id: current.id, on });
+                if (!saved) setSetting("npVideo", on);
+              },
             }
           : undefined
       }

@@ -290,6 +290,11 @@ export class YouTubeVideo {
     return continuation || feed.items.length ? feed : this.topicsHome(topics);
   }
 
+  /** One topic's popular videos this week, the signed-out stand-in for a chip; `home` loads its next page. */
+  async topic(q: string): Promise<VideoFeed> {
+    return this.topicsHome([{ q }]);
+  }
+
   /** One popular-this-week search per topic, interleaved; YouTube serves signed-out visitors no home feed. */
   private async topicsHome(slots: TopicSlot[]): Promise<VideoFeed> {
     let failure: unknown;
