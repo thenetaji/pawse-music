@@ -11,6 +11,15 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.12.3",
+          "buildVersion": "11203",
+          "date": "2026-10-27",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.12.3/Pawse.ipa",
+          "size": 24783461,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Fixed:\n• Videos play when YouTube asks \"Sign in to confirm you're not a bot\". Videos only ever asked YouTube one way, and when YouTube started bot-checking it on your network, every video failed while music kept playing. Videos now ask the same ways music does, starting with the one music gets through with, so they keep playing."
+        },
+        {
           "version": "1.12.2",
           "buildVersion": "11202",
           "date": "2026-10-27",
