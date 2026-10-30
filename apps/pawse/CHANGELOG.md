@@ -2,6 +2,11 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.13.5] - 2026-10-30
+
+### Changed
+- **The dancing cat dances as its artist made it again,** without the extra hopping and leaning, shuffled moves and turns that made it look shaky. It still fades into sleep when you pause.
+
 ## [1.13.4] - 2026-10-30
 
 ### Changed
