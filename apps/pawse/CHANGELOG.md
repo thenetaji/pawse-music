@@ -26,7 +26,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **An equaliser with AutoEq.** Settings → Playback → Equaliser has presets, ten bands and a preamp. Pick your headphones from AutoEq's open list and Pawse applies the correction made for that model. Long songs on iPhone play without it for now.
 - **Crossfeed for headphones,** off until you turn it on, and **Skip silence** at the ends of songs.
 - **A visualiser on Now playing** that moves with the music (Show visualiser in the player's menu).
-- **Experimental: on-device AI.** Video summaries and Ask this video, AI DJ ("rainy 90s Bollywood but upbeat"), auto chapters for long videos and spotting sponsor reads SponsorBlock doesn't know yet. They run on your phone with Apple Intelligence or Gemini Nano and only show where it's available.
+- **Experimental: on-device AI.** Video summaries and Ask this video, AI DJ ("rainy 90s Bollywood but upbeat"), auto chapters for long videos and spotting sponsor reads SponsorBlock doesn't know yet. They run on your iPhone with Apple Intelligence and only show where it's available; Android follows once Google's on-device AI library works with React Native.
 
 ### Changed
 - **A new Search.** The search box stays at the top; as you type you get YouTube's suggestions and matching songs, artists and albums with their pictures. Filters for All, Songs, Videos, Albums, Artists, Playlists and Channels each scroll on and on, and All leads with the best match as a big card. Signed in, results and suggestions follow your account.
@@ -42,7 +42,6 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **The Song and Video switch, Show dislikes and Skip non-music parts are regular settings now,** no longer experimental.
 - **Better sound where your device can play it:** Android and the computer app play YouTube's Opus audio instead of AAC 128.
 - **The sleep timer fades out more gently,** and Mochi curls up as it goes.
-- **Pawse now needs Android 8 or newer.**
 
 ### Fixed
 - **Videos that can't play say why** ("This video is private", "isn't available in your country") with **Next**, and private videos are no longer called age-restricted. Private, deleted, members-only and not-yet-premiered videos are left out of feeds.

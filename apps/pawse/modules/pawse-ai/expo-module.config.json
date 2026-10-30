@@ -1,9 +1,6 @@
 {
-  "platforms": ["apple", "android"],
+  "platforms": ["apple"],
   "apple": {
     "modules": ["PawseAIModule"]
-  },
-  "android": {
-    "modules": ["expo.modules.pawseai.PawseAIModule"]
   }
 }

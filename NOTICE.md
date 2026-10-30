@@ -68,4 +68,4 @@ BotGuard Proof-of-Origin tokens for YouTube's web clients are minted in `package
 ## Phone features
 
 - **[expo-brightness](https://github.com/expo/expo/tree/main/packages/expo-brightness)** (MIT) and **[react-native-volume-manager](https://github.com/hirbod/react-native-volume-manager)** (MIT). Brightness and volume swipes in full screen.
-- **[ML Kit GenAI](https://developers.google.com/ml-kit/genai)** (Google, under its terms) and Apple's Foundation Models framework. The Experimental on-device AI features; nothing leaves the phone.
+- Apple's **Foundation Models** framework. The Experimental on-device AI features; nothing leaves the phone.
