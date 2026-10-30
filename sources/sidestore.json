@@ -11,6 +11,15 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.13.4",
+          "buildVersion": "11304",
+          "date": "2026-10-30",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.13.4/Pawse.ipa",
+          "size": 24173482,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Changed:\n• The dancing cat is the default on Now playing. Anyone who hadn't picked the pixel kitten gets it once; Settings → Look and Mochi → Cat on Now Playing puts Mochi back. The web app keeps Mochi.\n• Pausing no longer makes the cat vanish. The dancing cat and the sleeping cat both stay ready and fade into each other, so it curls up when you pause and wakes when you press play, with no empty moment. It also fades in when Now playing opens. With Reduce motion on, you get a short plain fade between two still cats.\n• The dancing cat mixes up its moves. It no longer repeats one step: it sways, spins round and sways again in changing order, sometimes the other way, now and then turning to face the other side. It dances faster for a quick song and slower for a slow one, and hops and leans on the beat. It stops moving when the screen isn't showing.\n• Long song titles no longer flicker between the full title and one cut short with “…” while the visualiser is on."
+        },
+        {
           "version": "1.13.3",
           "buildVersion": "11303",
           "date": "2026-10-30",
