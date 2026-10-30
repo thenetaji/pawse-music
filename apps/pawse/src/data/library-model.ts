@@ -82,7 +82,7 @@ export type Settings = {
   // Cat
   catName: string;
   catWire: boolean;
-  catIsland: boolean;
+  pawseIsland: boolean;
   catEpisodes: "off" | "rare" | "often";
   catColor: CatColor;
   mochiHat: string;
@@ -180,7 +180,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reduceMotion: false,
   catName: "Mochi",
   catWire: true,
-  catIsland: true,
+  pawseIsland: false,
   catEpisodes: "rare",
   catColor: "orange",
   mochiHat: "none",

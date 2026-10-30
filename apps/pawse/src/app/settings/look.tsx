@@ -54,7 +54,7 @@ export default function LookSettings() {
   const accent = useAccent();
   const catName = useSetting("catName", "Mochi");
   const catColor = useSetting<CatColor>("catColor", "orange");
-  const catIsland = useSetting("catIsland", true);
+  const pawseIsland = useSetting("pawseIsland", false);
   const androidPill = useSetting("androidPill", false);
 
   return (
@@ -123,10 +123,11 @@ export default function LookSettings() {
           def
         />
         <Toggle
-          k="catIsland"
+          k="pawseIsland"
           label={`${catName} in the Dynamic Island`}
+          hint="iOS keeps its own music bubble too, so the two sit side by side"
           tip={`${catName} now shows while music plays`}
-          def
+          def={false}
         />
         <Pick
           k="catEpisodes"
@@ -140,7 +141,7 @@ export default function LookSettings() {
         />
         <Link label={`${catName}'s wardrobe`} onPress={() => push("/mochi")} />
       </Section>
-      {Platform.OS === "ios" && catIsland ? (
+      {Platform.OS === "ios" && pawseIsland ? (
         <Section title="Dynamic Island">
           <IslandStylePicker catName={catName} />
           <Toggle k="islandRate" label="Like and dislike on the island" def />
@@ -151,9 +152,9 @@ export default function LookSettings() {
           />
         </Section>
       ) : null}
-      {Platform.OS === "ios" && catIsland ? (
+      {Platform.OS === "ios" && pawseIsland ? (
         <Foot>
-          {`While music plays, the island's player is iOS's own and ${catName} sits in a small bubble beside it.`}
+          {`Off, the island shows iOS's own player. On, iOS splits it into ${catName}'s bubble and its own; long-press for ${catName}'s full player.`}
         </Foot>
       ) : null}
 

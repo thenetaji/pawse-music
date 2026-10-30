@@ -86,9 +86,13 @@ export function askText(o: {
   onSubmit: (text: string) => void;
   /** Starting text, e.g. the current name when renaming. */
   initial?: string;
+  /** Hands over an empty answer instead of the placeholder, e.g. to clear a description. */
+  allowEmpty?: boolean;
+  maxLength?: number;
 }) {
   let text = o.initial ?? "";
-  const submit = () => o.onSubmit(text.trim() || o.placeholder);
+  const submit = () =>
+    o.onSubmit(text.trim() || (o.allowEmpty ? "" : o.placeholder));
   showSheet({
     header: (
       <View>
@@ -107,7 +111,7 @@ export function askText(o: {
             submit();
           }}
           returnKeyType="done"
-          maxLength={80}
+          maxLength={o.maxLength ?? 80}
           selectionColor="#fff"
           style={styles.input}
         />

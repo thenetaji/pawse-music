@@ -20,17 +20,20 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-import { askText, showSheet } from "../../components/action-sheet";
+import { askText, SheetNote, showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
 import {
   ArrowDown,
   ArrowUp,
   CheckGlyph,
   CopyGlyph,
+  HideGlyph,
   ImportGlyph,
+  InfoGlyph,
   MinusGlyph,
   PencilGlyph,
   PinGlyph,
+  PlayNextGlyph,
   PlaylistGlyph,
   RefreshGlyph,
   TrashGlyph,
@@ -46,6 +49,7 @@ import { isPinned, togglePin } from "../../data/pins";
 import { isUnfinished, useWatched } from "../../data/watched";
 import { haptic } from "../../lib/haptics";
 import { count } from "../../lib/plural";
+import { PRIVACY_CHOICES, type PlaylistActions } from "../../lib/playlist-edit";
 import type { Picked } from "../../lib/playlist-remove";
 import { autoplayMode } from "../../lib/settings";
 import {
@@ -84,6 +88,11 @@ type Props = {
   onSave?: () => void;
   /** Local playlists can be renamed and edited. */
   editableId?: string;
+  /** An owned YouTube playlist: reorder, rename, describe, set who can see it, delete. */
+  ytEdit?: PlaylistActions & {
+    description?: string;
+    onMove: (from: number, to: number) => void;
+  };
   /** Set where songs can be taken out (swipe, the song's menu, Select songs, Edit); the page decides what removing means. */
   onRemove?: (picks: Picked[]) => void;
 };
@@ -104,12 +113,21 @@ export function Collection({
   saved,
   onSave,
   editableId,
+  ytEdit,
   onRemove,
 }: Props) {
   const insets = useSafeAreaInsets();
   const bottom = useBottomSpace();
   const palette = useArtworkPalette(bestThumbnail(thumbnails, 120));
   const [editing, setEditing] = useState(false);
+  const canEdit = !!editableId || !!ytEdit;
+  const rename = editableId
+    ? (name: string) => useLibrary.getState().renamePlaylist(editableId, name)
+    : ytEdit?.onRename;
+  const move = editableId
+    ? (from: number, to: number) =>
+        useLibrary.getState().movePlaylistTrack(editableId, from, to)
+    : ytEdit?.onMove;
   // Row positions picked in select mode; null when not selecting.
   const [picked, setPicked] = useState<Set<number> | null>(null);
   const downloads = useDownloads();
@@ -228,6 +246,14 @@ export function Collection({
       return next;
     });
   };
+  const askRename = () =>
+    askText({
+      title: "Rename playlist",
+      placeholder: title,
+      initial: title,
+      confirm: "Save",
+      onSubmit: (name) => rename?.(name),
+    });
   const menu = () => {
     haptic.light();
     showSheet({
@@ -257,6 +283,20 @@ export function Collection({
               },
             ]
           : []),
+        ...(canEdit && tracks.length
+          ? [
+              {
+                label: "Edit songs",
+                icon: (c: string) => (
+                  <PlayNextGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => {
+                  setPicked(null);
+                  setEditing(true);
+                },
+              },
+            ]
+          : []),
         ...(tracks.length
           ? [
               {
@@ -279,6 +319,64 @@ export function Collection({
               },
             ]
           : []),
+        ...(ytEdit
+          ? [
+              {
+                label: "Rename",
+                keepOpen: true,
+                icon: (c: string) => (
+                  <PencilGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => askRename(),
+              },
+              {
+                label: "Edit description",
+                keepOpen: true,
+                icon: (c: string) => (
+                  <InfoGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () =>
+                  askText({
+                    title: "Description",
+                    placeholder: "Add a description",
+                    initial: ytEdit.description,
+                    confirm: "Save",
+                    allowEmpty: true,
+                    maxLength: 1000,
+                    onSubmit: ytEdit.onDescribe,
+                  }),
+              },
+              {
+                label: "Privacy",
+                keepOpen: true,
+                icon: (c: string) => (
+                  <HideGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () =>
+                  showSheet({
+                    header: (
+                      <SheetNote
+                        title="Who can see this playlist"
+                        body="Saved to your YouTube account."
+                      />
+                    ),
+                    actions: PRIVACY_CHOICES.map((c) => ({
+                      label: c.label,
+                      sub: c.sub,
+                      onPress: () => ytEdit.onPrivacy(c.value),
+                    })),
+                  }),
+              },
+              {
+                label: "Delete playlist",
+                destructive: true,
+                icon: (c: string) => (
+                  <TrashGlyph size={22} weight={1.8} color={c} />
+                ),
+                onPress: () => confirmDelete(title, ytEdit.onDelete),
+              },
+            ]
+          : []),
         ...(editableId
           ? [
               {
@@ -287,15 +385,7 @@ export function Collection({
                 icon: (c: string) => (
                   <PencilGlyph size={22} weight={1.8} color={c} />
                 ),
-                onPress: () =>
-                  askText({
-                    title: "Rename playlist",
-                    placeholder: title,
-                    initial: title,
-                    confirm: "Save",
-                    onSubmit: (name) =>
-                      useLibrary.getState().renamePlaylist(editableId, name),
-                  }),
+                onPress: () => askRename(),
               },
               {
                 label: "Sort",
@@ -391,16 +481,11 @@ export function Collection({
               <Animated.View style={[styles.cover, coverStyle]}>
                 <Artwork thumbnails={thumbnails} size={236} radius={16} />
               </Animated.View>
-              {editing && editableId ? (
+              {editing && rename ? (
                 <TextInput
                   defaultValue={title}
                   onEndEditing={(e) =>
-                    useLibrary
-                      .getState()
-                      .renamePlaylist(
-                        editableId,
-                        e.nativeEvent.text.trim() || title,
-                      )
+                    rename(e.nativeEvent.text.trim() || title)
                   }
                   style={[styles.title, styles.titleInput]}
                   selectionColor={palette.accent}
@@ -458,22 +543,18 @@ export function Collection({
                     onPress={() => {
                       haptic.light();
                       setSmoothShuffle(!smooth);
+                      explainSmooth(!smooth);
+                    }}
+                    onLongPress={() => {
+                      haptic.medium();
+                      explainSmooth(smooth);
                     }}
                   >
                     <SmoothGlyph
                       color={smooth ? readable(palette.accent) : "#fff"}
                     />
                   </IconBtn>
-                  {editableId ? (
-                    <IconBtn
-                      label={editing ? "Done" : "Edit"}
-                      onPress={() => setEditing((e) => !e)}
-                    >
-                      <Text style={styles.editText}>
-                        {editing ? "Done" : "Edit"}
-                      </Text>
-                    </IconBtn>
-                  ) : onSave ? (
+                  {onSave ? (
                     <IconBtn
                       label="Save"
                       onPress={() => {
@@ -510,12 +591,12 @@ export function Collection({
               accent={readable(palette.accent)}
               onPress={() => toggle(index)}
             />
-          ) : editing && editableId ? (
+          ) : editing && move ? (
             <EditRow
               track={item}
               index={index}
               count={tracks.length}
-              id={editableId}
+              onMove={move}
               onRemove={
                 onRemove && (() => onRemove([{ track: item, at: index }]))
               }
@@ -601,7 +682,15 @@ export function Collection({
       ) : (
         <>
           <BackButton />
-          {tracks.length || editableId ? (
+          {editing ? (
+            <PressScale
+              onPress={() => setEditing(false)}
+              accessibilityLabel="Done editing"
+              style={[styles.done, { top: insets.top + 6 }]}
+            >
+              <Text style={styles.doneText}>Done</Text>
+            </PressScale>
+          ) : tracks.length || canEdit ? (
             <Pressable
               hitSlop={10}
               onPress={menu}
@@ -655,16 +744,15 @@ function EditRow({
   track,
   index,
   count,
-  id,
+  onMove,
   onRemove,
 }: {
   track: Track;
   index: number;
   count: number;
-  id: string;
+  onMove: (from: number, to: number) => void;
   onRemove?: () => void;
 }) {
-  const lib = useLibrary.getState();
   return (
     <View style={styles.editRow}>
       {onRemove ? (
@@ -684,7 +772,7 @@ function EditRow({
       <Pressable
         hitSlop={6}
         disabled={index === 0}
-        onPress={() => lib.movePlaylistTrack(id, index, index - 1)}
+        onPress={() => onMove(index, index - 1)}
         style={[styles.arrow, index === 0 && { opacity: 0.25 }]}
       >
         <ArrowUp size={18} color="rgba(255,255,255,0.7)" />
@@ -692,7 +780,7 @@ function EditRow({
       <Pressable
         hitSlop={6}
         disabled={index === count - 1}
-        onPress={() => lib.movePlaylistTrack(id, index, index + 1)}
+        onPress={() => onMove(index, index + 1)}
         style={[styles.arrow, index === count - 1 && { opacity: 0.25 }]}
       >
         <ArrowDown size={18} color="rgba(255,255,255,0.7)" />
@@ -704,20 +792,32 @@ function EditRow({
 function IconBtn({
   children,
   onPress,
+  onLongPress,
   label,
 }: {
   children: ReactNode;
   onPress: () => void;
+  onLongPress?: () => void;
   label: string;
 }) {
   return (
     <PressScale
       onPress={onPress}
+      onLongPress={onLongPress}
       accessibilityLabel={label}
       style={styles.icon}
     >
       {children}
     </PressScale>
+  );
+}
+
+function explainSmooth(on: boolean) {
+  showToast(
+    on
+      ? "Smooth shuffle on: Shuffle now flows between similar songs"
+      : "Smooth shuffle off: Shuffle is fully random",
+    { ms: 3600 },
   );
 }
 
@@ -896,7 +996,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.12)",
   },
-  editText: { color: "#fff", fontSize: 13, ...display("800") },
+  done: {
+    position: "absolute",
+    right: 14,
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    justifyContent: "center",
+    backgroundColor: "#fff",
+  },
+  doneText: { color: "#000", fontSize: 15, ...display("800") },
   editRow: {
     flexDirection: "row",
     alignItems: "center",

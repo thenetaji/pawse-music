@@ -40,6 +40,7 @@ export * from "./youtube/explore";
 export {
   FALLBACK_CLIENT_VERSION,
   InnerTubeError,
+  type PlaylistPrivacy,
   parseYtcfg,
   SEARCH_PARAMS,
   YouTubeMusic,

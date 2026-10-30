@@ -372,4 +372,5 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - yt-dlp fallback on the VPS for when on-device stream clients fail (YouTube bot-checks datacenter IPs).
 - Local files.
 - CarPlay. It needs the entitlement, so a paid Apple account.
-
+- [x] 137. The Dynamic Island was "cooked": iOS adds its own music bubble next to Pawse's, splitting the island in two. iOS's own player is now the default; Pawse's cat island is an opt-in in Settings → Look and Mochi.
+- [x] 138. Edit your YouTube playlists in Pawse: rename, description, privacy, reorder, remove and delete; the Smooth shuffle wave explains itself.

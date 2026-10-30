@@ -104,7 +104,7 @@ export function catPrefs(): CatPrefs {
   const episodes = s.catEpisodes;
   const name = typeof s.catName === "string" ? s.catName.trim() : "";
   return {
-    island: s.catIsland !== false,
+    island: s.pawseIsland === true,
     // Older versions saved "cat" for what is now "wire".
     style: ISLAND_STYLES.find((v) => v === s.islandStyle) ?? "wire",
     moodLine: s.islandMoodLine === true,

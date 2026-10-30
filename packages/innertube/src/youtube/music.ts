@@ -138,6 +138,8 @@ const ACCOUNT_REFILL_MS = 2000;
 const ACCOUNT_PUSHBACK = new Set([401, 403, 429]);
 const ACCOUNT_REST_MS = 30 * 60_000;
 const PLAYLIST_EDIT_BATCH = 50;
+
+export type PlaylistPrivacy = "PUBLIC" | "UNLISTED" | "PRIVATE";
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const IDEMPOTENT = new Set([
@@ -751,6 +753,59 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
             removedVideoId: videoId,
           })),
       );
+  }
+
+  /** Moves a playlist entry before another one, or to the end when `before` is omitted. Both are setVideoIds. */
+  async movePlaylistItem(
+    playlistId: string,
+    setVideoId: string,
+    before?: string,
+  ): Promise<void> {
+    await this.editPlaylist(playlistId, [
+      {
+        action: "ACTION_MOVE_VIDEO_BEFORE",
+        setVideoId,
+        ...(before ? { movedSetVideoIdSuccessor: before } : {}),
+      },
+    ]);
+  }
+
+  async renamePlaylist(playlistId: string, name: string): Promise<void> {
+    await this.editPlaylist(playlistId, [
+      { action: "ACTION_SET_PLAYLIST_NAME", playlistName: name },
+    ]);
+  }
+
+  /** An empty description clears it. */
+  async setPlaylistDescription(
+    playlistId: string,
+    description: string,
+  ): Promise<void> {
+    await this.editPlaylist(playlistId, [
+      {
+        action: "ACTION_SET_PLAYLIST_DESCRIPTION",
+        playlistDescription: description,
+      },
+    ]);
+  }
+
+  async setPlaylistPrivacy(
+    playlistId: string,
+    privacy: PlaylistPrivacy,
+  ): Promise<void> {
+    await this.editPlaylist(playlistId, [
+      { action: "ACTION_SET_PLAYLIST_PRIVACY", playlistPrivacy: privacy },
+    ]);
+  }
+
+  async deletePlaylist(playlistId: string): Promise<void> {
+    await this.requireCookie();
+    const json = await this.call("playlist/delete", {
+      playlistId: playlistId.replace(/^VL/, ""),
+    });
+    // A successful delete may come back without a status; only an explicit refusal is an error.
+    if (json?.status && json.status !== "STATUS_SUCCEEDED")
+      throw new Error(`YouTube Music playlist delete failed (${json.status})`);
   }
 
   private async editPlaylist(

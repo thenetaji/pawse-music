@@ -2,6 +2,15 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [Unreleased]
+
+### Added
+- **Edit your YouTube playlists in Pawse.** For playlists your account owns, the ••• menu has Edit songs (reorder and remove, with undo), Rename, Description, Privacy and Delete.
+
+### Changed
+- **The Dynamic Island shows iOS's own player by default.** iOS always adds its own music bubble, so Pawse's island next to it split the island in two. Mochi's island is now an opt-in in Settings → Look and Mochi.
+- **Edit songs moved into the ••• menu** on playlists, so the Play row has room. Tap or hold the Smooth shuffle wave to see what it does.
+
 ## [1.13.1] - 2026-10-30
 
 ### Added
