@@ -50,6 +50,8 @@ let current:
       id: string;
       /** The audio language asked for; undefined is the original. */
       track?: string;
+      /** Resolved with AV1 above 1080p. */
+      av1: boolean;
       stream: VideoStream;
       playlists: Map<string, Promise<string>>;
     }
@@ -60,19 +62,62 @@ export const forgetStream = () => {
   current = undefined;
 };
 
-async function streamFor(id: string, host: PlaylistHost, track?: string) {
+// The video that plays after this one, resolved while this one plays so it can start at once.
+// Kept for a few minutes only: its media urls expire, and a skipped-past video isn't worth the memory.
+const AHEAD_MS = 8 * 60 * 1000;
+let ahead:
+  | { id: string; at: number; av1: boolean; stream: Promise<VideoStream> }
+  | undefined;
+
+/** Resolves a video in the background, so opening it next skips the wait; a failure is just forgotten. */
+export function prepareStream(id: string, av1 = false) {
+  if (current?.id === id) return;
+  if (ahead?.id === id && Date.now() - ahead.at < AHEAD_MS) return;
+  const stream = ytv.resolveStream(id, { maxHeight: 4320, av1 });
+  ahead = { id, at: Date.now(), av1, stream };
+  stream.catch(() => {
+    if (ahead?.stream === stream) ahead = undefined;
+  });
+}
+
+/** The prepared stream for this video, if it's still fresh enough to play through. */
+async function preparedStream(
+  id: string,
+  av1: boolean,
+): Promise<VideoStream | undefined> {
+  const was = ahead;
+  if (was?.id !== id || was.av1 !== av1) return undefined;
+  ahead = undefined;
+  if (Date.now() - was.at > AHEAD_MS) return undefined;
+  const stream = await was.stream.catch(() => undefined);
+  return stream && stream.expiresAt - Date.now() > FRESH_MS
+    ? stream
+    : undefined;
+}
+
+// `av1` undefined takes whatever stream is there (the song's video beside the music has no say).
+async function streamFor(
+  id: string,
+  host: PlaylistHost,
+  track?: string,
+  av1?: boolean,
+) {
   if (
     current?.id === id &&
     current.track === track &&
+    (av1 === undefined || current.av1 === av1) &&
     current.stream.expiresAt - Date.now() > FRESH_MS
   )
     return current;
   if (current?.id !== id) host.forget?.();
-  const stream = await ytv.resolveStream(id, {
-    maxHeight: 4320,
-    audioTrack: track,
-  });
-  current = { id, track, stream, playlists: new Map() };
+  const stream =
+    (!track && (await preparedStream(id, !!av1))) ||
+    (await ytv.resolveStream(id, {
+      maxHeight: 4320,
+      audioTrack: track,
+      av1: !!av1,
+    }));
+  current = { id, track, av1: !!av1, stream, playlists: new Map() };
   return current;
 }
 
@@ -82,8 +127,9 @@ export async function buildVideoSource(
   id: string,
   quality: Quality,
   track?: string,
+  av1 = false,
 ): Promise<VideoSource> {
-  const entry = await streamFor(id, host, track);
+  const entry = await streamFor(id, host, track, av1);
   const { stream } = entry;
   const safe = id.replace(/\W/g, "_");
   const media = (key: string, part: StreamPart) => {

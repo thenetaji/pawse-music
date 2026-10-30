@@ -124,6 +124,8 @@ export interface PlaylistDetail extends PlaylistSummary {
   description?: string;
   tracks: Track[];
   continuation?: string;
+  /** Set when the signed-in account owns the playlist, so songs can be removed from it. */
+  editable?: boolean;
 }
 
 export type SearchFilter =
@@ -140,6 +142,13 @@ export interface SearchResults {
   /** Present when a single filter was requested. */
   items?: CatalogItem[];
   continuation?: string;
+}
+
+/** What the search box offers while you type: finished queries, and items you can open straight away. */
+export interface SearchSuggestions {
+  queries: string[];
+  /** Songs, artists and albums, with artwork. */
+  items: CatalogItem[];
 }
 
 /** Up-next / radio. `continuation` refills the queue when it runs low. */

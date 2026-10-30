@@ -1,8 +1,15 @@
-import type { CommentPage, VideoComment, VideoDetail } from "@pawse/music-core";
+import {
+  bestThumbnail,
+  type CommentPage,
+  type VideoComment,
+  type VideoDetail,
+} from "@pawse/music-core";
 import { Image } from "expo-image";
+import ChevronsUpDown from "lucide-react-native/icons/chevrons-up-down";
 import { useMemo, useState } from "react";
 import {
   FlatList,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,9 +29,11 @@ import Svg, { Path } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 
 import { CloseGlyph } from "../../components/glyphs";
+import { showToast } from "../../components/toast";
 import { PressScale, Skeleton } from "../../components/ui";
-import { clock } from "../../components/video-card";
+import { clock, openChannel } from "../../components/video-card";
 import { ytv } from "../../lib/engine";
+import { useFocus } from "../../lib/focus";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 
@@ -49,10 +58,17 @@ export function CommentsCard({
   const top = page?.items[0];
   return (
     <PressScale onPress={failed ? onRetry : onPress} style={styles.card}>
-      <Text style={styles.cardTitle}>
-        Comments{" "}
-        {page?.count ? <Text style={styles.count}>{page.count}</Text> : null}
-      </Text>
+      <View style={styles.cardHead}>
+        <Text style={styles.cardTitle}>
+          Comments{" "}
+          {page?.count ? <Text style={styles.count}>{page.count}</Text> : null}
+        </Text>
+        <ChevronsUpDown
+          size={16}
+          color="rgba(255,255,255,0.7)"
+          strokeWidth={2}
+        />
+      </View>
       {top ? (
         <View style={styles.cardRow}>
           <Avatar uri={top.author.avatar} size={24} />
@@ -62,6 +78,8 @@ export function CommentsCard({
         </View>
       ) : failed ? (
         <Text style={styles.failed}>Couldn’t load them. Tap to try again.</Text>
+      ) : page ? (
+        <Text style={styles.failed}>No comments yet.</Text>
       ) : (
         <Skeleton w="80%" h={12} r={5} style={{ marginTop: 10 }} />
       )}
@@ -70,7 +88,7 @@ export function CommentsCard({
 }
 
 /** A sheet over the page below the video, like YouTube's: the video keeps playing above it. */
-function Panel({
+export function Panel({
   title,
   count,
   onClose,
@@ -181,7 +199,9 @@ export function CommentsPanel({
         onEndReachedThreshold={0.6}
         contentContainerStyle={{ paddingBottom: 60 }}
         ListEmptyComponent={
-          first ? null : failed ? (
+          first ? (
+            <Text style={styles.empty}>No comments yet.</Text>
+          ) : failed ? (
             <Pressable onPress={onRetry} style={styles.retry}>
               <Text style={styles.failed}>
                 Couldn’t load comments. Tap to try again.
@@ -197,8 +217,43 @@ export function CommentsPanel({
   );
 }
 
-// "1:23" or "1:02:03" in a comment jumps the video there, like on YouTube.
-const STAMP = /\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/g;
+// "1:23" or "1:02:03" in a comment jumps the video there, like on YouTube; a web link opens in the browser.
+const TOKEN = /(https?:\/\/[^\s<>"]+)|\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/g;
+
+const openLink = (url: string) =>
+  Linking.openURL(url).catch(() =>
+    showToast("Couldn’t open that link", { bad: true }),
+  );
+
+/** The text with its links and timestamps pressable. */
+function linked(text: string, onSeek: (sec: number) => void) {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(TOKEN)) {
+    const at = m.index ?? 0;
+    // A sentence's full stop or bracket isn't part of the link.
+    const url = m[1]?.replace(/[.,;:!?)\]'"]+$/, "");
+    const len = url ? url.length : m[0].length;
+    if (at > last) parts.push(text.slice(last, at));
+    if (url) {
+      parts.push(
+        <Text key={at} style={styles.stamp} onPress={() => openLink(url)}>
+          {url}
+        </Text>,
+      );
+    } else {
+      const sec = Number(m[2] ?? 0) * 3600 + Number(m[3]) * 60 + Number(m[4]);
+      parts.push(
+        <Text key={at} style={styles.stamp} onPress={() => onSeek(sec)}>
+          {m[0]}
+        </Text>,
+      );
+    }
+    last = at + len;
+  }
+  parts.push(text.slice(last));
+  return parts;
+}
 
 function CommentText({
   text,
@@ -211,27 +266,13 @@ function CommentText({
   full?: boolean;
 }) {
   const [open, setOpen] = useState(!!full);
-  const parts: React.ReactNode[] = [];
-  let last = 0;
-  for (const m of text.matchAll(STAMP)) {
-    const at = m.index ?? 0;
-    if (at > last) parts.push(text.slice(last, at));
-    const sec = Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3]);
-    parts.push(
-      <Text key={at} style={styles.stamp} onPress={() => onSeek(sec)}>
-        {m[0]}
-      </Text>,
-    );
-    last = at + m[0].length;
-  }
-  parts.push(text.slice(last));
   return (
     <Text
       style={styles.text}
       numberOfLines={open ? undefined : 5}
       onPress={() => setOpen(!open)}
     >
-      {parts}
+      {linked(text, onSeek)}
     </Text>
   );
 }
@@ -303,6 +344,37 @@ function Comment({
   );
 }
 
+/** The description collapsed under the buttons, like YouTube's: views and age, the first lines, tap for the sheet. */
+export function DescriptionCard({
+  detail,
+  onPress,
+  onSeek,
+}: {
+  detail: VideoDetail;
+  onPress: () => void;
+  onSeek: (sec: number) => void;
+}) {
+  const focus = useFocus();
+  const v = detail.video;
+  const meta = [focus.counts ? v.viewsText : undefined, v.publishedText]
+    .filter(Boolean)
+    .join(" · ");
+  if (!meta && !detail.description) return null;
+  return (
+    <PressScale onPress={onPress} style={styles.card} scaleTo={0.98}>
+      {meta ? <Text style={styles.cardTitle}>{meta}</Text> : null}
+      {detail.description ? (
+        <>
+          <Text style={styles.descPreview} numberOfLines={3}>
+            {linked(detail.description, onSeek)}
+          </Text>
+          <Text style={styles.cardMore}>…more</Text>
+        </>
+      ) : null}
+    </PressScale>
+  );
+}
+
 /** The full description: counts up top, then the text and the chapters. */
 export function DescriptionPanel({
   detail,
@@ -318,15 +390,33 @@ export function DescriptionPanel({
   onSeek: (sec: number) => void;
 }) {
   const v = detail.video;
+  const focus = useFocus();
+  const avatar = v.channel?.avatar && bestThumbnail(v.channel.avatar, 88);
   const stats = [
     likes !== undefined ? [short(likes), "Likes"] : null,
-    v.viewsText ? splitStat(v.viewsText) : null,
+    focus.counts && v.viewsText ? splitStat(v.viewsText) : null,
     v.publishedText ? [v.publishedText, ""] : null,
   ].filter(Boolean) as string[][];
   return (
     <Panel title="Description" onClose={onClose}>
       <ScrollView contentContainerStyle={styles.descBody}>
         <Text style={styles.descTitle}>{title ?? v.title}</Text>
+        {v.channel ? (
+          <Pressable
+            onPress={() => v.channel?.id && openChannel(v.channel.id)}
+            style={styles.descChannel}
+          >
+            {avatar ? <Avatar uri={avatar} size={28} /> : null}
+            <Text style={styles.descChannelName} numberOfLines={1}>
+              {v.channel.name}
+            </Text>
+            {detail.subscribersText && focus.counts ? (
+              <Text style={styles.descSubs} numberOfLines={1}>
+                {detail.subscribersText}
+              </Text>
+            ) : null}
+          </Pressable>
+        ) : null}
         <View style={styles.stats}>
           {stats.map(([a, b]) => (
             <View key={a} style={styles.stat}>
@@ -337,14 +427,18 @@ export function DescriptionPanel({
             </View>
           ))}
         </View>
-        {detail.description ? (
-          <View style={styles.descBox}>
+        <View style={styles.descBox}>
+          {detail.description ? (
             <CommentText text={detail.description} onSeek={onSeek} full />
-          </View>
-        ) : null}
+          ) : (
+            <Text style={styles.failed}>No description.</Text>
+          )}
+        </View>
         {detail.chapters.length ? (
           <>
-            <Text style={styles.descHead}>Chapters</Text>
+            <Text style={styles.descHead}>
+              Chapters{detail.chapters[0].ai ? " · AI" : ""}
+            </Text>
             {detail.chapters.map((c, i) => (
               <Pressable
                 key={`${c.startSec}${i}`}
@@ -433,7 +527,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
+  cardHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   cardTitle: { color: "#fff", fontSize: 15, ...display("800") },
+  cardMore: {
+    color: "#fff",
+    fontSize: 13.5,
+    marginTop: 4,
+    alignSelf: "flex-end",
+    ...display("700"),
+  },
+  descPreview: {
+    color: "#fff",
+    fontSize: 13.5,
+    lineHeight: 18,
+    marginTop: 8,
+  },
   count: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "500" },
   cardRow: {
     flexDirection: "row",
@@ -444,6 +556,12 @@ const styles = StyleSheet.create({
   cardText: { flex: 1, color: "#fff", fontSize: 13.5, lineHeight: 18 },
   failed: { color: "rgba(255,255,255,0.6)", fontSize: 13.5, marginTop: 8 },
   retry: { padding: 16 },
+  empty: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 14,
+    textAlign: "center",
+    padding: 32,
+  },
   panel: {
     position: "absolute",
     top: 0,
@@ -508,6 +626,19 @@ const styles = StyleSheet.create({
   },
   descBody: { padding: 16, paddingBottom: 60 },
   descTitle: { color: "#fff", fontSize: 18, lineHeight: 23, ...display("800") },
+  descChannel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14,
+  },
+  descChannelName: {
+    flexShrink: 1,
+    color: "#fff",
+    fontSize: 14.5,
+    ...display("700"),
+  },
+  descSubs: { color: "rgba(255,255,255,0.55)", fontSize: 12.5 },
   stats: {
     flexDirection: "row",
     justifyContent: "space-around",

@@ -1,6 +1,10 @@
 import type {
   ChannelItem,
   ChannelPage,
+  ChannelAbout,
+  ChannelSort,
+  ChannelTab,
+  ChannelTabPage,
   CommentPage,
   FeedChip,
   Thumbnail,
@@ -80,6 +84,25 @@ const fallbackThumb = (id: string): Thumbnail[] => [
 const clean = (s: string | undefined): string | undefined =>
   s?.trim() ? s.trim() : undefined;
 
+/** "1,234,567 views" → "1.2M views", like YouTube's short counts; text without a plain number is kept. */
+export function shortCount(s: string | undefined): string | undefined {
+  const m = clean(s)?.match(/^(\d{1,3}(?:[,.\u00a0 ]\d{3})+|\d{4,})(\s.*)?$/);
+  if (!m) return clean(s);
+  const n = Number(m[1].replace(/\D/g, ""));
+  const units: [number, string][] = [
+    [1e9, "B"],
+    [1e6, "M"],
+    [1e3, "K"],
+  ];
+  for (const [v, u] of units)
+    if (n >= v) {
+      const x = n / v;
+      const short = x >= 10 ? Math.floor(x) : Math.floor(x * 10) / 10;
+      return `${short}${u}${m[2] ?? ""}`;
+    }
+  return clean(s);
+}
+
 const firstKey = (v: unknown, key: string, depth = 14): string | undefined => {
   if (depth < 0) return undefined;
   if (Array.isArray(v)) {
@@ -125,11 +148,19 @@ const overlayStatus = (v: Node): { text?: string; style?: string } => {
 // YouTube's own music tag: a music video opens as a radio (start_radio) and carries a music icon.
 const MUSIC_MARK = /start_radio=1|"iconType":"[A-Z_]*MUSIC/;
 export const isMusicNode = (v: Node) => MUSIC_MARK.test(JSON.stringify(v));
+// Members-only and members-first videos only open for members.
+const MEMBERS_MARK =
+  /BADGE_STYLE_TYPE_MEMBERS_ONLY|"(?:Members only|Members first)"/;
+const isMembersNode = (v: Node) => MEMBERS_MARK.test(JSON.stringify(v));
 
 export function parseVideoRenderer(v: Node): VideoItem | undefined {
   const id = v.videoId;
   if (typeof id !== "string" || !VIDEO_ID.test(id)) return undefined;
-  if (v.upcomingEventData || isShortNode(v.navigationEndpoint))
+  if (
+    v.upcomingEventData ||
+    isShortNode(v.navigationEndpoint) ||
+    isMembersNode(v)
+  )
     return undefined;
   const status = overlayStatus(v);
   if (status.style === "SHORTS" || status.style === "UPCOMING")
@@ -158,7 +189,7 @@ export function parseVideoRenderer(v: Node): VideoItem | undefined {
     ),
     durationSec:
       parseDuration(text(v.lengthText)) ?? parseDuration(status.text),
-    viewsText: clean(text(v.viewCountText) || text(v.shortViewCountText)),
+    viewsText: shortCount(text(v.shortViewCountText) || text(v.viewCountText)),
     publishedText: clean(text(v.publishedTimeText)),
     thumbnails: thumbs.length ? thumbs : fallbackThumb(id),
     ...(live ? { live: true } : {}),
@@ -206,7 +237,7 @@ export function parseLockup(l: Node): VideoItem | undefined {
   const id = l.contentId;
   if (typeof id !== "string" || !VIDEO_ID.test(id)) return undefined;
   const wiring = l.rendererContext ?? {};
-  if (isShortNode(wiring)) return undefined;
+  if (isShortNode(wiring) || isMembersNode(l)) return undefined;
   const meta = obj(dig(l, "metadata", "lockupMetadataViewModel")) ?? {};
   const title = text(meta.title);
   if (!title || SHORT_HASHTAG.test(title)) return undefined;
@@ -237,7 +268,7 @@ export function parseLockup(l: Node): VideoItem | undefined {
     if (/^(scheduled|waiting)/i.test(content)) return undefined;
     if (isWhen(label) || isWhen(content)) publishedText ??= content;
     else if (isViews(label) || isViews(content))
-      viewsText ??= isViews(content) ? content : `${content} views`;
+      viewsText ??= shortCount(isViews(content) ? content : `${content} views`);
     else name ??= content;
   }
   const avatar = thumbnails(dig(meta, "image"));
@@ -345,7 +376,8 @@ export function parsePlaylistLockup(l: Node): VideoPlaylistItem | undefined {
   const type = l.contentType;
   if (
     type !== "LOCKUP_CONTENT_TYPE_PLAYLIST" &&
-    type !== "LOCKUP_CONTENT_TYPE_COURSE"
+    type !== "LOCKUP_CONTENT_TYPE_COURSE" &&
+    type !== "LOCKUP_CONTENT_TYPE_SHOW"
   )
     return undefined;
   const id = l.contentId;
@@ -361,7 +393,7 @@ export function parsePlaylistLockup(l: Node): VideoPlaylistItem | undefined {
   );
   const countText = findText(
     dig(l, "contentImage"),
-    /\d.*\b(videos?|lessons?)\b/i,
+    /\d.*\b(videos?|lessons?|episodes?)\b/i,
   );
   const thumbs = thumbnails(
     dig(
@@ -562,13 +594,205 @@ export function parseChannel(
   const subscribed =
     findBool(dig(json, "frameworkUpdates"), "subscribed") ??
     findBool(header, "subscribed");
+  const tabs = channelTabs(json);
+  const sorts = sortsOf(json);
+  const handle = findText(header, /^@[\w.\-]+$/);
+  const videoCountText = findText(header, /^[\d.,]+[KMB]?\s+videos?$/i);
+  const description = clean(
+    typeof meta?.description === "string" ? meta.description : undefined,
+  );
+  const about = firstKey(
+    dig(
+      header,
+      "pageHeaderRenderer",
+      "content",
+      "pageHeaderViewModel",
+      "description",
+    ),
+    "token",
+    30,
+  );
+  const search = tabs.find((t) => t.url === "search")?.params;
   return {
     channel,
     ...(banner.length ? { banner } : {}),
     videos,
     ...(continuation ? { continuation } : {}),
     ...(subscribed !== undefined ? { subscribed } : {}),
+    ...(handle ? { handle } : {}),
+    ...(videoCountText ? { videoCountText } : {}),
+    ...(description ? { description } : {}),
+    ...(tabs.length ? { tabs: tabs.filter((t) => t.kind).map(shownTab) } : {}),
+    ...(sorts.length ? { sorts } : {}),
+    ...(about ? { about } : {}),
+    ...(search ? { search } : {}),
   };
+}
+
+type TabRef = {
+  url: string;
+  params: string;
+  title: string;
+  kind?: ChannelTab["kind"];
+};
+// The address ends in the same word whatever the app's language, unlike the tab's title.
+const TAB_KINDS: Record<string, ChannelTab["kind"]> = {
+  featured: "home",
+  videos: "videos",
+  streams: "live",
+  playlists: "playlists",
+  podcasts: "podcasts",
+  releases: "releases",
+  shows: "shows",
+  courses: "courses",
+};
+const shownTab = ({ kind, title, params }: TabRef): ChannelTab => ({
+  kind: kind as ChannelTab["kind"],
+  title,
+  params,
+});
+
+function channelTabs(json: unknown): TabRef[] {
+  return arr(dig(json, "contents", "twoColumnBrowseResultsRenderer", "tabs"))
+    .map((t) => obj(t?.tabRenderer ?? t?.expandableTabRenderer))
+    .flatMap((t) => {
+      const params = dig(t, "endpoint", "browseEndpoint", "params");
+      const url = String(
+        dig(t, "endpoint", "commandMetadata", "webCommandMetadata", "url") ??
+          "",
+      )
+        .split("?")[0]
+        .split("/")
+        .pop();
+      if (typeof params !== "string" || !url) return [];
+      return [
+        {
+          url,
+          params: decodeURIComponent(params),
+          title: String(t?.title ?? url),
+          kind: TAB_KINDS[url],
+        },
+      ];
+    });
+}
+
+function sortsOf(json: unknown): ChannelSort[] {
+  const chips = arr(dig(findNode(json, "chipBarViewModel"), "chips")).flatMap(
+    (c) => {
+      const v = obj(c?.chipViewModel);
+      const token = firstKey(v?.tapCommand, "token", 8);
+      return v && typeof v.text === "string" && token
+        ? [{ title: v.text, selected: v.selected === true, token }]
+        : [];
+    },
+  );
+  if (chips.length) return chips;
+  return arr(
+    dig(findNode(json, "sortFilterSubMenuRenderer"), "subMenuItems"),
+  ).flatMap((i) => {
+    const params = dig(i, "navigationEndpoint", "browseEndpoint", "params");
+    return typeof i?.title === "string" && typeof params === "string"
+      ? [
+          {
+            title: i.title,
+            selected: i.selected === true,
+            params: decodeURIComponent(params),
+          },
+        ]
+      : [];
+  });
+}
+
+function findNode(root: unknown, key: string, depth = 24): Node | undefined {
+  if (depth < 0) return undefined;
+  if (Array.isArray(root)) {
+    for (const x of root) {
+      const f = findNode(x, key, depth - 1);
+      if (f) return f;
+    }
+    return undefined;
+  }
+  const o = obj(root);
+  if (!o) return undefined;
+  if (obj(o[key])) return obj(o[key]);
+  for (const k of Object.keys(o)) {
+    const f = findNode(o[k], key, depth - 1);
+    if (f) return f;
+  }
+  return undefined;
+}
+
+const videoOrList = (items: Found[]) =>
+  items.filter(
+    (i): i is VideoItem | VideoPlaylistItem =>
+      i.type === "video" || i.type === "playlist",
+  );
+
+/** Any channel tab, a sorted list of it, or a search inside it; Home also as titled shelves. */
+export function parseChannelTab(json: unknown): ChannelTabPage {
+  const { items, continuation } = collect(json);
+  const sorts = sortsOf(json);
+  const sections: NonNullable<ChannelTabPage["sections"]> = [];
+  const visit = (v: unknown, depth: number) => {
+    if (depth > 12) return;
+    if (Array.isArray(v)) return v.forEach((x) => visit(x, depth + 1));
+    const o = obj(v);
+    if (!o) return;
+    if (obj(o.shelfRenderer)) {
+      const shelf = obj(o.shelfRenderer) as Node;
+      const title = text(shelf.title).trim();
+      const list = videoOrList(collect(shelf.content).items);
+      if (title && list.length && title.toLowerCase() !== "shorts")
+        sections.push({ title, items: list });
+      return;
+    }
+    for (const k of Object.keys(o))
+      if (!SKIP_KEY.test(k)) visit(o[k], depth + 1);
+  };
+  visit(dig(json, "contents", "twoColumnBrowseResultsRenderer", "tabs"), 0);
+  return {
+    items: videoOrList(items),
+    ...(sections.length ? { sections } : {}),
+    ...(sorts.length ? { sorts } : {}),
+    ...(continuation ? { continuation } : {}),
+  };
+}
+
+export function parseChannelAbout(json: unknown): ChannelAbout {
+  const v = findNode(json, "aboutChannelViewModel") ?? {};
+  const links = arr(v.links).flatMap((l) => {
+    const m = obj(l?.channelExternalLinkViewModel);
+    const title = String(dig(m, "title", "content") ?? "").trim();
+    const raw = firstKey(dig(m, "link"), "url");
+    const url = raw ? redirectTarget(raw) : undefined;
+    return title && url ? [{ title, url }] : [];
+  });
+  const str = (x: unknown) => clean(typeof x === "string" ? x : undefined);
+  const joined = str(dig(v, "joinedDateText", "content"));
+  const description = str(v.description);
+  const country = str(v.country);
+  const viewsText = str(v.viewCountText);
+  const subscribersText = str(v.subscriberCountText);
+  const videoCountText = str(v.videoCountText);
+  return {
+    links,
+    ...(description ? { description } : {}),
+    ...(joined ? { joined } : {}),
+    ...(viewsText ? { viewsText } : {}),
+    ...(country ? { country } : {}),
+    ...(subscribersText ? { subscribersText } : {}),
+    ...(videoCountText ? { videoCountText } : {}),
+  };
+}
+
+/** YouTube sends outside links through its redirect; the real address is in `q`. */
+function redirectTarget(url: string): string | undefined {
+  const q = url.match(/[?&]q=([^&]+)/)?.[1];
+  try {
+    return q ? decodeURIComponent(q) : url;
+  } catch {
+    return undefined;
+  }
 }
 
 function chaptersOf(json: unknown): { title: string; startSec: number }[] {
@@ -663,7 +887,9 @@ export function parseVideoDetail(json: unknown, id: string): VideoDetail {
     id,
     title: text(primary?.title) || (micro?.title as string | undefined) || "",
     channel: channelOf(ownerRuns, avatar),
-    viewsText: clean(text(views?.shortViewCount) || text(views?.viewCount)),
+    viewsText: shortCount(
+      text(views?.shortViewCount) || text(views?.viewCount),
+    ),
     publishedText: clean(
       text(primary?.relativeDateText) || text(primary?.dateText),
     ),

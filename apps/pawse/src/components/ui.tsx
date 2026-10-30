@@ -36,9 +36,11 @@ import { Cat, type CatColor, type CatMood } from "../features/cat/cat";
 import { haptic } from "../lib/haptics";
 import { onTabReselect, type Tab } from "../lib/nav";
 import { useSetting } from "../lib/settings";
+import { refreshFailed } from "../lib/use-resource";
 import { display } from "../lib/type";
 import { ChevronLeft } from "./glyphs";
 import { Spinner } from "./spinner";
+import { showToast } from "./toast";
 
 const IOS = Platform.OS === "ios";
 
@@ -47,7 +49,12 @@ const ANDROID = Platform.OS === "android";
 export const RIPPLE = ANDROID ? { color: "rgba(255,255,255,0.08)" } : undefined;
 const LAYER = "rgba(255,255,255,0.08)";
 
-// Pressable that springs down and gives a light tap. One element, so layout styles (flex, padding) apply directly.
+// A touch that turns into a scroll in this long never shows the press, so a list doesn't flicker under a scrolling finger.
+const PRESS_MS = 90;
+// Critically damped and clamped: it eases back to size without bouncing past it.
+const SETTLE = { damping: 30, stiffness: 400, overshootClamping: true };
+
+// Pressable that dips down and gives a light tap. One element, so layout styles (flex, padding) apply directly.
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export function PressScale({
   children,
@@ -64,6 +71,7 @@ export function PressScale({
 }) {
   const s = useSharedValue(1);
   const p = useSharedValue(0);
+  const wait = useRef<ReturnType<typeof setTimeout>>(undefined);
   const a = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
   const layer = useAnimatedStyle(() => ({ opacity: p.value }));
   // Android: surfaces get a ripple, rounded ones a fading state layer so nothing pokes past the corners.
@@ -76,11 +84,15 @@ export function PressScale({
       android_ripple={surface && !radius ? RIPPLE : undefined}
       {...rest}
       onPressIn={() => {
-        s.set(withSpring(scaleTo, { damping: 16, stiffness: 420 }));
-        if (radius) p.set(withTiming(1, { duration: 90 }));
+        clearTimeout(wait.current);
+        wait.current = setTimeout(() => {
+          s.set(withSpring(scaleTo, SETTLE));
+          if (radius) p.set(withTiming(1, { duration: 90 }));
+        }, PRESS_MS);
       }}
       onPressOut={() => {
-        s.set(withSpring(1, { damping: 11, stiffness: 300 }));
+        clearTimeout(wait.current);
+        s.set(withSpring(1, SETTLE));
         if (radius) p.set(withTiming(0, { duration: 220 }));
       }}
       onPress={(e: GestureResponderEvent) => {
@@ -140,13 +152,23 @@ export function Screen({
   // The spinner stays until the reload lands (or a moment, for pages that reload without telling).
   const [pulling, setPulling] = useState(false);
   const pull = () => {
-    if (!onRefresh) return;
-    haptic.light();
+    if (!onRefresh || pulling) return;
     setPulling(true);
     void Promise.all([
-      Promise.resolve(onRefresh()).catch(() => {}),
+      Promise.resolve(onRefresh()).catch((e: unknown) =>
+        e instanceof Error ? e : new Error(String(e)),
+      ),
       new Promise((r) => setTimeout(r, 700)),
-    ]).finally(() => setPulling(false));
+    ])
+      .then(([result]) => {
+        if (refreshFailed(result)) {
+          showToast("Couldn't refresh. Showing what you had.", { bad: true });
+          return;
+        }
+        haptic.light();
+        scroller.current?.scrollTo({ y: 0, animated: true });
+      })
+      .finally(() => setPulling(false));
   };
   const focused = useRef(false);
   useFocusEffect(

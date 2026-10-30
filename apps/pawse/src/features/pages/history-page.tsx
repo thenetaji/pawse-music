@@ -1,14 +1,23 @@
 import type { Track } from "@pawse/music-core";
 import { player } from "@pawse/player";
-import { SectionList, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import {
+  RefreshControl,
+  SectionList,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomSpace } from "../../components/page";
 import { SwipeRow } from "../../components/swipe-row";
 import { TrackRow } from "../../components/track-row";
+import { showToast } from "../../components/toast";
 import { CatState } from "../../components/ui";
 import { historyByDay, useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { count } from "../../lib/plural";
+import { syncYouTubeHistory } from "../../lib/youtube-history";
 import { display } from "../../lib/type";
 import { BackButton } from "./collection";
 
@@ -18,9 +27,31 @@ export default function HistoryPage() {
   const history = useLibrary((s) => s.history);
   const days = historyByDay(history);
   const songs = new Set(history.map((p) => p.track.id)).size;
+  // Pulling down re-reads your YouTube history; plays are saved as they happen.
+  const [pulling, setPulling] = useState(false);
+  const pull = () => {
+    setPulling(true);
+    void Promise.all([
+      syncYouTubeHistory(true),
+      new Promise((r) => setTimeout(r, 700)),
+    ])
+      .then(([ok]) => {
+        if (ok) haptic.light();
+        else
+          showToast("Couldn't refresh. Showing what you had.", { bad: true });
+      })
+      .finally(() => setPulling(false));
+  };
   return (
     <View style={styles.root}>
       <SectionList
+        refreshControl={
+          <RefreshControl
+            refreshing={pulling}
+            onRefresh={pull}
+            tintColor="#fff"
+          />
+        }
         sections={days.map((d) => ({
           title: dayLabel(d.date),
           data: bySong(d.plays),

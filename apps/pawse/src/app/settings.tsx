@@ -14,8 +14,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { PawseAudio } from "../../modules/pawse-audio";
 import { PawseIsland } from "../../modules/pawse-island-android";
 import { showSheet } from "../components/action-sheet";
+import { AddonSettings } from "../components/addon-settings";
 import { DownloadOptions } from "../components/download-options";
 import {
   Foot,
@@ -34,8 +36,12 @@ import {
 } from "../data/auto-backup";
 import { useLibrary } from "../data/library";
 import { signOut } from "../features/account/sign-out";
+import { AlarmSettings } from "../features/alarm/alarm-settings";
 import { Cat, type CatColor } from "../features/cat/cat";
+import { IslandStylePicker } from "../features/island/island-style-picker";
+import { MindfulSettings } from "../features/mindful/mindful-ui";
 import { useAccent } from "../features/now-playing/now-palette";
+import { useAiStatus } from "../lib/ai/model";
 import {
   APP_ICONS,
   type AppIconId,
@@ -67,6 +73,7 @@ import {
   useUpdate,
 } from "../lib/updates";
 import { useResource } from "../lib/use-resource";
+import { resetRecommendations } from "../lib/youtube-history";
 
 const CAT_COLORS: { id: CatColor; fur: string }[] = [
   { id: "orange", fur: "#F49A3C" },
@@ -204,6 +211,7 @@ export default function Settings() {
             [5, "5 s"],
             [10, "10 s"],
             [30, "30 s"],
+            [60, "1 min"],
           ]}
         />
         <Pick
@@ -218,16 +226,39 @@ export default function Settings() {
             [12, "12 s"],
           ]}
         />
+        <Toggle k="gapless" label="Gapless albums" def />
+        {PawseAudio.available ? (
+          <>
+            <Link label="Equaliser" onPress={() => push("/equaliser")} />
+            <Toggle
+              k="crossfeed"
+              label="Crossfeed for headphones"
+              def={false}
+            />
+            <Toggle
+              k="trimSilence"
+              label="Skip silence at song ends"
+              def={false}
+            />
+          </>
+        ) : null}
+        <Toggle k="skipNonMusic" label="Skip non-music parts" def />
       </Section>
 
       <Foot>
-        Automatic picks the quality from your connection. Crossfade fades each
-        song out at its end and the next one in.
+        Automatic picks the quality from your connection. Crossfade fades
+        unrelated songs into each other; songs from the same album, long mixes
+        and live streams are never crossfaded, and tapping Next cuts quickly.
+        Skip non-music parts jumps over the talking in music videos, using
+        SponsorBlock. Crossfeed blends the two channels a little, as speakers
+        would, which is easier on headphones.
       </Foot>
 
       {Platform.OS !== "web" ? <DownloadOptions manage /> : null}
 
       <VideoSettings />
+
+      <AddonSettings />
 
       <Section title="Lyrics">
         <Toggle k="lyricsLine" label="Lyric line under the title" def />
@@ -271,20 +302,6 @@ export default function Settings() {
       <Section title="Cat">
         <Toggle k="catWire" label={`${catName} on the progress bar`} def />
         <Toggle k="catIsland" label={`${catName} in the Dynamic Island`} def />
-        {Platform.OS === "ios" && catIsland ? (
-          <Pick
-            k="islandStyle"
-            label="Bubble shows"
-            def="time"
-            options={[
-              ["cat", catName],
-              ["time", "Time left"],
-            ]}
-          />
-        ) : null}
-        {Platform.OS === "ios" && catIsland ? (
-          <Toggle k="islandRate" label="Like and dislike on the island" def />
-        ) : null}
         <Pick
           k="catEpisodes"
           label="Mouse visits"
@@ -295,12 +312,27 @@ export default function Settings() {
             ["often", "Often"],
           ]}
         />
+        <Link label={`${catName}'s wardrobe`} onPress={() => push("/mochi")} />
       </Section>
+      {Platform.OS === "ios" && catIsland ? (
+        <Section title="Dynamic Island">
+          <IslandStylePicker catName={catName} />
+          <Toggle k="islandRate" label="Like and dislike on the island" def />
+          <Toggle
+            k="islandMoodLine"
+            label={`${catName}'s mood line`}
+            def={false}
+          />
+        </Section>
+      ) : null}
       {Platform.OS === "ios" && catIsland ? (
         <Foot>
           {`While music plays, the island's player is iOS's own and ${catName} sits in a small bubble beside it.`}
         </Foot>
       ) : null}
+
+      <MindfulSettings />
+      <AlarmSettings />
 
       <Section title="Content">
         <Pick
@@ -829,6 +861,7 @@ function VideoSettings() {
   const videos = useSetting("videos", true);
   const blocked = useBlockedCount();
   const focus = useSetting("focusMode", false);
+  const higher = useSetting("videoHigher", false);
   return (
     <>
       <Section title="Home and videos">
@@ -846,15 +879,49 @@ function VideoSettings() {
               def="auto"
               options={[
                 ["auto", "Auto"],
+                ...(higher && Platform.OS !== "web"
+                  ? ([
+                      [2160, "4K"],
+                      [1440, "1440p"],
+                    ] as [number, string][])
+                  : []),
                 [1080, "1080p"],
                 [720, "720p"],
                 [480, "480p"],
                 [360, "360p"],
               ]}
             />
+            {Platform.OS !== "web" ? (
+              <Toggle
+                k="videoHigher"
+                label="Higher qualities (AV1)"
+                def={false}
+              />
+            ) : null}
             <Toggle k="videoAutoplay" label="Play the next video" def={false} />
             <Toggle k="skipSponsors" label="Skip sponsors" def />
             <Toggle k="dearrow" label="Honest titles and thumbnails" def />
+            <Toggle k="videoInPlayer" label="Song and Video switch" def />
+            <Toggle k="showDislikes" label="Show dislikes" def={false} />
+            <Toggle
+              k="learnFromWatching"
+              label="Let YouTube learn from what I watch"
+              def
+            />
+            <Link
+              label="Reset YouTube recommendations"
+              onPress={() =>
+                showSheet({
+                  actions: [
+                    {
+                      label: "Reset YouTube recommendations",
+                      destructive: true,
+                      onPress: resetRecommendations,
+                    },
+                  ],
+                })
+              }
+            />
             <Link
               label={
                 blocked ? `Blocked (${blocked})` : "Blocked channels and words"
@@ -866,15 +933,16 @@ function VideoSettings() {
       </Section>
       <Foot>
         {videos
-          ? "Videos from YouTube in Home, Search and the player, never Shorts. Auto picks the quality as your connection allows. Focus mode leaves out comments, counts, suggestions and autoplay. Sponsor skips come from SponsorBlock, honest titles from DeArrow."
+          ? "Videos from YouTube in Home, Search and the player, never Shorts. Auto picks the quality as your connection allows. Higher qualities add 1440p and 4K as AV1, which only phones that decode AV1 in hardware (iPhone 15 Pro and newer, recent Android flagships) play smoothly; the rest may stutter and drain the battery. Focus mode leaves out comments, counts, suggestions and autoplay. The Song and Video switch shows a song’s video in the player, in time with the music. Sponsor skips come from SponsorBlock, honest titles from DeArrow, and dislike counts are estimates from Return YouTube Dislike. Signed out, YouTube learns from the videos you watch here, with no account, to suggest more like them; Reset starts it over, and incognito never sends anything."
           : "Pawse shows music only."}
       </Foot>
     </>
   );
 }
 
-// Early features live on their own page, so Settings stays short.
 function ExperimentalSection() {
+  const status = useAiStatus();
+  if (!status || status === "unavailable") return null;
   return (
     <Section title="Try new things">
       <Link label="Experimental" onPress={() => push("/experimental")} />

@@ -14,15 +14,15 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
     listeners.add(l), () => void listeners.delete(l)
   );
 
-  const inflight = new Map<string, Promise<void>>();
+  const inflight = new Map<string, Promise<Error | undefined>>();
   function load(
     key: string,
     loader: () => Promise<T>,
     force = false,
-  ): Promise<void> {
+  ): Promise<Error | undefined> {
     loaders.set(key, loader);
     const e = entries.get(key);
-    if (e?.loading) return inflight.get(key) ?? Promise.resolve();
+    if (e?.loading) return inflight.get(key) ?? Promise.resolve(undefined);
     if (
       !force &&
       e &&
@@ -30,22 +30,27 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
       e.data !== undefined &&
       Date.now() - e.at < ttlMs
     )
-      return Promise.resolve();
+      return Promise.resolve(undefined);
     entries.set(key, { data: e?.data, loading: true, at: e?.at ?? 0 });
     emit();
-    const p = loader().then(
-      (data) => (
-        entries.set(key, { data, loading: false, at: Date.now() }), emit()
-      ),
-      (error: Error) => (
+    const p: Promise<Error | undefined> = loader().then(
+      (data) => {
+        entries.set(key, { data, loading: false, at: Date.now() });
+        emit();
+        return undefined;
+      },
+      (error: unknown) => {
+        const err = error instanceof Error ? error : new Error(String(error));
         entries.set(key, {
           data: e?.data,
-          error,
+          error: err,
           loading: false,
-          at: Date.now(),
-        }),
-        emit()
-      ),
+          // The old age stays, so a failed refresh doesn't pass for fresh.
+          at: e?.at ?? 0,
+        });
+        emit();
+        return err;
+      },
     );
     inflight.set(key, p);
     return p;
@@ -70,7 +75,8 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
       error: entry.error,
       loading:
         !!key && (entry.loading || (entry.data === undefined && !entry.error)),
-      reload: () => (key ? load(key, loader, true) : Promise.resolve()),
+      reload: (): Promise<Error | undefined> =>
+        key ? load(key, loader, true) : Promise.resolve(undefined),
     };
   }
 
@@ -84,11 +90,15 @@ export function createAsyncCache<T>(ttlMs = 10 * 60_000) {
     emit();
   };
 
-  /** Reloads every loaded key that starts with one of these, keeping what's shown until the new copy lands. */
-  const refresh = (prefixes: string[]) =>
+  /** Reloads loaded keys starting with one of these prefixes, bar those starting with one of `except`. */
+  const refresh = (prefixes: string[], except: string[] = []) =>
     Promise.all(
       [...loaders]
-        .filter(([key]) => prefixes.some((p) => key.startsWith(p)))
+        .filter(
+          ([key]) =>
+            prefixes.some((p) => key.startsWith(p)) &&
+            !except.some((p) => key.startsWith(p)),
+        )
         .map(([key, loader]) => load(key, loader, true)),
     );
   return {

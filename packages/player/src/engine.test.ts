@@ -444,6 +444,26 @@ test("end of this song moves with a song you pick, and stops when playback moves
   expect(usePlayerStore.getState().sleepAt).toBeUndefined();
 });
 
+test("the sleep timer fades the volume itself, so the native timer only stops playback", async () => {
+  await setupPlayer({ resolver: { resolve }, sleepFadeSec: () => 10 });
+  await player.play(tracks("a"));
+  await flush();
+  jest.useFakeTimers();
+  try {
+    player.setSleepTimer(1);
+    expect(tp.sleepAfterTime).toHaveBeenLastCalledWith(60, {
+      fadeOutSeconds: 0,
+    });
+    expect(usePlayerStore.getState().sleepFading).toBe(false);
+    jest.advanceTimersByTime(52_000);
+    expect(usePlayerStore.getState().sleepFading).toBe(true);
+    player.setSleepTimer(null);
+    expect(usePlayerStore.getState().sleepFading).toBe(false);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
 const clientResolver = (clients: string[]) =>
   jest.fn(
     async (
@@ -734,6 +754,24 @@ test("a song's non-music part is skipped when playback reaches it, and one that 
   native.position = 189.9;
   await jest.advanceTimersByTimeAsync(41_000);
   expect(tp.seekTo).toHaveBeenLastCalledWith(expect.closeTo(200 - 0.3, 1));
+  jest.useRealTimers();
+});
+
+test("crossfade leaves songs from one album alone", async () => {
+  jest.useFakeTimers({ doNotFake: ["Date"] });
+  const onAlbum = (id: string, album: string): Track => ({
+    ...track(id),
+    album: { id: album, title: album },
+  });
+  await setupPlayer({ resolver: { resolve }, crossfadeSec: () => 6 });
+  await player.play([onAlbum("a", "x"), onAlbum("b", "x")]);
+  await jest.runOnlyPendingTimersAsync();
+  await rntp.__emit("event.is-playing-changed", { playing: true });
+  native.position = 190;
+  await jest.advanceTimersByTimeAsync(5000);
+  native.position = 194;
+  await jest.advanceTimersByTimeAsync(10_200);
+  expect(tp.setVolume).not.toHaveBeenCalledWith(0);
   jest.useRealTimers();
 });
 

@@ -12,6 +12,7 @@ import {
   type ResolveOptions,
   type SearchFilter,
   type SearchResults,
+  type SearchSuggestions,
   type Shelf,
   StreamError,
   type StreamResolver,
@@ -46,6 +47,7 @@ import {
   parseMoodsAndGenres,
   parseNewReleases,
 } from "./explore";
+import { THROTTLE_BYTES } from "./hls";
 import { decodeParam } from "./nodes";
 import {
   albumIdFromPlaylist,
@@ -60,7 +62,7 @@ import {
   parsePlaylistContinuation,
   parseRelated,
   parseSearch,
-  parseSuggestions,
+  parseSearchSuggestions,
 } from "./parse";
 import type { JsSandbox, PoTokenProvider } from "./sandbox";
 import {
@@ -90,14 +92,18 @@ export interface YouTubeMusicOptions {
   poToken?: PoTokenProvider;
   /** Use the yt-dlp-generated client list (sources/innertube-clients-v2.json) and its built-in fallback. Only for builds that pass a `sandbox`: older builds drop ciphered formats. */
   clientsV2?: boolean;
-  /** Platform.OS: picks the client list, and "android" also accepts WebM/Opus. */
+  /** Platform.OS: picks the client list, and "android" prefers WebM/Opus. */
   platform?: string;
+  /** The player decodes WebM/Opus (default: on Android); Opus then beats AAC 128. */
+  opus?: boolean;
   /** Range-check the media URL before returning it (default true). */
   verifyStream?: boolean;
   /** Skip the range check when it takes longer than this (default 400 ms). */
   verifyBudgetMs?: number;
   /** Called once per catalog/account request that fails after retries. */
   onRequestError?: (endpoint: string, error: unknown) => void;
+  /** True while searches should go out signed out, so they stay out of the account's search history (incognito). */
+  privateSearch?: () => boolean;
 }
 
 export const ORIGIN = "https://music.youtube.com";
@@ -203,12 +209,14 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
 
   private readonly f: FetchLike;
   private readonly cookies?: YouTubeMusicOptions["cookies"];
+  private readonly privateSearch?: YouTubeMusicOptions["privateSearch"];
   private readonly clients: ClientsConfig;
   private readonly sandbox?: JsSandbox;
   private readonly poToken?: PoTokenProvider;
   private readonly verify: boolean;
   private readonly verifyBudgetMs: number;
   private readonly opus: boolean;
+  private readonly opusMaxBytes?: number;
   private readonly onRequestError?: YouTubeMusicOptions["onRequestError"];
   private readonly onVisitorData?: YouTubeMusicOptions["onVisitorData"];
   private web?: WebConfig;
@@ -234,8 +242,11 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     this.visitorData = options.visitorData;
     this.verify = options.verifyStream ?? true;
     this.verifyBudgetMs = options.verifyBudgetMs ?? 1500;
-    this.opus = options.platform === "android";
+    this.opus = options.opus ?? options.platform === "android";
+    this.opusMaxBytes =
+      options.platform === "android" ? THROTTLE_BYTES : undefined;
     this.onRequestError = options.onRequestError;
+    this.privateSearch = options.privateSearch;
     this.onVisitorData = options.onVisitorData;
     const url =
       options.clientsConfigUrl === undefined
@@ -398,13 +409,22 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     return h;
   }
 
-  /** POST to a WEB_REMIX endpoint, signed in when cookies are available. */
-  async call(endpoint: string, body: Record<string, unknown>): Promise<any> {
+  /**
+   * POST to a WEB_REMIX endpoint, signed in when cookies are available.
+   * `account` also signs in catalog calls, `paced: false` skips the signed-in budget, `signal` cancels the request.
+   */
+  async call(
+    endpoint: string,
+    body: Record<string, unknown>,
+    opts: { account?: boolean; paced?: boolean; signal?: AbortSignal } = {},
+  ): Promise<any> {
     const [cfg, cookie] = await Promise.all([
       this.config(),
-      isCatalogCall(endpoint, body) ? null : this.cookie().catch(() => null),
+      isCatalogCall(endpoint, body) && !opts.account
+        ? null
+        : this.cookie().catch(() => null),
     ]);
-    if (cookie) await this.pace();
+    if (cookie && opts.paced !== false) await this.pace();
     const headers = {
       ...(await this.webHeaders(cfg, cookie)),
       "Content-Type": "application/json",
@@ -419,6 +439,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
           headers,
           body: JSON.stringify({ context: this.context(cfg), ...body }),
           credentials: "omit",
+          signal: opts.signal,
         },
         TIMEOUT_MS,
         // A signed-in call is never repeated: retrying a 429 is what gets accounts flagged.
@@ -486,25 +507,60 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     return { ...feed, chips: [] };
   }
 
+  /** Search and suggestions go out as the account when there is one, for YouTube's own ranking; any trouble falls back to signed out, and incognito never signs in. */
+  private async searchCall(
+    endpoint: string,
+    body: Record<string, unknown>,
+    opts: { paced?: boolean; signal?: AbortSignal } = {},
+  ): Promise<any> {
+    const { signal } = opts;
+    if (this.privateSearch?.()) return this.call(endpoint, body, { signal });
+    try {
+      return await this.call(endpoint, body, { ...opts, account: true });
+    } catch (e) {
+      if (signal?.aborted || !this.signedIn) throw e;
+      return this.call(endpoint, body, { signal });
+    }
+  }
+
   async search(
     q: string,
     filter: SearchFilter = "all",
   ): Promise<SearchResults> {
     const params = filter === "all" ? undefined : SEARCH_PARAMS[filter];
     return parseSearch(
-      await this.call("search", { query: q, ...(params ? { params } : {}) }),
+      await this.searchCall("search", {
+        query: q,
+        ...(params ? { params } : {}),
+      }),
       filter,
     );
   }
 
   /** Next page of a filtered search. */
   async searchMore(continuation: string): Promise<SearchResults> {
-    return parseSearch(await this.call("search", { continuation }), "songs");
+    return parseSearch(
+      await this.searchCall("search", { continuation }),
+      "songs",
+    );
   }
 
   async suggestions(q: string): Promise<string[]> {
-    return parseSuggestions(
-      await this.call("music/get_search_suggestions", { input: q }),
+    return (await this.searchSuggestions(q)).queries;
+  }
+
+  /** Typed-ahead queries plus the songs, artists and albums YouTube Music suggests straight away. */
+  async searchSuggestions(
+    q: string,
+    signal?: AbortSignal,
+  ): Promise<SearchSuggestions> {
+    // Suggestions are light reads, so they skip the signed-in budget a fast typist would use up.
+    return parseSearchSuggestions(
+      await this.searchCall(
+        "music/get_search_suggestions",
+        { input: q },
+        { paced: false, signal },
+      ),
     );
   }
 
@@ -862,6 +918,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
           verifyBudgetMs: this.verifyBudgetMs,
           quality: options.quality,
           opus: this.opus,
+          opusMaxBytes: this.opusMaxBytes,
           exclude: [...(options.exclude ?? []), ...this.benched.keys()],
           avoid: options.avoid,
           onBot: (via) => this.benched.set(via, Date.now() + BENCH_MS),

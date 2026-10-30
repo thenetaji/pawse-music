@@ -1,6 +1,14 @@
-import type { CaptionCue } from "@pawse/music-core";
+import type { CaptionCue, Storyboard } from "@pawse/music-core";
+import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -15,8 +23,15 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { clock } from "../../components/video-card";
 import { haptic } from "../../lib/haptics";
+import {
+  type LevelKind,
+  levelNow,
+  setLevel,
+  settleLevel,
+} from "../../lib/screen-levels";
 import { display } from "../../lib/type";
 import { CaptionOverlay } from "./captions";
+import { prefetchStoryboard, StoryboardFrame } from "./storyboard";
 
 const RED = "#FF0033";
 // Controls fade after this long while the video plays.
@@ -25,10 +40,12 @@ const SKIP_SEC = 10;
 // A second tap this soon after the first, on the same side, is a double tap.
 const DOUBLE_MS = 300;
 // Double tap skips only in the outer thirds; the middle just shows and hides the controls.
-const SIDE = 0.35;
+export const SIDE = 0.35;
 // Fingers lifting just after a pinch aren't a tap.
 const PINCH_GRACE_MS = 400;
 const SKIP_KEEP_MS = 1000;
+// A drag of this share of the picture's height goes from nothing to everything.
+const LEVEL_SPAN = 0.7;
 // Press and hold the picture this long to play at 2x, like YouTube.
 const HOLD_MS = 450;
 
@@ -66,6 +83,7 @@ export type ControlsProps = {
   dur?: number;
   playing: boolean;
   chapters: { startSec: number; title: string }[];
+  highlight?: number;
   canPrev: boolean;
   canNext: boolean;
   autoplay: boolean;
@@ -88,6 +106,11 @@ export type ControlsProps = {
   onZoom?: (fill: boolean) => void;
   /** Press and hold: true plays at 2x until the finger lifts. Must be stable. */
   onHold?: (on: boolean) => void;
+  /** Pictures to show above the time while dragging along the bar. */
+  storyboard?: Storyboard;
+  /** The chapter playing now, shown by the time; tapping it opens the list of chapters. */
+  chapter?: string;
+  onChapters?: () => void;
 };
 
 /** Each tap answers at once, like YouTube: it shows or hides the controls, and a quick second
@@ -131,22 +154,36 @@ function tapGesture(o: {
     });
 }
 
-/** Taps, and in full screen a pinch beside them; the tap ignores fingers that were pinching. */
+/** Full screen on a phone: a vertical drag on the left changes the brightness, on the right the volume. */
+type Levels = {
+  /** Where a drag starts; false when that level can't be changed. */
+  begin: (side: -1 | 1) => boolean;
+  /** How far the finger has gone, as a share of the picture's height (up is more). */
+  move: (frac: number) => void;
+  end: () => void;
+};
+
+/** Taps, and in full screen a pinch and the level drags beside them; the tap ignores fingers that did either. */
 function stageGesture(
   o: Omit<Parameters<typeof tapGesture>[0], "pinching"> & {
+    height: number;
     onZoom?: (fill: boolean) => void;
     onHold?: (on: boolean) => void;
+    levels?: Levels;
   },
 ) {
   const pinch = { at: 0, on: false };
   const held = { at: 0, on: false };
+  const swipe = { at: 0, on: false, side: 0 };
   const taps = tapGesture({
     ...o,
     pinching: () =>
       pinch.on ||
       held.on ||
+      swipe.on ||
       Date.now() - pinch.at < PINCH_GRACE_MS ||
-      Date.now() - held.at < PINCH_GRACE_MS,
+      Date.now() - held.at < PINCH_GRACE_MS ||
+      Date.now() - swipe.at < PINCH_GRACE_MS,
   });
   const { onZoom, onHold } = o;
   const hold = onHold
@@ -167,7 +204,35 @@ function stageGesture(
         })
     : undefined;
   const touch = hold ? Gesture.Simultaneous(hold, taps) : taps;
-  if (!onZoom) return touch;
+  const { levels } = o;
+  // The outer thirds only: the middle stays free for the swipe down that leaves full screen.
+  const drag = levels
+    ? Gesture.Pan()
+        .runOnJS(true)
+        .maxPointers(1)
+        .activeOffsetY([-12, 12])
+        .failOffsetX([-24, 24])
+        .onBegin((e) => {
+          swipe.side =
+            e.x < o.width * SIDE ? -1 : e.x > o.width * (1 - SIDE) ? 1 : 0;
+        })
+        .onStart(() => {
+          if (!swipe.side || held.on || pinch.on) return;
+          swipe.on = levels.begin(swipe.side as -1 | 1);
+        })
+        .onUpdate((e) => {
+          if (swipe.on) levels.move(-e.translationY / (o.height * LEVEL_SPAN));
+        })
+        .onFinalize(() => {
+          swipe.side = 0;
+          if (!swipe.on) return;
+          swipe.on = false;
+          swipe.at = Date.now();
+          levels.end();
+        })
+    : undefined;
+  const base = drag ? Gesture.Simultaneous(drag, touch) : touch;
+  if (!onZoom) return base;
   const zoom = Gesture.Pinch()
     .runOnJS(true)
     .onStart(() => {
@@ -181,12 +246,11 @@ function stageGesture(
       pinch.on = false;
       pinch.at = Date.now();
     });
-  return Gesture.Simultaneous(zoom, touch);
+  return Gesture.Simultaneous(zoom, base);
 }
 
 /** YouTube's player chrome: tap for controls, double-tap a side to skip 10 s, drag the red bar to seek. */
 export function VideoControls(p: ControlsProps) {
-  const at = useClock(p.clock);
   const [shown, setShown] = useState(true);
   // Bumped by every touch so the hide timer starts over.
   const [poke, setPoke] = useState(0);
@@ -196,13 +260,25 @@ export function VideoControls(p: ControlsProps) {
   const [scrub, setScrub] = useState<number>();
   const [barW, setBarW] = useState(0);
   const [stageW, setStageW] = useState(0);
+  const [stageH, setStageH] = useState(0);
+  const [level, setNote] = useState<{ kind: LevelKind; pct: number }>();
   const dur = p.dur ?? 0;
+  const { storyboard } = p;
+  const dragging = scrub !== undefined;
+  useEffect(() => {
+    if (dragging && storyboard) prefetchStoryboard(storyboard);
+  }, [dragging, storyboard]);
 
   useEffect(() => {
     if (!shown || !p.playing || scrub !== undefined) return;
     const t = setTimeout(() => setShown(false), HIDE_MS);
     return () => clearTimeout(t);
   }, [shown, p.playing, poke, scrub]);
+  useEffect(() => {
+    if (!level) return;
+    const t = setTimeout(() => setNote(undefined), 900);
+    return () => clearTimeout(t);
+  }, [level]);
   useEffect(() => {
     if (!zoomNote) return;
     const t = setTimeout(() => setZoomNote(undefined), 900);
@@ -217,7 +293,7 @@ export function VideoControls(p: ControlsProps) {
   // The chrome stays mounted and fades on the UI thread, so a tap never waits on a re-layout.
   const vis = useSharedValue(1);
   useEffect(() => {
-    vis.set(withTiming(shown ? 1 : 0, { duration: shown ? 140 : 220 }));
+    vis.set(withTiming(shown ? 1 : 0, { duration: shown ? 160 : 200 }));
   }, [shown, vis]);
   const fade = useAnimatedStyle(() => ({ opacity: vis.value }));
   // Every row, not just the overlay: on the web a box-none row lets its buttons take touches again.
@@ -230,15 +306,21 @@ export function VideoControls(p: ControlsProps) {
   const scrubSec = useSharedValue(-1);
   const big = useSharedValue(0);
   const { playing } = p;
+  // Follows the clock without rendering with it: only the shared value moves.
+  const { clock: ticks } = p;
   useEffect(() => {
-    const f = dur ? Math.min(1, at / dur) : 0;
-    const step = (f - played.get()) * dur;
-    played.set(
-      playing && step > 0 && step < 1.5
-        ? withTiming(f, { duration: 500, easing: Easing.linear })
-        : f,
-    );
-  }, [at, dur, playing, played]);
+    const follow = () => {
+      const f = dur ? Math.min(1, ticks.get() / dur) : 0;
+      const step = (f - played.get()) * dur;
+      played.set(
+        playing && step > 0 && step < 1.5
+          ? withTiming(f, { duration: 500, easing: Easing.linear })
+          : f,
+      );
+    };
+    follow();
+    return ticks.subscribe(follow);
+  }, [ticks, dur, playing, played]);
   const fillStyle = useAnimatedStyle(() => ({
     width: `${(scrubbing.value ? scrubAt.value : played.value) * 100}%`,
   }));
@@ -259,6 +341,30 @@ export function VideoControls(p: ControlsProps) {
   };
 
   const { onSeek, getTime } = p;
+  // Phones in full screen: drag up and down on the left for brightness, on the right for volume.
+  const levels = useMemo<Levels | undefined>(() => {
+    if (!p.fullscreen || Platform.OS === "web") return undefined;
+    const at = { kind: "volume" as LevelKind, from: 0, pct: -1 };
+    return {
+      begin: (side) => {
+        at.kind = side < 0 ? "brightness" : "volume";
+        const now = levelNow(at.kind);
+        if (now === undefined) return false;
+        at.from = now;
+        at.pct = -1;
+        return true;
+      },
+      move: (frac) => {
+        const v = Math.max(0, Math.min(1, at.from + frac));
+        setLevel(at.kind, v);
+        const pct = Math.round(v * 100);
+        if (pct === at.pct) return;
+        at.pct = pct;
+        setNote({ kind: at.kind, pct });
+      },
+      end: () => settleLevel(at.kind),
+    };
+  }, [p.fullscreen]);
   // Built once per layout, never per frame: a gesture rebuilt while a finger is down drops the tap (iOS, Android).
   // Two fingers are a pinch, never taps: pinching used to read as a double tap and skip.
   const { onZoom, fullscreen, onHold } = p;
@@ -266,6 +372,8 @@ export function VideoControls(p: ControlsProps) {
     () =>
       stageGesture({
         width: stageW,
+        height: stageH,
+        levels,
         setShown,
         onTap: () => setPoke((n) => n + 1),
         onSkip: (side) => {
@@ -290,7 +398,7 @@ export function VideoControls(p: ControlsProps) {
             }
           : undefined,
       }),
-    [stageW, dur, onSeek, getTime, fullscreen, onZoom, onHold],
+    [stageW, stageH, levels, dur, onSeek, getTime, fullscreen, onZoom, onHold],
   );
   // A tick under the finger at each chapter start, like YouTube's scrubber.
   const marks = useMemo(
@@ -350,17 +458,21 @@ export function VideoControls(p: ControlsProps) {
       });
   }, [barW, dur, onSeek, marks, scrubAt, scrubSec, scrubbing, big, played]);
 
-  const shownAt = scrub ?? at;
-  const chapter = p.chapters.reduce<string | undefined>(
-    (cur, c) => (c.startSec <= shownAt ? c.title : cur),
-    undefined,
-  );
+  // The chapter under the finger, shown in the scrub bubble only.
+  const chapter =
+    scrub === undefined
+      ? undefined
+      : p.chapters.reduce<string | undefined>(
+          (cur, c) => (c.startSec <= scrub ? c.title : cur),
+          undefined,
+        );
 
   return (
     <View
       style={StyleSheet.absoluteFill}
       onLayout={(e) => {
         setStageW(e.nativeEvent.layout.width);
+        setStageH(e.nativeEvent.layout.height);
       }}
     >
       <GestureDetector gesture={stage}>
@@ -374,6 +486,25 @@ export function VideoControls(p: ControlsProps) {
           raised={shown}
           large={!!p.fullscreen}
         />
+      ) : null}
+
+      {level ? (
+        <Animated.View
+          entering={FadeIn.duration(100)}
+          exiting={FadeOut.duration(200)}
+          pointerEvents="none"
+          style={styles.levelWrap}
+        >
+          <View style={styles.level}>
+            <Text style={styles.levelText}>
+              {level.kind === "volume" ? "Volume" : "Brightness"}
+            </Text>
+            <View style={styles.levelTrack}>
+              <View style={[styles.levelFill, { width: `${level.pct}%` }]} />
+            </View>
+            <Text style={styles.levelText}>{level.pct}%</Text>
+          </View>
+        </Animated.View>
       ) : null}
 
       {zoomNote ? (
@@ -413,10 +544,19 @@ export function VideoControls(p: ControlsProps) {
         </Animated.View>
       ) : null}
 
-      <Animated.View
-        style={[styles.overlay, fade]}
-        pointerEvents={live}
-      >
+      <Animated.View style={[styles.overlay, fade]} pointerEvents={live}>
+        {/* A light scrim, darker only behind the buttons at the top and bottom, so the picture shows through. */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            "rgba(0,0,0,0.32)",
+            "rgba(0,0,0,0.06)",
+            "rgba(0,0,0,0.06)",
+            "rgba(0,0,0,0.38)",
+          ]}
+          locations={[0, 0.22, 0.75, 1]}
+          style={StyleSheet.absoluteFill}
+        />
         <View
           style={[styles.top, p.fullscreen && styles.topFull]}
           pointerEvents={live}
@@ -499,13 +639,22 @@ export function VideoControls(p: ControlsProps) {
           </View>
         ) : (
           <View style={styles.center} pointerEvents="none">
-            <View style={styles.bubble}>
-              <Text style={styles.bubbleTime}>{clock(scrub) || "0:00"}</Text>
-              {chapter ? (
-                <Text style={styles.bubbleChapter} numberOfLines={1}>
-                  {chapter}
-                </Text>
+            <View style={styles.scrubCol}>
+              {storyboard ? (
+                <StoryboardFrame
+                  sb={storyboard}
+                  sec={scrub}
+                  scale={p.fullscreen ? 1.5 : 1}
+                />
               ) : null}
+              <View style={styles.bubble}>
+                <Text style={styles.bubbleTime}>{clock(scrub) || "0:00"}</Text>
+                {chapter ? (
+                  <Text style={styles.bubbleChapter} numberOfLines={1}>
+                    {chapter}
+                  </Text>
+                ) : null}
+              </View>
             </View>
           </View>
         )}
@@ -515,12 +664,23 @@ export function VideoControls(p: ControlsProps) {
           pointerEvents={live}
         >
           <View style={styles.time}>
-            <Text style={styles.timeText}>
-              {clock(shownAt) || "0:00"}
-              {dur ? ` / ${clock(dur)}` : ""}
-            </Text>
+            <TimeText clock={p.clock} scrub={scrub} dur={dur} />
           </View>
-          <View style={{ flex: 1 }} pointerEvents="none" />
+          {p.chapter && p.onChapters ? (
+            <Pressable
+              onPress={act(p.onChapters)}
+              hitSlop={8}
+              accessibilityLabel="Chapters"
+              style={styles.chapterBtn}
+            >
+              <Text style={styles.chapterBtnText} numberOfLines={1}>
+                {p.chapter}
+              </Text>
+              <Glyph d="M9 6l6 6-6 6" />
+            </Pressable>
+          ) : (
+            <View style={{ flex: 1 }} pointerEvents="none" />
+          )}
           <Btn
             onPress={act(p.onFullscreen)}
             label={p.fullscreen ? "Exit full screen" : "Full screen"}
@@ -563,6 +723,15 @@ export function VideoControls(p: ControlsProps) {
                       />
                     ))
                 : null}
+              {shown && dur && p.highlight !== undefined ? (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.best,
+                    { left: `${(p.highlight / dur) * 100}%` },
+                  ]}
+                />
+              ) : null}
             </View>
             {shown ? (
               <Animated.View
@@ -579,6 +748,25 @@ export function VideoControls(p: ControlsProps) {
         </GestureDetector>
       ) : null}
     </View>
+  );
+}
+
+/** The one piece of the controls that follows the clock; it re-renders alone, the rest stays put. */
+function TimeText({
+  clock: ticks,
+  scrub,
+  dur,
+}: {
+  clock: Clock;
+  scrub?: number;
+  dur: number;
+}) {
+  const at = useClock(ticks);
+  return (
+    <Text style={styles.timeText}>
+      {clock(scrub ?? at) || "0:00"}
+      {dur ? ` / ${clock(dur)}` : ""}
+    </Text>
   );
 }
 
@@ -675,7 +863,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: "rgba(0,0,0,0.38)",
   },
   top: {
     flexDirection: "row",
@@ -749,6 +936,19 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     ...display("700"),
   },
+  scrubCol: { alignItems: "center", gap: 8 },
+  chapterBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+  },
+  chapterBtnText: {
+    flexShrink: 1,
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 12.5,
+    ...display("700"),
+  },
   bubble: {
     alignItems: "center",
     paddingHorizontal: 14,
@@ -786,6 +986,36 @@ const styles = StyleSheet.create({
     textAlign: "center",
     ...display("700"),
   },
+  levelWrap: {
+    position: "absolute",
+    top: 24,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  level: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  levelText: {
+    color: "#fff",
+    fontSize: 12.5,
+    fontVariant: ["tabular-nums"],
+    ...display("700"),
+  },
+  levelTrack: {
+    width: 110,
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  levelFill: { height: "100%", backgroundColor: "#fff" },
   zoomWrap: {
     position: "absolute",
     top: 0,
@@ -831,6 +1061,15 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 2,
     backgroundColor: "rgba(0,0,0,0.7)",
+  },
+  best: {
+    position: "absolute",
+    top: -3,
+    width: 4,
+    height: 9,
+    marginLeft: -2,
+    borderRadius: 2,
+    backgroundColor: "#ff1684",
   },
   handle: {
     position: "absolute",

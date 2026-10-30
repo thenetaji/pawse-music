@@ -36,7 +36,7 @@ import {
 import { VideoCard } from "../../components/video-card";
 import type { DailyMix } from "../../data/account";
 import { dailyMixes, useLibrary } from "../../data/library";
-import { useForYou } from "../../data/recommend";
+import { refreshForYou, useForYou } from "../../data/recommend";
 import { useVideoFilter } from "../../lib/block";
 import { rightClick } from "../../lib/context-menu";
 import { yt } from "../../lib/engine";
@@ -50,6 +50,7 @@ import { display } from "../../lib/type";
 import { refreshResources, useResource } from "../../lib/use-resource";
 import { Cat, type CatColor } from "../cat/cat";
 import { ContinueCard, VideoShelf, YourPeople } from "../home/home-blocks";
+import { MoodChips } from "../home/mood-chips";
 import { Pinned } from "../home/pinned";
 import { showTrackActions } from "../library/track-actions";
 import { useAccent } from "../now-playing/now-palette";
@@ -82,15 +83,17 @@ export default function HomePage() {
   );
   const key = chip ?? "";
   // Extra pages: YouTube's own continuations first, then one mood page at a time, so the feed never ends.
+  // Extra pages belong to the first page they followed, so a refresh drops them.
   const [more, setMore] = useState<{
     key: string;
+    base?: HomeFeed;
     shelves: ShelfT[];
     continuation?: string;
     mood: number;
   }>({ key, shelves: [], mood: 0 });
   const [loadingMore, setLoadingMore] = useState(false);
   const extra =
-    more.key === key
+    more.key === key && more.base === home.data
       ? more
       : { key, shelves: [], continuation: undefined, mood: 0 };
   const cont =
@@ -110,26 +113,33 @@ export default function HomePage() {
     { keep: true },
   );
   const [vmore, setVmore] = useState<{
+    base?: VideoFeed;
     items: VideoItem[];
     cont?: string;
     started: boolean;
   }>({ items: [], started: false });
   const [loadingVideos, setLoadingVideos] = useState(false);
   const keepVideo = useVideoFilter();
-  const vcont = vmore.started ? vmore.cont : vhome.data?.continuation;
+  const vextra =
+    vmore.base === vhome.data
+      ? vmore
+      : { items: [] as VideoItem[], cont: undefined, started: false };
+  const vcont = vextra.started ? vextra.cont : vhome.data?.continuation;
   const feedVideos =
     full && videos
-      ? [...(vhome.data?.items.slice(4) ?? []), ...vmore.items].filter((v) =>
+      ? [...(vhome.data?.items.slice(4) ?? []), ...vextra.items].filter((v) =>
           keepVideo(v),
         )
       : [];
   const moreVideos = () => {
     if (!videos || loadingVideos || !vcont) return;
     setLoadingVideos(true);
+    const base = vhome.data;
     forYou(vcont)
       .then((r) =>
         setVmore({
-          items: [...vmore.items, ...r.items],
+          base,
+          items: [...vextra.items, ...r.items],
           cont: r.continuation,
           started: true,
         }),
@@ -165,16 +175,18 @@ export default function HomePage() {
       }));
     } else return;
     setLoadingMore(true);
+    const base = home.data;
     next
       .then((r) =>
         setMore({
           key,
+          base,
           shelves: [...extra.shelves, ...r.shelves],
           continuation: r.continuation,
           mood: r.mood,
         }),
       )
-      .catch(() => setMore({ ...extra, key, mood: extra.mood + 1 }))
+      .catch(() => setMore({ ...extra, key, base, mood: extra.mood + 1 }))
       .finally(() => setLoadingMore(false));
   };
 
@@ -184,7 +196,14 @@ export default function HomePage() {
       tab="home"
       background={<TopGlow />}
       onRefresh={() =>
-        Promise.all([home.reload(), refreshResources(["watch:", "home:mixes"])])
+        Promise.all([
+          home.reload(),
+          refreshResources(
+            ["watch:", "home:mixes", "explore:moods"],
+            ["watch:q:"],
+          ),
+          refreshForYou(),
+        ])
       }
       onEndReached={full ? loadMore : undefined}
       right={
@@ -216,6 +235,7 @@ export default function HomePage() {
       }
     >
       <CatLine />
+      <MoodChips />
       {!signedIn ? <SignInCard accent={accent} /> : null}
       {sections.map((sec) => {
         switch (sec.id) {

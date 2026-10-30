@@ -1,5 +1,6 @@
 export { fetchCaptions, parseJson3 } from "./captions";
 export {
+  CHANNEL_SEARCH_PARAMS,
   CHANNEL_VIDEOS_PARAMS,
   DEFAULT_HOME_TOPICS,
   FALLBACK_WEB_CLIENT_VERSION,
@@ -14,7 +15,9 @@ export {
   collect,
   isShortNode,
   parseChannel,
+  parseChannelAbout,
   parseChannelRenderer,
+  parseChannelTab,
   parseComments,
   parseHistory,
   parseLockup,
@@ -30,5 +33,6 @@ export {
   chooseAudioTrack,
   pickVideoFormat,
   resolveVideoStream,
+  storyboardOf,
   type VideoStreamOptions,
 } from "./stream";

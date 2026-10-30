@@ -117,11 +117,11 @@ const ToDownload = make(CircleArrowDownIcon);
 export const DownloadGlyph = ({ done, ...p }: P & { done?: boolean }) =>
   done ? <Downloaded {...p} /> : <ToDownload {...p} />;
 
-/** Marks a title or thumbnail swapped in from DeArrow. */
+/** Marks a title or thumbnail swapped in from DeArrow: a pen over a line, "rewritten", so it can't pass for Download. */
 export const DeArrowMark = ({ size = 12 }: { size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M12 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18zM12 7.5v8M8.5 12.5l3.5 3.5 3.5-3.5"
+      d="M13 21h8M21.17 6.81a2.82 2.82 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"
       stroke="rgba(140,180,255,0.9)"
       strokeWidth={2.4}
       strokeLinecap="round"

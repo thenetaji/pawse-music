@@ -25,6 +25,8 @@ export interface SetupOptions {
   sleepFadeSec?: () => number;
   /** Seconds a song fades out at its end (the next fades in over half that); 0 is off. */
   crossfadeSec?: () => number;
+  /** Songs from one album (or an album queue) play straight into each other, never crossfaded; default on. */
+  gapless?: () => boolean;
   /** A ready artwork URI (e.g. a local square file) for the system Now Playing; undefined uses the best thumbnail. */
   artwork?: (track: Track) => string | undefined;
   /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */
@@ -35,6 +37,12 @@ export interface SetupOptions {
   ) => Promise<{ start: number; end: number; category: string }[]>;
   /** A segment was just skipped. */
   onSkip?: (track: Track, category: string) => void;
+  /** Skips silence at a song's ends: `skip` toggles the audio path's own skipping, else `silentMs` (silence just played) lets the end be cut. */
+  trimSilence?: {
+    on: () => boolean;
+    skip?: (on: boolean) => void;
+    silentMs?: () => number | undefined;
+  };
   /** Web and desktop: a header-free URL for a stream; a local relay adds its headers. */
   streamUrl?: (stream: ResolvedStream) => string;
 }

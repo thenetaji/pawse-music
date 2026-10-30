@@ -8,10 +8,12 @@ import { Artwork } from "../../components/artwork";
 import {
   AlbumGlyph,
   ArtistGlyph,
+  AudioTrackGlyph,
   CardGlyph,
   DownloadGlyph,
   HeartIcon,
   InfoGlyph,
+  MinusGlyph,
   PinGlyph,
   PlaylistGlyph,
   PlayNextGlyph,
@@ -29,7 +31,8 @@ import { isPinned, togglePin } from "../../data/pins";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { removeSong } from "../../lib/remove-song";
-import { getSetting } from "../../lib/settings";
+import { levelsAvailable } from "../../lib/audio-fx";
+import { getSetting, setSetting } from "../../lib/settings";
 import { useShareCard } from "../../lib/share-card-store";
 import { openAlbum, openArtist } from "../../lib/song-links";
 import { findSongVideo } from "../../lib/song-video";
@@ -45,7 +48,12 @@ const W = 1.8;
 
 export function showTrackActions(
   track: Track,
-  opts?: { fromPlayer?: boolean; removable?: boolean },
+  opts?: {
+    fromPlayer?: boolean;
+    removable?: boolean;
+    /** Set on a playlist you can edit: adds "Remove from this playlist". */
+    onRemove?: () => void;
+  },
 ) {
   const lib = useLibrary.getState();
   const liked = lib.isLiked(track.id);
@@ -139,6 +147,20 @@ export function showTrackActions(
         onPress: () =>
           void player.playRadio({ videoId: track.id, title: track.title }),
       },
+      ...(opts?.fromPlayer && levelsAvailable
+        ? [
+            {
+              label: getSetting("visualiser", false)
+                ? "Hide visualiser"
+                : "Show visualiser",
+              icon: (c: string) => (
+                <AudioTrackGlyph size={I} weight={W} color={c} />
+              ),
+              onPress: () =>
+                setSetting("visualiser", !getSetting("visualiser", false)),
+            },
+          ]
+        : []),
       ...(track.source === "youtube" && getSetting("videos", true)
         ? [
             {
@@ -204,6 +226,16 @@ export function showTrackActions(
           push("/share-card");
         },
       },
+      ...(opts?.onRemove
+        ? [
+            {
+              label: "Remove from this playlist",
+              destructive: true,
+              icon: (c: string) => <MinusGlyph size={I} weight={W} color={c} />,
+              onPress: opts.onRemove,
+            },
+          ]
+        : []),
       ...(opts?.removable
         ? [
             {

@@ -23,6 +23,7 @@ import {
   parsePlaylist,
   parsePlaylistContinuation,
   parseSearch,
+  parseSearchSuggestions,
   parseSuggestions,
 } from "./parse";
 
@@ -156,6 +157,78 @@ describe("search", () => {
       expect.arrayContaining(["blinding lights", "blinding lights the weeknd"]),
     );
   });
+
+  it("splits suggestions into queries and items with artwork", () => {
+    const row = (q: string) => ({
+      searchSuggestionRenderer: {
+        suggestion: { runs: [{ text: q }] },
+        navigationEndpoint: { searchEndpoint: { query: q } },
+      },
+    });
+    const artistRow = {
+      musicResponsiveListItemRenderer: {
+        thumbnail: {
+          musicThumbnailRenderer: {
+            thumbnail: {
+              thumbnails: [{ url: "https://x/a", width: 60, height: 60 }],
+            },
+          },
+        },
+        flexColumns: [
+          {
+            musicResponsiveListItemFlexColumnRenderer: {
+              text: { runs: [{ text: "Daft Punk" }] },
+            },
+          },
+          {
+            musicResponsiveListItemFlexColumnRenderer: {
+              text: { runs: [{ text: "68M monthly audience" }] },
+            },
+          },
+        ],
+        navigationEndpoint: {
+          browseEndpoint: {
+            browseId: "UCRr1xG_2WIDs18a6cIiCxeA",
+            browseEndpointContextSupportedConfigs: {
+              browseEndpointContextMusicConfig: {
+                pageType: "MUSIC_PAGE_TYPE_ARTIST",
+              },
+            },
+          },
+        },
+      },
+    };
+    const out = parseSearchSuggestions({
+      contents: [
+        {
+          searchSuggestionsSectionRenderer: {
+            contents: [
+              row("daft punk"),
+              {
+                historySuggestionRenderer: {
+                  suggestion: { runs: [{ text: "daft punk live" }] },
+                  navigationEndpoint: {
+                    searchEndpoint: { query: "daft punk live" },
+                  },
+                },
+              },
+              row("daft punk"),
+            ],
+          },
+        },
+        { searchSuggestionsSectionRenderer: { contents: [artistRow] } },
+      ],
+    });
+    expect(out.queries).toEqual(["daft punk", "daft punk live"]);
+    expect(out.items).toEqual([
+      expect.objectContaining({
+        type: "artist",
+        name: "Daft Punk",
+        subtitle: "68M monthly audience",
+        thumbnails: [{ url: "https://x/a", width: 60, height: 60 }],
+      }),
+    ]);
+  });
 });
 
 describe("album", () => {
@@ -244,6 +317,16 @@ describe("playlist", () => {
       setVideoId: "68C6E519FFFB6870",
     });
     expect(p.continuation).toBeTruthy();
+  });
+
+  it("marks a playlist editable only when YouTube wraps its header for the owner", () => {
+    expect(parsePlaylist(playlist, "VLPL1").editable).toBeUndefined();
+    const header = { musicResponsiveHeaderRenderer: { title: { runs: [] } } };
+    const mine = (header: unknown) => ({
+      header: { musicEditablePlaylistDetailHeaderRenderer: { header } },
+    });
+    expect(parsePlaylist(mine(header), "VLPL1").editable).toBe(true);
+    expect(parsePlaylist({ header }, "VLPL1").editable).toBeUndefined();
   });
 
   it("reads a continuation page", () => {

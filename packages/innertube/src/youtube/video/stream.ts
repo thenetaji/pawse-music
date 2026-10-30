@@ -2,6 +2,7 @@ import {
   type AudioTrackOption,
   type CaptionTrack,
   StreamError,
+  type Storyboard,
   type StreamPart,
   type VideoStream,
 } from "@pawse/music-core";
@@ -22,6 +23,10 @@ export interface VideoStreamOptions
   maxHeight?: number;
   /** The audio language to play, an id from `audioTracks`; the original when unset. */
   audioTrack?: string;
+  /** False plays YouTube's pick for the viewer's language (often an auto-dub) instead of the original; default true. */
+  originalAudio?: boolean;
+  /** Also offer AV1 above 1080p (1440p, 4K), for a player that decodes it in hardware. H.264 stays the base. */
+  av1?: boolean;
 }
 
 const isOriginal = (f: AdaptiveFormat) =>
@@ -31,13 +36,15 @@ const isOriginal = (f: AdaptiveFormat) =>
 export function chooseAudioTrack(
   formats: AdaptiveFormat[] | undefined,
   want?: string,
+  original = true,
 ): string | undefined {
   const dubbed = (formats ?? []).filter((f) => f.audioTrack);
   if (!dubbed.length) return undefined;
   if (want && dubbed.some((f) => f.audioTrack?.id === want)) return want;
   return (
-    dubbed.find(isOriginal) ??
+    (original ? dubbed.find(isOriginal) : undefined) ??
     dubbed.find((f) => f.audioTrack?.audioIsDefault) ??
+    dubbed.find(isOriginal) ??
     dubbed[0]
   ).audioTrack?.id;
 }
@@ -77,22 +84,60 @@ export function captionTracksOf(data: any): CaptionTrack[] {
     }));
 }
 
+// The preview frames to use: the biggest at or under this width, as the scrub bubble is small.
+const STORYBOARD_WIDTH = 180;
+
+/** The scrubber's preview frames from a player answer: "base|w#h#count#cols#rows#interval#name#sigh|…", one level per size. */
+export function storyboardOf(data: any): Storyboard | undefined {
+  const spec = data?.storyboards?.playerStoryboardSpecRenderer?.spec;
+  if (typeof spec !== "string") return undefined;
+  const [base, ...levels] = spec.split("|");
+  const duration = Number(data?.videoDetails?.lengthSeconds) || 0;
+  const found = levels.flatMap((l, level) => {
+    const [w, h, count, cols, rows, ms, name, sigh] = l.split("#");
+    const sb = {
+      width: Number(w),
+      height: Number(h),
+      count: Number(count),
+      cols: Number(cols),
+      rows: Number(rows),
+      // The first size lists no interval; its frames are spread over the whole video.
+      everySec: Number(ms) / 1000 || duration / Number(count),
+    };
+    if (!base || !sb.width || !sb.height || !sb.count || !sb.cols || !sb.rows)
+      return [];
+    if (!(sb.everySec > 0) || !name || !sigh) return [];
+    const url = `${base.replace("$L", String(level)).replace("$N", name)}&sigh=${encodeURIComponent(sigh)}`;
+    return [{ ...sb, url: url.replace("$M", "{n}") }];
+  });
+  return found.filter((s) => s.width <= STORYBOARD_WIDTH).at(-1) ?? found.at(0);
+}
+
 const DEFAULT_MAX_HEIGHT = 1080;
 
 const usable = (f: AdaptiveFormat, ciphered: boolean): boolean =>
   ciphered ? !!(f.url || f.signatureCipher || f.cipher) : !!f.url;
 const isAvc = (f: AdaptiveFormat): boolean =>
   /^video\/mp4\b/i.test(f.mimeType ?? "") && /avc1/i.test(f.mimeType ?? "");
+// YouTube stops H.264 at 1080p. Above it only AV1 fits the HLS playlists (VP9 is WebM, which HLS can't carry).
+const H264_MAX = 1080;
+const isAv1 = (f: AdaptiveFormat): boolean =>
+  /^video\/mp4\b/i.test(f.mimeType ?? "") && /av01/i.test(f.mimeType ?? "");
+/** H.264 up to 1080p, and with `av1` the AV1 formats above it. */
+const wanted = (f: AdaptiveFormat, av1: boolean): boolean =>
+  isAvc(f) || (av1 && isAv1(f) && (f.height ?? 0) > H264_MAX);
 
-/** Tallest H.264 MP4 video format at or below maxHeight; ties go to higher fps, then bitrate. */
+/** Tallest H.264 MP4 video format at or below maxHeight (with `av1`, AV1 above 1080p too); ties go to higher fps, then bitrate. */
 export function pickVideoFormat(
   formats: AdaptiveFormat[] | undefined,
   maxHeight = DEFAULT_MAX_HEIGHT,
   ciphered = false,
+  av1 = false,
 ): AdaptiveFormat | undefined {
   return (formats ?? [])
     .filter(
-      (f) => isAvc(f) && usable(f, ciphered) && (f.height ?? 0) <= maxHeight,
+      (f) =>
+        wanted(f, av1) && usable(f, ciphered) && (f.height ?? 0) <= maxHeight,
     )
     .sort(
       (a, b) =>
@@ -105,15 +150,16 @@ export function pickVideoFormat(
 const qualityKey = (f: AdaptiveFormat) =>
   `${f.height ?? 0}p${(f.fps ?? 30) > 30 ? 60 : 30}`;
 
-/** One H.264 format per height and frame rate at or below maxHeight (the highest bitrate of each), tallest first. */
+/** One format per height and frame rate at or below maxHeight (the highest bitrate of each), tallest first: H.264, and with `av1` AV1 above 1080p. */
 export function videoLadder(
   formats: AdaptiveFormat[] | undefined,
   maxHeight = DEFAULT_MAX_HEIGHT,
   ciphered = false,
+  av1 = false,
 ): AdaptiveFormat[] {
   const best = new Map<string, AdaptiveFormat>();
   for (const f of formats ?? []) {
-    if (!isAvc(f) || !usable(f, ciphered) || (f.height ?? 0) > maxHeight)
+    if (!wanted(f, av1) || !usable(f, ciphered) || (f.height ?? 0) > maxHeight)
       continue;
     const k = qualityKey(f);
     const had = best.get(k);
@@ -162,6 +208,8 @@ export async function resolveVideoStream(
   const {
     maxHeight = DEFAULT_MAX_HEIGHT,
     audioTrack: wantTrack,
+    originalAudio = true,
+    av1 = false,
     ...rest
   } = options;
   const o: ResolveOptions = {
@@ -178,17 +226,18 @@ export async function resolveVideoStream(
   let captions: CaptionTrack[] = [];
   let audioTracks: AudioTrackOption[] = [];
   let audioTrack: string | undefined;
+  let storyboard: Storyboard | undefined;
   const video = await resolveYouTubeStream(
     videoId,
     {
       ...o,
       pick: (formats, ciphered) =>
-        pickVideoFormat(formats, maxHeight, ciphered),
+        pickVideoFormat(formats, maxHeight, ciphered, av1),
       onFormat: (format, via) => {
         picked = { format, via };
       },
       extra: (formats, chosen) =>
-        videoLadder(formats, maxHeight, !!o.sandbox).filter(
+        videoLadder(formats, maxHeight, !!o.sandbox, av1).filter(
           (f) => qualityKey(f) !== qualityKey(chosen),
         ),
       onExtra: (list) => {
@@ -196,6 +245,7 @@ export async function resolveVideoStream(
       },
       onPlayerData: (data) => {
         captions = captionTracksOf(data);
+        storyboard = storyboardOf(data);
       },
     },
     attempts,
@@ -216,7 +266,7 @@ export async function resolveVideoStream(
       // Dubbed videos carry every language; play the original (or the one asked for), not a random dub.
       pick: (formats, ciphered) => {
         audioTracks = audioTracksOf(formats);
-        audioTrack = chooseAudioTrack(formats, wantTrack);
+        audioTrack = chooseAudioTrack(formats, wantTrack, originalAudio);
         return pickAudioFormat(
           (formats ?? []).filter(
             (f) => !audioTrack || f.audioTrack?.id === audioTrack,
@@ -268,5 +318,6 @@ export async function resolveVideoStream(
     audioTracks: audioTracks.length > 1 ? audioTracks : undefined,
     audioTrack,
     captions: captions.length ? captions : undefined,
+    storyboard,
   };
 }

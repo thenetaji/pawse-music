@@ -1,5 +1,5 @@
 diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt
-index 92c6b6371a115e3618b06de7d225f73c29eaf911..00725a2d1dc766db9024a0826e245163a21a5c9e 100644
+index 92c6b63..00725a2 100644
 --- a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt
 +++ b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerModule.kt
 @@ -665,8 +665,13 @@ class TrackPlayerModule internal constructor(
@@ -18,10 +18,10 @@ index 92c6b6371a115e3618b06de7d225f73c29eaf911..00725a2d1dc766db9024a0826e245163
          SessionCommand(TrackPlayerPlaybackService.COMMAND_PRELOAD, Bundle.EMPTY),
          args
 diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
-index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c6a88dd27 100644
+index 3fe0f0a..0780002 100644
 --- a/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
 +++ b/android/src/main/java/com/doublesymmetry/trackplayer/TrackPlayerPlaybackService.kt
-@@ -34,6 +34,7 @@ import androidx.media3.datasource.DataSource
+@@ -34,11 +34,15 @@ import androidx.media3.datasource.DataSource
  import androidx.media3.datasource.DataSpec
  import androidx.media3.datasource.DefaultDataSource
  import androidx.media3.datasource.DefaultHttpDataSource
@@ -29,7 +29,15 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c
  import androidx.media3.datasource.cache.CacheDataSource
  import androidx.media3.datasource.cache.CacheWriter
  import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-@@ -178,6 +179,21 @@ internal fun classifyPlaybackError(error: PlaybackException): String {
+ import androidx.media3.datasource.cache.SimpleCache
++import androidx.media3.exoplayer.DefaultRenderersFactory
+ import androidx.media3.exoplayer.ExoPlayer
++import androidx.media3.exoplayer.audio.AudioSink
++import androidx.media3.exoplayer.audio.DefaultAudioSink
+ import androidx.media3.exoplayer.hls.offline.HlsDownloader
+ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+ import androidx.media3.exoplayer.source.MediaSource
+@@ -178,6 +182,55 @@ internal fun classifyPlaybackError(error: PlaybackException): String {
    }
  }
  
@@ -48,10 +56,61 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c
 +  return if (status != null) "$base ($code, HTTP $status)" else "$base ($code)"
 +}
 +
++// Pawse patch: the app's audio module (equaliser, crossfeed, level meter, silence trimming) supplies the processor chain.
++@OptIn(UnstableApi::class)
++internal fun pawseRenderersFactory(context: Context): DefaultRenderersFactory {
++  val chain: DefaultAudioSink.DefaultAudioProcessorChain? = try {
++    val made = Class.forName("expo.modules.pawseaudio.PawseDsp").getMethod("chain").invoke(null)
++    made as? DefaultAudioSink.DefaultAudioProcessorChain
++  } catch (_: Throwable) {
++    null
++  }
++  return object : DefaultRenderersFactory(context) {
++    override fun buildAudioSink(
++      context: Context,
++      enableFloatOutput: Boolean,
++      enableAudioOutputPlaybackParams: Boolean,
++    ): AudioSink? {
++      if (chain == null) return super.buildAudioSink(context, enableFloatOutput, enableAudioOutputPlaybackParams)
++      return DefaultAudioSink.Builder(context)
++        .setEnableFloatOutput(enableFloatOutput)
++        .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
++        .setAudioProcessorChain(chain)
++        .build()
++    }
++  }
++}
++
++// Pawse patch: hands the player to the audio module so it can switch silence skipping.
++@OptIn(UnstableApi::class)
++internal fun pawseAttachPlayer(player: ExoPlayer) {
++  try {
++    Class.forName("expo.modules.pawseaudio.PawseDsp").getMethod("attach", ExoPlayer::class.java).invoke(null, player)
++  } catch (_: Throwable) {
++  }
++}
++
  private fun seekByOffset(player: Player, offsetMs: Long) {
    var positionMs = player.currentPosition + offsetMs
    val durationMs = player.duration
-@@ -424,7 +440,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+@@ -322,7 +375,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+       )
+     } ?: DefaultMediaSourceFactory(upstreamFactory)
+ 
+-    val built = ExoPlayer.Builder(this)
++    val built = ExoPlayer.Builder(this, pawseRenderersFactory(this))
+       .setMediaSourceFactory(LiveRefreshMediaSourceFactory(mediaSourceFactory))
+       .setAudioAttributes(audioAttributes, config.audioMixing != "mix")
+       .setHandleAudioBecomingNoisy(config.handleAudioBecomingNoisy)
+@@ -336,6 +389,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+       .setSkipSilenceEnabled(config.skipSilenceEnabled)
+       .build()
+     exoPlayer = built
++    pawseAttachPlayer(built)
+ 
+     if (config.preloadWindow > 0 && config.cacheMaxSizeBytes != null) {
+       built.preloadConfiguration = ExoPlayer.PreloadConfiguration(
+@@ -424,7 +478,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
          this@TrackPlayerPlaybackService.emitEvent(
            PlaybackErrorEvent(
              code = classifyPlaybackError(error),
@@ -60,7 +119,7 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c
            )
          )
        }
-@@ -889,7 +905,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+@@ -889,7 +943,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
        }
        COMMAND_PRELOAD -> {
          val uri = args.getString("uri") ?: return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_UNKNOWN))
@@ -69,7 +128,7 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c
          return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
        }
        COMMAND_CANCEL_PRELOAD -> {
-@@ -1108,7 +1124,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+@@ -1108,7 +1162,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
    }
  
    private fun resolveBrowseMediaItem(browseTree: BrowseTree, requested: MediaItem): MediaItem {
@@ -78,7 +137,7 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c
      val browseItem = browseTree.findItem(requested.mediaId)
        ?: if (browseTree.findCategory(requested.mediaId) == null) {
          BrowseTreeRepository.previousSnapshot()?.findItem(requested.mediaId)
-@@ -1116,6 +1132,15 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+@@ -1116,6 +1170,15 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
      return browseItem?.toMediaItem(this) ?: requested
    }
  
@@ -94,7 +153,7 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c
    private fun browseRootItem(): MediaItem = MediaItem.Builder()
      .setMediaId(BROWSE_ROOT_ID)
      .setMediaMetadata(
-@@ -1366,7 +1391,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+@@ -1366,7 +1429,7 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
    // region Preloading
  
    @OptIn(UnstableApi::class)
@@ -103,7 +162,7 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c
      val cache = simpleCache ?: return
  
      val preloadUpstreamFactory = DefaultDataSource.Factory(this, DefaultHttpDataSource.Factory())
-@@ -1392,9 +1417,10 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
+@@ -1392,9 +1455,10 @@ class TrackPlayerPlaybackService: MediaLibraryService(), MediaLibraryService.Med
              .download(/* progressListener= */ null)
          } else {
            // Progressive media: a single CacheWriter pass caches the whole file.
@@ -116,7 +175,7 @@ index 3fe0f0aaedcd5af464038fb9c3db004f7cdf1895..f9e77eeb23ffc2e19082c6b82bb29a1c
              /* progressListener= */ null
            ).cache()
 diff --git a/android/src/main/java/com/doublesymmetry/trackplayer/models/TrackPlayerMediaItem.kt b/android/src/main/java/com/doublesymmetry/trackplayer/models/TrackPlayerMediaItem.kt
-index 43b2934f29be4a6ef6942f632c2090a36748f955..1bc33fe1cbff8d2e855ad6894dfd41dd1cc7df9f 100644
+index 43b2934..1bc33fe 100644
 --- a/android/src/main/java/com/doublesymmetry/trackplayer/models/TrackPlayerMediaItem.kt
 +++ b/android/src/main/java/com/doublesymmetry/trackplayer/models/TrackPlayerMediaItem.kt
 @@ -9,8 +9,10 @@ import android.content.ContentResolver
@@ -202,7 +261,7 @@ index 43b2934f29be4a6ef6942f632c2090a36748f955..1bc33fe1cbff8d2e855ad6894dfd41dd
      }
    }
 diff --git a/ios/TrackPlayer.swift b/ios/TrackPlayer.swift
-index 61a7d64d4b1ad917633857a6bf0f0dc802f63fcf..e38710d259334f478407e923e9a11e3f9c5c2f1c 100644
+index 61a7d64..e38710d 100644
 --- a/ios/TrackPlayer.swift
 +++ b/ios/TrackPlayer.swift
 @@ -248,14 +248,15 @@ class TrackPlayer: RCTEventEmitter {
@@ -224,7 +283,7 @@ index 61a7d64d4b1ad917633857a6bf0f0dc802f63fcf..e38710d259334f478407e923e9a11e3f
  
    private func extractUrl(from item: [String: Any]) -> String? {
 diff --git a/ios/models/MediaItem.swift b/ios/models/MediaItem.swift
-index c38942a31423e45f40ab8430345ca47ae65cc2d0..d3f408f36eb4a4a22ab13402cbd5409caf65bb04 100644
+index c38942a..d3f408f 100644
 --- a/ios/models/MediaItem.swift
 +++ b/ios/models/MediaItem.swift
 @@ -17,8 +17,10 @@ struct MediaItem {
@@ -277,7 +336,7 @@ index c38942a31423e45f40ab8430345ca47ae65cc2d0..d3f408f36eb4a4a22ab13402cbd5409c
    }
  }
 diff --git a/ios/player/AVPlayerEngine.swift b/ios/player/AVPlayerEngine.swift
-index d58a7df934eb1866152e3df15931bb63fd6354be..9837aeb14e991887bf186086c33aab5e507ed9ab 100644
+index d58a7df..fa2ed71 100644
 --- a/ios/player/AVPlayerEngine.swift
 +++ b/ios/player/AVPlayerEngine.swift
 @@ -29,6 +29,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
@@ -355,7 +414,16 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..9837aeb14e991887bf186086c33aab5e
        )
  
        let asset = AVURLAsset(url: proxyRequest.url)
-@@ -469,7 +479,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+@@ -397,6 +407,8 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+     removeItemObservers()
+     observeItem(item, generation: loadGeneration, proxyRootID: proxyRootID)
+     avPlayer.replaceCurrentItem(with: item)
++    // Pawse patch: lets the app's audio module put its DSP tap on the item.
++    NotificationCenter.default.post(name: Notification.Name("PawseAudioItem"), object: item)
+   }
+ 
+   private func prepareCachedMetadataReplay(for key: String) {
+@@ -469,7 +481,7 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
        return
      }
      liveRefresh = LiveRefresh(generation: -1, completions: [completion])
@@ -364,7 +432,7 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..9837aeb14e991887bf186086c33aab5e
      liveRefresh?.generation = loadGeneration
    }
  
-@@ -531,6 +541,10 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+@@ -531,6 +543,10 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
         let ctx = pendingDirectFallback,
         itemFailureEvidence?.proxyRootID == ctx.rootID {
        pendingDirectFallback = nil
@@ -375,7 +443,7 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..9837aeb14e991887bf186086c33aab5e
        loadDirect(url: ctx.url, headers: ctx.headers)
        return
      }
-@@ -671,17 +685,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
+@@ -671,17 +687,22 @@ class AVPlayerEngine: NSObject, PlayerEngine, AVPlayerItemMetadataOutputPushDele
      switch type {
      case .began:
        wasPlayingBeforeInterruption = isPlaying
@@ -401,7 +469,7 @@ index d58a7df934eb1866152e3df15931bb63fd6354be..9837aeb14e991887bf186086c33aab5e
      @unknown default:
        break
 diff --git a/ios/player/AudioCache.swift b/ios/player/AudioCache.swift
-index 874d7c37bfc084a53048962e00f87c59d87daffc..d86008026e0a1382f13ae298ee021d77052a53fd 100644
+index 874d7c3..d860080 100644
 --- a/ios/player/AudioCache.swift
 +++ b/ios/player/AudioCache.swift
 @@ -76,6 +76,17 @@ final class AudioCache: @unchecked Sendable {
@@ -423,7 +491,7 @@ index 874d7c37bfc084a53048962e00f87c59d87daffc..d86008026e0a1382f13ae298ee021d77
  
    func contentInfo(for key: String) -> ContentInfo? {
 diff --git a/ios/player/AudioItem.swift b/ios/player/AudioItem.swift
-index c95d040c4a6d2908763ab189ba89722ac8bd4c43..1f62f9efbe7a965328fef2e5229ab45a8fc5913a 100644
+index c95d040..1f62f9e 100644
 --- a/ios/player/AudioItem.swift
 +++ b/ios/player/AudioItem.swift
 @@ -22,6 +22,8 @@ protocol AudioItem {
@@ -442,7 +510,7 @@ index c95d040c4a6d2908763ab189ba89722ac8bd4c43..1f62f9efbe7a965328fef2e5229ab45a
 +  var cacheKey: String? { nil }
  }
 diff --git a/ios/player/AudioPlayer.swift b/ios/player/AudioPlayer.swift
-index 626e4a4a85347d894326965b6081c46ba7b1cd6e..1b485a726492b444c29c99499c065ba4eacb8895 100644
+index 626e4a4..1b485a7 100644
 --- a/ios/player/AudioPlayer.swift
 +++ b/ios/player/AudioPlayer.swift
 @@ -233,7 +233,7 @@ class AudioPlayer {
@@ -477,7 +545,7 @@ index 626e4a4a85347d894326965b6081c46ba7b1cd6e..1b485a726492b444c29c99499c065ba4
    }
  
 diff --git a/ios/player/CacheProxyServer.swift b/ios/player/CacheProxyServer.swift
-index bd5a729d81f3a2c287c5a1a48ab1360a95907f8f..2dd7e014d4b42a29f614e00b4e03ca682f6ca1de 100644
+index bd5a729..2dd7e01 100644
 --- a/ios/player/CacheProxyServer.swift
 +++ b/ios/player/CacheProxyServer.swift
 @@ -346,7 +346,8 @@ final class CacheProxyServer {
@@ -515,7 +583,7 @@ index bd5a729d81f3a2c287c5a1a48ab1360a95907f8f..2dd7e014d4b42a29f614e00b4e03ca68
      var components = URLComponents()
      components.scheme = "http"
 diff --git a/ios/player/PlayerEngine.swift b/ios/player/PlayerEngine.swift
-index 3c9d17299d4effbf4bbd88a3c5ddb0efb10838ad..c7caa175ec745c444f9b863b3b1472febc877962 100644
+index 3c9d172..c7caa17 100644
 --- a/ios/player/PlayerEngine.swift
 +++ b/ios/player/PlayerEngine.swift
 @@ -52,7 +52,7 @@ protocol PlayerEngine: AnyObject {
@@ -528,7 +596,7 @@ index 3c9d17299d4effbf4bbd88a3c5ddb0efb10838ad..c7caa175ec745c444f9b863b3b1472fe
    func seekToLiveEdge(completion: @escaping (Bool) -> Void)
    func reset()
 diff --git a/ios/player/Preloader.swift b/ios/player/Preloader.swift
-index 9b681649110986fe078535bce68c714685b698e8..b2fa7179a2e5a2bc1d78ea89093e85a9234b767f 100644
+index 9b68164..b2fa717 100644
 --- a/ios/player/Preloader.swift
 +++ b/ios/player/Preloader.swift
 @@ -52,8 +52,9 @@ final class Preloader {
@@ -564,7 +632,7 @@ index 9b681649110986fe078535bce68c714685b698e8..b2fa7179a2e5a2bc1d78ea89093e85a9
        guard let self = self, let job = self.jobs.removeValue(forKey: rootKey) else { return }
        for token in job.tokens {
 diff --git a/ios/player/SleepTimerController.swift b/ios/player/SleepTimerController.swift
-index e94e888be6609c25d6efcf35cb714ef1659a7936..eee78c3c0be3d76414b8e1e0eb8123b684dc597b 100644
+index e94e888..eee78c3 100644
 --- a/ios/player/SleepTimerController.swift
 +++ b/ios/player/SleepTimerController.swift
 @@ -29,6 +29,8 @@ class SleepTimerController {
@@ -615,7 +683,7 @@ index e94e888be6609c25d6efcf35cb714ef1659a7936..eee78c3c0be3d76414b8e1e0eb8123b6
          if sleepTimerFadeOutSeconds > 0 && sleepTimerRemainingSeconds < sleepTimerFadeOutSeconds {
              if sleepTimerPreFadeVolume == nil {
 diff --git a/lib/typescript/src/interfaces/MediaItem.d.ts b/lib/typescript/src/interfaces/MediaItem.d.ts
-index 3689842ac4d0b39eaf347e4bace291d33f049379..a41adcbd940df4d6abd268b165ce8d449b192bf2 100644
+index 3689842..a41adcb 100644
 --- a/lib/typescript/src/interfaces/MediaItem.d.ts
 +++ b/lib/typescript/src/interfaces/MediaItem.d.ts
 @@ -83,5 +83,10 @@ export interface MediaItem {
@@ -631,7 +699,7 @@ index 3689842ac4d0b39eaf347e4bace291d33f049379..a41adcbd940df4d6abd268b165ce8d44
  //# sourceMappingURL=MediaItem.d.ts.map
 \ No newline at end of file
 diff --git a/src/interfaces/MediaItem.ts b/src/interfaces/MediaItem.ts
-index 8d912aea555d5b15e864c5b76b245cc2e42083d4..2a180ef704e38157ce1dd4cbfe848417149c9542 100644
+index 8d912ae..2a180ef 100644
 --- a/src/interfaces/MediaItem.ts
 +++ b/src/interfaces/MediaItem.ts
 @@ -88,4 +88,9 @@ export interface MediaItem {

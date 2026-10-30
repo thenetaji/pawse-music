@@ -1,8 +1,10 @@
 import { relayStream } from "./net";
+import { higherQualities } from "./video-codecs";
 import {
   buildMutedVideo,
   buildVideoSource,
   type PlaylistHost,
+  prepareStream as prepare,
   type Quality,
   type VideoSource,
 } from "./video-ladder";
@@ -28,10 +30,14 @@ const host: PlaylistHost = {
   },
 };
 
+/** Gets the next video's stream ready while this one plays. */
+export const prepareStream = (id: string) => prepare(id, higherQualities());
+
 export const videoSource = (
   id: string,
   quality: Quality,
-): Promise<VideoSource> => buildVideoSource(host, id, quality);
+): Promise<VideoSource> =>
+  buildVideoSource(host, id, quality, undefined, higherQualities());
 
 export const mutedVideo = (id: string, maxHeight: number): Promise<string> =>
   buildMutedVideo(host, id, maxHeight);

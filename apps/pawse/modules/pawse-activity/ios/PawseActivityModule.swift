@@ -20,11 +20,13 @@ struct PawseActivityStateRecord: Record {
   @Field var tint: String? = nil
   /// Milliseconds since 1970; 0 means never stale.
   @Field var staleAt: Double = 0
-  /// cat | music | time: what the compact island shows.
-  @Field var style: String = "cat"
+  @Field var style: String = "wire"
   @Field var liked: Bool = false
   @Field var disliked: Bool = false
   @Field var rate: Bool = true
+  @Field var lyric: String? = nil
+  @Field var glow: String? = nil
+  @Field var moodLine: Bool = false
 
   var staleDate: Date? {
     staleAt > 0 ? Date(timeIntervalSince1970: staleAt / 1000) : nil
@@ -48,7 +50,10 @@ struct PawseActivityStateRecord: Record {
       style: style,
       liked: liked,
       disliked: disliked,
-      rate: rate
+      rate: rate,
+      lyric: lyric,
+      glow: glow,
+      moodLine: moodLine
     )
   }
 }

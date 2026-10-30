@@ -10,7 +10,12 @@ import {
   parseClientsConfig,
 } from "./clients";
 import { YouTubeMusic } from "./music";
-import { isYouTubeResting, loudnessOf, pickAudioFormat } from "./stream";
+import {
+  isYouTubeResting,
+  loudnessOf,
+  pickAudioFormat,
+  playabilityError,
+} from "./stream";
 
 type Handler = (url: string, init: RequestInit) => unknown;
 const reply = (body: unknown, status = 200) =>
@@ -158,6 +163,43 @@ describe("client fallback chain", () => {
     expect(err).toBeInstanceOf(StreamError);
     expect(err.code).toBe("unplayable");
     expect(two.players()).toHaveLength(2);
+  });
+
+  it("keeps YouTube's reason for videos that can't play", () => {
+    const private_ = playabilityError({
+      status: "LOGIN_REQUIRED",
+      reason: "Private video",
+      messages: [
+        "This is a private video. Please sign in to verify that you may see it.",
+      ],
+    });
+    expect(private_?.code).toBe("unplayable");
+    expect(private_?.message).toMatch(/private video/i);
+    const country = playabilityError({
+      status: "UNPLAYABLE",
+      reason: "Video unavailable",
+      errorScreen: {
+        playerErrorMessageRenderer: {
+          subreason: {
+            runs: [{ text: "This video is not available in your country" }],
+          },
+        },
+      },
+    });
+    expect(country?.code).toBe("unplayable");
+    expect(country?.message).toBe(
+      "Video unavailable. This video is not available in your country",
+    );
+    expect(playabilityError({ status: "LIVE_STREAM_OFFLINE" })?.code).toBe(
+      "unplayable",
+    );
+    // The bot check keeps its own code and its headline, whatever sits under it.
+    const bot = playabilityError({
+      ...botCheck.playabilityStatus,
+      messages: ["This helps protect our community. Learn more"],
+    });
+    expect(bot?.code).toBe("blocked");
+    expect(bot?.message).toBe(botCheck.playabilityStatus.reason);
   });
 
   it("maps age gates and missing AAC", async () => {
@@ -338,7 +380,7 @@ describe("Android and failed clients", () => {
     ).toBe("youtube:visionos-1.02");
   });
 
-  it("accepts Opus only on Android and only when no AAC is offered", async () => {
+  it("prefers Opus on Android and never offers it to iOS", async () => {
     const s = await yt(mockFetch([webmOnly]).fetch, {
       platform: "android",
     }).resolve(track);
@@ -350,7 +392,7 @@ describe("Android and failed clients", () => {
           track,
         )
       ).mimeType,
-    ).toMatch(/mp4a/);
+    ).toMatch(/opus/);
     await expect(
       yt(mockFetch([webmOnly]).fetch, { platform: "ios" }).resolve(track),
     ).rejects.toMatchObject({ code: "no_audio" });
@@ -516,6 +558,49 @@ describe("client list v2", () => {
     expect(parseClientsConfig(remote)).toEqual(DEFAULT_STREAM_CLIENTS_V2);
     expect(parseClientsConfig(remote, "android")).toEqual(
       DEFAULT_STREAM_CLIENTS_V2,
+    );
+  });
+});
+
+describe("Opus preference", () => {
+  const f = (itag: number, mime: string, bitrate: number, size?: number) => ({
+    itag,
+    url: `https://x/${itag}`,
+    mimeType: mime,
+    bitrate,
+    contentLength: size ? String(size) : undefined,
+  });
+  const aac140 = f(140, 'audio/mp4; codecs="mp4a.40.2"', 130_000);
+  const aac141 = f(141, 'audio/mp4; codecs="mp4a.40.2"', 256_000);
+  const aac139 = f(139, 'audio/mp4; codecs="mp4a.40.5"', 48_000);
+  const opus251 = f(251, 'audio/webm; codecs="opus"', 150_000, 4 << 20);
+  const opus249 = f(249, 'audio/webm; codecs="opus"', 50_000);
+
+  it("takes Opus 251 over AAC 140 when the player decodes it", () => {
+    const all = [aac139, aac140, opus249, opus251];
+    expect(pickAudioFormat(all, "high", true)?.itag).toBe(251);
+    expect(pickAudioFormat(all, "high", false)?.itag).toBe(140);
+  });
+
+  it("keeps Premium's 256 kbps AAC", () => {
+    expect(pickAudioFormat([aac140, aac141, opus251], "high", true)?.itag).toBe(
+      141,
+    );
+  });
+
+  it("takes Opus 249 on data saver", () => {
+    expect(
+      pickAudioFormat([aac139, aac140, opus249, opus251], "saver", true)?.itag,
+    ).toBe(249);
+  });
+
+  it("leaves an Opus file too large for small ranges to AAC", () => {
+    const big = f(251, 'audio/webm; codecs="opus"', 150_000, 40 << 20);
+    expect(
+      pickAudioFormat([aac140, big], "high", true, false, 10 << 20)?.itag,
+    ).toBe(140);
+    expect(pickAudioFormat([big], "high", true, false, 10 << 20)?.itag).toBe(
+      251,
     );
   });
 });

@@ -1,6 +1,8 @@
 import type {
+  ChannelAbout,
   ChannelItem,
   ChannelPage,
+  ChannelTabPage,
   CommentPage,
   VideoDetail,
   VideoFeed,
@@ -30,6 +32,8 @@ import type { JsSandbox, PoTokenProvider } from "../sandbox";
 import type { ResolveAttempt } from "../stream";
 import {
   parseChannel,
+  parseChannelAbout,
+  parseChannelTab,
   parseComments,
   parseHistory,
   parseSuggestionsJson,
@@ -45,6 +49,14 @@ export const WEB_UA =
 export const FALLBACK_WEB_CLIENT_VERSION = "2.20261020.01.00";
 /** Videos tab of a channel (never Shorts). */
 export const CHANNEL_VIDEOS_PARAMS = "EgZ2aWRlb3PyBgQKAjoA";
+/** A channel's search tab, which takes the `query`. */
+export const CHANNEL_SEARCH_PARAMS = "EgZzZWFyY2jyBgQKAloA";
+/** Search filter params for one kind of result. */
+export const SEARCH_TYPE_PARAMS = {
+  video: "EgIQAQ==",
+  channel: "EgIQAg==",
+  playlist: "EgIQAw==",
+} as const;
 /** Search filter: videos only, uploaded this week, sorted by views. */
 export const POPULAR_THIS_WEEK_PARAMS = "CAMSBAgDEAE=";
 export const DEFAULT_HOME_TOPICS = [
@@ -62,12 +74,18 @@ export interface YouTubeVideoOptions {
   fetch?: FetchLike;
   hl?: string;
   gl?: string;
-  /** The install's saved visitor id. */
+  /** The install's saved visitor id; signed out, YouTube builds the home feed for it. */
   visitorData?: string;
+  /** Called when the client gets or swaps a visitor id, so the app can keep it. */
+  onVisitorData?: (visitorData: string) => void;
+  /** Whether a signed-out visitor's watches may be reported, which is how YouTube learns what to suggest. */
+  learn?: () => boolean;
   /** Cookie header for www.youtube.com when signed in; without it the feeds are signed out. */
   cookies?: () => string | undefined;
   /** True while searches should go out signed out, so they stay out of the account's search history. */
   privateSearch?: () => boolean;
+  /** False plays the audio YouTube picks for `hl` (often an auto-dub) rather than the original language. */
+  originalAudio?: () => boolean;
   /** Topics the signed-out home searches (YouTube's own signed-out home is empty). */
   homeTopics?: string[];
   /** Remote stream-client list for resolveStream; null (default) keeps the built-in chain. */
@@ -111,6 +129,23 @@ const cpn = () =>
     { length: 16 },
     () => CPN_ALPHABET[Math.floor(Math.random() * 64)],
   ).join("");
+
+/** The id a browser keeps in its VISITOR_INFO1_LIVE cookie: the first field of the visitorData protobuf. */
+function visitorCookieId(visitorData: string | undefined): string | undefined {
+  if (!visitorData) return undefined;
+  try {
+    const b64 = decodeURIComponent(visitorData)
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const bin = atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, "="));
+    // Field 1, length-delimited: tag 0x0a, a one-byte length, then the id.
+    if (bin.charCodeAt(0) !== 0x0a) return undefined;
+    const id = bin.slice(2, 2 + bin.charCodeAt(1));
+    return /^[\w-]{6,32}$/.test(id) ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export class YouTubeVideo {
   hl: string;
@@ -183,7 +218,7 @@ export class YouTubeVideo {
           headers: {
             "User-Agent": WEB_UA,
             "Accept-Language": this.acceptLanguage(),
-            Cookie: "SOCS=CAI",
+            Cookie: this.signedOutCookie(this.visitorData),
           },
           credentials: "omit",
         },
@@ -191,7 +226,7 @@ export class YouTubeVideo {
       );
       const cfg = parseYtcfg(await res.text());
       if (!cfg.clientVersion) throw new Error("ytcfg missing");
-      this.visitorData ??= cfg.visitorData;
+      this.setVisitor(this.visitorData ?? cfg.visitorData);
       this.web = {
         clientVersion: cfg.clientVersion,
         visitorData: this.visitorData,
@@ -201,6 +236,25 @@ export class YouTubeVideo {
       this.webFailedAt = Date.now();
       return this.fallback();
     }
+  }
+
+  private signedOutCookie(visitorData: string | undefined) {
+    const id = visitorCookieId(visitorData);
+    return id ? `SOCS=CAI; VISITOR_INFO1_LIVE=${id}` : "SOCS=CAI";
+  }
+
+  private setVisitor(visitorData: string | undefined) {
+    if (!visitorData || visitorData === this.visitorData) return;
+    this.visitorData = visitorData;
+    if (this.web) this.web = { ...this.web, visitorData };
+    this.opts.onVisitorData?.(visitorData);
+  }
+
+  /** Drops this visitor; the next request gets a new one. */
+  resetVisitor(): void {
+    this.visitorData = undefined;
+    this.web = undefined;
+    this.webFailedAt = 0;
   }
 
   private headers(
@@ -222,7 +276,7 @@ export class YouTubeVideo {
       headers["X-Origin"] = WEB_ORIGIN;
       const auth = sapisidAuthorization(cookie as string, WEB_ORIGIN);
       if (auth) headers.Authorization = auth;
-    } else headers.Cookie = "SOCS=CAI";
+    } else headers.Cookie = this.signedOutCookie(cfg.visitorData);
     return headers;
   }
 
@@ -272,10 +326,7 @@ export class YouTubeVideo {
       );
     const json = await res.json();
     const vd = json?.responseContext?.visitorData;
-    if (!this.visitorData && typeof vd === "string" && vd) {
-      this.visitorData = vd;
-      if (this.web) this.web = { ...this.web, visitorData: vd };
-    }
+    if (!this.visitorData && typeof vd === "string" && vd) this.setVisitor(vd);
     return json;
   }
 
@@ -288,7 +339,9 @@ export class YouTubeVideo {
     const topics = (this.opts.homeTopics ?? DEFAULT_HOME_TOPICS).map((q) => ({
       q,
     }));
-    if (!continuation && !this.isSignedIn()) return this.topicsHome(topics);
+    // Signed out, YouTube still builds a feed for a visitor whose watches it knows (an empty one for a new visitor).
+    if (!continuation && !this.isSignedIn() && !this.opts.learn?.())
+      return this.topicsHome(topics);
     const feed = parseVideoFeed(
       await this.call(
         "browse",
@@ -374,9 +427,10 @@ export class YouTubeVideo {
   }
 
   /** Puts a video in your watch history and keeps your spot there, as YouTube's web player does
-   * (the same stats pings yt-dlp's mark-watched sends). Undefined signed out or when YouTube gives no stats links. */
+   * (the same stats pings yt-dlp's mark-watched sends). Signed out, it is this visitor's history, if `learn` allows.
+   * Undefined otherwise, or when YouTube gives no stats links. */
   async watchReport(videoId: string): Promise<WatchReport | undefined> {
-    if (!this.isSignedIn()) return undefined;
+    if (!this.isSignedIn() && !this.opts.learn?.()) return undefined;
     // Without the web player's signature timestamp YouTube answers "The page needs to be reloaded".
     const { sts } = await getPlayer(this.f);
     const player = await this.call("player", {
@@ -444,15 +498,23 @@ export class YouTubeVideo {
     await this.call("feedback", { feedbackTokens: [token] });
   }
 
-  /** Videos and channels only; playlists, Shorts, ads and mixes are dropped. */
-  async search(q: string, continuation?: string): Promise<VideoSearchResults> {
-    return parseVideoSearch(
-      await this.call(
-        "search",
-        continuation ? { continuation } : { query: q },
-        this.opts.privateSearch?.(),
-      ),
-    );
+  /** Videos, channels and playlists; Shorts, ads and mixes are dropped. `type` keeps only one kind. */
+  async search(
+    q: string,
+    continuation?: string,
+    type?: keyof typeof SEARCH_TYPE_PARAMS,
+  ): Promise<VideoSearchResults> {
+    const body = continuation
+      ? { continuation }
+      : { query: q, ...(type ? { params: SEARCH_TYPE_PARAMS[type] } : {}) };
+    const quiet = this.opts.privateSearch?.();
+    // As the account when there is one, for YouTube's own ranking; if that fails, signed out.
+    try {
+      return parseVideoSearch(await this.call("search", body, quiet));
+    } catch (e) {
+      if (quiet || !this.isSignedIn()) throw e;
+      return parseVideoSearch(await this.call("search", body, true));
+    }
   }
 
   /** A channel's Videos tab (never Shorts). */
@@ -466,6 +528,44 @@ export class YouTubeVideo {
     const page = parseChannel(json, id, this.channels.get(id));
     if (page.channel.name) this.channels.set(id, page.channel);
     return page;
+  }
+
+  /**
+   * A channel tab by its `params`, a sorted list of it by a sort's `continuation` or `params`, or a search inside
+   * the channel (`query` with the search tab's params).
+   */
+  async channelTab(
+    id: string,
+    o: { params?: string; continuation?: string; query?: string },
+  ): Promise<ChannelTabPage> {
+    const ask = async (continuation?: string) =>
+      parseChannelTab(
+        await this.call(
+          "browse",
+          continuation
+            ? { continuation }
+            : {
+                browseId: id,
+                params: o.params ?? CHANNEL_VIDEOS_PARAMS,
+                ...(o.query ? { query: o.query } : {}),
+              },
+        ),
+      );
+    let page = await ask(o.continuation);
+    // Some tabs (Releases) send an empty first page that only holds the token for the real one.
+    for (
+      let i = 0;
+      i < 2 && !page.items.length && !page.sections && page.continuation;
+      i++
+    )
+      page = await ask(page.continuation);
+    return page;
+  }
+
+  async channelAbout(token: string): Promise<ChannelAbout> {
+    return parseChannelAbout(
+      await this.call("browse", { continuation: token }),
+    );
   }
 
   /** Title, channel, description, chapters and related videos of a watch page. */
@@ -484,27 +584,44 @@ export class YouTubeVideo {
   async suggestions(q: string): Promise<string[]> {
     if (!q.trim()) return [];
     const url = `https://suggestqueries-clients6.youtube.com/complete/search?client=youtube&ds=yt&xhr=t&hl=${encodeURIComponent(this.hl)}&gl=${encodeURIComponent(this.gl)}&q=${encodeURIComponent(q)}`;
-    const res = await fetchWithRetry(
-      this.f,
-      url,
-      {
-        headers: {
-          "User-Agent": WEB_UA,
-          "Accept-Language": this.acceptLanguage(),
+    const ask = (cookie?: string) =>
+      fetchWithRetry(
+        this.f,
+        url,
+        {
+          headers: {
+            "User-Agent": WEB_UA,
+            "Accept-Language": this.acceptLanguage(),
+            ...(cookie ? { Cookie: cookie } : {}),
+          },
+          credentials: "omit",
         },
-        credentials: "omit",
-      },
-      TIMEOUT_MS,
+        TIMEOUT_MS,
+      );
+    // Signed in, YouTube tailors them to the account; if that fails, ask again signed out.
+    const cookie = this.opts.privateSearch?.() ? undefined : this.cookies?.();
+    let res = await ask(hasSapisid(cookie) ? cookie : undefined).catch(
+      () => undefined,
     );
-    if (!res.ok)
-      throw new InnerTubeError(res.status, `suggestions HTTP ${res.status}`);
+    if (!res?.ok && hasSapisid(cookie)) res = await ask();
+    if (!res?.ok)
+      throw new InnerTubeError(
+        res?.status ?? 0,
+        `suggestions HTTP ${res?.status ?? "failed"}`,
+      );
     return parseSuggestionsJson(await res.text());
   }
 
   /** H.264 video plus AAC audio from one signed-out stream client. */
   async resolveStream(
     videoId: string,
-    options: { maxHeight?: number; verify?: boolean; audioTrack?: string } = {},
+    options: {
+      maxHeight?: number;
+      verify?: boolean;
+      audioTrack?: string;
+      /** Also offer AV1 above 1080p, for a player that decodes it in hardware. */
+      av1?: boolean;
+    } = {},
   ): Promise<VideoStream> {
     const cfg = await this.config();
     this.lastResolveAttempts = [];
@@ -519,6 +636,8 @@ export class YouTubeVideo {
         verify: options.verify ?? true,
         maxHeight: options.maxHeight,
         audioTrack: options.audioTrack,
+        originalAudio: this.opts.originalAudio?.() ?? true,
+        av1: options.av1,
         sandbox: this.opts.sandbox,
         poToken: this.opts.poToken,
       },

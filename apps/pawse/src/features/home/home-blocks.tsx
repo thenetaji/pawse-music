@@ -25,10 +25,12 @@ import {
 import { PressScale, SectionTitle, SkeletonShelves } from "../../components/ui";
 import { showVideoActions, VideoCard } from "../../components/video-card";
 import {
+  ageOf,
   setSubscribed,
   subscriptionsFeed,
   useDroppedChannel,
   useFollowedChannels,
+  useSeenUpload,
 } from "../../data/channels";
 import { useLibrary } from "../../data/library";
 import { isPinned, togglePin } from "../../data/pins";
@@ -355,13 +357,27 @@ export function YourPeople({
     open: () => go(`/channel/${c.id}`),
     menu: () => channelMenu(c),
   });
+  // A channel's dot shows for its newest upload until you open the channel or watch it.
+  const newest = new Map<string, VideoItem>();
+  for (const v of subs.data?.items ?? []) {
+    const id = v.channel?.id;
+    const best = id ? newest.get(id) : undefined;
+    if (id && (!best || ageOf(v.publishedText) < ageOf(best.publishedText)))
+      newest.set(id, v);
+  }
+  const seenUpload = useSeenUpload();
+  const watchedIds = useWatched((s) => s.list);
   for (const v of subs.data?.items ?? []) {
     const c = v.channel;
     if (!c?.id || seen.has(c.id) || dropped(c.id)) continue;
     seen.add(c.id);
+    const latest = newest.get(c.id) ?? v;
     people.push({
       ...channel({ id: c.id, name: c.name, avatar: c.avatar }),
-      fresh: FRESH.test(v.publishedText ?? ""),
+      fresh:
+        FRESH.test(latest.publishedText ?? "") &&
+        seenUpload[c.id] !== latest.id &&
+        !watchedIds.some((w) => w.id === latest.id),
     });
   }
   // Channels followed here that haven't posted lately still belong in the row.

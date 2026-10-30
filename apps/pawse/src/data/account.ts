@@ -326,7 +326,7 @@ export async function addToYouTubePlaylist(
   );
 }
 
-/** Removes tracks from one of the account's playlists; only tracks that carry a setVideoId (from the playlist page) can go. */
+/** Removes tracks from one of the account's playlists; resolves once YouTube accepted it, rejects if it refused. Only tracks that carry a setVideoId (from the playlist page) can go. */
 export async function removeFromYouTubePlaylist(
   playlistId: string,
   tracks: Track[],
@@ -337,7 +337,8 @@ export async function removeFromYouTubePlaylist(
       : [],
   );
   if (!signedIn()) throw new Error(NOT_SIGNED_IN);
-  if (!items.length) return;
+  // Resolving here would report a removal that never happened.
+  if (!items.length) throw new Error("These songs can't be removed from here");
   return queuePlaylistEdit(playlistId, -items.length, () =>
     ytAccount.removeFromPlaylist(bareId(playlistId), items),
   );

@@ -151,6 +151,19 @@ export async function allPlays(
   return rows.map(fromRow);
 }
 
+export async function listeningDigest(): Promise<
+  { startedAt: number; listenedMs: number; artist: string }[]
+> {
+  const rows = await open().getAllAsync<Row>(
+    "SELECT startedAt, listenedMs, artists FROM plays WHERE origin = 'pawse' AND listenedMs >= 5000",
+  );
+  return rows.map((r) => ({
+    startedAt: Number(r.startedAt),
+    listenedMs: Number(r.listenedMs),
+    artist: json(r.artists)?.[0] ?? "",
+  }));
+}
+
 export async function exportJournal(): Promise<JournalData> {
   const events = await open().getAllAsync<JournalEvent>(
     "SELECT at, kind, trackId FROM events ORDER BY at",

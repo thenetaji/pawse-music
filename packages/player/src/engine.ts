@@ -13,9 +13,10 @@ import TrackPlayer, {
   PlaybackState,
   PlayerCommand,
 } from "@rntp/player";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { AppState, Platform } from "react-native";
 
+import { equalPowerGain } from "./fade";
 import { POS_KEY, QUEUE_KEY } from "./keys";
 import * as Q from "./queue";
 import { emitPlayerEvent, type StoreState, usePlayerStore } from "./store";
@@ -38,8 +39,10 @@ const TICK_MS = 5_000;
 const SAVE_MS = 1_000;
 const POS_EVERY_SEC = 15;
 /** A song you switch away from fades out this fast, like Apple Music, instead of cutting off. */
-const FADE_OUT_MS = 250;
-const FADE_IN_MS = 400;
+const FADE_OUT_MS = 150;
+const FADE_IN_MS = 250;
+/** A single file this long is a mix or a set: nothing fades into or out of it. */
+const MIX_SEC = 20 * 60;
 const FADE_STEP_MS = 25;
 const MAX_SOURCE_SWITCHES = 3;
 // A source that failed on this device goes last for this long (YouTube's PO-token 403s are per client).
@@ -116,6 +119,13 @@ let loading = false;
 let playing = false;
 let nativeState: PlaybackState = PlaybackState.Idle;
 let ticker: ReturnType<typeof setInterval> | undefined;
+const TRIM_HEAD_SEC = 8;
+const TRIM_TAIL_SEC = 20;
+const TRIM_SILENT_MS = 700;
+const TRIM_STEP_MS = 300;
+let trimTimer: ReturnType<typeof setInterval> | undefined;
+let trimSkipping = false;
+let trimmedKey: string | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let stallTimer: ReturnType<typeof setTimeout> | undefined;
 const STALL_MS = 8000;
@@ -466,13 +476,36 @@ function fadeOutCurrent(): Promise<void> | undefined {
   return ramp(0, FADE_OUT_MS);
 }
 
+let quietStart: { ms: number; until: number } | undefined;
+
+/** The next song to start comes in from silence over `ms` (the wake-up alarm). */
+export function startQuiet(ms: number): void {
+  quietStart = { ms, until: Date.now() + 30_000 };
+}
+
+function baseVolume(): number {
+  const s = get();
+  const t = s.tracks[s.index];
+  if (!t || !s.normalize) return 1;
+  return normalizeVolume(streams.get(t.id)?.loudnessDb ?? t.loudnessDb);
+}
+
 function applyVolume(): void {
   const s = get();
   const t = s.tracks[s.index];
   if (!nativeLoaded || !t) return;
-  const target = s.normalize
-    ? normalizeVolume(streams.get(t.id)?.loudnessDb ?? t.loudnessDb)
-    : 1;
+  const target = baseVolume() * sleepGain();
+  if (quietStart) {
+    const { ms, until } = quietStart;
+    quietStart = undefined;
+    if (Date.now() < until) {
+      fadedOut = false;
+      endFading = false;
+      setVolume(0);
+      void ramp(target, ms);
+      return;
+    }
+  }
   if (fadedOut) {
     fadedOut = false;
     // After a crossfade the new song comes in over half the fade; after a skip, quickly.
@@ -873,10 +906,33 @@ function tick(): void {
   armEndFade(position, dur);
 }
 
+/**
+ * Songs that belong together run into each other untouched: an album played through (same album, or an album
+ * queue), and a long mix or a live stream (no length) at either end. Everything else may crossfade.
+ */
+function runsOn(from: Track, to: Track, dur: number): boolean {
+  if (!dur || dur > MIX_SEC) return true;
+  if ((to.durationSec ?? 0) > MIX_SEC) return true;
+  if (opts?.gapless && !opts.gapless()) return false;
+  const a = from.album?.id;
+  const b = to.album?.id;
+  if (a && b) return a === b;
+  return get().source?.type === "album";
+}
+
 /** Crossfade: near the end, the song fades out over the set seconds and the next one fades in (one player, so they don't overlap). */
 function armEndFade(position: number, dur: number): void {
   const secs = opts?.crossfadeSec?.() ?? 0;
   if (!secs || !playing || endFading || !dur || get().repeat === "one") return;
+  const s = get();
+  const n = Q.stepIndex(s.tracks.length, s.index, 1, s.repeat === "all");
+  // Nothing follows, or the next song continues this one: play on to the end, gapless.
+  if (
+    n === null ||
+    n === s.index ||
+    runsOn(s.tracks[s.index], s.tracks[n], dur)
+  )
+    return;
   const left = dur - position;
   if (left > secs + TICK_MS / 1000 || left < 1) return;
   const key = get().keys[get().index];
@@ -894,6 +950,38 @@ function armEndFade(position: number, dur: number): void {
   );
 }
 
+function trimSkip(on: boolean): void {
+  if (on === trimSkipping) return;
+  trimSkipping = on;
+  opts?.trimSilence?.skip?.(on);
+}
+
+// Silence is only touched in the first and last seconds, so quiet passages inside a song play as recorded.
+function trimStep(): void {
+  const trim = opts?.trimSilence;
+  const s = get();
+  const track = s.tracks[s.index];
+  if (!trim?.on() || !playing || !nativeLoaded || switching || !track)
+    return trimSkip(false);
+  const { position, duration } = TrackPlayer.getProgress();
+  const dur = chooseDuration(duration, track) || 0;
+  if (!dur || dur > MIX_SEC) return trimSkip(false);
+  const left = dur - position;
+  if (trim.skip)
+    return trimSkip(position < TRIM_HEAD_SEC || left < TRIM_TAIL_SEC);
+  const key = s.keys[s.index];
+  if (
+    left < TRIM_TAIL_SEC &&
+    left > 1 &&
+    position > TRIM_HEAD_SEC &&
+    key !== trimmedKey &&
+    (trim.silentMs?.() ?? 0) >= TRIM_SILENT_MS
+  ) {
+    trimmedKey = key;
+    TrackPlayer.seekTo(dur - 0.3);
+  }
+}
+
 /** A seek or resume away from the end undoes a crossfade that had started. */
 function cancelEndFade(): void {
   clearTimeout(endFadeTimer);
@@ -901,6 +989,43 @@ function cancelEndFade(): void {
   endFading = false;
   fadedOut = false;
   applyVolume();
+}
+
+let sleepFade: { start: number; end: number } | undefined;
+let sleepFadeTimer: ReturnType<typeof setTimeout> | undefined;
+
+const sleepGain = (): number =>
+  sleepFade
+    ? equalPowerGain(
+        sleepFade.end - Date.now(),
+        sleepFade.end - sleepFade.start,
+      )
+    : 1;
+
+function stopSleepFade(): void {
+  clearTimeout(sleepFadeTimer);
+  if (!sleepFade) return;
+  sleepFade = undefined;
+  set({ sleepFading: false });
+  applyVolume();
+}
+
+/** The sleep timer's fade is ours rather than the native one: native steps once a second and only fades linearly. */
+function armSleepFade(endAt: number, seconds: number): void {
+  stopSleepFade();
+  if (seconds <= 0) return;
+  const start = endAt - seconds * 1000;
+  const stepMs = Math.min(500, Math.max(FADE_STEP_MS, (seconds * 1000) / 300));
+  const run = () => {
+    if (!sleepFade) {
+      sleepFade = { start, end: endAt };
+      set({ sleepFading: true });
+    }
+    fadeGen++;
+    setVolume(baseVolume() * sleepGain());
+    if (Date.now() < endAt) sleepFadeTimer = setTimeout(run, stepMs);
+  };
+  sleepFadeTimer = setTimeout(run, Math.max(0, start - Date.now()));
 }
 
 const sleepDue = () =>
@@ -912,6 +1037,7 @@ function sleepNow(reason: string): void {
   set({ sleepAt: undefined });
   TrackPlayer.cancelSleepTimer();
   pause();
+  stopSleepFade();
 }
 
 // When the player's own length is wrong, end the song at its real length instead of playing silence.
@@ -1113,7 +1239,13 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     armSkip();
     clearInterval(ticker);
     ticker = on ? setInterval(tick, TICK_MS) : undefined;
-    if (!on) tick();
+    clearInterval(trimTimer);
+    trimTimer =
+      on && opts?.trimSilence ? setInterval(trimStep, TRIM_STEP_MS) : undefined;
+    if (!on) {
+      trimSkip(false);
+      tick();
+    }
     syncStatus();
   });
   TrackPlayer.addEventListener(Event.PlaybackError, (e) => onError(e));
@@ -1121,6 +1253,7 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
     wantPlay = false;
     sleepKey = undefined;
     set({ sleepAt: undefined });
+    stopSleepFade();
   });
   setupPromise = loadStreams()
     .catch(() => {})
@@ -1337,6 +1470,7 @@ export const player: Player = {
   },
   setSleepTimer(value) {
     sleepKey = undefined;
+    stopSleepFade();
     if (value === null) {
       TrackPlayer.cancelSleepTimer();
       set({ sleepAt: undefined });
@@ -1347,10 +1481,10 @@ export const player: Player = {
     } else {
       const seconds = Math.max(1, Math.round(value * 60));
       const fade = Math.max(0, opts?.sleepFadeSec?.() ?? 10);
-      TrackPlayer.sleepAfterTime(seconds, {
-        fadeOutSeconds: Math.min(fade, seconds),
-      });
-      set({ sleepAt: Date.now() + seconds * 1000 });
+      TrackPlayer.sleepAfterTime(seconds, { fadeOutSeconds: 0 });
+      const endAt = Date.now() + seconds * 1000;
+      set({ sleepAt: endAt });
+      armSleepFade(endAt, Math.min(fade, seconds));
     }
   },
   setNormalize(on) {
@@ -1385,33 +1519,66 @@ function readProgress(): Progress {
 /** One synchronous progress read, for controllers outside React (the Live Activity). */
 export const getProgress = (): Progress => readProgress();
 
+// One poll serves every progress reader (scrubber, lyrics, mini player), and readers re-render only when it moved.
+let shownProgress: Progress | undefined;
+const progressReaders = new Set<() => void>();
+let progressPoll: ReturnType<typeof setInterval> | undefined;
+let progressApp: { remove: () => void } | undefined;
+
+// Moves under half a second count as the same, so paused screens don't redraw and a render can read twice.
+const sameProgress = (a: Progress, b: Progress) =>
+  Math.abs(a.position - b.position) < 0.5 &&
+  a.duration === b.duration &&
+  Math.abs(a.buffered - b.buffered) < 1;
+
+function readShown(): Progress {
+  const now = readProgress();
+  if (!shownProgress || !sameProgress(shownProgress, now)) shownProgress = now;
+  return shownProgress;
+}
+
+/** What a render sees: the last poll while anyone is listening, a fresh read otherwise. */
+const progressNow = (): Progress =>
+  progressReaders.size && shownProgress ? shownProgress : readShown();
+
+function pollProgress(): void {
+  const before = shownProgress;
+  if (readShown() !== before) progressReaders.forEach((cb) => cb());
+}
+
+function pollWhile(active: boolean): void {
+  clearInterval(progressPoll);
+  progressPoll = active ? setInterval(pollProgress, 1000) : undefined;
+}
+
+function subscribeProgress(cb: () => void): () => void {
+  progressReaders.add(cb);
+  if (progressReaders.size === 1) {
+    pollWhile(AppState.currentState === "active");
+    progressApp = AppState.addEventListener("change", (st) => {
+      if (st === "active") pollProgress();
+      pollWhile(st === "active");
+    });
+  }
+  pollProgress();
+  return () => {
+    progressReaders.delete(cb);
+    if (progressReaders.size) return;
+    pollWhile(false);
+    progressApp?.remove();
+    progressApp = undefined;
+  };
+}
+
 /** Polls once a second while the app is in the foreground; nothing runs in the background. */
 export function useProgress(): Progress {
-  const [progress, setProgress] = useState(readProgress);
-  useEffect(() => {
-    let id: ReturnType<typeof setInterval> | undefined;
-    const run = (active: boolean) => {
-      clearInterval(id);
-      id = active
-        ? setInterval(() => setProgress(readProgress()), 1000)
-        : undefined;
-    };
-    run(AppState.currentState === "active");
-    const sub = AppState.addEventListener("change", (st) => {
-      if (st === "active") setProgress(readProgress());
-      run(st === "active");
-    });
-    return () => {
-      clearInterval(id);
-      sub.remove();
-    };
-  }, []);
-  return progress;
+  return useSyncExternalStore(subscribeProgress, progressNow);
 }
 
 /** Test hook: forget module state between tests. */
 export function __resetForTests(): void {
   opts = null;
+  quietStart = undefined;
   userScan = false;
   setupPromise = null;
   streams.clear();
@@ -1434,6 +1601,7 @@ export function __resetForTests(): void {
   sleepKey = undefined;
   pendingSeek = undefined;
   switching = false;
+  shownProgress = undefined;
   navGen = 0;
   queueGen = 0;
   radio = {
@@ -1452,5 +1620,10 @@ export function __resetForTests(): void {
   playing = false;
   nativeState = PlaybackState.Idle;
   clearInterval(ticker);
+  clearInterval(trimTimer);
+  trimSkipping = false;
+  trimmedKey = undefined;
+  clearTimeout(sleepFadeTimer);
+  sleepFade = undefined;
   clearTimeout(saveTimer);
 }

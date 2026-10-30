@@ -28,19 +28,17 @@ private func rgb(_ hex: String?) -> (Double, Double, Double)? {
 
 /// The artwork's colour, so the ring, bar and text match the song like the in-app player.
 func accent(_ state: PawseState) -> Color {
-  guard let c = rgb(state.tint) else { return PawseTheme.accent }
+  guard let c = rgb(state.glow ?? state.tint) else { return PawseTheme.accent }
   return Color(red: c.0, green: c.1, blue: c.2)
 }
 
 /// A deep shade of the artwork colour for the lock screen card, dark enough for white text.
 func deepAccent(_ state: PawseState) -> Color {
-  guard let c = rgb(state.tint) else { return Color.black.opacity(0.45) }
+  guard let c = rgb(state.glow ?? state.tint) else { return Color.black.opacity(0.45) }
   return Color(red: c.0 * 0.32, green: c.1 * 0.32, blue: c.2 * 0.32).opacity(0.82)
 }
 
 // Sized for the HIG metrics: compact and minimal are 36.67 pt tall, expanded and lock screen stay under 160 pt.
-// Expanded skips play/next (iOS's own player has them): ringed art, the cat, the bar, then like, mood line, dislike; about 140 pt.
-// Compact (only when iOS's own player isn't showing): the artwork on the left, the cat or time left on the right.
 struct PawseLiveActivity: Widget {
   var body: some WidgetConfiguration {
     ActivityConfiguration(for: PawseActivityAttributes.self) { context in
@@ -49,6 +47,7 @@ struct PawseLiveActivity: Widget {
         .activitySystemActionForegroundColor(.white)
     } dynamicIsland: { activity in
       let state = activity.shown
+      let mode = expandedLayout(state)
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
           // The art sits in a ring of the song's colour, glowing like the in-app player.
@@ -65,28 +64,27 @@ struct PawseLiveActivity: Widget {
             .shadow(color: accent(state).opacity(0.55), radius: 12)
         }
         DynamicIslandExpandedRegion(.trailing) {
-          if islandStyle(state) == "cat" {
-            CatStage(state: state, size: 62)
-          } else {
+          if mode == .classic || mode == .time {
             TimeRing(state: state, size: 58, text: 13)
               .frame(height: 64)
+          } else {
+            CatStage(state: state, size: 62)
           }
         }
         DynamicIslandExpandedRegion(.center) {
-          TitleView(state: state)
+          TitleView(state: state, hero: mode == .lyrics)
             .padding(.leading, 6)
             .frame(maxHeight: .infinity)
         }
         DynamicIslandExpandedRegion(.bottom) {
-          // No buttons: iOS's own player has them. Time, a tinted bar and the cat's mood instead.
-          PlayerBar(state: state)
+          PlayerBar(state: state, mode: mode)
             .padding(.top, 6)
         }
       } compactLeading: {
         // Fixed-width sides, art at the far left and the style at the far right, make the island long like Apple Music's.
         Group {
           // During an episode the mouse peeks out from behind the camera where the artwork sits.
-          if let mouse = mouseImage(state), islandStyle(state) == "cat" {
+          if let mouse = mouseImage(state), islandLayout(state) != .time {
             Image(mouse)
               .resizable()
               .interpolation(.high)
@@ -103,7 +101,7 @@ struct PawseLiveActivity: Widget {
           .frame(width: compactSide, alignment: .trailing)
       } minimal: {
         // iOS's own Now Playing island sits next to this bubble while music plays, so it never repeats the artwork.
-        if islandStyle(state) == "time" {
+        if islandLayout(state) == .time {
           TimeRing(state: state, size: 26, text: 8)
         } else {
           CatRing(state: state, size: 24)
@@ -119,17 +117,34 @@ struct PawseLiveActivity: Widget {
 /// Width of each side of the compact island; the content sits at its outer edge.
 let compactSide: CGFloat = 60
 
-func islandStyle(_ state: PawseState) -> String {
-  state.style == "time" ? "time" : "cat"
+enum IslandLayout {
+  case wire, classic, lyrics, paws, time
 }
 
-/// Cat: sound bars and the cat in its ring. Time: the time left, ticking on its own.
+/// An older build saved "cat" for what is now the wire layout.
+func islandLayout(_ state: PawseState) -> IslandLayout {
+  switch state.style {
+  case "classic": return .classic
+  case "lyrics": return .lyrics
+  case "paws": return .paws
+  case "time": return .time
+  default: return .wire
+  }
+}
+
+/// The lyrics layout needs a synced line (even an empty one between lines); without it the classic one shows.
+func expandedLayout(_ state: PawseState) -> IslandLayout {
+  let l = islandLayout(state)
+  return l == .lyrics && state.lyric == nil ? .classic : l
+}
+
+/// Time layout: the time left, ticking on its own. Every other layout: sound bars and the cat in its ring.
 struct CompactTrailing: View {
   let state: PawseState
 
   var body: some View {
-    switch islandStyle(state) {
-    case "time":
+    switch islandLayout(state) {
+    case .time:
       HStack(spacing: 6) {
         WaveBars(state: state, height: 12)
           .frame(width: 14)
@@ -211,11 +226,13 @@ extension ActivityViewContext where Attributes == PawseActivityAttributes {
     s.isPlaying = false
     s.mood = "sleep"
     s.mouse = 0
+    s.lyric = nil
+    s.moodLine = false
     return s
   }
 }
 
-/// iOS shows its own player above, so this card adds what it lacks: the cat's take, like/dislike and a song-coloured bar.
+/// iOS shows its own player above, so this card adds what it lacks: the cat, like/dislike and a song-coloured bar.
 struct LockScreenView: View {
   let state: PawseState
   let stale: Bool
@@ -225,14 +242,26 @@ struct LockScreenView: View {
       HStack(spacing: 12) {
         CatStage(state: state, size: 44)
         VStack(alignment: .leading, spacing: 2) {
-          Text(verbatim: stale ? "\(state.name ?? "Mochi") is napping" : catLine(state))
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(accent(state))
-            .lineLimit(1)
-          Text(verbatim: stale ? "Open Pawse to keep listening" : "\(state.title) · \(state.artist)")
-            .font(.system(size: 14, weight: .medium))
+          Text(verbatim: state.title)
+            .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(.white)
             .lineLimit(1)
+          Text(verbatim: stale ? "Open Pawse to keep listening" : state.artist)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(accent(state))
+            .lineLimit(1)
+          if let lyric = state.lyric, !lyric.isEmpty {
+            Text(verbatim: lyric)
+              .font(.system(size: 13, weight: .medium))
+              .foregroundStyle(Color.white.opacity(0.85))
+              .lineLimit(2)
+              .minimumScaleFactor(0.85)
+              .fixedSize(horizontal: false, vertical: true)
+              .contentTransition(.opacity)
+              .padding(.top, 2)
+          } else if state.moodLine == true {
+            MoodLine(state: state)
+          }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         if !stale && state.rate != false {
@@ -253,6 +282,61 @@ struct LockScreenView: View {
   }
 }
 
+/// Title and artist, or the sung lyric line with the song in small print above it.
+struct TitleView: View {
+  let state: PawseState
+  let hero: Bool
+
+  var body: some View {
+    if hero {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(verbatim: "\(state.title) · \(state.artist)")
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(PawseTheme.secondary)
+          .lineLimit(1)
+        Text(verbatim: state.lyric ?? "")
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundStyle(.white)
+          .lineLimit(2)
+          .minimumScaleFactor(0.8)
+          .multilineTextAlignment(.leading)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+          .contentTransition(.opacity)
+          .animation(.easeInOut(duration: 0.3), value: state.lyric)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    } else {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(state.title)
+          .font(.system(size: 17, weight: .semibold))
+          .foregroundStyle(.white)
+          .lineLimit(1)
+        Text(state.artist)
+          .font(.system(size: 15))
+          .foregroundStyle(PawseTheme.secondary)
+          .lineLimit(1)
+        if state.moodLine == true {
+          MoodLine(state: state)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+}
+
+struct MoodLine: View {
+  let state: PawseState
+
+  var body: some View {
+    Text(verbatim: catLine(state))
+      .font(.system(size: 12, weight: .semibold))
+      .foregroundStyle(accent(state))
+      .lineLimit(1)
+      .minimumScaleFactor(0.8)
+  }
+}
+
 func catLine(_ state: PawseState) -> String {
   let name = state.name ?? "Mochi"
   if (state.mouse ?? 0) > 0 { return "\(name) spotted a mouse" }
@@ -268,48 +352,41 @@ func catLine(_ state: PawseState) -> String {
   }
 }
 
-/// Title and artist; the cat's line lives under the bar.
-struct TitleView: View {
-  let state: PawseState
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 3) {
-      Text(state.title)
-        .font(.system(size: 17, weight: .semibold))
-        .foregroundStyle(.white)
-        .lineLimit(1)
-      Text(state.artist)
-        .font(.system(size: 15))
-        .foregroundStyle(PawseTheme.secondary)
-        .lineLimit(1)
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-  }
-}
-
-/// A tinted progress row, then like, the cat's line about the song, and dislike.
 struct PlayerBar: View {
   let state: PawseState
+  let mode: IslandLayout
 
   var body: some View {
     VStack(spacing: 6) {
-      HStack(spacing: 10) {
-        TimeLabel(state: state, remaining: false)
-        SlimProgress(state: state)
-        TimeLabel(state: state, remaining: true)
+      if mode == .wire {
+        WireBar(state: state)
+      } else {
+        HStack(spacing: 10) {
+          TimeLabel(state: state, remaining: false)
+          SlimProgress(state: state)
+          TimeLabel(state: state, remaining: true)
+        }
       }
-      HStack(spacing: 0) {
-        if state.rate != false {
+      if mode == .paws {
+        HStack(spacing: 0) {
+          PawButton(
+            intent: PawseToggleIntent(), symbol: state.isPlaying ? "pause.fill" : "play.fill",
+            tint: accent(state))
+          PawButton(intent: PawseNextIntent(), symbol: "forward.fill", tint: accent(state))
+          Spacer(minLength: 0)
+          if state.rate != false {
+            RateButton(
+              intent: PawseLikeIntent(), on: state.liked == true, symbol: "heart", tint: accent(state))
+            RateButton(
+              intent: PawseDislikeIntent(), on: state.disliked == true, symbol: "hand.thumbsdown",
+              tint: accent(state))
+          }
+        }
+      } else if state.rate != false {
+        HStack(spacing: 0) {
           RateButton(
             intent: PawseLikeIntent(), on: state.liked == true, symbol: "heart", tint: accent(state))
-        }
-        Text(verbatim: catLine(state))
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(accent(state).opacity(0.9))
-          .lineLimit(1)
-          .contentTransition(.opacity)
-          .frame(maxWidth: .infinity)
-        if state.rate != false {
+          Spacer(minLength: 0)
           RateButton(
             intent: PawseDislikeIntent(), on: state.disliked == true, symbol: "hand.thumbsdown",
             tint: accent(state))
@@ -317,6 +394,61 @@ struct PlayerBar: View {
       }
     }
     .foregroundStyle(.white)
+  }
+}
+
+/// The bar is the headphone cable: the cat's head rides it at the position of the last update.
+struct WireBar: View {
+  let state: PawseState
+  private let cat: CGFloat = 20
+
+  var body: some View {
+    HStack(spacing: 10) {
+      TimeLabel(state: state, remaining: false)
+      SlimProgress(state: state)
+        .overlay {
+          GeometryReader { geo in
+            Image(catImage(state, head: true))
+              .resizable()
+              .interpolation(.high)
+              .aspectRatio(contentMode: .fit)
+              .frame(width: cat, height: cat)
+              .position(x: catX(geo.size.width), y: geo.size.height / 2 - cat / 2 + 1)
+              .animation(.linear(duration: 4), value: state.progress)
+          }
+        }
+      TimeLabel(state: state, remaining: true)
+    }
+    .padding(.top, 12)
+  }
+
+  private func catX(_ width: CGFloat) -> CGFloat {
+    let p = CGFloat(min(max(state.progress, 0), 1))
+    return cat / 2 + max(width - cat, 0) * p
+  }
+}
+
+struct PawButton<I: LiveActivityIntent>: View {
+  let intent: I
+  let symbol: String
+  let tint: Color
+
+  var body: some View {
+    Button(intent: intent) {
+      ZStack {
+        Image(systemName: "pawprint.fill")
+          .font(.system(size: 34))
+          .foregroundStyle(tint.opacity(0.35))
+        Image(systemName: symbol)
+          .font(.system(size: 13, weight: .bold))
+          .foregroundStyle(.white)
+          .contentTransition(.symbolEffect(.replace))
+          .offset(y: 3)
+      }
+      .frame(width: 48, height: 36)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
   }
 }
 

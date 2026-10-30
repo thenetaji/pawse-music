@@ -7,6 +7,8 @@ import type {
   Track,
 } from "@pawse/music-core";
 
+import { DEFAULT_EQ, type EqSetting } from "../lib/audio-fx/eq";
+
 // Library types, defaults and pure helpers; the store lives in library.ts.
 export type LocalPlaylist = {
   id: string;
@@ -52,6 +54,12 @@ export type Settings = {
   sleepFade: number;
   /** Seconds each song fades out at its end (the next fades in); 0 is off. */
   crossfade: number;
+  /** Songs from one album play straight into each other, with no crossfade between them. */
+  gapless: boolean;
+  eq: EqSetting;
+  crossfeed: boolean;
+  trimSilence: boolean;
+  visualiser: boolean;
   // Downloads
   downloadQuality: AudioQuality;
   wifiOnly: boolean;
@@ -75,6 +83,12 @@ export type Settings = {
   catIsland: boolean;
   catEpisodes: "off" | "rare" | "often";
   catColor: CatColor;
+  mochiHat: string;
+  mochiCups: string;
+  mochiIdle: string;
+  mochiUnlocked: string[];
+  /** Daily video limit in minutes; 0 is off. */
+  mindfulLimit: number;
   // Content
   /** YouTube `gl`. */
   region: string;
@@ -98,6 +112,8 @@ export type Settings = {
   homeSections: { id: string; on: boolean }[] | null;
   /** "auto", or the tallest height to play by default. */
   videoPreferred: "auto" | number;
+  /** Offer 1440p and 4K (AV1) in the player; for phones that decode AV1 in hardware. */
+  videoHigher: boolean;
   /** The Song and Video switch at the top of the player. */
   videoInPlayer: boolean;
   /** The player shows the song's video (Video side of the switch). */
@@ -141,6 +157,11 @@ export const DEFAULT_SETTINGS: Settings = {
   resumeAfterInterruption: true,
   sleepFade: 10,
   crossfade: 0,
+  gapless: true,
+  eq: DEFAULT_EQ,
+  crossfeed: false,
+  trimSilence: false,
+  visualiser: false,
   downloadQuality: "high",
   wifiOnly: false,
   autoDownloadLiked: false,
@@ -159,6 +180,11 @@ export const DEFAULT_SETTINGS: Settings = {
   catIsland: true,
   catEpisodes: "rare",
   catColor: "orange",
+  mochiHat: "none",
+  mochiCups: "artwork",
+  mochiIdle: "sleep",
+  mochiUnlocked: [],
+  mindfulLimit: 0,
   region: "auto",
   language: "auto",
   explicitFilter: false,
@@ -170,6 +196,7 @@ export const DEFAULT_SETTINGS: Settings = {
   videos: true,
   homeSections: null,
   videoPreferred: "auto",
+  videoHigher: false,
   videoInPlayer: true,
   npVideo: false,
   videoCalm: false,
@@ -205,6 +232,22 @@ export type LibraryData = {
 export const HISTORY_MAX = 1000;
 export const DISLIKED_MAX = 2000;
 export const strip = (t: Track): Track => ({ ...t, setVideoId: undefined });
+
+/** Puts removed songs back at the positions they had, skipping any already in the list. */
+export function reinsertTracks(
+  list: Track[],
+  items: { track: Track; at: number }[],
+): Track[] {
+  const have = new Set(list.map((t) => t.id));
+  const next = [...list];
+  // Lowest position first, so each insert lands where the list had it before the removal.
+  for (const { track, at } of [...items].sort((a, b) => a.at - b.at)) {
+    if (have.has(track.id)) continue;
+    have.add(track.id);
+    next.splice(Math.min(at, next.length), 0, track);
+  }
+  return next;
+}
 
 export function moveItem<T>(list: T[], from: number, to: number): T[] {
   if (from === to || from < 0 || from >= list.length) return list;

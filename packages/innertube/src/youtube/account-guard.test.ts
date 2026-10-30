@@ -7,21 +7,27 @@ const cookieOf = (init: RequestInit = {}) =>
   (init.headers as Record<string, string> | undefined)?.Cookie;
 
 describe("signed-in safety", () => {
-  it("keeps search signed out and the home feed signed in", async () => {
+  it("searches as the account, except in private search", async () => {
     const sent: { url: string; cookie?: string }[] = [];
     const fetch = jest.fn(async (url: string, init: RequestInit = {}) => {
       if (url.includes("/youtubei/v1/"))
         sent.push({ url, cookie: cookieOf(init) });
       return reply({});
     });
+    let incognito = false;
     const yt = new YouTubeMusic({
       fetch,
       clientsConfigUrl: null,
       cookies: () => COOKIE,
+      privateSearch: () => incognito,
     });
     await yt.search("tum hi ho").catch(() => {});
     await yt.home().catch(() => {});
-    expect(sent.find((s) => s.url.includes("/search"))?.cookie).toBeUndefined();
+    incognito = true;
+    await yt.search("tum hi ho").catch(() => {});
+    const searches = sent.filter((s) => s.url.includes("/search"));
+    expect(searches[0]?.cookie).toBe(COOKIE);
+    expect(searches.at(-1)?.cookie).toBeUndefined();
     expect(sent.find((s) => s.url.includes("/browse"))?.cookie).toBe(COOKIE);
   });
 

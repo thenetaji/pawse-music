@@ -2,6 +2,7 @@ import type { Thumbnail, Track, VideoItem } from "@pawse/music-core";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import { shareRating } from "../lib/contribute";
 import { useLibrary } from "./library";
 import { kv } from "./storage";
 
@@ -136,6 +137,7 @@ export const useVideoRating = (id: string): VideoRating =>
   );
 
 export function rateVideo(v: VideoItem, r: VideoRating) {
+  shareRating(v.id, r);
   useWatched.setState((s) => ({
     liked:
       r === "like"

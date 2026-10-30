@@ -35,6 +35,7 @@ import { useHomeSections } from "../../lib/home-sections";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { useHasSubs } from "../home/home-blocks";
+import { MindfulToday } from "../mindful/mindful-ui";
 import { useAccent } from "../now-playing/now-palette";
 
 /** Subscriptions, For you, or a topic chip by its title. */
@@ -101,13 +102,16 @@ export default function WatchPage({
               : ytv.topic(feed),
     { keep: !query },
   );
-  const [more, setMore] = useState<{ key: string } & Page>({
+  // Later pages belong to the first page they followed, so a refresh drops them.
+  const [more, setMore] = useState<{ key: string; base?: Page } & Page>({
     key,
     items: [],
   });
   const [busy, setBusy] = useState(false);
   const extra =
-    more.key === key ? more : { key, items: [], continuation: undefined };
+    more.key === key && more.base === first.data
+      ? more
+      : { key, items: [], continuation: undefined };
   const items = [...(first.data?.items ?? []), ...extra.items];
   const cont = extra.items.length
     ? extra.continuation
@@ -118,6 +122,7 @@ export default function WatchPage({
   const loadMore = () => {
     if (busy || !cont || !endless) return;
     setBusy(true);
+    const base = first.data;
     const next: Promise<Page> = query
       ? ytv.search(query, cont)
       : feed === "subs"
@@ -129,6 +134,7 @@ export default function WatchPage({
       .then((r) =>
         setMore({
           key,
+          base,
           items: [...extra.items, ...r.items],
           continuation: r.continuation,
         }),
@@ -165,14 +171,19 @@ export default function WatchPage({
       bare
       back={pushed}
       tab={pushed ? undefined : "watch"}
-      // A fresh first page drops the old pages after it.
-      onRefresh={() => {
-        setMore({ key, items: [] });
-        return first.reload();
-      }}
+      onRefresh={() =>
+        Promise.all([
+          first.reload(),
+          // The chips come from the For you feed.
+          account && feed !== "home" && !query
+            ? forYouFeed.reload()
+            : undefined,
+        ])
+      }
       refreshing={false}
       onEndReached={loadMore}
     >
+      <MindfulToday />
       <View style={styles.field}>
         <Svg
           width={16}

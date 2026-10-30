@@ -254,6 +254,101 @@ The goal: a yearly Wrapped and a monthly recap, like YouTube Music Recap and App
 - [ ] 88. Every card can be shared as an image (reuse the share card).
 - [ ] 89. "Your story so far": the same view for any date range, from Library.
 
+## Tonight (approved 2026-10-29)
+
+Everything asked for on 2026-10-29, in the user's words where it helps. Tick each one in the commit that finishes it. One branch (`feat/feeds-search-moods`), everything ships as one update (v1.13.0): tests once at the end, a CI test build, then the release.
+
+### Bugs
+- [x] 90. Black screen in the video player: pause a video, the controls show, and the picture behind them goes black. It should keep the paused frame. Defensive fix in (redraw the paused frame when the video view is re-attached, light gradient scrim, Live Text off); needs a check on the phone. Then (screenshot, 2026-10-30): the dark band was the controls' scrim and the round button was iOS Live Text on the paused frame; the scrim is now much lighter and Live Text is off.
+- [x] 91. Videos that won't play ("says can't play, maybe because the video is private, but Pawse doesn't say"): show YouTube's real reason (private, removed, region-locked, members-only) with Next, and Retry only where it can help.
+- [x] 92. Can't remove songs from a playlist. Fix it for Pawse playlists and YouTube playlists: swipe, the long-press menu, Undo.
+- [x] 93. Pull-to-refresh doesn't bring anything new on Home and every other feed. Refresh skips caches, keeps the old content until the new arrives; Home and Videos refresh by themselves after 30+ min away.
+- [x] 94. "New from your channels" is stuck on old videos. Fetch each channel's latest uploads on refresh and on return, with the new dot right.
+- [x] 95. The video bounces up and down "like a dance" while scrolling. Keep it still as the page scrolls under it, like YouTube; no press springs while scrolling.
+
+- [x] 95a. The DeArrow mark (title or thumbnail changed) looked like the Download button. Now a pen over a line.
+- [x] 95b. Views showed as a raw number (1200000). Now short like YouTube: 1.2M views.
+
+### Feeds
+- [x] 96. For you feels the same and suggestions are few. First test whether YouTube personalises a lasting anonymous visitor ID (no account); if it does, let YouTube build Home, For you and Up next, with a "Let YouTube learn from what I watch" setting. If it doesn't, make Pawse's own For you richer and different on every refresh. Status 2026-10-29: Pawse's own For you rebuilt (taste, your channels, varied topics, unseen first). The anonymous-ID test couldn't run from the build machine (YouTube bot-checks its IP); needs a home connection or a residential proxy. Then tested through a residential proxy: YouTube does fill a signed-out visitor's Home after reported watches (0 → 22 videos, about a quarter from the niche). Built: one anonymous visitor per install, "Let YouTube learn from what I watch" (on) and "Reset YouTube recommendations".
+- [x] 97. Leave videos that can't play out of feeds before they're tapped.
+
+### Search and watch page
+- [x] 98. Search redesign ("search looks trash"), learned from YouTube and YouTube Music screenshots: suggestions while typing, recent searches you can remove, filter chips (All, Songs, Videos, Albums, Artists, Playlists, Channels), a top result card, tidy rows, endless results.
+- [x] 98a. Signed in, search (and its suggestions) uses the account for YouTube and YouTube Music, "because otherwise it's too lame". Falls back to signed out if the account fails; incognito stays signed out; streams stay signed out.
+- [x] 99. Watch page like YouTube: title, channel row with Subscribe, a row of action pills, a description card that expands, a comments preview, a clean Up next. Done: tappable links, "No comments yet", fuller description sheet, the collapsed description card under the pills.
+
+### Video player
+- [x] 100. Controls as smooth as YouTube's: tap fades the controls, double-tap ±10 s with the ripple, hold for 2×, a scrubber that grows with a time bubble, chapter marks and previews, animations on the UI thread, no spinner flash on short buffers.
+- [x] 100a. The player's menus are "too basic" (quality and the rest). A YouTube-style settings sheet: Quality (Auto, Higher picture, Data saver, Advanced with every resolution and fps, plus what's playing now), Speed (presets and a fine slider), Captions (languages, auto-translate, style), Audio track, Sleep timer, Loop, Stable volume. Each opens as its own smooth page in the sheet with a back arrow, and shows its current value on the first page.
+- [x] 101. Faster video start: get the next video ready in the background, and show its thumbnail until the first frame.
+- [x] 102. Full-screen gestures: volume on the right, brightness on the left, pinch to fill, swipe down to leave.
+- [x] 103. A chapters list to jump through, and Play next / Add to queue for videos.
+
+- [x] 103a. (Approved: "yes, where it works".) "Why not above 1080p?" Pawse plays H.264 only, and YouTube stops H.264 at 1080p; 1440p and 4K exist only as VP9 (WebM) and AV1 (MP4). Add 1440p/4K in AV1 where the device decodes it in hardware (iPhone 15 Pro and newer, recent Android phones, Macs and PCs), and VP9 on Android and desktop. Older iPhones stay at 1080p.
+
+### Channel page
+- [x] 103b. A channel page has no controls. Add YouTube's tabs and sorting: Home, Videos (Latest, Popular, Oldest), Live, Playlists, Podcasts/Releases where the channel has them, search inside the channel, and About.
+
+### Add-ons from open-source projects (approved 2026-10-29)
+- [x] 103c. SponsorBlock extras: "Jump to the best part" (highlight) and crowd-made chapters for videos that have none.
+- [x] 103d. Original titles and audio: stop YouTube's auto-translated titles and auto-dubbed audio; always the original (idea from the open-source YouTube Anti-Translate extension).
+- [x] 103e. Scrobbling to Last.fm and/or ListenBrainz, off until signed in there; respects incognito.
+- [x] 103f. Lyrics romanisation: Hindi, Punjabi, Japanese, Korean and others also in Latin letters.
+- [x] 103f2. Give back to them, not only read from them, with one anonymous random ID per install (no account): send your like/dislike to Return YouTube Dislike (its registration puzzle included), suggest a better title or thumbnail frame to DeArrow and vote on others, mark sponsor/intro/outro/highlight segments for SponsorBlock and vote skipped segments up or down. Off in incognito; one switch in Settings.
+- [ ] 103g. Discord status on desktop: show what's playing.
+- [ ] 103h. "What's this song?": recognise a song playing nearby and open it in Pawse. Check the service's terms first (SongRec uses Shazam's unofficial API).
+
+### Dynamic Island
+- [x] 105a. Remove the cat's mood line ("Kitty is in love with this one") from the island and the lock screen; it was also cut off at the bottom. With like/dislike off, the island now ends at the progress bar.
+- [x] 105b. A Dynamic Island that's "very unique" with the cat. Picked: Mochi sits on the progress wire and moves along it; the live lyric line; a glow in the song's colour that shifts with its mood; the cat (not a time ring) on the right. No mood text. Then (user): keep every design as an island style to pick in Settings instead of deleting any: Classic, Cat on the wire (default), Lyrics, Paw controls, Minimal; the mood line only as an opt-in that never clips.
+
+### Music player
+- [x] 104. A smoother Now playing: 60 fps between the mini and full player, art that follows the finger, no stutter while lyrics or colours load.
+- [x] 105. Gapless playback within albums, and crossfade only between unrelated songs.
+
+### Mood sorting (if time allows, otherwise next)
+- [x] 106. Moods for "random, but sometimes 90s, sometimes chill, sometimes loud, sometimes modern": chips for 90s & retro, Chill, Loud and Modern, plus Smooth shuffle that drifts between moods slowly. Pick from your own songs and new finds, with a slider. Music only.
+- [x] 107. Labels from album years and MusicBrainz, YouTube Music's own mood playlists, your listening sessions, and Last.fm tags when a key is added. Custom moods: undecided ("idk"); suggested later from your patterns.
+- [ ] 108. Part 2, undecided: analyse the audio (Essentia) for real energy and mood. Where it runs is still to choose: phone, desktop app or a shared server.
+
+### Experimental graduates
+- [x] 108a. The old Experimental features are now regular settings: Song and Video switch and Show dislikes under Home and videos, Skip non-music parts under Playback. The Experimental page is gone until the AI features bring it back.
+
+### Also in this release (approved 2026-10-29: "release all as one update")
+
+Audio quality:
+- [x] 109. An equaliser with AutoEq: pick your headphones or earbuds from AutoEq's open-source list (4,000+ models) and get their correction curve; presets and a simple band EQ besides.
+- [x] 110. The best audio format per device: Opus 160 kbps on Android and desktop where it beats AAC 128; AAC on iPhone (256 kbps when signed in with Premium).
+- [x] 111. Crossfeed for headphones (bs2b), so hard-panned old stereo is easier on the ears. Off by default.
+- [x] 112. Trim silence at the start and end of songs.
+
+YouTube:
+- [x] 113. Mindful mode: today's watch time, an optional daily limit, and Mochi falling asleep when you pass it.
+
+Lyrics:
+- ~~114. Lyrics meaning: line-by-line translation.~~ Dropped by the user on 2026-10-29 ("no lyrics translation needed").
+
+AI, under Settings → Experimental (on-device only: Apple's Foundation Models on iOS 26 with Apple Intelligence, Gemini Nano on Android where available; hidden where not supported):
+- [x] 115. Video summary and "Ask this video", from its captions.
+- [x] 116. AI DJ: describe a vibe ("rainy 90s Bollywood but upbeat") and get a mix through the mood engine.
+- [x] 117. Auto chapters for long videos without chapters.
+- [x] 118. Spot sponsor reads from captions when SponsorBlock has nothing.
+
+Random fun:
+- [x] 119. Wake up to a song with Mochi (AlarmKit on iOS 26, the alarm manager on Android).
+- [x] 120. Mochi grows with you: listening streaks unlock headphones, hats and moods.
+- [x] 121. Sleep fade: the sleep timer lowers the volume slowly and Mochi curls up.
+- [x] 122. A visualiser that reacts to the beat (Skia).
+
+Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, listen together) and karaoke mode.
+
+- [x] 122a. Pawse now needs Android 8 or newer (on-device AI library); approved 2026-10-29.
+
+### How we work
+- Borrow from open-source players where it saves time (Metrolist, InnerTune, OuterTune, LibreTube, NewPipe, FreeTube for ideas, YouTube.js), credited in NOTICE.md. Never Grayjay.
+- Few agents at a time (no more than four), no test runs until the end.
+
 ## Later
 - Lyrics in the Dynamic Island and the Live Activity. Left out of v1 on purpose.
 - Video mode (music videos), with a careful lock-screen handoff (react-native-video takes over Now Playing; see RNTP #2679).

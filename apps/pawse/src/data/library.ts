@@ -20,6 +20,7 @@ import {
   migrateQuality,
   moveItem,
   type PlaylistSort,
+  reinsertTracks,
   type Settings,
   sortTracks,
   strip,
@@ -50,6 +51,8 @@ type Library = LibraryData & {
   sortPlaylist(id: string, by: PlaylistSort): void;
   removeFromPlaylist(id: string, trackId: string): void;
   removeManyFromPlaylist(id: string, trackIds: string[]): void;
+  /** Undoes a removal: puts songs back at their old positions. */
+  restoreToPlaylist(id: string, items: { track: Track; at: number }[]): void;
   renamePlaylist(id: string, title: string): void;
   /** Reorders tracks inside a playlist. */
   movePlaylistTrack(id: string, from: number, to: number): void;
@@ -270,6 +273,18 @@ export const useLibrary = create<Library>()(
           ),
         }));
       },
+      restoreToPlaylist: (id, items) =>
+        set((s) => ({
+          playlists: s.playlists.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  tracks: reinsertTracks(p.tracks, items),
+                  updatedAt: Date.now(),
+                }
+              : p,
+          ),
+        })),
       renamePlaylist: (id, title) =>
         set((s) => ({
           playlists: s.playlists.map((p) =>

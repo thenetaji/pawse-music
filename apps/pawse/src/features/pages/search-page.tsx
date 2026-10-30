@@ -1,14 +1,10 @@
 import {
   type ArtistSummary,
-  artistLine,
   type CatalogItem,
-  type SearchFilter,
-  type SearchResults,
+  type SearchSuggestions,
   type Shelf as ShelfT,
-  type Track,
   type VideoSearchResults,
 } from "@pawse/music-core";
-import { player } from "@pawse/player";
 import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -28,17 +24,12 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Path } from "react-native-svg";
-import { Artwork } from "../../components/artwork";
 import { CloseGlyph } from "../../components/glyphs";
 import { MoodTile } from "../../components/mood-tile";
 import { useBottomSpace, useTabRoot } from "../../components/page";
-import { openItem, Shelf, showItemActions } from "../../components/shelf";
-import { TrackRow } from "../../components/track-row";
 import {
   CatState,
   Chip,
-  PressScale,
-  RIPPLE,
   SectionTitle,
   SkeletonRows,
 } from "../../components/ui";
@@ -48,25 +39,59 @@ import {
   VideoPlaylistRow,
 } from "../../components/video-card";
 import { useLibrary } from "../../data/library";
-import { useVideoFilter } from "../../lib/block";
-import { rightClick } from "../../lib/context-menu";
+import { type BlockedChannel, useVideoFilter } from "../../lib/block";
 import { yt, ytv } from "../../lib/engine";
 import { useFocus } from "../../lib/focus";
 import { useRegion } from "../../lib/locale";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
-import { PlayGlyph } from "../now-playing/icons";
 import { useAccent } from "../now-playing/now-palette";
+import {
+  groupShelves,
+  type Kind,
+  KINDS,
+  musicFilter,
+  namesMatch,
+  rememberSearchArt,
+  searchArt,
+  usePaged,
+  useSuggestions,
+} from "../search/search-data";
+import {
+  EntityRow,
+  ErrorState,
+  ItemRow,
+  ListFoot,
+  QueryRow,
+  RecentRow,
+  ResultsSkeleton,
+  SectionHead,
+  SongRow,
+  TopResult,
+} from "../search/search-rows";
 
-// All is YouTube itself (videos, channels, music); the rest search YouTube Music's catalog.
-const FILTERS: { id: SearchFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "songs", label: "Songs" },
-  { id: "albums", label: "Albums" },
-  { id: "artists", label: "Artists" },
-  { id: "playlists", label: "Playlists" },
-];
+type Tile = { title: string; params: string; color?: string };
+type Video = VideoSearchResults["items"][number];
+
+// A few of each kind in the All tab; "See all" opens the rest under its own chip.
+const PEEK = {
+  songs: 4,
+  videos: 5,
+  albums: 3,
+  artists: 3,
+  playlists: 3,
+  channels: 3,
+};
+const SECTION: Record<Kind, string> = {
+  all: "All",
+  songs: "Songs",
+  videos: "Videos",
+  albums: "Albums",
+  artists: "Artists",
+  playlists: "Playlists",
+  channels: "Channels",
+};
 
 export default function SearchPage() {
   useTabRoot("search");
@@ -76,69 +101,64 @@ export default function SearchPage() {
   const input = useRef<TextInput>(null);
   const [text, setText] = useState("");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<SearchFilter>("all");
+  const [kind, setKind] = useState<Kind>("all");
+  // The field is in use: suggestions while there are words, recent searches while there aren't.
+  // It stays on after the keyboard is dragged away, so the list under your thumb doesn't change.
+  const [suggesting, setSuggesting] = useState(false);
   const videos = useSetting("videos", true);
-  // With videos off, All falls back to YouTube Music's own mix of results.
-  const youtube = videos && filter === "all";
   const focus = useFocus();
-  const [focused, setFocused] = useState(false);
   const recent = useLibrary((s) => s.recentSearches);
 
-  const debounced = useDebounced(text.trim(), 180);
-  const suggestions = useResource<string[]>(
-    focused && debounced && focus.trends ? `sugg:${debounced}` : null,
-    () => yt.suggestions(debounced),
-  );
-  const results = useResource<SearchResults>(
-    query && !youtube ? `search:${filter}:${query}` : null,
-    () => yt.search(query, filter),
-  );
-  const ytResults = useResource<VideoSearchResults>(
-    query && youtube ? `ytsearch:${query}` : null,
-    () => ytv.search(query),
-  );
+  const typed = text.trim();
+  const debounced = useDebounced(typed, 180);
+  const suggestions = useSuggestions(debounced, suggesting && focus.trends);
+  const kinds = KINDS.filter((k) => videos || !k.youtube);
+  const shown = kinds.some((k) => k.id === kind) ? kind : "all";
 
   const submit = (q: string) => {
     const v = q.trim();
     if (!v) return;
     setText(v);
     setQuery(v);
-    setFocused(false);
+    setKind("all");
+    setSuggesting(false);
     Keyboard.dismiss();
     useLibrary.getState().addSearch(v);
   };
-  const cancel = () => {
-    setText("");
-    setQuery("");
-    setFocused(false);
+  // A song or artist picked from the suggestions opens on its own, so the suggestions close behind it.
+  const leave = () => {
     Keyboard.dismiss();
+    setSuggesting(false);
+    setText(query);
   };
-
+  const cancel = () => {
+    Keyboard.dismiss();
+    setSuggesting(false);
+    // With results behind it, Cancel only closes the suggestions.
+    if (suggesting && query) setText(query);
+    else {
+      setText("");
+      setQuery("");
+    }
+  };
   // Puts a suggestion in the field to keep typing from it, like YouTube's arrow.
   const fill = (q: string) => {
     setText(`${q} `);
+    setSuggesting(true);
     input.current?.focus();
   };
-  const typing = focused && !!debounced;
-  const needle = debounced.toLowerCase();
-  const typedRecent = recent
-    .filter((r) => r.toLowerCase().includes(needle))
-    .slice(0, 3);
+
+  const listing = suggesting && !!typed;
   return (
     <View style={styles.root}>
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-        {!focused && !query ? (
-          <Animated.Text entering={FadeIn} style={styles.h1}>
-            Search
-          </Animated.Text>
-        ) : null}
         <Animated.View
           layout={LinearTransition.duration(220)}
           style={styles.fieldRow}
         >
           <Pressable
             onPress={() => input.current?.focus()}
-            style={[styles.field, focused && styles.fieldOn]}
+            style={[styles.field, suggesting && styles.fieldOn]}
           >
             <Svg
               width={17}
@@ -156,21 +176,26 @@ export default function SearchPage() {
               ref={input}
               value={text}
               onChangeText={setText}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
+              onFocus={() => setSuggesting(true)}
               onSubmitEditing={() => submit(text)}
-              placeholder="Songs, artists, albums"
+              placeholder="Songs, artists, albums, videos"
               placeholderTextColor="rgba(255,255,255,0.4)"
               returnKeyType="search"
+              enterKeyHint="search"
+              submitBehavior="blurAndSubmit"
+              autoCapitalize="none"
               autoCorrect={false}
+              keyboardAppearance="dark"
               style={styles.input}
               selectionColor={accent}
             />
             {text ? (
               <Pressable
                 hitSlop={10}
+                accessibilityLabel="Clear"
                 onPress={() => {
                   setText("");
+                  setSuggesting(true);
                   input.current?.focus();
                 }}
                 style={styles.clear}
@@ -179,7 +204,7 @@ export default function SearchPage() {
               </Pressable>
             ) : null}
           </Pressable>
-          {focused || query ? (
+          {suggesting || query ? (
             <Animated.View entering={FadeIn.duration(150)}>
               <Pressable
                 hitSlop={Platform.OS === "android" ? 14 : 8}
@@ -190,294 +215,123 @@ export default function SearchPage() {
             </Animated.View>
           ) : null}
         </Animated.View>
-        {query && !focused ? (
+        {query && !listing ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
             style={styles.filterRow}
             contentContainerStyle={styles.filters}
           >
-            {FILTERS.map((f) => (
+            {kinds.map((k) => (
               <Chip
-                key={f.id}
-                label={f.label}
-                on={filter === f.id}
+                key={k.id}
+                label={k.label}
+                on={shown === k.id}
                 accent={accent}
-                onPress={() => setFilter(f.id)}
+                onPress={() => setKind(k.id)}
               />
             ))}
           </ScrollView>
         ) : null}
       </View>
 
-      {typing ? (
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: bottom }}
-        >
-          {typedRecent.map((s) => (
-            <SuggestionRow
-              key={`r:${s}`}
-              text={s}
-              recent
+      <View style={styles.body}>
+        {/* Results stay mounted under the suggestions, so closing them puts you back where you were. */}
+        {query ? (
+          <View style={[styles.body, suggesting && styles.hidden]}>
+            <Results
+              key={query}
+              query={query}
+              kind={shown}
+              videos={videos}
+              bottom={bottom}
+              accent={accent}
+              onKind={setKind}
+            />
+          </View>
+        ) : null}
+        {listing ? (
+          <View style={styles.cover}>
+            <Suggestions
+              typed={typed}
+              recent={recent}
+              data={suggestions?.data}
+              loading={focus.trends && !suggestions}
+              bottom={bottom}
               onPick={submit}
               onFill={fill}
+              onLeave={leave}
             />
-          ))}
-          {(suggestions.data ?? [])
-            .filter((s) => !typedRecent.includes(s))
-            .map((s) => (
-              <SuggestionRow key={s} text={s} onPick={submit} onFill={fill} />
-            ))}
-        </ScrollView>
-      ) : !query ? (
-        <EmptySearch
-          recent={recent}
-          onPick={submit}
-          onFill={fill}
-          bottom={bottom}
-          accent={accent}
-        />
-      ) : youtube ? (
-        ytResults.data ? (
-          <YouTubeResults
-            data={ytResults.data}
-            query={query}
-            bottom={bottom}
-            onFilter={setFilter}
-          />
-        ) : ytResults.error ? (
-          <CatState
-            kind="error"
-            message="Search didn't go through."
-            action="Try again"
-            onAction={ytResults.reload}
-          />
-        ) : (
-          <SkeletonRows />
-        )
-      ) : results.data ? (
-        <Results
-          data={results.data}
-          filter={filter}
-          bottom={bottom}
-          onFilter={setFilter}
-        />
-      ) : results.error ? (
-        <CatState
-          kind="error"
-          message="Search didn't go through."
-          action="Try again"
-          onAction={results.reload}
-        />
-      ) : (
-        <SkeletonRows />
-      )}
+          </View>
+        ) : suggesting || !query ? (
+          <View style={query ? styles.cover : styles.body}>
+            <EmptySearch
+              recent={recent}
+              onPick={submit}
+              onFill={fill}
+              bottom={bottom}
+              accent={accent}
+            />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
 
-// All of YouTube: edge-to-edge videos and channels, never Shorts, minus anything blocked.
-// When YouTube files the top results as music, the best song leads, then a few more, then the videos, each titled.
-function YouTubeResults({
-  data,
-  query,
-  bottom,
-  onFilter,
-}: {
-  data: VideoSearchResults;
-  query: string;
-  bottom: number;
-  onFilter: (f: SearchFilter) => void;
-}) {
-  const keep = useVideoFilter();
-  const [more, setMore] = useState<{
-    from: VideoSearchResults;
-    items: VideoSearchResults["items"];
-    continuation?: string;
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const extra = more?.from === data ? more : null;
-  const cont = extra ? extra.continuation : data.continuation;
-  const all = [...data.items, ...(extra?.items ?? [])];
-  const seen = new Set<string>();
-  const items = all.filter((x) => {
-    if (seen.has(x.id)) return false;
-    seen.add(x.id);
-    return x.type !== "video" || keep(x);
-  });
-  const musical =
-    data.items.slice(0, 8).filter((x) => x.type === "video" && x.music)
-      .length >= 2;
-  const songs = useResource<SearchResults>(
-    musical ? `search:songs:${query}` : null,
-    () => yt.search(query, "songs"),
-  );
-  const topSongs = (songs.data?.items ?? [])
-    .filter(
-      (i): i is Extract<CatalogItem, { type: "track" }> => i.type === "track",
-    )
-    .slice(0, 4);
-  // Songs still loading hold their place, so the videos don't jump down when they land.
-  const withSongs =
-    musical && (songs.data ? topSongs.length > 0 : !songs.error);
-  const loadMore = () => {
-    if (!cont || loading) return;
-    setLoading(true);
-    ytv
-      .search(query, cont)
-      .then((r) =>
-        setMore({
-          from: data,
-          items: [...(extra?.items ?? []), ...r.items],
-          continuation: r.continuation,
-        }),
-      )
-      .catch(() =>
-        setMore({
-          from: data,
-          items: extra?.items ?? [],
-          continuation: undefined,
-        }),
-      )
-      .finally(() => setLoading(false));
-  };
-  if (!items.length)
-    return (
-      <CatState kind="empty" message="Nothing for that. Try other words." />
-    );
-  return (
-    <FlatList
-      data={items}
-      keyExtractor={(x) => `${x.type}:${x.id}`}
-      onEndReached={loadMore}
-      onEndReachedThreshold={0.8}
-      contentContainerStyle={{ paddingTop: 12, paddingBottom: bottom }}
-      ListHeaderComponent={
-        withSongs ? (
-          <View>
-            {topSongs.length ? (
-              <TopResult item={topSongs[0]} />
-            ) : (
-              <SkeletonRows count={1} />
-            )}
-            {topSongs.length !== 1 ? (
-              <SectionTitle title="Songs" onMore={() => onFilter("songs")} />
-            ) : null}
-            {topSongs.length ? (
-              topSongs
-                .slice(1)
-                .map((t) => (
-                  <TrackRow
-                    key={t.id}
-                    track={t as Track}
-                    onPress={() => openItem(t, topSongs)}
-                  />
-                ))
-            ) : (
-              <SkeletonRows count={3} />
-            )}
-            <View style={{ height: 12 }} />
-            <SectionTitle title="Videos" />
-          </View>
-        ) : null
-      }
-      ListFooterComponent={loading ? <SkeletonRows count={2} /> : null}
-      renderItem={({ item: x }) =>
-        x.type === "channel" ? (
-          <ChannelRow channel={x} />
-        ) : x.type === "playlist" ? (
-          <VideoPlaylistRow list={x} />
-        ) : (
-          <VideoCard video={x} />
-        )
-      }
-    />
-  );
-}
-
-type Tile = { title: string; params: string; color?: string };
-
-const DIM = "rgba(255,255,255,0.4)";
-
-/** One suggestion or past search: tap searches, the arrow fills the field, × forgets a past search. */
-function SuggestionRow({
-  text,
+// While you type: matching past searches, then YouTube's suggestions, then songs, artists and albums with their pictures.
+function Suggestions({
+  typed,
   recent,
+  data,
+  loading,
+  bottom,
   onPick,
   onFill,
+  onLeave,
 }: {
-  text: string;
-  recent?: boolean;
+  typed: string;
+  recent: string[];
+  data?: SearchSuggestions;
+  loading: boolean;
+  bottom: number;
   onPick: (q: string) => void;
   onFill: (q: string) => void;
+  onLeave: () => void;
 }) {
+  const needle = typed.toLowerCase();
+  const past = recent
+    .filter((r) => r.toLowerCase().includes(needle))
+    .slice(0, 3);
+  const queries = (data?.queries ?? []).filter((q) => !past.includes(q));
+  // Your own words always lead the list, so Search is one tap away even before YouTube answers.
+  const own = [...past, ...queries].some((q) => q.toLowerCase() === needle);
   return (
-    <Animated.View layout={LinearTransition.duration(200)}>
-      <Pressable
-        onPress={() => onPick(text)}
-        android_ripple={RIPPLE}
-        style={({ pressed }) => [
-          styles.sugg,
-          pressed && !RIPPLE && styles.pressed,
-        ]}
-      >
-        <Svg
-          width={16}
-          height={16}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={DIM}
-          strokeWidth={2.4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          {recent ? (
-            <>
-              <Circle cx="12" cy="12" r="8.5" />
-              <Path d="M12 7.5V12l3 2" />
-            </>
-          ) : (
-            <>
-              <Circle cx="11" cy="11" r="7" />
-              <Path d="M20 20l-3.5-3.5" />
-            </>
-          )}
-        </Svg>
-        <Text style={styles.suggText} numberOfLines={1}>
-          {text}
-        </Text>
-        {recent ? (
-          <Pressable
-            hitSlop={6}
-            accessibilityLabel={`Remove ${text} from recent searches`}
-            onPress={() => useLibrary.getState().removeSearch(text)}
-            style={styles.suggAction}
-          >
-            <CloseGlyph size={10} weight={2.6} color={DIM} />
-          </Pressable>
-        ) : null}
-        <Pressable
-          hitSlop={6}
-          accessibilityLabel={`Search for ${text}…`}
-          onPress={() => onFill(text)}
-          style={styles.suggAction}
-        >
-          <Svg
-            width={17}
-            height={17}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={DIM}
-            strokeWidth={2.4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <Path d="M18 18L7 7M7 15V7h8" />
-          </Svg>
-        </Pressable>
-      </Pressable>
-    </Animated.View>
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      contentContainerStyle={{ paddingBottom: bottom, paddingTop: 4 }}
+    >
+      {own ? null : <QueryRow text={typed} onPick={onPick} onFill={onFill} />}
+      {past.map((s) => (
+        <QueryRow
+          key={`r:${s}`}
+          text={s}
+          recent
+          onPick={onPick}
+          onFill={onFill}
+        />
+      ))}
+      {queries.map((s) => (
+        <QueryRow key={s} text={s} onPick={onPick} onFill={onFill} />
+      ))}
+      {data?.items.length ? <View style={styles.divider} /> : null}
+      {(data?.items ?? []).slice(0, 5).map((i) => (
+        <EntityRow key={`${i.type}:${i.id}`} item={i} onOpen={onLeave} />
+      ))}
+      {loading && !data ? <SkeletonRows count={4} /> : null}
+    </ScrollView>
   );
 }
 
@@ -499,6 +353,7 @@ function EmptySearch({
   return (
     <ScrollView
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       contentContainerStyle={{ paddingBottom: bottom }}
     >
       {recent.length ? (
@@ -509,16 +364,19 @@ function EmptySearch({
               hitSlop={8}
               onPress={() => useLibrary.getState().clearSearches()}
             >
-              <Text style={[styles.clearAll, { color: accent }]}>Clear</Text>
+              <Text style={[styles.clearAll, { color: accent }]}>
+                Clear all
+              </Text>
             </Pressable>
           </View>
-          {recent.slice(0, 6).map((s) => (
-            <SuggestionRow
+          {recent.slice(0, 8).map((s) => (
+            <RecentRow
               key={s}
               text={s}
-              recent
+              art={searchArt(s)}
               onPick={onPick}
               onFill={onFill}
+              onRemove={(q) => useLibrary.getState().removeSearch(q)}
             />
           ))}
         </View>
@@ -585,104 +443,88 @@ function useSearchIdeas(): string[] {
     .slice(0, 10);
 }
 
-const FILTER_BY_TITLE: Record<string, SearchFilter> = {
-  songs: "songs",
-  videos: "videos",
-  albums: "albums",
-  artists: "artists",
-  playlists: "playlists",
-  "community playlists": "playlists",
-  "featured playlists": "playlists",
-};
-
 function Results({
-  data,
-  filter,
+  query,
+  kind,
+  videos,
   bottom,
-  onFilter,
+  accent,
+  onKind,
 }: {
-  data: SearchResults;
-  filter: SearchFilter;
+  query: string;
+  kind: Kind;
+  videos: boolean;
   bottom: number;
-  onFilter: (f: SearchFilter) => void;
+  accent: string;
+  onKind: (k: Kind) => void;
 }) {
-  if (filter !== "all" && data.items)
-    return <FilteredResults data={data} bottom={bottom} />;
-  if (!data.top && !data.shelves.length)
-    return <CatState kind="empty" message="No matches. Try other words." />;
+  const f = musicFilter(kind);
+  if (kind === "all")
+    return (
+      <AllResults
+        query={query}
+        videos={videos}
+        bottom={bottom}
+        accent={accent}
+        onKind={onKind}
+      />
+    );
+  if (f) return <MusicList query={query} filter={f} bottom={bottom} />;
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: bottom }}>
-      {data.top ? <TopResult item={data.top} /> : null}
-      {data.shelves.map((s, i) => {
-        const f = FILTER_BY_TITLE[s.title.toLowerCase()];
-        return (
-          <Shelf
-            key={`${s.title}${i}`}
-            shelf={s}
-            onMore={f ? () => onFilter(f) : undefined}
-          />
-        );
-      })}
-    </ScrollView>
+    <YouTubeList
+      query={query}
+      type={kind === "channels" ? "channel" : "video"}
+      bottom={bottom}
+    />
   );
 }
 
-// One filter tab: pages in more results as you reach the bottom.
-function FilteredResults({
-  data,
+const rowKey = (i: CatalogItem) => `${i.type}:${i.id}`;
+const ytKey = (v: Video) => `${v.type}:${v.id}`;
+const EMPTY = "Nothing for that. Try other words.";
+
+// One YouTube Music filter: songs, albums, artists or playlists, paging in as you reach the bottom.
+function MusicList({
+  query,
+  filter,
   bottom,
 }: {
-  data: SearchResults;
+  query: string;
+  filter: "songs" | "albums" | "artists" | "playlists";
   bottom: number;
 }) {
-  const [more, setMore] = useState<{
-    items: CatalogItem[];
-    continuation?: string;
-    from: SearchResults;
-  } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const extra = more?.from === data ? more : null;
-  const items = [...(data.items ?? []), ...(extra?.items ?? [])];
-  const cont = extra ? extra.continuation : data.continuation;
-  const loadMore = () => {
-    if (!cont || loading) return;
-    setLoading(true);
-    yt.searchMore(cont)
-      .then((r) =>
-        setMore({
-          from: data,
-          items: [
-            ...(extra?.items ?? []),
-            ...(r.items ?? r.shelves.flatMap((x) => x.items)),
-          ],
-          continuation: r.continuation,
-        }),
-      )
-      .catch(() =>
-        setMore({
-          from: data,
-          items: extra?.items ?? [],
-          continuation: undefined,
-        }),
-      )
-      .finally(() => setLoading(false));
-  };
-  if (!items.length)
-    return <CatState kind="empty" message="No matches. Try other words." />;
+  const asPage = (r: Awaited<ReturnType<typeof yt.search>>) => ({
+    items: r.items ?? r.shelves.flatMap((s) => s.items),
+    cont: r.continuation,
+  });
+  const p = usePaged<CatalogItem>(
+    `page:${filter}:${query}`,
+    rowKey,
+    () => yt.search(query, filter).then(asPage),
+    (c) => yt.searchMore(c).then(asPage),
+  );
+  if (p.error) return <ErrorState onRetry={() => void p.reload()} />;
+  if (p.loading) return <SkeletonRows />;
+  if (!p.items.length) return <CatState kind="empty" message={EMPTY} />;
   return (
     <FlatList
-      data={items}
-      keyExtractor={(i, n) => `${i.id}${n}`}
-      onEndReached={loadMore}
+      data={p.items}
+      keyExtractor={rowKey}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      onEndReached={p.loadMore}
       onEndReachedThreshold={0.8}
-      contentContainerStyle={{ paddingBottom: bottom, paddingTop: 6 }}
-      ListFooterComponent={loading ? <SkeletonRows count={3} /> : null}
+      contentContainerStyle={{ paddingTop: 6, paddingBottom: bottom }}
+      ListFooterComponent={
+        <ListFoot
+          loading={p.loadingMore}
+          failed={p.failedMore}
+          onRetry={p.loadMore}
+        />
+      }
       renderItem={({ item }) =>
         item.type === "track" ? (
-          <TrackRow
-            track={item as Track}
-            onPress={() => openItem(item, items)}
-          />
+          <SongRow track={item} siblings={p.items} />
         ) : (
           <ItemRow item={item} />
         )
@@ -691,100 +533,238 @@ function FilteredResults({
   );
 }
 
-// The best match as a hero card with a play button.
-function TopResult({ item }: { item: CatalogItem }) {
-  const title = item.type === "artist" ? item.name : item.title;
-  const kind =
-    item.type === "track"
-      ? item.kind === "video"
-        ? "Video"
-        : "Song"
-      : item.type === "album"
-        ? "Album"
-        : item.type === "artist"
-          ? "Artist"
-          : "Playlist";
-  const sub =
-    item.type === "track" || item.type === "album"
-      ? artistLine(item.artists)
-      : item.type === "playlist"
-        ? (item.author ?? "")
-        : (item.subtitle ?? "");
-  const play = () => {
-    if (item.type === "track")
-      void player.playRadio({ videoId: item.id, title: item.title });
-    else openItem(item);
-  };
-  return (
-    <Animated.View entering={FadeInDown.duration(380)} style={styles.topWrap}>
-      <PressScale onPress={() => openItem(item)} style={styles.top1}>
-        <Artwork
-          thumbnails={item.thumbnails}
-          size={96}
-          radius={item.type === "artist" ? 48 : 12}
-        />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.topKind}>Top result · {kind}</Text>
-          <Text style={styles.topTitle} numberOfLines={2}>
-            {title}
-          </Text>
-          {sub ? (
-            <Text style={styles.topSub} numberOfLines={1}>
-              {sub}
-            </Text>
-          ) : null}
-        </View>
-        <PressScale onPress={play} style={styles.topPlay}>
-          <PlayGlyph size={20} color="#000" />
-        </PressScale>
-      </PressScale>
-    </Animated.View>
+// Videos or channels from all of YouTube, never Shorts, minus anything blocked.
+function useYouTubeSearch(
+  query: string,
+  type?: "video" | "channel",
+  on = true,
+) {
+  const keep = useVideoFilter();
+  const blocked = useSetting<BlockedChannel[]>("blockedChannels", []);
+  const p = usePaged<Video>(
+    on ? `page:${type ?? "youtube"}:${query}` : null,
+    ytKey,
+    () =>
+      ytv
+        .search(query, undefined, type)
+        .then((r) => ({ items: r.items, cont: r.continuation })),
+    (c) =>
+      ytv
+        .search(query, c)
+        .then((r) => ({ items: r.items, cont: r.continuation })),
+  );
+  const items = p.items.filter((x) =>
+    x.type === "video"
+      ? keep(x)
+      : x.type === "channel"
+        ? !blocked.some((b) => b.id === x.id)
+        : true,
+  );
+  return { ...p, items };
+}
+
+function YouTubeRow({ item }: { item: Video }) {
+  return item.type === "channel" ? (
+    <ChannelRow channel={item} />
+  ) : item.type === "playlist" ? (
+    <VideoPlaylistRow list={item} />
+  ) : (
+    <VideoCard video={item} />
   );
 }
 
-function ItemRow({ item }: { item: CatalogItem }) {
-  const round = item.type === "artist";
-  const title = item.type === "artist" ? item.name : item.title;
-  const sub =
-    item.type === "album"
-      ? [
-          item.kind === "single" ? "Single" : "Album",
-          artistLine(item.artists),
-          item.year,
-        ]
-          .filter(Boolean)
-          .join(" · ")
-      : item.type === "playlist"
-        ? ["Playlist", item.author].filter(Boolean).join(" · ")
-        : item.type === "artist"
-          ? (item.subtitle ?? "Artist")
-          : "";
+function YouTubeList({
+  query,
+  type,
+  bottom,
+}: {
+  query: string;
+  type: "video" | "channel";
+  bottom: number;
+}) {
+  const p = useYouTubeSearch(query, type);
+  if (p.error) return <ErrorState onRetry={() => void p.reload()} />;
+  if (p.loading) return <SkeletonRows />;
+  if (!p.items.length) return <CatState kind="empty" message={EMPTY} />;
   return (
-    <Pressable
-      onPress={() => openItem(item)}
-      onLongPress={() => showItemActions(item)}
-      {...rightClick(() => showItemActions(item))}
-      android_ripple={RIPPLE}
-      style={({ pressed }) => [
-        styles.itemRow,
-        pressed && !RIPPLE && styles.pressed,
-      ]}
-    >
-      <Artwork
-        thumbnails={item.thumbnails}
-        size={56}
-        radius={8}
-        round={round}
-      />
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.itemTitle} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={styles.itemSub} numberOfLines={1}>
-          {sub}
-        </Text>
-      </View>
-    </Pressable>
+    <FlatList
+      data={p.items}
+      keyExtractor={ytKey}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      onEndReached={p.loadMore}
+      onEndReachedThreshold={0.8}
+      contentContainerStyle={{ paddingTop: 12, paddingBottom: bottom }}
+      ListFooterComponent={
+        <ListFoot
+          loading={p.loadingMore}
+          failed={p.failedMore}
+          onRetry={p.loadMore}
+        />
+      }
+      renderItem={({ item }) => <YouTubeRow item={item} />}
+    />
+  );
+}
+
+type Row =
+  | { k: "top"; item: CatalogItem }
+  | { k: "wait"; id: string; n: number }
+  | { k: "head"; title: string; to?: Kind }
+  | { k: "song"; item: CatalogItem & { type: "track" } }
+  | { k: "item"; item: CatalogItem }
+  | { k: "yt"; item: Video };
+
+const rowId = (r: Row) =>
+  r.k === "top"
+    ? "top"
+    : r.k === "wait"
+      ? r.id
+      : r.k === "head"
+        ? `head:${r.title}`
+        : r.k === "yt"
+          ? `yt:${ytKey(r.item)}`
+          : `${r.k}:${rowKey(r.item)}`;
+
+// The All tab: with videos on it's YouTube itself, and when the words look like music the best match
+// leads, then Songs, Videos, Albums, Artists, Playlists and Channels, each with See all.
+function AllResults({
+  query,
+  videos,
+  bottom,
+  accent,
+  onKind,
+}: {
+  query: string;
+  videos: boolean;
+  bottom: number;
+  accent: string;
+  onKind: (k: Kind) => void;
+}) {
+  const music = useResource(`search:all:${query}`, () =>
+    yt.search(query, "all"),
+  );
+  const yv = useYouTubeSearch(query, undefined, videos);
+  const ytOn = videos && !yv.error;
+  // YouTube files music as music; two of its first eight videos being music, or YouTube Music's best
+  // match being what you typed, makes this a music search.
+  const topMusic = music.data?.top;
+  const musical =
+    !ytOn ||
+    yv.items.slice(0, 8).filter((x) => x.type === "video" && x.music).length >=
+      2 ||
+    namesMatch(query, topMusic);
+  const groups = groupShelves(music.data?.shelves ?? []);
+  const top = music.data?.top ?? [...groups.values()][0]?.[0];
+  useEffect(() => {
+    if (music.data && musical) rememberSearchArt(query, top);
+  }, [music.data, musical, query, top]);
+
+  const reload = () => void Promise.all([music.reload(), yv.reload()]);
+  if (videos && yv.loading) return <ResultsSkeleton />;
+  if (!ytOn && music.loading) return <ResultsSkeleton />;
+  if (!ytOn && music.error && !music.data)
+    return <ErrorState onRetry={reload} />;
+
+  const rows: Row[] = [];
+  const flat = ytOn && !musical;
+  if (flat) rows.push(...yv.items.map((item): Row => ({ k: "yt", item })));
+  else {
+    const part = (c: Kind) =>
+      (groups.get(c) ?? []).filter(
+        (i) => i.type !== top?.type || i.id !== top?.id,
+      );
+    const section = (c: Kind, more: boolean, extra: Row[] = []) => {
+      const list = part(c).slice(0, PEEK[c as keyof typeof PEEK]);
+      if (!list.length && !extra.length) return;
+      rows.push({ k: "head", title: SECTION[c], to: more ? c : undefined });
+      for (const item of list)
+        rows.push(
+          item.type === "track" && c === "songs"
+            ? { k: "song", item }
+            : { k: "item", item },
+        );
+      rows.push(...extra);
+    };
+    if (top) rows.push({ k: "top", item: top });
+    else if (music.loading) rows.push({ k: "wait", id: "wait:top", n: 1 });
+    if (music.loading && !music.data)
+      rows.push(
+        { k: "head", title: SECTION.songs },
+        { k: "wait", id: "wait:songs", n: 3 },
+      );
+    section("songs", true);
+    if (ytOn) {
+      const vids = yv.items.filter((x) => x.type === "video");
+      if (vids.length) {
+        rows.push({ k: "head", title: SECTION.videos, to: "videos" });
+        rows.push(
+          ...vids.slice(0, PEEK.videos).map((item): Row => ({ k: "yt", item })),
+        );
+      }
+    } else section("videos", false);
+    section("albums", true);
+    section("artists", true);
+    const lists = yv.items.filter((x) => x.type === "playlist").slice(0, 2);
+    section(
+      "playlists",
+      true,
+      ytOn ? lists.map((item): Row => ({ k: "yt", item })) : [],
+    );
+    const chans = yv.items
+      .filter((x) => x.type === "channel")
+      .slice(0, PEEK.channels);
+    if (ytOn && chans.length) {
+      rows.push({ k: "head", title: SECTION.channels, to: "channels" });
+      rows.push(...chans.map((item): Row => ({ k: "yt", item })));
+    }
+  }
+  if (!rows.length) return <CatState kind="empty" message={EMPTY} />;
+  const songs = [...(groups.get("songs") ?? [])];
+  return (
+    <FlatList
+      data={rows}
+      keyExtractor={rowId}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      onEndReached={flat ? yv.loadMore : undefined}
+      onEndReachedThreshold={0.8}
+      contentContainerStyle={{
+        paddingTop: flat ? 12 : 0,
+        paddingBottom: bottom,
+      }}
+      ListFooterComponent={
+        flat ? (
+          <ListFoot
+            loading={yv.loadingMore}
+            failed={yv.failedMore}
+            onRetry={yv.loadMore}
+          />
+        ) : null
+      }
+      renderItem={({ item: r }) => {
+        switch (r.k) {
+          case "top":
+            return <TopResult item={r.item} />;
+          case "wait":
+            return <SkeletonRows count={r.n} />;
+          case "head":
+            return (
+              <SectionHead
+                title={r.title}
+                accent={accent}
+                onMore={r.to ? () => onKind(r.to as Kind) : undefined}
+              />
+            );
+          case "song":
+            return <SongRow track={r.item} siblings={songs} />;
+          case "item":
+            return <ItemRow item={r.item} />;
+          case "yt":
+            return <YouTubeRow item={r.item} />;
+        }
+      }}
+    />
   );
 }
 
@@ -800,15 +780,6 @@ function useDebounced<T>(value: T, ms: number) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
   top: { paddingHorizontal: 16, paddingBottom: 6 },
-  h1: {
-    color: "#fff",
-    fontSize: 34,
-    ...display("800"),
-    letterSpacing: -0.8,
-    marginTop: 8,
-    marginLeft: 4,
-    marginBottom: 10,
-  },
   fieldRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   field: {
     flex: 1,
@@ -847,29 +818,17 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.3)",
   },
   cancel: { fontSize: 17, fontWeight: "500" },
-  filterRow: { marginTop: 12, marginHorizontal: -16 },
+  filterRow: { marginTop: 12, marginHorizontal: -16, flexGrow: 0 },
   filters: { gap: 8, paddingHorizontal: 20 },
-  sugg: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 20,
-    height: 50,
-  },
+  body: { flex: 1 },
+  hidden: { display: "none" },
+  // Covers the results, under the search field and chips.
+  cover: { ...StyleSheet.absoluteFill, backgroundColor: "#000" },
   divider: {
     height: StyleSheet.hairlineWidth,
-    marginLeft: 47,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  pressed: { backgroundColor: "rgba(255,255,255,0.06)" },
-  suggText: { flex: 1, color: "#fff", fontSize: 17 },
-  suggAction: {
-    width: 34,
-    height: 34,
-    marginRight: -8,
-    borderRadius: 17,
-    alignItems: "center",
-    justifyContent: "center",
+    marginHorizontal: 20,
+    marginVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
   recentHead: {
     flexDirection: "row",
@@ -894,45 +853,4 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   cell: { width: "48.4%" },
-  tile: {
-    height: 78,
-    borderRadius: 14,
-    padding: 14,
-    justifyContent: "flex-end",
-  },
-  tileText: { color: "#fff", fontSize: 16, ...display("800") },
-  topWrap: { paddingHorizontal: 16, marginTop: 12 },
-  top1: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    padding: 14,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  topKind: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 12,
-    ...display("700"),
-    letterSpacing: 0.4,
-  },
-  topTitle: { color: "#fff", fontSize: 20, ...display("800"), marginTop: 3 },
-  topSub: { color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 2 },
-  topPlay: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-  },
-  itemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 13,
-    paddingHorizontal: 20,
-    paddingVertical: 7,
-  },
-  itemTitle: { color: "#fff", fontSize: 16, fontWeight: "500" },
-  itemSub: { color: "rgba(255,255,255,0.5)", fontSize: 13.5, marginTop: 2 },
 });

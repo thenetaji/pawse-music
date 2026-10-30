@@ -23,6 +23,9 @@ export interface WatchPlayer {
   time(): number;
 }
 
+// How long a new view waits for its first frame before a paused picture is redrawn.
+const REDRAW_MS = 250;
+
 // The page's own full-screen button reaches the one surface on screen through this.
 let enterFull: (() => void) | undefined;
 /** Shows the video full screen, with the system's own controls there. */
@@ -69,6 +72,11 @@ const seekTo = (p: VideoPlayer, sec: number, play?: boolean) => {
 const setRate = (p: VideoPlayer, r: number) => {
   rates.set(p, r);
   p.playbackRate = r;
+};
+// A view put on a paused player (full page, full screen, mini player) can come up black until the
+// player draws again; seeking to where it already is makes it show the paused frame.
+const redraw = (p: VideoPlayer) => {
+  if (!p.playing && p.currentTime > 0) p.currentTime = p.currentTime;
 };
 const setup = (p: VideoPlayer) => {
   p.staysActiveInBackground = true;
@@ -169,6 +177,10 @@ export function VideoSurface({
       enterFull = undefined;
     };
   }, [controls]);
+  useEffect(() => {
+    const t = setTimeout(() => redraw(surface), REDRAW_MS);
+    return () => clearTimeout(t);
+  }, [surface]);
   return (
     <VideoView
       ref={view}
@@ -177,6 +189,9 @@ export function VideoSurface({
       nativeControls={full}
       contentFit={fill ? "cover" : "contain"}
       allowsPictureInPicture
+      // The page draws its own controls; iOS's Live Text scan of a paused frame would sit over them.
+      allowsVideoFrameAnalysis={false}
+      onFirstFrameRender={() => redraw(surface)}
       startsPictureInPictureAutomatically
       fullscreenOptions={{ enable: true }}
       onFullscreenExit={() => setFull(false)}

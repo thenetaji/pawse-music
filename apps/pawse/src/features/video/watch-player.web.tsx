@@ -19,6 +19,11 @@ const play = (v: HTMLVideoElement) => void v.play().catch(() => {});
 const setControls = (v: HTMLVideoElement, on: boolean) => {
   v.controls = on;
 };
+// A <video> moved to a new box (full page, full screen, mini player) can go black while paused;
+// seeking to where it already is makes the browser draw the frame again.
+const redraw = (v: HTMLVideoElement) => {
+  if (v.paused && v.readyState >= 2) v.currentTime = v.currentTime;
+};
 const setRate = (v: HTMLVideoElement, r: number) => {
   v.playbackRate = r;
 };
@@ -136,6 +141,7 @@ export function VideoSurface({
     const node = box.current as unknown as HTMLElement | null;
     if (!node) return;
     node.appendChild(surface);
+    redraw(surface);
     // The page draws its own controls.
     setControls(surface, false);
     if (!controls) return;

@@ -8,6 +8,7 @@ import "../data/signals";
 import { useLibrary } from "../data/library";
 import { kv } from "../data/storage";
 import { readyArtwork, startArtwork } from "./artwork";
+import { startAudioFx, trimSilence } from "./audio-fx";
 import { showToast } from "../components/toast";
 import { skipNote, songSkips } from "./community";
 import { logEvent } from "./diagnostics";
@@ -53,6 +54,8 @@ export function startEngine() {
     skipTrack: (t: Track) => useLibrary.getState().isDisliked(t.id),
     sleepFadeSec: () => settings().sleepFade,
     crossfadeSec: () => settings().crossfade ?? 0,
+    gapless: () => settings().gapless ?? true,
+    trimSilence,
     artwork: readyArtwork,
     streamUrl: relayStream,
     skipSegments: songSkips,
@@ -79,6 +82,7 @@ export function startEngine() {
       }
     },
   });
+  startAudioFx();
   startArtwork();
   startAccountSync();
   return started;

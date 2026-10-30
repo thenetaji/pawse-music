@@ -31,6 +31,8 @@ type Props = {
   swipeable?: boolean;
   /** On Home and History, the menu offers removing the song from both. */
   removable?: boolean;
+  /** On a playlist you can edit: swiping left removes the song from it instead of adding it to the queue, and the menu offers it too. */
+  onRemove?: () => void;
 };
 
 // Swipe right to play next, left to add to the queue; long-press for everything else.
@@ -42,6 +44,7 @@ export const TrackRow = memo(function TrackRow({
   subtitle,
   swipeable = true,
   removable,
+  onRemove,
 }: Props) {
   // Narrow selectors: a song change or play/pause re-renders only the rows it touches.
   const current = usePlayerSelect((s) => s.current?.id === track.id);
@@ -59,9 +62,9 @@ export const TrackRow = memo(function TrackRow({
         haptic.tick();
         onPress();
       }}
-      onLongPress={() => showTrackActions(track, { removable })}
+      onLongPress={() => showTrackActions(track, { removable, onRemove })}
       delayLongPress={300}
-      {...rightClick(() => showTrackActions(track, { removable }))}
+      {...rightClick(() => showTrackActions(track, { removable, onRemove }))}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
       {showArt ? (
@@ -99,7 +102,7 @@ export const TrackRow = memo(function TrackRow({
       </View>
       <Pressable
         hitSlop={12}
-        onPress={() => showTrackActions(track, { removable })}
+        onPress={() => showTrackActions(track, { removable, onRemove })}
         style={styles.more}
       >
         <MoreGlyph size={18} color="rgba(255,255,255,0.5)" />
@@ -120,15 +123,18 @@ export const TrackRow = memo(function TrackRow({
         <SwipeAction
           translation={t}
           side="right"
-          color="#2B2B34"
-          textColor="#fff"
-          label="Add to queue"
+          color={onRemove ? "#FF4F6D" : "#2B2B34"}
+          textColor={onRemove ? "#000" : "#fff"}
+          label={onRemove ? "Remove" : "Add to queue"}
         />
       )}
       onSwipeableWillOpen={(dir) => {
-        haptic.medium();
-        if (dir === "right") player.addNext(track);
-        else player.addToQueue(track);
+        if (dir === "left" && onRemove) onRemove();
+        else {
+          haptic.medium();
+          if (dir === "right") player.addNext(track);
+          else player.addToQueue(track);
+        }
         setTimeout(() => swipe.current?.close(), 180);
       }}
     >

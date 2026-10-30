@@ -18,8 +18,8 @@ export type ActivityAction =
   | "like"
   | "dislike";
 export type ActivityCatColor = "orange" | "black" | "white" | "grey";
-/** What the compact island shows beside the artwork: the cat, sound bars, or the time left. */
-export type IslandStyle = "cat" | "time";
+/** Wire: the cat rides the progress bar. Classic and time keep the time-left ring; paws adds play and next. */
+export type IslandStyle = "wire" | "classic" | "lyrics" | "paws" | "time";
 
 export interface ActivityState {
   title: string;
@@ -49,6 +49,11 @@ export interface ActivityState {
   disliked: boolean;
   /** Like and dislike buttons on the big island player and the Lock Screen. */
   rate: boolean;
+  /** Synced line being sung; null when the song has none, "" between lines. */
+  lyric: string | null;
+  /** "#RRGGBB": tint nudged by the song's mood. */
+  glow: string | null;
+  moodLine: boolean;
 }
 
 type Events = { onAction(event: { action: ActivityAction }): void };
