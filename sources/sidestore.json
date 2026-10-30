@@ -11,6 +11,15 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.13.6",
+          "buildVersion": "11306",
+          "date": "2026-10-30",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.13.6/Pawse.ipa",
+          "size": 24755484,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Eleven dancing cats. Each new song brings a different hand-drawn dance, crossfaded in, never the same one twice in a row. The cat next to Settings on Home dances along with the song and sleeps when it's paused.\n• A cat for every gesture. One parties beside the volume slider, one pounces on a double-tap skip, one cheers inside the like heart and a rainbow cat rolls when you shake to shuffle.\n• A loading cat turns round under a spinner while a song loads, instead of the plain ring.\n\nChanged:\n• A volume bar on Now playing, under the play controls. It's a thin, quiet line until you touch it, and follows the buttons on the side of the phone.\n• Videos no longer buzz when you pause, skip or seek.\n\nFixed:\n• Playback stopped when a song ended if the next song's saved copy on the phone had been cleared to make room. Pawse now notices and fetches the song again instead of going quiet.\n• Lag after picking a song from the queue, and on Now playing generally. The dancing cat re-read its whole animation on every redraw, and the queue rebuilt every row when the playing song moved. Both now redraw only what changed."
+        },
+        {
           "version": "1.13.5",
           "buildVersion": "11305",
           "date": "2026-10-30",
