@@ -11,6 +11,15 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.13.5",
+          "buildVersion": "11305",
+          "date": "2026-10-30",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.13.5/Pawse.ipa",
+          "size": 24170448,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Changed:\n• The dancing cat dances as its artist made it again, without the extra hopping and leaning, shuffled moves and turns that made it look shaky. It still fades into sleep when you pause."
+        },
+        {
           "version": "1.13.4",
           "buildVersion": "11304",
           "date": "2026-10-30",
