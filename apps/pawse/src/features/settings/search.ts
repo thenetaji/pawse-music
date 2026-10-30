@@ -37,8 +37,14 @@ function index(cat: string): Entry[] {
     },
     {
       group: "playback",
-      label: "Prefer JioSaavn 320 kbps",
-      words: "saavn jio",
+      label: "Audio format",
+      words: "opus aac saavn jio 320 codec best quality source",
+    },
+    {
+      group: "playback",
+      label: "Opus on iPhone",
+      words: "opus youtube sound quality codec repackage",
+      when: Platform.OS === "ios",
     },
     {
       group: "playback",
@@ -102,7 +108,8 @@ function index(cat: string): Entry[] {
     {
       group: "playback",
       label: "Swipe on the cover",
-      words: "reels skip next previous sideways vertical gesture double tap volume hold",
+      words:
+        "reels skip next previous sideways vertical gesture double tap volume hold",
       when: native,
     },
 
@@ -215,6 +222,12 @@ function index(cat: string): Entry[] {
     },
     { group: "look", label: "Reduce motion", words: "animations" },
     { group: "look", label: "Your cat", words: `name colour fur ${cat} mochi` },
+    {
+      group: "look",
+      label: "Cat on Now Playing",
+      words: "dancing kitten pixel lottie mochi cat",
+      when: native,
+    },
     {
       group: "look",
       label: `${cat} on the progress bar`,

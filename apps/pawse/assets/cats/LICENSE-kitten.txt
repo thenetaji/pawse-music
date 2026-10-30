@@ -1,0 +1,7 @@
+Tiny Kitten Game Sprite by Segel (OpenGameArt, 2024-01-16)
+https://opengameart.org/content/tiny-kitten-game-sprite
+CC0 1.0 Universal (public domain dedication): https://creativecommons.org/publicdomain/zero/1.0/
+
+kitten.png is made from that sprite pack: 22 of its Idle, Run and Jump frames,
+cropped to the cat, scaled down and laid out in one sheet. Credit is not
+required; it is given anyway.

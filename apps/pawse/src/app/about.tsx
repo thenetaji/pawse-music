@@ -22,6 +22,8 @@ const LICENSES = [
   ["Reanimated, Gesture Handler, Skia", "MIT"],
   ["Lyrics", "LRCLIB, Lyrics+, BetterLyrics, Unison, KuGou"],
   ["AutoEq headphone corrections, bs2b crossfeed", "MIT"],
+  ["Dancing cat: Alice and MereCalm", "Lottie Simple License"],
+  ["Pixel kitten: Segel", "CC0"],
 ];
 
 export default function About() {

@@ -4,18 +4,14 @@ import { useSyncExternalStore } from "react";
 
 import { useLibrary } from "../data/library";
 import { type NetworkKind, networkKind, networkStore } from "./net";
+import { createSpeedGate } from "./throughput";
 
 /** What the user picks per network; "auto" follows the connection. */
 export type QualityChoice = "auto" | "high" | "saver";
 
-// Two stalls within 10 minutes drop Automatic to Low for 15 minutes on that network.
-const STALL_WINDOW_MS = 10 * 60_000;
-const STALLS_TO_DROP = 2;
-const LOW_FOR_MS = 15 * 60_000;
-
 let generation: string | null = null;
-let stalls: number[] = [];
-let lowUntil = 0;
+// Automatic drops to Low only on a measured crawl (see the gate), and only on the network it was measured on.
+const gate = createSpeedGate();
 let lowOn: NetworkKind | null = null;
 const listeners = new Set<() => void>();
 const bump = () => {
@@ -39,13 +35,9 @@ useLibrary.subscribe((s, prev) => {
     bump();
 });
 
-/** Called when playback stalls; repeated stalls make Automatic play it safe for a while. */
-export function noteStall(now = Date.now()): void {
-  stalls = stalls.filter((t) => now - t < STALL_WINDOW_MS);
-  stalls.push(now);
-  if (stalls.length < STALLS_TO_DROP) return;
-  stalls = [];
-  lowUntil = now + LOW_FOR_MS;
+/** A download speed seen while a song loaded (kbit/s): a run of slow ones drops Automatic to Low, one fast one restores it. */
+export function noteThroughput(kbps: number, now = Date.now()): void {
+  if (!gate.note(kbps, now)) return;
   lowOn = networkKind();
   bump();
 }
@@ -58,7 +50,7 @@ const choiceFor = (kind: NetworkKind): QualityChoice => {
 
 /** Quality Automatic resolves to on this network right now. */
 export function autoQuality(kind: NetworkKind, now = Date.now()): AudioQuality {
-  if (now < lowUntil && lowOn === kind) return "saver";
+  if (gate.isLow(now) && lowOn === kind) return "saver";
   if (kind === "cellular" && (generation === "2g" || generation === "3g"))
     return "saver";
   return "high";
@@ -70,6 +62,16 @@ export function effectiveQuality(): AudioQuality {
   const c = choiceFor(kind);
   return c === "auto" ? autoQuality(kind) : c;
 }
+
+/** The quality songs are kept offline at: the listener's own choice, never Automatic's passing step down. */
+export const keepQuality = (): AudioQuality =>
+  choiceFor(networkKind()) === "saver" ? "saver" : "high";
+
+/** Automatic is playing Low because the connection was just measured slow. */
+export const autoIsLow = (): boolean => {
+  const kind = networkKind();
+  return choiceFor(kind) === "auto" && autoQuality(kind) === "saver";
+};
 
 /** On mobile data at Low: smaller artwork, nothing kept offline, only the next song prepared. */
 export const isLowData = () =>

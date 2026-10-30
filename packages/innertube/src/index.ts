@@ -20,6 +20,11 @@ export {
   type SaavnSong,
   toSaavnSong,
 } from "./saavn";
+export {
+  type OpusContainer,
+  type Repackaged,
+  repackageOpus,
+} from "./remux";
 export { desEcb } from "./util/des";
 export type { FetchLike } from "./util/http";
 export { sha1Hex } from "./util/sha1";

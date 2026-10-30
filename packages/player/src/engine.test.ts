@@ -9,6 +9,7 @@ import {
   POS_KEY,
   player,
   refreshArtwork,
+  restream,
   setupPlayer,
 } from "./engine";
 import { initialState, usePlayerStore } from "./store";
@@ -125,15 +126,16 @@ const flush = async () => {
 
 let now = Date.UTC(2026, 9, 8);
 let version = 0;
-const resolve = jest.fn(
-  async (t: Pick<Track, "id">): Promise<ResolvedStream> => ({
-    url: `https://a/${t.id}/${++version}`,
-    mimeType: 'audio/mp4; codecs="mp4a.40.2"',
-    bitrate: 130_000,
-    expiresAt: now + 6 * HOUR,
-    via: "test",
-  }),
-);
+const defaultResolve = async (
+  t: Pick<Track, "id">,
+): Promise<ResolvedStream> => ({
+  url: `https://a/${t.id}/${++version}`,
+  mimeType: 'audio/mp4; codecs="mp4a.40.2"',
+  bitrate: 130_000,
+  expiresAt: now + 6 * HOUR,
+  via: "test",
+});
+const resolve = jest.fn(defaultResolve);
 const memory = (): KeyValueStore & { data: Map<string, string> } => {
   const data = new Map<string, string>();
   return {
@@ -152,6 +154,7 @@ beforeEach(() => {
   __resetForTests();
   usePlayerStore.setState(initialState(), true);
   jest.clearAllMocks();
+  resolve.mockImplementation(defaultResolve);
   native.queue = [];
   native.position = 0;
   now = Date.UTC(2026, 9, 8);
@@ -490,7 +493,7 @@ const clientResolver = (clients: string[]) =>
     },
   );
 
-test("a YouTube stream that stalls mid-song re-resolves at the same spot on the next client; a client that stalls two songs stays last for 30 min", async () => {
+test("a YouTube stream that stalls mid-song re-resolves at the same spot on the next client without demoting the first", async () => {
   const byClient = clientResolver(["youtube:a", "youtube:b"]);
   const diag = jest.fn();
   await setupPlayer({ resolver: { resolve: byClient }, onDiagnostic: diag });
@@ -502,7 +505,6 @@ test("a YouTube stream that stalls mid-song re-resolves at the same spot on the 
     message: "Playback stalled",
   });
   await flush();
-  expect(diag).not.toHaveBeenCalledWith("source-avoided", expect.anything());
   expect(urlAt(0)).toMatch("/x/youtube:b/");
   expect(tp.seekTo).toHaveBeenLastCalledWith(62);
   expect(urlAt(1)).toMatch("/y/youtube:a/");
@@ -513,9 +515,26 @@ test("a YouTube stream that stalls mid-song re-resolves at the same spot on the 
     message: "Playback stalled",
   });
   await flush();
+  expect(diag).not.toHaveBeenCalledWith("source-avoided", expect.anything());
+  await player.play(tracks("p"));
+  expect(byClient.mock.calls.at(-1)?.[1]?.avoid).toBeUndefined();
+});
+
+test("a client refused on two songs stays last for 10 min", async () => {
+  const byClient = clientResolver(["youtube:a", "youtube:b"]);
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve: byClient }, onDiagnostic: diag });
+  const refused = { code: "source", message: "Source error (HTTP 403)" };
+  await player.play(tracks("x"));
+  await flush();
+  await rntp.__emit("event.playback-error", refused);
+  await flush();
+  await player.play(tracks("y"));
+  await rntp.__emit("event.playback-error", refused);
+  await flush();
   expect(diag).toHaveBeenCalledWith("source-avoided", "youtube:a");
 
-  now += 29 * 60_000;
+  now += 9 * 60_000;
   await player.play(tracks("p"));
   expect(byClient.mock.calls.at(-1)?.[1]?.avoid).toEqual(["youtube:a"]);
   expect(urlAt(0)).toMatch("/p/youtube:b/");
@@ -798,4 +817,63 @@ test("crossfade fades a song out over its last seconds and brings the next one i
   await jest.advanceTimersByTimeAsync(3100);
   expect(tp.setVolume).toHaveBeenLastCalledWith(1);
   jest.useRealTimers();
+});
+
+const repackaged = (id: string): ResolvedStream => ({
+  url: `file:///cache/${id}.m4a`,
+  mimeType: 'audio/mp4; codecs="opus"',
+  bitrate: 160_000,
+  expiresAt: Date.UTC(2100, 0, 1),
+  via: "remux:opus",
+});
+
+test("upcoming songs get an upgraded stream once, the playing song never", async () => {
+  const upgrade = jest.fn(async (t: Track) => repackaged(t.id));
+  await setupPlayer({ resolver: { resolve }, upgrade });
+  await player.play(tracks("a", "b", "c", "d"));
+  await flush();
+  expect(upgrade.mock.calls.map(([t]) => t.id).sort()).toEqual(["b", "c"]);
+  expect(urlAt(0)).toMatch("https://a/a/");
+  expect(urlAt(1)).toBe("file:///cache/b.m4a");
+  expect(urlAt(2)).toBe("file:///cache/c.m4a");
+  player.next();
+  await flush();
+  expect(upgrade.mock.calls.map(([t]) => t.id).sort()).toEqual(["b", "c", "d"]);
+});
+
+test("an upgrade that finishes after its song started is dropped", async () => {
+  let done: (st: ResolvedStream | undefined) => void = () => {};
+  const upgrade = jest.fn(
+    (t: Track) =>
+      new Promise<ResolvedStream | undefined>((r) => {
+        if (t.id === "b") done = r as typeof done;
+        else r(undefined);
+      }),
+  );
+  await setupPlayer({ resolver: { resolve }, upgrade });
+  await player.play(tracks("a", "b", "c"));
+  await flush();
+  player.next();
+  await flush();
+  tp.replaceMediaItem.mockClear();
+  done(repackaged("b"));
+  await flush();
+  expect(tp.replaceMediaItem).not.toHaveBeenCalled();
+  expect(urlAt(1)).toMatch("https://a/b/");
+});
+
+test("restream swaps the playing song's stream and resumes at the same spot", async () => {
+  await setupPlayer({ resolver: { resolve } });
+  await player.play(tracks("a", "b"));
+  await flush();
+  native.position = 42;
+  await restream(async (t) => repackaged(t.id));
+  expect(urlAt(0)).toBe("file:///cache/a.m4a");
+  expect(tp.seekTo).toHaveBeenLastCalledWith(42);
+  await expect(
+    restream(async () => {
+      throw new Error("not available");
+    }),
+  ).rejects.toThrow("not available");
+  expect(urlAt(0)).toBe("file:///cache/a.m4a");
 });

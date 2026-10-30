@@ -258,6 +258,28 @@ describe("createResolver", () => {
     ).toBe("sv");
   });
 
+  it("lets a call choose whether Saavn goes first", async () => {
+    const first = createResolver({ youtube: ok("yt"), saavn: ok("sv") });
+    expect((await first.resolve(song, { saavn: "first" })).via).toBe("sv");
+    const never = createResolver({
+      youtube: ok("yt"),
+      saavn: ok("sv"),
+      preferSaavn: true,
+    });
+    expect((await never.resolve(song, { saavn: "never" })).via).toBe("yt");
+  });
+
+  it("can skip YouTube for Saavn's loose fallback, and reports Saavn's own failure", async () => {
+    const youtube = ok("yt");
+    const r = createResolver({ youtube, saavn: ok("sv") });
+    expect((await r.resolve(song, { skipYouTube: true })).via).toBe("sv");
+    expect(youtube.resolve).not.toHaveBeenCalled();
+    const none = createResolver({ youtube, saavn: fail("no_audio") });
+    await expect(none.resolve(song, { skipYouTube: true })).rejects.toThrow(
+      "no_audio",
+    );
+  });
+
   it("tries Saavn first for songs when preferred, and only for songs", async () => {
     const r = createResolver({
       youtube: ok("yt"),

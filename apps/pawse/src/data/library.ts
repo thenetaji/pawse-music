@@ -16,6 +16,7 @@ import {
   HISTORY_MAX,
   type LibraryData,
   mergeLikes,
+  migrateAudioFormat,
   migrateDefaults,
   migrateLocale,
   migrateQuality,
@@ -421,10 +422,13 @@ export const useLibrary = create<Library>()(
         return {
           ...current,
           ...p,
-          settings: migrateDefaults(
-            migrateLocale(
-              migrateQuality(
-                { ...DEFAULT_SETTINGS, ...p.settings, cookies },
+          settings: migrateAudioFormat(
+            migrateDefaults(
+              migrateLocale(
+                migrateQuality(
+                  { ...DEFAULT_SETTINGS, ...p.settings, cookies },
+                  p.settings,
+                ),
                 p.settings,
               ),
               p.settings,

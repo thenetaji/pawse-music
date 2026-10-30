@@ -380,6 +380,26 @@ describe("Android and failed clients", () => {
     ).toBe("youtube:visionos-1.02");
   });
 
+  it("hands the Opus rendition beside the AAC when asked, for players that repackage it", async () => {
+    const ios = yt(mockFetch([player]).fetch, { platform: "ios" });
+    const s = await ios.resolve(track, { alsoOpus: true });
+    expect(s.mimeType).toMatch(/^audio\/mp4/);
+    expect(s.opus).toMatchObject({
+      mimeType: 'audio/webm; codecs="opus"',
+      bitrate: 136544,
+      contentLength: 3433755,
+    });
+    expect(s.opus?.url).toMatch(/^https:/);
+    expect((await ios.resolve(track)).opus).toBeUndefined();
+  });
+
+  it("keeps Android on AAC when the song asks for it", async () => {
+    const android = yt(mockFetch([player]).fetch, { platform: "android" });
+    expect((await android.resolve(track, { codec: "aac" })).mimeType).toMatch(
+      /^audio\/mp4/,
+    );
+  });
+
   it("prefers Opus on Android and never offers it to iOS", async () => {
     const s = await yt(mockFetch([webmOnly]).fetch, {
       platform: "android",

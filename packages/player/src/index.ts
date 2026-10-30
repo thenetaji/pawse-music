@@ -6,6 +6,8 @@ export {
   normalizeVolume,
   player,
   refreshArtwork,
+  refreshUpcoming,
+  restream,
   setPrefetchAhead,
   setupPlayer,
   startQuiet,
@@ -24,6 +26,7 @@ export {
 } from "./store";
 export type {
   KeyValueStore,
+  LoadIssue,
   Player,
   PlayerEventName,
   PlayerStatus,

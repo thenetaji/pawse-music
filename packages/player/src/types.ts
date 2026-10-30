@@ -1,6 +1,7 @@
 import type {
   Catalog,
   ResolvedStream,
+  ResolveOptions,
   StreamResolver,
   Track,
 } from "@pawse/music-core";
@@ -33,6 +34,15 @@ export interface SetupOptions {
   artworkPx?: () => number;
   /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */
   onDiagnostic?: (kind: string, detail?: string) => void;
+  /** A song is slow to load or was given up on, for a message to the listener. */
+  onLoadIssue?: (issue: LoadIssue) => void;
+  /** Download speed seen while a song loaded, in kbit/s, for choosing a stream quality that fits the connection. */
+  onThroughput?: (kbps: number) => void;
+  /**
+   * Asks the stream's server for its first bytes, so a refusing URL (403) can be told from a slow network.
+   * Without it a silent stream is judged by time alone.
+   */
+  probe?: (stream: ResolvedStream) => Promise<"ok" | "refused" | "unreachable">;
   /** Parts of a song to jump over (SponsorBlock's non-music sections), earliest first. */
   skipSegments?: (
     track: Track,
@@ -45,9 +55,23 @@ export interface SetupOptions {
     skip?: (on: boolean) => void;
     silentMs?: () => number | undefined;
   };
+  /**
+   * A better stream for an upcoming song, made in the background (a repackaged copy on the phone), or undefined to
+   * keep the one in hand. Called once per song, never for the song playing. A stream that is a file the app made has a `via` starting with "remux:".
+   */
+  upgrade?: (
+    track: Track,
+    stream: ResolvedStream,
+    options?: ResolveOptions,
+  ) => Promise<ResolvedStream | undefined>;
   /** Web and desktop: a header-free URL for a stream; a local relay adds its headers. */
   streamUrl?: (stream: ResolvedStream) => string;
 }
+
+/** "weak": bytes are arriving slowly; "gave-up": the song could not be loaded in time, so playback moved on. */
+export type LoadIssue =
+  | { kind: "weak"; track: Track }
+  | { kind: "gave-up"; track: Track; reason: "slow" | "refused" };
 
 export type RepeatMode = "off" | "all" | "one";
 

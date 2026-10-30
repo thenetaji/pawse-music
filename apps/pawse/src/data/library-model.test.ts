@@ -2,6 +2,7 @@ import type { Track } from "@pawse/music-core";
 
 import {
   DEFAULT_SETTINGS,
+  migrateAudioFormat,
   migrateDefaults,
   migrateLocale,
   migrateQuality,
@@ -49,6 +50,28 @@ describe("migrateQuality", () => {
     const saved = { quality: "high", qualityV2: true } as Partial<Settings>;
     const s = merged(saved);
     expect(migrateQuality(s, saved)).toBe(s);
+  });
+});
+
+describe("migrateAudioFormat", () => {
+  it("turns the old switch into a format once", () => {
+    const on = { bestSource: true } as Partial<Settings>;
+    expect(migrateAudioFormat(merged(on), on).audioFormat).toBe("best");
+    const off = { bestSource: false } as Partial<Settings>;
+    const s = migrateAudioFormat(merged(off), off);
+    expect(s.audioFormat).toBe("opus");
+    expect("bestSource" in s).toBe(false);
+  });
+
+  it("keeps a format that was already chosen, and a fresh install's default", () => {
+    const saved = {
+      audioFormat: "aac",
+      bestSource: false,
+    } as Partial<Settings>;
+    expect(migrateAudioFormat(merged(saved), saved).audioFormat).toBe("aac");
+    expect(migrateAudioFormat(DEFAULT_SETTINGS, undefined).audioFormat).toBe(
+      "best",
+    );
   });
 });
 

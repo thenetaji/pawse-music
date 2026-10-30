@@ -20,6 +20,8 @@ export interface StoreState extends Queue {
   sleepFading: boolean;
   normalize: boolean;
   error?: string;
+  /** Songs given up on this session (by track id) and why; they stay in the queue. */
+  failed: Record<string, "slow" | "refused">;
   radio: boolean;
 }
 
@@ -30,6 +32,7 @@ export const initialState = (): StoreState => ({
   repeat: "off",
   sleepFading: false,
   normalize: true,
+  failed: {},
   radio: false,
 });
 

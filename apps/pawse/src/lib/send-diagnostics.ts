@@ -10,7 +10,8 @@ import { getLogLines } from "./diagnostics";
 const SETTINGS = [
   "quality",
   "qualityCellular",
-  "bestSource",
+  "audioFormat",
+  "opusIphone",
   "normalize",
   "crossfade",
   "gapless",

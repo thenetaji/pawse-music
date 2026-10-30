@@ -10,7 +10,7 @@ import {
 export interface CreateResolverOptions {
   youtube: StreamResolver;
   saavn?: StreamResolver;
-  /** Try JioSaavn first for YouTube tracks of kind 'song', at high quality and on a near-certain match only. */
+  /** Try JioSaavn first for YouTube tracks of kind 'song', at high quality and on a near-certain match only; a call's `saavn` option overrides it. */
   preferSaavn?: boolean;
   /** A downloaded copy, checked before any network source unless `remoteOnly`. */
   local?: (id: string) => ResolvedStream | undefined;
@@ -65,15 +65,17 @@ export function createResolver({
       // A Saavn stream that failed here goes last, or out when it failed for this track. Low and
       // normal quality stay on YouTube: Saavn's 320 kbps is the only upgrade worth a lookup.
       const saavnFirst =
-        preferSaavn &&
+        (options.saavn ? options.saavn === "first" : preferSaavn) &&
         track.kind === "song" &&
         (o.quality ?? "high") === "high" &&
         !options.avoid?.includes("saavn");
       const order =
         saavn && !excluded("saavn")
-          ? saavnFirst
-            ? [saavn, youtube]
-            : [youtube, saavn]
+          ? options.skipYouTube
+            ? [saavn]
+            : saavnFirst
+              ? [saavn, youtube]
+              : [youtube, saavn]
           : [youtube];
       const errors = new Map<StreamResolver, unknown>();
       for (const r of order) {
@@ -87,7 +89,7 @@ export function createResolver({
         }
       }
       // YouTube's reason explains more than a missed Saavn match.
-      throw errors.get(youtube);
+      throw errors.get(youtube) ?? [...errors.values()][0];
     },
   };
 }

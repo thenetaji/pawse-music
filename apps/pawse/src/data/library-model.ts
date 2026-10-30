@@ -37,8 +37,10 @@ export type Play = { track: Track; at: number };
 export type CatColor = "orange" | "black" | "white" | "grey";
 
 export type Settings = {
-  /** Play the 320 kbps JioSaavn copy when it is certainly the same recording; off always plays YouTube. */
-  bestSource: boolean;
+  /** Which copy of a song to play: JioSaavn 320 when certain, else Opus, else AAC ("best"), or only that format. */
+  audioFormat: "best" | "opus" | "aac" | "saavn";
+  /** iPhone: repackage YouTube's Opus on the phone (no re-encoding) for the songs coming up next. */
+  opusIphone: boolean;
   normalize: boolean;
   reportPlays: boolean;
   /** Mirror likes to YouTube Music when signed in. */
@@ -97,6 +99,7 @@ export type Settings = {
   pawseIsland: boolean;
   catEpisodes: "off" | "rare" | "often";
   catColor: CatColor;
+  catKind: "mochi" | "lottie" | "kitten";
   mochiHat: string;
   mochiCups: string;
   mochiIdle: string;
@@ -154,7 +157,8 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  bestSource: true,
+  audioFormat: "best",
+  opusIphone: true,
   normalize: true,
   reportPlays: true,
   syncLikes: true,
@@ -195,6 +199,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pawseIsland: false,
   catEpisodes: "rare",
   catColor: "orange",
+  catKind: "mochi",
   mochiHat: "none",
   mochiCups: "artwork",
   mochiIdle: "sleep",
@@ -503,6 +508,20 @@ export function migrateQuality(
     qualityCellular: old.dataSaver ? "saver" : "auto",
     qualityV2: true,
   };
+}
+
+// "Highest quality source" (on: JioSaavn 320 when certain, else YouTube) became the Audio format choice. Off meant
+// YouTube only, which Opus is the best of.
+export function migrateAudioFormat(
+  s: Settings,
+  saved?: Partial<Settings>,
+): Settings {
+  const old = saved as
+    | (Partial<Settings> & { bestSource?: boolean })
+    | undefined;
+  const { bestSource: _, ...rest } = s as Settings & { bestSource?: boolean };
+  if (!old || old.audioFormat) return rest;
+  return { ...rest, audioFormat: old.bestSource === false ? "opus" : "best" };
 }
 
 // Region and language used to default to India and English; follow the phone instead, once.
