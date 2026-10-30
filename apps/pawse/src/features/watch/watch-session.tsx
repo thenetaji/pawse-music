@@ -870,6 +870,9 @@ export function WatchSession({ id }: { id: string }) {
           cues={cc.cues}
           storyboard={src.stream.storyboard}
           highlight={highlight?.at}
+          onBestPart={() => {
+            if (highlight) video.seek(highlight.at, true);
+          }}
           chapter={chapter >= 0 ? d?.chapters[chapter]?.title : undefined}
           onChapters={pickChapters}
           onCc={() => setCaptions(!cc.on)}

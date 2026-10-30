@@ -83,6 +83,7 @@ export type ControlsProps = {
   playing: boolean;
   chapters: { startSec: number; title: string }[];
   highlight?: number;
+  onBestPart?: () => void;
   canPrev: boolean;
   canNext: boolean;
   autoplay: boolean;
@@ -653,6 +654,17 @@ export function VideoControls(p: ControlsProps) {
           <View style={styles.time}>
             <TimeText clock={p.clock} scrub={scrub} dur={dur} />
           </View>
+          {p.highlight !== undefined && p.onBestPart ? (
+            <Pressable
+              onPress={act(p.onBestPart)}
+              hitSlop={8}
+              accessibilityLabel="Jump to the best part"
+              style={[styles.time, styles.bestBtn]}
+            >
+              <View style={styles.bestDot} />
+              <Text style={styles.timeText}>Best part</Text>
+            </Pressable>
+          ) : null}
           {p.chapter && p.onChapters ? (
             <Pressable
               onPress={act(p.onChapters)}
@@ -929,6 +941,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.5)",
   },
+  bestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: 8,
+  },
+  bestDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#ff1684" },
   timeText: {
     color: "#fff",
     fontSize: 12.5,
