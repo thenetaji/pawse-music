@@ -160,16 +160,17 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks());
 
-test("play resolves the current track first and pre-resolves only the next one into the native queue", async () => {
+test("play resolves the current track first and pre-resolves the next two into the native queue", async () => {
   await setupPlayer({ resolver: { resolve } });
   await player.play(tracks("a", "b", "c", "d", "e"), 1);
   expect(resolvedIds()[0]).toBe("b");
   expect(tp.setMediaItems).toHaveBeenCalledWith(expect.any(Array), 1);
   expect(urlAt(1)).toMatch("https://a/b/");
   await flush();
-  expect(resolvedIds().sort()).toEqual(["b", "c"]);
+  expect(resolvedIds().sort()).toEqual(["b", "c", "d"]);
   expect(urlAt(2)).toMatch("https://a/c/");
-  expect(urlAt(3)).toMatch("pawse.invalid");
+  expect(urlAt(3)).toMatch("https://a/d/");
+  expect(urlAt(4)).toMatch("pawse.invalid");
   expect(usePlayerStore.getState().index).toBe(1);
 });
 
@@ -184,8 +185,10 @@ test("resume after a long pause swaps in fresh URLs for the current and queued i
   tp.replaceMediaItem.mockClear();
   player.resume();
   await flush();
-  expect(resolvedIds().sort()).toEqual(["a", "b"]);
-  expect(tp.replaceMediaItem.mock.calls.map(([i]) => i).sort()).toEqual([0, 1]);
+  expect(resolvedIds().sort()).toEqual(["a", "b", "c"]);
+  expect(tp.replaceMediaItem.mock.calls.map(([i]) => i).sort()).toEqual([
+    0, 1, 2,
+  ]);
   expect(urlAt(0)).toMatch(/^https:\/\/a\/a\/[4-9]/);
   expect(tp.seekTo).toHaveBeenLastCalledWith(95);
   expect(tp.play).toHaveBeenCalled();
@@ -589,7 +592,7 @@ test("resolved streams survive a restart, and one restored that fails is fetched
   await flush();
   await new Promise((r) => setTimeout(r, 1100));
   const saved = JSON.parse(storage.data.get("pawse.streams")!);
-  expect(saved.streams.map(([id]: [string]) => id)).toEqual(["a", "b"]);
+  expect(saved.streams.map(([id]: [string]) => id)).toEqual(["a", "b", "c"]);
 
   __resetForTests();
   usePlayerStore.setState(initialState(), true);
@@ -614,9 +617,9 @@ test("resolved streams survive a restart, and one restored that fails is fetched
   await rntp.__emit("event.playback-error", { code: "source", message: "403" });
   await flush();
   expect(diag).not.toHaveBeenCalledWith("source-avoided", expect.anything());
-  await player.play(tracks("c"));
+  await player.play(tracks("d"));
   await flush();
-  expect(urlAt(0)).toMatch("/c/youtube:a/");
+  expect(urlAt(0)).toMatch("/d/youtube:a/");
   await rntp.__emit("event.playback-error", { code: "source", message: "403" });
   await flush();
   expect(diag).toHaveBeenCalledWith("source-avoided", "youtube:a");

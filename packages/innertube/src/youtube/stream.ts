@@ -23,6 +23,7 @@ export interface AdaptiveFormat {
   bitrate?: number;
   contentLength?: string;
   approxDurationMs?: string;
+  audioSampleRate?: string;
   signatureCipher?: string;
   cipher?: string;
   width?: number;
@@ -463,6 +464,7 @@ async function tryClient(
   }
   const ttl = Number(sd?.expiresInSeconds);
   const ms = Number(format.approxDurationMs);
+  const rate = Number(format.audioSampleRate);
   o.onFormat?.(format, viaOf(c));
   if (o.extra && o.onExtra) {
     const list: { format: AdaptiveFormat; url: string }[] = [];
@@ -492,6 +494,7 @@ async function tryClient(
     headers: mediaHeaders,
     loudnessDb: loudnessOf(data?.playerConfig?.audioConfig),
     durationSec: ms > 0 ? ms / 1000 : undefined,
+    sampleRateHz: rate > 0 ? rate : undefined,
     via: viaOf(c),
   };
 }

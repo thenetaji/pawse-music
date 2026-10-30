@@ -1,5 +1,6 @@
 // Playback engine over @rntp/player v5, on phones and (with its HTML audio engine) on web and desktop.
 export {
+  currentOnPlaylist,
   currentStream,
   getProgress,
   normalizeVolume,
@@ -8,6 +9,7 @@ export {
   setPrefetchAhead,
   setupPlayer,
   startQuiet,
+  useCurrentStream,
   useProgress,
 } from "./engine";
 export { POS_KEY, QUEUE_KEY } from "./keys";

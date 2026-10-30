@@ -47,6 +47,20 @@ export function loadTranscript(
   return cues;
 }
 
+/** Fetches the captions as the page opens, so Summary and Ask find them ready. */
+export function useCaptionPrefetch(
+  id: string,
+  tracks: CaptionTrack[] | undefined,
+  on: boolean,
+) {
+  const language = useLanguage();
+  useEffect(() => {
+    if (on && tracks?.length) void loadTranscript(id, tracks, language);
+    // The track list is a new array each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, on, !!tracks?.length, language]);
+}
+
 async function remembered<T>(key: string, make: () => Promise<T | undefined>) {
   const saved = await kv.get(key);
   if (saved)

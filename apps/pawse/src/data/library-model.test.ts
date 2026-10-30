@@ -2,6 +2,7 @@ import type { Track } from "@pawse/music-core";
 
 import {
   DEFAULT_SETTINGS,
+  migrateDefaults,
   migrateLocale,
   migrateQuality,
   reinsertTracks,
@@ -65,6 +66,26 @@ describe("migrateLocale", () => {
     const s = migrateLocale(merged(saved), saved);
     expect(s.region).toBe("US");
     expect(s.language).toBe("hi");
+  });
+});
+
+describe("migrateDefaults", () => {
+  it("turns dislikes and skip silence on once", () => {
+    const saved = {
+      showDislikes: false,
+      trimSilence: false,
+    } as Partial<Settings>;
+    const s = migrateDefaults(merged(saved), saved);
+    expect(s.showDislikes).toBe(true);
+    expect(s.trimSilence).toBe(true);
+  });
+
+  it("keeps a choice made after the switch", () => {
+    const saved = {
+      showDislikes: false,
+      defaultsV3: true,
+    } as Partial<Settings>;
+    expect(migrateDefaults(merged(saved), saved).showDislikes).toBe(false);
   });
 });
 

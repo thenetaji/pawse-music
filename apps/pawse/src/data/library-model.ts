@@ -25,7 +25,8 @@ export type Play = { track: Track; at: number };
 export type CatColor = "orange" | "black" | "white" | "grey";
 
 export type Settings = {
-  preferSaavn: boolean;
+  /** Play the 320 kbps JioSaavn copy when it is certainly the same recording; off always plays YouTube. */
+  bestSource: boolean;
   normalize: boolean;
   reportPlays: boolean;
   /** Mirror likes to YouTube Music when signed in. */
@@ -42,6 +43,7 @@ export type Settings = {
   qualityV2: boolean;
   /** Set once the old India/English defaults have moved to Automatic. */
   localeV2: boolean;
+  defaultsV3: boolean;
   radioContinue: boolean;
   /** Also add similar songs after a playlist or album ends. */
   listsContinue: boolean;
@@ -140,7 +142,7 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  preferSaavn: false,
+  bestSource: true,
   normalize: true,
   reportPlays: true,
   syncLikes: true,
@@ -150,6 +152,7 @@ export const DEFAULT_SETTINGS: Settings = {
   qualityCellular: "auto",
   qualityV2: true,
   localeV2: true,
+  defaultsV3: true,
   radioContinue: true,
   listsContinue: false,
   resume: true,
@@ -160,7 +163,7 @@ export const DEFAULT_SETTINGS: Settings = {
   gapless: true,
   eq: DEFAULT_EQ,
   crossfeed: false,
-  trimSilence: false,
+  trimSilence: true,
   visualiser: false,
   downloadQuality: "high",
   wifiOnly: false,
@@ -204,7 +207,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skipNonMusic: true,
   skipSponsors: true,
   dearrow: true,
-  showDislikes: false,
+  showDislikes: true,
   blockedChannels: [],
   blockedWords: [],
   onboarded: false,
@@ -503,4 +506,13 @@ export function migrateLocale(
       !saved.language || saved.language === "en" ? "auto" : saved.language,
     localeV2: true,
   };
+}
+
+// Show dislikes and Skip silence turned out to be what most people want: switch them on once.
+export function migrateDefaults(
+  s: Settings,
+  saved?: Partial<Settings>,
+): Settings {
+  if (!saved || saved.defaultsV3) return s;
+  return { ...s, showDislikes: true, trimSilence: true, defaultsV3: true };
 }

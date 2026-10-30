@@ -50,35 +50,35 @@ struct PawseLiveActivity: Widget {
       let mode = expandedLayout(state)
       return DynamicIsland {
         DynamicIslandExpandedRegion(.leading) {
-          // The art sits in a ring of the song's colour, glowing like the in-app player.
-          ArtworkView(name: state.artwork, size: 58, radius: 15)
+          // The art sits in a ring of the song's colour, glowing like the in-app player: 48 pt in all.
+          ArtworkView(name: state.artwork, size: 42, radius: 12)
             .padding(3)
             .overlay(
-              RoundedRectangle(cornerRadius: 18, style: .continuous)
+              RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .strokeBorder(
                   LinearGradient(
                     colors: [accent(state), accent(state).opacity(0.25)],
                     startPoint: .topLeading, endPoint: .bottomTrailing),
                   lineWidth: 2)
             )
-            .shadow(color: accent(state).opacity(0.55), radius: 12)
+            .shadow(color: accent(state).opacity(0.5), radius: 8)
         }
         DynamicIslandExpandedRegion(.trailing) {
           if mode == .classic || mode == .time {
-            TimeRing(state: state, size: 58, text: 13)
-              .frame(height: 64)
+            TimeRing(state: state, size: 46, text: 12)
           } else {
-            CatStage(state: state, size: 62)
+            CatStage(state: state, size: 46)
           }
         }
         DynamicIslandExpandedRegion(.center) {
+          // The top row is at most 52 pt, which keeps the whole island well under Apple's 160 pt.
           TitleView(state: state, hero: mode == .lyrics)
-            .padding(.leading, 6)
-            .frame(maxHeight: .infinity)
+            .padding(.leading, 4)
+            .frame(minHeight: 48, maxHeight: 52)
         }
         DynamicIslandExpandedRegion(.bottom) {
           PlayerBar(state: state, mode: mode)
-            .padding(.top, 6)
+            .padding(.top, 4)
         }
       } compactLeading: {
         // Fixed-width sides, art at the far left and the style at the far right, make the island long like Apple Music's.
@@ -108,7 +108,7 @@ struct PawseLiveActivity: Widget {
         }
       }
       .contentMargins(.horizontal, 20, for: .expanded)
-      .contentMargins(.bottom, 8, for: .expanded)
+      .contentMargins(.bottom, 6, for: .expanded)
       .keylineTint(accent(state))
     }
   }
@@ -214,6 +214,7 @@ struct TimeLeft: View {
     .foregroundStyle(accent(state))
     .multilineTextAlignment(align == .center ? .center : .trailing)
     .lineLimit(1)
+    .minimumScaleFactor(0.7)
     .frame(width: width, alignment: align)
   }
 }
@@ -289,31 +290,31 @@ struct TitleView: View {
 
   var body: some View {
     if hero {
-      VStack(alignment: .leading, spacing: 3) {
+      VStack(alignment: .leading, spacing: 2) {
         Text(verbatim: "\(state.title) · \(state.artist)")
-          .font(.system(size: 12, weight: .medium))
+          .font(.system(size: 11, weight: .medium))
           .foregroundStyle(PawseTheme.secondary)
           .lineLimit(1)
         Text(verbatim: state.lyric ?? "")
-          .font(.system(size: 16, weight: .semibold))
+          .font(.system(size: 15, weight: .semibold))
           .foregroundStyle(.white)
           .lineLimit(2)
           .minimumScaleFactor(0.8)
           .multilineTextAlignment(.leading)
           .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+          .frame(maxWidth: .infinity, minHeight: 36, maxHeight: 36, alignment: .topLeading)
           .contentTransition(.opacity)
           .animation(.easeInOut(duration: 0.3), value: state.lyric)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     } else {
-      VStack(alignment: .leading, spacing: 3) {
+      VStack(alignment: .leading, spacing: 2) {
         Text(state.title)
-          .font(.system(size: 17, weight: .semibold))
+          .font(.system(size: 16, weight: .semibold))
           .foregroundStyle(.white)
           .lineLimit(1)
         Text(state.artist)
-          .font(.system(size: 15))
+          .font(.system(size: 13))
           .foregroundStyle(PawseTheme.secondary)
           .lineLimit(1)
         if state.moodLine == true {
@@ -330,7 +331,7 @@ struct MoodLine: View {
 
   var body: some View {
     Text(verbatim: catLine(state))
-      .font(.system(size: 12, weight: .semibold))
+      .font(.system(size: 11, weight: .semibold))
       .foregroundStyle(accent(state))
       .lineLimit(1)
       .minimumScaleFactor(0.8)
@@ -357,11 +358,11 @@ struct PlayerBar: View {
   let mode: IslandLayout
 
   var body: some View {
-    VStack(spacing: 6) {
+    VStack(spacing: 4) {
       if mode == .wire {
         WireBar(state: state)
       } else {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
           TimeLabel(state: state, remaining: false)
           SlimProgress(state: state)
           TimeLabel(state: state, remaining: true)
@@ -400,10 +401,10 @@ struct PlayerBar: View {
 /// The bar is the headphone cable: the cat's head rides it at the position of the last update.
 struct WireBar: View {
   let state: PawseState
-  private let cat: CGFloat = 20
+  private let cat: CGFloat = 16
 
   var body: some View {
-    HStack(spacing: 10) {
+    HStack(spacing: 8) {
       TimeLabel(state: state, remaining: false)
       SlimProgress(state: state)
         .overlay {
@@ -419,7 +420,7 @@ struct WireBar: View {
         }
       TimeLabel(state: state, remaining: true)
     }
-    .padding(.top, 12)
+    .padding(.top, 8)
   }
 
   private func catX(_ width: CGFloat) -> CGFloat {
@@ -437,15 +438,15 @@ struct PawButton<I: LiveActivityIntent>: View {
     Button(intent: intent) {
       ZStack {
         Image(systemName: "pawprint.fill")
-          .font(.system(size: 34))
+          .font(.system(size: 28))
           .foregroundStyle(tint.opacity(0.35))
         Image(systemName: symbol)
-          .font(.system(size: 13, weight: .bold))
+          .font(.system(size: 12, weight: .bold))
           .foregroundStyle(.white)
           .contentTransition(.symbolEffect(.replace))
-          .offset(y: 3)
+          .offset(y: 2)
       }
-      .frame(width: 48, height: 36)
+      .frame(width: 44, height: 30)
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
@@ -462,10 +463,10 @@ struct RateButton<I: LiveActivityIntent>: View {
   var body: some View {
     Button(intent: intent) {
       Image(systemName: on ? "\(symbol).fill" : symbol)
-        .font(.system(size: 18, weight: .semibold))
+        .font(.system(size: 17, weight: .semibold))
         .foregroundStyle(on ? tint : Color.white.opacity(0.75))
         .contentTransition(.symbolEffect(.replace))
-        .frame(width: 44, height: 30)
+        .frame(width: 44, height: 28)
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
@@ -502,11 +503,12 @@ struct TimeLabel: View {
         Text(verbatim: remaining ? "" : "0:00")
       }
     }
-    .font(.system(size: 13, weight: .medium).monospacedDigit())
+    .font(.system(size: 12, weight: .medium).monospacedDigit())
     .foregroundStyle(PawseTheme.secondary)
     .lineLimit(1)
+    .minimumScaleFactor(0.7)
     .multilineTextAlignment(remaining ? .trailing : .leading)
-    .frame(width: 46, alignment: remaining ? .trailing : .leading)
+    .frame(width: 48, alignment: remaining ? .trailing : .leading)
   }
 
   private var timer: Text {
@@ -539,6 +541,7 @@ struct SlimProgress: View {
     }
     .progressViewStyle(.linear)
     .tint(accent(state))
+    .frame(height: 6)
   }
 }
 

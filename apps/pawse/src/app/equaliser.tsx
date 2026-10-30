@@ -8,28 +8,43 @@ import {
   Switch,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Foot, Section, styles as rows } from "../components/settings-rows";
 import { showToast } from "../components/toast";
+import { CurveAxis } from "../features/equaliser/curve-axis";
+import { ResponseCurve } from "../features/equaliser/response-curve";
 import { useAccent } from "../features/now-playing/now-palette";
 import { type AutoEqEntry, searchIndex } from "../lib/audio-fx/autoeq";
 import { loadIndex, loadProfile } from "../lib/audio-fx/autoeq-source";
+import { chainCurve } from "../lib/audio-fx/curve";
 import {
   BAND_FREQS,
+  chainFor,
   clamp,
   DEFAULT_EQ,
   type EqSetting,
   GAIN_LIMIT,
+  NO_CHAIN,
   PREAMP_LIMIT,
   PRESETS,
   presetGains,
 } from "../lib/audio-fx/eq";
+import { setEqBypass } from "../lib/audio-fx";
+import { useEqStatus } from "../lib/audio-fx/use-eq-status";
 import { haptic } from "../lib/haptics";
 import { setSetting, useSetting } from "../lib/settings";
 import { display } from "../lib/type";
+
+const presetAbout = (id: EqSetting["preset"]) =>
+  id === "custom"
+    ? "Your own curve: tap the bands below."
+    : id === "headphones"
+      ? "Corrects your headphones toward a neutral sound (AutoEq)."
+      : (PRESETS.find((p) => p.id === id)?.about ?? "");
 
 const hz = (f: number) => (f >= 1000 ? `${f / 1000} kHz` : `${f} Hz`);
 const db = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(v % 1 ? 1 : 0)} dB`;
@@ -44,6 +59,22 @@ export default function Equaliser() {
     eq.preset === "headphones" ? "flat" : eq.preset,
     eq,
   );
+
+  const status = useEqStatus();
+  const [held, setHeld] = useState(false);
+  const width = useWindowDimensions().width - 64;
+  // While held the curve glides to flat, as the sound does.
+  const curve = useMemo(
+    () => chainCurve(held ? NO_CHAIN : chainFor(eq)),
+    [eq, held],
+  );
+  useEffect(() => () => setEqBypass(false), []);
+  const hold = (on: boolean) => {
+    if (on) haptic.medium();
+    else haptic.light();
+    setHeld(on);
+    setEqBypass(on);
+  };
 
   const nudgeBand = (i: number, step: number) => {
     const next = [...gains];
@@ -67,6 +98,52 @@ export default function Equaliser() {
           <Text style={styles.done}>Done</Text>
         </Pressable>
       </View>
+
+      <View style={styles.status}>
+        <View
+          style={[
+            styles.dot,
+            {
+              backgroundColor: status.applied
+                ? accent
+                : "rgba(255,255,255,0.3)",
+            },
+          ]}
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.statusTitle}>
+            {status.applied ? "Applied to this song" : "Not on this song"}
+          </Text>
+          {status.applied ? null : (
+            <Text style={styles.statusReason}>{status.reason}</Text>
+          )}
+        </View>
+      </View>
+
+      <Section title="Response">
+        <View style={styles.curveBox}>
+          <View style={{ opacity: status.applied || held ? 1 : 0.4 }}>
+            <ResponseCurve curve={curve} color={accent} width={width} />
+          </View>
+          <CurveAxis width={width} />
+          <Pressable
+            disabled={!status.applied}
+            onPressIn={() => hold(true)}
+            onPressOut={() => hold(false)}
+            accessibilityRole="button"
+            accessibilityHint="Hold to hear this song without the equaliser"
+            style={[
+              styles.hold,
+              held && { backgroundColor: accent },
+              !status.applied && { opacity: 0.4 },
+            ]}
+          >
+            <Text style={[styles.holdText, held && { color: "#000" }]}>
+              {held ? "Without equaliser" : "Hold to hear the difference"}
+            </Text>
+          </Pressable>
+        </View>
+      </Section>
 
       <Section title="Sound">
         <View style={rows.row}>
@@ -104,6 +181,7 @@ export default function Equaliser() {
             onPress={() => update({ on: true, preset: "headphones" })}
           />
         </View>
+        <Text style={styles.about}>{presetAbout(eq.preset)}</Text>
       </Section>
 
       {eq.preset === "headphones" ? (
@@ -296,12 +374,38 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    marginBottom: 8,
+    paddingHorizontal: 20,
   },
   title: { color: "#fff", fontSize: 28, ...display("800") },
   done: { color: "#fff", fontSize: 17, fontWeight: "600" },
-  pills: { flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 14 },
+  status: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 32,
+    marginTop: 12,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  statusTitle: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  statusReason: { color: "rgba(255,255,255,0.55)", fontSize: 13, marginTop: 2 },
+  curveBox: { padding: 16 },
+  hold: {
+    marginTop: 8,
+    minHeight: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  holdText: { color: "#fff", fontSize: 15, fontWeight: "600" },
+  pills: { flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 16 },
+  about: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    marginTop: -6,
+  },
   pill: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -319,7 +423,15 @@ const styles = StyleSheet.create({
   },
   stepText: { color: "#fff", fontSize: 20, lineHeight: 22 },
   stepValue: { minWidth: 78, textAlign: "center" },
-  search: { color: "#fff", fontSize: 16, paddingHorizontal: 16, minHeight: 52 },
+  search: {
+    color: "#fff",
+    fontSize: 16,
+    margin: 12,
+    paddingHorizontal: 14,
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
   source: { color: "rgba(255,255,255,0.45)", fontSize: 12, marginTop: 2 },
   note: { color: "rgba(255,255,255,0.5)", fontSize: 14, padding: 16 },
 });

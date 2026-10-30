@@ -10,7 +10,7 @@ import {
 export interface CreateResolverOptions {
   youtube: StreamResolver;
   saavn?: StreamResolver;
-  /** Try JioSaavn first for YouTube tracks of kind 'song'. */
+  /** Try JioSaavn first for YouTube tracks of kind 'song', at high quality and on a near-certain match only. */
   preferSaavn?: boolean;
   /** A downloaded copy, checked before any network source unless `remoteOnly`. */
   local?: (id: string) => ResolvedStream | undefined;
@@ -22,7 +22,8 @@ export interface CreateResolverOptions {
 export type ResolvableTrack = Pick<
   Track,
   "id" | "source" | "title" | "artists" | "durationSec"
-> & { kind?: Track["kind"] };
+> &
+  Partial<Pick<Track, "kind" | "album" | "explicit">>;
 
 /** Local file first, then YouTube (or Saavn first for songs when preferred), falling back to the other. */
 export function createResolver({
@@ -61,10 +62,12 @@ export function createResolver({
           "unplayable",
           `No resolver for ${track.source} tracks`,
         );
-      // A Saavn stream that failed here goes last, or out when it failed for this track.
+      // A Saavn stream that failed here goes last, or out when it failed for this track. Low and
+      // normal quality stay on YouTube: Saavn's 320 kbps is the only upgrade worth a lookup.
       const saavnFirst =
         preferSaavn &&
         track.kind === "song" &&
+        (o.quality ?? "high") === "high" &&
         !options.avoid?.includes("saavn");
       const order =
         saavn && !excluded("saavn")
@@ -75,7 +78,10 @@ export function createResolver({
       const errors = new Map<StreamResolver, unknown>();
       for (const r of order) {
         try {
-          return await r.resolve(track, o);
+          return await r.resolve(
+            track,
+            saavnFirst && r === saavn ? { ...o, strict: true } : o,
+          );
         } catch (e) {
           errors.set(r, e);
         }

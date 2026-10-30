@@ -176,11 +176,8 @@ const resolvers = {
   saavn: createResolver({ ...base, preferSaavn: true }),
 };
 
-/** Local file first, then YouTube or JioSaavn per settings; pass `remoteOnly` to skip downloads. */
+/** Local file first, then JioSaavn 320 kbps when it is certainly the same song, else YouTube; `remoteOnly` skips downloads. */
 export const resolver: StreamResolver = {
   resolve: (t, o?: ResolveOptions) =>
-    (settings().preferSaavn ? resolvers.saavn : resolvers.youtube).resolve(
-      t,
-      o,
-    ),
+    (settings().bestSource ? resolvers.saavn : resolvers.youtube).resolve(t, o),
 };

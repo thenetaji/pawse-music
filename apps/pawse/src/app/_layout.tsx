@@ -26,6 +26,7 @@ import { startListSpotRecorder } from "../features/playback/list-spot-recorder";
 import { startNowPlayingGuard } from "../features/playback/now-playing-guard";
 import { startResumeController } from "../features/playback/resume-after-interruption";
 import { WatchHost } from "../features/watch/watch-host";
+import { maybeShowWhatsNew } from "../features/whats-new/whats-new";
 import { startSharingRatings } from "../lib/contribute";
 import { startEngine } from "../lib/engine";
 import { startFreshFeeds } from "../lib/fresh-feeds";
@@ -65,6 +66,7 @@ export default function RootLayout() {
     const stopAlarm = startAlarm();
     // First launch: meet the cat once the persisted library has loaded.
     const onboard = () => {
+      maybeShowWhatsNew();
       if (!getSetting("onboarded", false))
         setTimeout(() => router.push("/onboarding"), 50);
       else void checkOnLaunch();
@@ -117,6 +119,14 @@ export default function RootLayout() {
               options={{ presentation: "transparentModal", animation: "none" }}
             />
             <Stack.Screen name="settings" options={modal} />
+            <Stack.Screen name="settings/playback" options={modal} />
+            <Stack.Screen name="settings/lyrics" options={modal} />
+            <Stack.Screen name="settings/videos" options={modal} />
+            <Stack.Screen name="settings/look" options={modal} />
+            <Stack.Screen name="settings/library" options={modal} />
+            <Stack.Screen name="settings/privacy" options={modal} />
+            <Stack.Screen name="settings/accounts" options={modal} />
+            <Stack.Screen name="settings/about" options={modal} />
             <Stack.Screen name="about" options={modal} />
             <Stack.Screen name="equaliser" options={modal} />
             <Stack.Screen name="blocked" options={modal} />

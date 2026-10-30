@@ -13,8 +13,9 @@ import { showToast } from "../components/toast";
 import { skipNote, songSkips } from "./community";
 import { logEvent } from "./diagnostics";
 import { withPlaylist } from "./long-stream";
+import { COVER_PX, COVER_SAVER_PX } from "./cover";
 import { relayStream } from "./net";
-import { noteStall } from "./quality";
+import { isLowData, noteStall } from "./quality";
 import { autoplayMode } from "./settings";
 import { clearResources } from "./use-resource";
 
@@ -57,6 +58,7 @@ export function startEngine() {
     gapless: () => settings().gapless ?? true,
     trimSilence,
     artwork: readyArtwork,
+    artworkPx: () => (isLowData() ? COVER_SAVER_PX : COVER_PX),
     streamUrl: relayStream,
     skipSegments: songSkips,
     onSkip: (_t, category) => showToast(skipNote(category)),

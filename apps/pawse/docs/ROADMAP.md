@@ -345,6 +345,22 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 
 - [ ] 122a. On-device AI on Android (Gemini Nano). Pulled from 1.13.0: ML Kit GenAI 1.0.0-beta4 brings Kotlin 2.3's standard library, which breaks React Native's Kotlin build. Android 7 stays supported until it's back.
 
+### After 1.13.0 (from the user's phone, 2026-10-30)
+- [x] 123. Dynamic Island: the bottom gets cut off in every style (the times under the bar go under the edge).
+- [x] 124. Too much explaining text in Settings: each section's note now sits behind an ⓘ that opens it.
+- [x] 125. The visualiser "doesn't look good": redesign it or take it out.
+- [x] 126. For you: the first video (or the first two) never changes between refreshes.
+- [x] 127. AI summary: very slow, no timestamps, and going back restarts it. Keep working in the background, keep the result, show times you can tap.
+- [x] 128. Equaliser screen: too little margin at the sides.
+- [x] 129. Settings is "bloating": group it into pages (Playback and sound, Lyrics, Videos and YouTube, Look and Mochi, Library and downloads, Privacy, Connected accounts, Alarm, Experimental, About) with a search box on top.
+- [x] 130. Turn the good things on by default: Show dislikes, Smooth shuffle, skip silence.
+- [x] 132. Show what a setting does (user: "I turn on the equaliser and don't hear or see any change"): an EQ curve that moves with presets, hold to hear without it, "applied to this song / not on this song" with the reason, an EQ mark on Now playing; elsewhere a one-line hint under each toggle, a first-time toast saying where to see it, and small previews.
+- [x] 133. Pull down to close on every sheet.
+- [x] 134. A "What's new in 1.13" card on first open after the update: the biggest new things, each with a Try it button.
+- [x] 135. "Send diagnostics" in About: bundles the recent app log so problems can be fixed exactly.
+- [x] 136. More equaliser presets to choose from (Pop, Rock, Hip-hop, Electronic, Jazz, Classical, Acoustic, Less bass, Less treble, Small speakers, Podcasts), each saying what it does.
+- [x] 131. Premium songs: "Highest quality source" on by default (JioSaavn 320 kbps only when the match is near-certain, else YouTube); a quality badge on Now playing with a details sheet; sharp ~1200 px artwork on Now playing, lock screen and island; the next songs ready before you skip.
+
 ### How we work
 - Borrow from open-source players where it saves time (Metrolist, InnerTune, OuterTune, LibreTube, NewPipe, FreeTube for ideas, YouTube.js), credited in NOTICE.md. Never Grayjay.
 - Few agents at a time (no more than four), no test runs until the end.

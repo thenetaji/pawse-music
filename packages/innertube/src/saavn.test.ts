@@ -7,7 +7,9 @@ import {
   JioSaavn,
   decryptMediaUrl,
   matchSong,
+  matchSongStrict,
   normalizeTitle,
+  type SaavnSong,
   toSaavnSong,
 } from "./saavn";
 import { desEcb } from "./util/des";
@@ -91,6 +93,93 @@ describe("matching", () => {
         songs(blindingLights),
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("strict matching", () => {
+  const listing = (o: Partial<SaavnSong> = {}): SaavnSong => ({
+    id: "1",
+    title: "Tum Hi Ho",
+    artists: ["Arijit Singh", "Mithoon"],
+    primaryArtists: ["Arijit Singh", "Mithoon"],
+    album: "Aashiqui 2",
+    durationSec: 262,
+    mediaUrl: "https://aac.saavncdn.com/1/a_320.mp4",
+    is320: true,
+    ...o,
+  });
+  const yt = {
+    title: "Tum Hi Ho",
+    artists: [{ name: "Arijit Singh" }],
+    album: { id: "a", title: "Aashiqui 2" },
+    durationSec: 262,
+  };
+  const accepts = (song: Partial<SaavnSong>, track: object = {}) =>
+    matchSongStrict({ ...yt, ...track }, [listing(song)]) !== undefined;
+
+  it("takes the same recording whatever its decorations", () => {
+    expect(accepts({})).toBe(true);
+    expect(accepts({ title: "Tum Hi Ho (From &quot;Aashiqui 2&quot;)" })).toBe(
+      true,
+    );
+    expect(accepts({}, { title: "Tum Hi Ho (feat. Mithoon)" })).toBe(true);
+    expect(accepts({ title: "Tum Hi Ho - Remastered 2020" })).toBe(true);
+    expect(accepts({ primaryArtists: ["arijit singh"] })).toBe(true);
+  });
+
+  it("picks the listing closest in length", () => {
+    const hit = matchSongStrict({ ...yt, durationSec: 261 }, songs(tumHiHo));
+    expect(hit?.durationSec).toBe(261);
+    expect(matchSongStrict(yt, songs(tumHiHo))?.durationSec).toBe(262);
+  });
+
+  it("allows 2 s of drift and no more, and needs both lengths", () => {
+    expect(accepts({ durationSec: 264 })).toBe(true);
+    expect(accepts({ durationSec: 265 })).toBe(false);
+    expect(accepts({ durationSec: undefined })).toBe(false);
+    expect(accepts({}, { durationSec: undefined })).toBe(false);
+  });
+
+  it("needs the same primary artist, not a featured credit or a namesake song", () => {
+    expect(accepts({ primaryArtists: ["Shahid Mallya"] })).toBe(false);
+    expect(
+      accepts({
+        artists: ["Karaoke Hits", "Arijit Singh"],
+        primaryArtists: ["Karaoke Hits"],
+      }),
+    ).toBe(false);
+    const namesake = matchSongStrict(
+      { ...yt, artists: [{ name: "Shahid Mallya" }] },
+      songs(tumHiHo),
+    );
+    expect(namesake?.primaryArtists).toContain("Shahid Mallya");
+  });
+
+  it("refuses other versions unless the YouTube track is one too", () => {
+    expect(accepts({ title: "Tum Hi Ho (Lofi)" })).toBe(false);
+    expect(accepts({ title: "Tum Hi Ho (Live)" })).toBe(false);
+    expect(accepts({ title: "Tum Hi Ho (Slowed + Reverb)" })).toBe(false);
+    expect(accepts({ title: "Tum Hi Ho (Cover)" })).toBe(false);
+    expect(accepts({ album: "Bollywood Remix Hits" })).toBe(false);
+    expect(accepts({ title: "Tum Hi Ho (Sped Up)" })).toBe(false);
+    expect(
+      accepts({ title: "Tum Hi Ho - Lofi" }, { title: "Tum Hi Ho (Lofi)" }),
+    ).toBe(true);
+    expect(accepts({}, { title: "Tum Hi Ho (Live)" })).toBe(false);
+  });
+
+  it("needs 320 kbps and an agreeing explicit flag", () => {
+    expect(accepts({ is320: false })).toBe(false);
+    expect(accepts({ mediaUrl: undefined })).toBe(false);
+    expect(accepts({ explicit: true })).toBe(false);
+    expect(accepts({ explicit: true }, { explicit: true })).toBe(true);
+    expect(accepts({ explicit: false }, { explicit: true })).toBe(false);
+  });
+
+  it("is stricter than the fallback match", () => {
+    const loose = { ...yt, durationSec: 259 };
+    expect(matchSong(loose, [listing()])).toBeDefined();
+    expect(matchSongStrict(loose, [listing()])).toBeUndefined();
   });
 });
 
@@ -186,6 +275,37 @@ describe("createResolver", () => {
         }).resolve(song)
       ).via,
     ).toBe("yt");
+  });
+
+  it("asks the preferred Saavn for a strict match, and only at high quality", async () => {
+    const saavn = ok("sv");
+    const r = (quality: "high" | "normal" | "saver") =>
+      createResolver({
+        youtube: ok("yt"),
+        saavn,
+        preferSaavn: true,
+        quality: () => quality,
+      });
+    expect((await r("high").resolve(song)).via).toBe("sv");
+    expect(saavn.resolve).toHaveBeenCalledWith(
+      song,
+      expect.objectContaining({ strict: true }),
+    );
+    expect((await r("normal").resolve(song)).via).toBe("yt");
+    expect((await r("saver").resolve(song)).via).toBe("yt");
+  });
+
+  it("keeps the loose Saavn match for the fallback after YouTube fails", async () => {
+    const saavn = ok("sv");
+    await createResolver({
+      youtube: fail("blocked"),
+      saavn,
+      preferSaavn: true,
+    }).resolve({ ...song, kind: "video" });
+    expect(saavn.resolve).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ strict: true }),
+    );
   });
 
   it("sends saavn tracks to Saavn and surfaces YouTube's error when both fail", async () => {

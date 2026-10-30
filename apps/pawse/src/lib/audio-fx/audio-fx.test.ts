@@ -8,7 +8,7 @@ import {
   searchIndex,
 } from "./autoeq";
 import { chainFor, DEFAULT_EQ } from "./eq";
-import { nextBars, toBar } from "./bars";
+import { BAR_COUNT, easeLevels, mirrorBars, toBar } from "./bars";
 
 jest.mock("../../../modules/pawse-audio", () => ({ LEVEL_BANDS: 10 }));
 jest.mock("./index", () => ({ holdMeter: jest.fn(), readLevels: jest.fn() }));
@@ -137,10 +137,18 @@ describe("visualiser bars", () => {
     expect(toBar(-20)).toBe(1);
     expect(toBar(-45)).toBeCloseTo(0.5);
   });
-  it("jumps up at once and falls at a steady rate", () => {
-    const up = nextBars([0, 0], [-20, -70], 0.03);
-    expect(up).toEqual([1, 0]);
-    const down = nextBars(up, [-120, -120], 0.1);
-    expect(down[0]).toBeCloseTo(1 - 0.22);
+  it("rises faster than it falls", () => {
+    const up = easeLevels([0], [1], 60)[0];
+    const down = easeLevels([1], [0], 60)[0];
+    expect(up).toBeGreaterThan(0.6);
+    expect(1 - down).toBeLessThan(0.3);
+  });
+  it("mirrors the bands with the lows in the middle", () => {
+    const bars = mirrorBars([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(bars).toHaveLength(BAR_COUNT);
+    expect(bars[BAR_COUNT / 2]).toBe(bars[BAR_COUNT / 2 - 1]);
+    expect(bars[BAR_COUNT / 2]).toBe(1);
+    expect(bars[0]).toBe(0);
+    expect(bars[BAR_COUNT - 1]).toBe(0);
   });
 });

@@ -1,12 +1,25 @@
 import { PawseAudio } from "../../../modules/pawse-audio";
 import { useLibrary } from "../../data/library";
-import { chainFor } from "./eq";
+import { chainFor, NO_CHAIN } from "./eq";
 
 let holders = 0;
 let started = false;
+let bypassed = false;
 
 const trimNeedsMeter = () =>
   !!useLibrary.getState().settings.trimSilence && !PawseAudio.skipsSilence;
+
+const applyChain = () =>
+  PawseAudio.setChain(
+    bypassed ? NO_CHAIN : chainFor(useLibrary.getState().settings.eq),
+  );
+
+/** Plays the song without the equaliser until turned off again; for comparing. */
+export function setEqBypass(on: boolean) {
+  if (bypassed === on) return;
+  bypassed = on;
+  applyChain();
+}
 
 function syncMeter() {
   PawseAudio.setMeter(holders > 0 || trimNeedsMeter());
@@ -21,7 +34,7 @@ export function startAudioFx() {
     const next = [s.eq, s.crossfeed, s.trimSilence];
     if (next.every((v, i) => v === last[i])) return;
     last = next;
-    PawseAudio.setChain(chainFor(s.eq));
+    applyChain();
     PawseAudio.setCrossfeed(!!s.crossfeed);
     if (!s.trimSilence) PawseAudio.setSkipSilence(false);
     syncMeter();

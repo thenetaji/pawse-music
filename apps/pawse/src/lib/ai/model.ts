@@ -54,9 +54,6 @@ function enqueue<T>(task: () => Promise<T>, urgent: boolean): Promise<T> {
   return result;
 }
 
-export const summarize = (text: string, language: string) =>
-  enqueue(() => PawseAI.summarize(text, language), true);
-
 export const respond = (prompt: string, context: string) =>
   enqueue(() => PawseAI.respond(prompt, context), true);
 

@@ -44,6 +44,7 @@ import { Marquee } from "../../components/marquee";
 import { Spinner, useBusy } from "../../components/spinner";
 import { useDataSaverActive } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { COVER_PX, coverSources, useCover } from "../../lib/cover";
 import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
 import { levelsAvailable } from "../../lib/audio-fx";
@@ -70,7 +71,7 @@ import {
   QueueGlyph,
 } from "./icons";
 import { LyricsView } from "./lyrics-view";
-import { useNowPalette } from "./now-palette";
+import { useAccent, useNowPalette } from "./now-palette";
 import { SongVideoSwitch } from "./song-video-switch";
 import { Visualiser } from "./visualiser";
 import { TintStack, useTintPair } from "./tint-fade";
@@ -142,10 +143,13 @@ export function NowPlayingView(p: NowPlayingProps) {
   const saver = useDataSaverActive();
   // Music videos show their song's album cover when one matches, like YouTube Music.
   const thumbs = useSongArt(p.track);
-  const art = p.track ? bestThumbnail(thumbs, saver ? 544 : 1080) : undefined;
-  const hero = useHeroArt(p.track?.id, art, saver);
+  const art = p.track
+    ? bestThumbnail(thumbs, saver ? 544 : COVER_PX)
+    : undefined;
+  const hero = useCover(p.track?.id, coverSources(thumbs, COVER_PX, saver));
   // The app-wide palette: it changes once per song, after the skip has settled.
   const palette = useNowPalette((s) => s.palette);
+  const accent = useAccent();
   const background = useSetting<"field" | "blur" | "black">(
     "npBackground",
     "field",
@@ -305,12 +309,7 @@ export function NowPlayingView(p: NowPlayingProps) {
   const tint = background === "black" ? "#000000" : base;
   const tintPair = useTintPair(tint);
   const peekArt = (t?: Track) =>
-    t
-      ? heroCandidates(
-          bestThumbnail(t.thumbnails, saver ? 544 : 1080),
-          saver,
-        )[0]
-      : undefined;
+    t ? coverSources(t.thumbnails, COVER_PX, saver)[0] : undefined;
   const prevUri = peekArt(prevTrack);
   const nextUri = peekArt(nextTrack);
 
@@ -500,7 +499,8 @@ export function NowPlayingView(p: NowPlayingProps) {
             </TintStack>
             {visualiserOn && !videoOn ? (
               <Visualiser
-                color={palette.accent}
+                color={accent}
+                playing={playing}
                 width={win.width - 56}
                 style={{ position: "absolute", left: 28, bottom: heroH * 0.06 }}
               />
@@ -910,29 +910,6 @@ function neighbour(s: PlayerSnapshot, dir: 1 | -1): Track | undefined {
     i = (i + n) % n;
   }
   return s.queue[i];
-}
-
-// YouTube video stills come letterboxed at 4:3; the 16:9 HD frames don't, so try those first.
-function heroCandidates(url?: string, saver?: boolean): string[] {
-  if (!url) return [];
-  if (saver) return [url];
-  const id = url.match(/ytimg\.com\/vi(?:_webp)?\/([\w-]{11})\//)?.[1];
-  if (!id) return [url];
-  return [
-    `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
-    `https://i.ytimg.com/vi/${id}/hq720.jpg`,
-    url,
-  ];
-}
-
-function useHeroArt(trackId: string | undefined, url?: string, saver = false) {
-  const [miss, setMiss] = useState({ key: "", n: 0 });
-  const list = heroCandidates(url, saver);
-  const n = miss.key === trackId ? miss.n : 0;
-  return {
-    uri: list[n],
-    next: () => setMiss({ key: trackId ?? "", n: n + 1 }),
-  };
 }
 
 // The artwork's main colour pulled down to a deep tint the controls sit on.

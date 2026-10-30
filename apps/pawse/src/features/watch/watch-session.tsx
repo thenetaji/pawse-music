@@ -114,7 +114,7 @@ import {
   VideoSurface,
 } from "../video/watch-player";
 import { SummaryPanel } from "./ai-summary";
-import { useAiChapters, useSponsorSpots } from "./ai-watch";
+import { useAiChapters, useCaptionPrefetch, useSponsorSpots } from "./ai-watch";
 import { setCaptions, useCaptions } from "./captions";
 import {
   communityMenu,
@@ -314,6 +314,7 @@ export function WatchSession({ id }: { id: string }) {
   const sponsorSpots = useSponsorSpots(id, src?.stream.captions);
   const canSummarize =
     useAiFeature("aiSummary") && !!src?.stream.captions?.length;
+  useCaptionPrefetch(id, src?.stream.captions, canSummarize);
   const comments = useComments(id, focus.comments ? d?.comments : undefined);
   // Your like and subscription, changed here before YouTube's copy of the page catches up.
   const [mine, setMine] = useState<{ rating?: Rating }>({});

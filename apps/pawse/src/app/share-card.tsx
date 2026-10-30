@@ -18,9 +18,11 @@ import { captureRef } from "react-native-view-shot";
 import { PressScale } from "../components/ui";
 import { Cat, type CatColor } from "../features/cat/cat";
 import { useArtworkPalette } from "../features/now-playing/use-artwork-palette";
+import { COVER_PX, coverSources, useCover } from "../lib/cover";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
 import { useShareCard } from "../lib/share-card-store";
+import { useSongArt } from "../lib/song-art";
 import { display } from "../lib/type";
 
 // A shareable card: artwork-coloured, the cat in the corner, optional lyric.
@@ -32,6 +34,7 @@ export default function ShareCard() {
     track ? bestThumbnail(track.thumbnails, 120) : undefined,
   );
   const card = useRef<View>(null);
+  const cover = useCover(track?.id, coverSources(useSongArt(track), COVER_PX));
   if (!track) return null;
   const share = async () => {
     haptic.light();
@@ -74,9 +77,12 @@ export default function ShareCard() {
               style={[styles.blob2, { backgroundColor: palette.colors[2] }]}
             />
             <Image
-              source={bestThumbnail(track.thumbnails, 800)}
+              source={cover.uri}
               style={styles.art}
               contentFit="cover"
+              onError={cover.next}
+              // YouTube answers a missing HD frame with a 120×90 grey placeholder.
+              onLoad={(e) => e.source.width <= 120 && cover.next()}
             />
             {lyric ? <Text style={styles.lyric}>“{lyric}”</Text> : null}
             <Text style={styles.title} numberOfLines={2}>
