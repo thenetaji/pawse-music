@@ -1,11 +1,9 @@
-import { Platform } from "react-native";
-
 import { Foot, Section, Toggle } from "../components/settings-rows";
 import { Screen } from "../components/ui";
 import { useAiStatus } from "../lib/ai/model";
 import { useSetting } from "../lib/settings";
 
-const MODEL = Platform.OS === "ios" ? "Apple Intelligence" : "Gemini Nano";
+const MODEL = "Apple Intelligence";
 
 export default function Experimental() {
   const videos = useSetting("videos", true);
@@ -52,8 +50,8 @@ export default function Experimental() {
         </>
       ) : status ? (
         <Foot>
-          These need Apple Intelligence on an iPhone with iOS 26 or later, or
-          Gemini Nano on a recent Android phone. This phone can’t run them.
+          These need Apple Intelligence on an iPhone with iOS 26 or later. This
+          phone can’t run them.
         </Foot>
       ) : null}
     </Screen>

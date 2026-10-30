@@ -343,7 +343,7 @@ Random fun:
 
 Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, listen together) and karaoke mode.
 
-- [x] 122a. Pawse now needs Android 8 or newer (on-device AI library); approved 2026-10-29.
+- [ ] 122a. On-device AI on Android (Gemini Nano). Pulled from 1.13.0: ML Kit GenAI 1.0.0-beta4 brings Kotlin 2.3's standard library, which breaks React Native's Kotlin build. Android 7 stays supported until it's back.
 
 ### How we work
 - Borrow from open-source players where it saves time (Metrolist, InnerTune, OuterTune, LibreTube, NewPipe, FreeTube for ideas, YouTube.js), credited in NOTICE.md. Never Grayjay.

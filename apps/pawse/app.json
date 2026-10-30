@@ -81,9 +81,6 @@
       [
         "expo-build-properties",
         {
-          "android": {
-            "minSdkVersion": 26
-          },
           "ios": {
             "ccacheEnabled": true
           }

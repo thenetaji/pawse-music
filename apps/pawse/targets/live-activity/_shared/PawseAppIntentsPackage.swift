@@ -1,6 +1,6 @@
 #if canImport(PawseAlarm)
 import AppIntents
-import PawseAlarm
+internal import PawseAlarm
 
 // The alarm's Play music intent lives in the PawseAlarm pod; iOS only sees it through the app.
 @available(iOS 17.4, *)

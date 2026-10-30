@@ -84,7 +84,7 @@ enum PawseTapInstaller {
       unprepare: tapUnprepare,
       process: tapProcess
     )
-    var tap: Unmanaged<MTAudioProcessingTap>?
+    var tap: MTAudioProcessingTap?
     let status = MTAudioProcessingTapCreate(
       kCFAllocatorDefault, &callbacks, kMTAudioProcessingTapCreationFlag_PreEffects, &tap
     )
@@ -92,6 +92,6 @@ enum PawseTapInstaller {
       state.release()
       return nil
     }
-    return tap.takeRetainedValue()
+    return tap
   }
 }
