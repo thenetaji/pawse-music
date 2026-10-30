@@ -13,6 +13,7 @@ import { ToastHost } from "../components/toast";
 import { startAutoBackup } from "../data/auto-backup";
 import { startJournalRecorder } from "../data/journal-recorder";
 import { startScrobbler } from "../data/scrobbler";
+import { startDiscordStatus } from "../lib/discord-status";
 import { useLibrary } from "../data/library";
 import { startAlarm } from "../features/alarm/alarm";
 import { startMochi } from "../features/cat/mochi";
@@ -57,6 +58,7 @@ export default function RootLayout() {
     const stopBackup = startAutoBackup();
     const stopJournal = startJournalRecorder();
     const stopScrobbler = startScrobbler();
+    const stopDiscord = startDiscordStatus();
     const stopRatings = startSharingRatings();
     const stopMindful = startMindfulTracker();
     const stopMochi = startMochi();
@@ -80,6 +82,7 @@ export default function RootLayout() {
       stopBackup();
       stopJournal();
       stopScrobbler();
+      stopDiscord();
       stopRatings();
       stopMindful();
       stopMochi();

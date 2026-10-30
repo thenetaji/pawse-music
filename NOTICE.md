@@ -61,6 +61,10 @@ BotGuard Proof-of-Origin tokens for YouTube's web clients are minted in `package
 - **[Last.fm](https://www.last.fm/api)** and **[ListenBrainz](https://listenbrainz.org)**. Scrobbling and Last.fm tags use their public APIs with the person's own key or token.
 - **[Metrolist](https://github.com/mostafaalagamy/Metrolist)** and **[InnerTune](https://github.com/z-huang/InnerTune)** (GPL-3.0). Ideas, no code: removing songs from YouTube Music playlists by `setVideoId`, and telling owned playlists apart by their editable header.
 
+## Desktop
+
+- **[Discord RPC](https://discord.com/developers/docs/topics/rpc)**. The "Listening to Pawse" status speaks Discord's documented local IPC frames directly (`apps/desktop/src/discord.mjs`); no Discord library is used.
+
 ## Phone features
 
 - **[expo-brightness](https://github.com/expo/expo/tree/main/packages/expo-brightness)** (MIT) and **[react-native-volume-manager](https://github.com/hirbod/react-native-volume-manager)** (MIT). Brightness and volume swipes in full screen.

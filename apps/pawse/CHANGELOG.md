@@ -19,6 +19,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **Scrobbling to Last.fm and ListenBrainz,** with an offline queue. Videos and incognito are left out.
 - **Lyrics in Latin letters.** Tap **Aa** to read Hindi, Marathi, Punjabi, other Indian scripts and Korean in Latin letters, under each line or instead of it.
 - **Pick your Dynamic Island:** Mochi on the wire (the new default, riding the progress bar like a headphone cable), Classic, Lyrics (the line being sung), Paw controls or just the time left. Every style glows in the song's colour, shifted by its mood.
+- **Discord status on computers.** Turn on **Show what's playing** under Discord in Settings and friends see "Listening to Pawse" with the song, artist and cover. It works through the Discord app on the same computer, so phones can't show it.
 - **Mindful mode for videos.** See how long you've watched today and set a daily limit; at the limit the video stops, Mochi falls asleep, and you can take 5 more minutes or call it a day. Music keeps playing.
 - **Wake up to a song.** Set a time, the days and what to play; Mochi rings, and the music starts quietly and rises. iOS 26 and Android.
 - **Mochi grows with you.** Daily listening streaks, hours and new artists unlock hats, headphone colours and new idle moods in Mochi's wardrobe.
