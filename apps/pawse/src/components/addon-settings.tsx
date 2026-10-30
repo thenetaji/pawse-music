@@ -19,6 +19,7 @@ import {
   Toggle,
 } from "./settings-rows";
 import { showToast } from "./toast";
+import { desktop } from "../lib/desktop";
 
 function Field({
   label,
@@ -180,6 +181,19 @@ export function AddonSettings() {
         make a free API account at last.fm/api/account/create and paste its key
         and shared secret.
       </Foot>
+
+      {desktop?.discordActivity ? (
+        <>
+          <Section title="Discord">
+            <Toggle k="discordStatus" label="Show what’s playing" def={false} />
+          </Section>
+          <Foot>
+            Friends see “Listening to Pawse” with the song, artist and cover
+            while music plays, through the Discord app on this computer. Never
+            in Incognito.
+          </Foot>
+        </>
+      ) : null}
 
       <Section title="Lyrics in Latin letters">
         <Pick

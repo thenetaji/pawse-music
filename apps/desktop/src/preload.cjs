@@ -18,4 +18,5 @@ contextBridge.exposeInMainWorld("pawseDesktop", {
   // JS in a hidden youtube.com page (sandbox.mjs): BotGuard tokens and player challenges.
   sandboxRun: (code, timeoutMs) =>
     ipcRenderer.invoke("pawse:sandbox-run", code, timeoutMs),
+  discordActivity: (np) => ipcRenderer.send("pawse:discord", np),
 });

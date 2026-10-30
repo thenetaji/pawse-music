@@ -296,7 +296,7 @@ Everything asked for on 2026-10-29, in the user's words where it helps. Tick eac
 - [x] 103e. Scrobbling to Last.fm and/or ListenBrainz, off until signed in there; respects incognito.
 - [x] 103f. Lyrics romanisation: Hindi, Punjabi, Japanese, Korean and others also in Latin letters.
 - [x] 103f2. Give back to them, not only read from them, with one anonymous random ID per install (no account): send your like/dislike to Return YouTube Dislike (its registration puzzle included), suggest a better title or thumbnail frame to DeArrow and vote on others, mark sponsor/intro/outro/highlight segments for SponsorBlock and vote skipped segments up or down. Off in incognito; one switch in Settings.
-- [ ] 103g. Discord status on desktop: show what's playing.
+- [x] 103g. Discord status on desktop: show what's playing. Built on Discord's local IPC (no library), app "Pawse" 1565595692137971722; off by default, never in incognito.
 - [ ] 103h. "What's this song?": recognise a song playing nearby and open it in Pawse. Check the service's terms first (SongRec uses Shazam's unofficial API).
 
 ### Dynamic Island

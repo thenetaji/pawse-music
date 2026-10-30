@@ -26,6 +26,9 @@ import {
 } from "./google.mjs";
 import { relay } from "./relay.mjs";
 import { closeSandbox, sandboxRun } from "./sandbox.mjs";
+import { discordPresence } from "./discord.mjs";
+
+const discord = discordPresence("1565595692137971722");
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const WEB = join(HERE, "..", "web");
@@ -155,6 +158,7 @@ else {
   });
   app.on("before-quit", () => {
     app.quitting = true;
+    discord.close();
   });
   app.on("window-all-closed", () => {
     if (!mac) app.quit();
@@ -190,6 +194,7 @@ else {
       e.returnValue = readSession();
     });
     ipcMain.on("pawse:session-write", (_e, cookies) => writeSession(cookies));
+    ipcMain.on("pawse:discord", (_e, np) => void discord.update(np));
     ipcMain.handle("pawse:sandbox-run", (e, code, timeoutMs) => {
       if (!e.senderFrame?.url.startsWith(ORIGIN))
         throw new Error("not allowed");

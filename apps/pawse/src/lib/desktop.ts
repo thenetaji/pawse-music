@@ -19,6 +19,17 @@ type DesktopBridge = {
   writeSession(cookies: string | null): void;
   /** Runs `code` as an async function body in a hidden youtube.com page of the main process (BotGuard, player challenges). */
   sandboxRun(code: string, timeoutMs?: number): Promise<unknown>;
+  /** Sets or clears (null) the "Listening to Pawse" status on Discord; absent in older desktop builds. */
+  discordActivity?(
+    np: {
+      title: string;
+      artist: string;
+      album?: string;
+      artwork?: string;
+      start?: number;
+      end?: number;
+    } | null,
+  ): void;
 };
 
 export const desktop = (globalThis as { pawseDesktop?: DesktopBridge })
