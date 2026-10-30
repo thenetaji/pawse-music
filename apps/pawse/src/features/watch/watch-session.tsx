@@ -136,7 +136,7 @@ import {
 } from "./store";
 import { SponsorPrompt } from "./sponsor-prompt";
 import { StoryboardFrame } from "./storyboard";
-import { makeClock, SIDE, VideoControls } from "./video-controls";
+import { LEAVE_V, makeClock, SIDE, VideoControls } from "./video-controls";
 import {
   CommentsCard,
   DescriptionCard,
@@ -267,8 +267,8 @@ export function WatchSession({ id }: { id: string }) {
     setLoaded({ start: atRef.current > 0 ? atRef.current : undefined });
     setReload((n) => n + 1);
   }
-  const onTime = (sec: number) => {
-    playClock.set(sec);
+  const onTime = (sec: number, loaded?: number) => {
+    playClock.set(sec, loaded);
     atRef.current = sec;
     setPastStart(sec > 3);
     setChapter(
@@ -1549,7 +1549,8 @@ function FullscreenLayer({
   const { width, height } = useWindowDimensions();
   const pad = useFullscreenPad();
   const pull = useSharedValue(0);
-  // Phones: the outer thirds are for brightness and volume, so only the middle swipes down to leave.
+  // Phones: the outer thirds are for brightness and volume, so only the middle follows the finger down to leave
+  // (a fast swipe on a side leaves too, from the controls).
   const mine = useSharedValue(true);
   const exit = useMemo(() => {
     // The web has no brightness or volume swipes, so the whole picture leaves.
@@ -1572,7 +1573,7 @@ function FullscreenLayer({
         })
         .onEnd((e) => {
           if (!mine.get()) return;
-          if (e.translationY > 70 || e.velocityY > 800) {
+          if (e.translationY > 70 || e.velocityY > LEAVE_V) {
             scheduleOnRN(leave);
             return;
           }

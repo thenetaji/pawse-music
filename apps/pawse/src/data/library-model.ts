@@ -10,6 +10,17 @@ import type {
 import { DEFAULT_EQ, type EqSetting } from "../lib/audio-fx/eq";
 
 // Library types, defaults and pure helpers; the store lives in library.ts.
+export const GROUP_BYS = ["mood", "era", "language"] as const;
+export type GroupBy = (typeof GROUP_BYS)[number];
+
+/** A playlist made from one group of a sorted list; songs that join or leave the source follow. */
+export type SortedFrom = {
+  /** "liked" or the id of a Pawse playlist. */
+  sourceId: string;
+  by: GroupBy;
+  group: string;
+};
+
 export type LocalPlaylist = {
   id: string;
   title: string;
@@ -20,6 +31,7 @@ export type LocalPlaylist = {
   sourceId?: string;
   /** When each song joined, by track id (older playlists: list order). */
   added?: Record<string, number>;
+  sortedFrom?: SortedFrom;
 };
 export type Play = { track: Track; at: number };
 export type CatColor = "orange" | "black" | "white" | "grey";

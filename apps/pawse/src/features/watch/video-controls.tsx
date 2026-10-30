@@ -1,5 +1,11 @@
 import type { CaptionCue, Storyboard } from "@pawse/music-core";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   Platform,
   Pressable,
@@ -47,21 +53,37 @@ const SKIP_KEEP_MS = 1000;
 const LEVEL_SPAN = 0.7;
 // Press and hold the picture this long to play at 2x, like YouTube.
 const HOLD_MS = 450;
+// A swipe down faster than this (px/s) leaves full screen, from the middle or, on a long drag, a side.
+export const LEAVE_V = 800;
+// On a side a slow drag is the volume; only a swipe this share of the height or more can leave instead.
+const LEAVE_SPAN = 0.3;
+// A very fast flick leaves after much less.
+const FLICK_V = 1500;
+const FLICK_SPAN = 0.12;
+// For this long after touching down, a fast swipe down is a flick under way: the level waits, so the volume doesn't dip.
+const FLICK_GRACE_MS = 120;
 
 /** The playing position, outside React state: only what shows the time re-renders as it moves. */
 export type Clock = {
   get: () => number;
-  set: (sec: number) => void;
+  /** How far the video is loaded, in seconds; 0 until the player says. */
+  loaded: () => number;
+  set: (sec: number, loaded?: number) => void;
   subscribe: (l: () => void) => () => void;
 };
 export function makeClock(): Clock {
   let at = 0;
+  let ahead = 0;
   const ls = new Set<() => void>();
   return {
     get: () => at,
-    set: (sec) => {
-      if (sec === at) return;
+    loaded: () => ahead,
+    set: (sec, loaded) => {
+      // Android reports 0 while it rebuffers; that's not the bar emptying.
+      const next = loaded !== undefined && loaded > 0 ? loaded : ahead;
+      if (sec === at && next === ahead) return;
       at = sec;
+      ahead = next;
       for (const l of ls) l();
     },
     subscribe: (l) => {
@@ -161,20 +183,28 @@ type Levels = {
   /** How far the finger has gone, as a share of the picture's height (up is more). */
   move: (frac: number) => void;
   end: () => void;
+  /** The drag turned out to be a swipe out of full screen: the level goes back to where it began. */
+  cancel: () => void;
 };
 
-/** Taps, and in full screen a pinch and the level drags beside them; the tap ignores fingers that did either. */
+const leaves = (down: number, speed: number, height: number) =>
+  (down > height * LEAVE_SPAN && speed > LEAVE_V) ||
+  (down > height * FLICK_SPAN && speed > FLICK_V);
+
+/** Taps, and in full screen a pinch and the level drags beside them; the tap ignores fingers that did either.
+ * A drag on a side that ends as a long or fast swipe down leaves full screen instead, as the middle does. */
 function stageGesture(
   o: Omit<Parameters<typeof tapGesture>[0], "pinching"> & {
     height: number;
     onZoom?: (fill: boolean) => void;
     onHold?: (on: boolean) => void;
     levels?: Levels;
+    onLeave?: () => void;
   },
 ) {
   const pinch = { at: 0, on: false };
   const held = { at: 0, on: false };
-  const swipe = { at: 0, on: false, side: 0 };
+  const swipe = { at: 0, on: false, side: 0, down: 0 };
   const taps = tapGesture({
     ...o,
     pinching: () =>
@@ -204,8 +234,8 @@ function stageGesture(
         })
     : undefined;
   const touch = hold ? Gesture.Simultaneous(hold, taps) : taps;
-  const { levels } = o;
-  // The outer thirds only: the middle stays free for the swipe down that leaves full screen.
+  const { levels, onLeave } = o;
+  // The outer thirds only: the middle is the swipe down that leaves full screen, which a side joins when it's fast.
   const drag = levels
     ? Gesture.Pan()
         .runOnJS(true)
@@ -213,6 +243,7 @@ function stageGesture(
         .activeOffsetY([-12, 12])
         .failOffsetX([-24, 24])
         .onBegin((e) => {
+          swipe.down = Date.now();
           swipe.side =
             e.x < o.width * SIDE ? -1 : e.x > o.width * (1 - SIDE) ? 1 : 0;
         })
@@ -221,14 +252,21 @@ function stageGesture(
           swipe.on = levels.begin(swipe.side as -1 | 1);
         })
         .onUpdate((e) => {
-          if (swipe.on) levels.move(-e.translationY / (o.height * LEVEL_SPAN));
+          if (!swipe.on) return;
+          // The position is absolute, so skipping the first updates of a flick loses nothing.
+          const flick =
+            Date.now() - swipe.down < FLICK_GRACE_MS && e.velocityY > LEAVE_V;
+          if (!flick) levels.move(-e.translationY / (o.height * LEVEL_SPAN));
         })
-        .onFinalize(() => {
+        .onFinalize((e, ok) => {
           swipe.side = 0;
           if (!swipe.on) return;
           swipe.on = false;
           swipe.at = Date.now();
-          levels.end();
+          if (ok && onLeave && leaves(e.translationY, e.velocityY, o.height)) {
+            levels.cancel();
+            onLeave();
+          } else levels.end();
         })
     : undefined;
   const base = drag ? Gesture.Simultaneous(drag, touch) : touch;
@@ -262,6 +300,11 @@ export function VideoControls(p: ControlsProps) {
   const [stageW, setStageW] = useState(0);
   const [stageH, setStageH] = useState(0);
   const [level, setNote] = useState<{ kind: LevelKind; pct: number }>();
+  // The latest exit, for the gesture below, which is built once and must not be rebuilt as this changes.
+  const exit = useRef(p.onMinimize);
+  useEffect(() => {
+    exit.current = p.onMinimize;
+  });
   const dur = p.dur ?? 0;
   const { storyboard } = p;
   const dragging = scrub !== undefined;
@@ -301,6 +344,7 @@ export function VideoControls(p: ControlsProps) {
 
   // The red bar moves on the UI thread: it glides between time updates and follows a scrub frame by frame.
   const played = useSharedValue(0);
+  const loaded = useSharedValue(0);
   const scrubbing = useSharedValue(false);
   const scrubAt = useSharedValue(0);
   const scrubSec = useSharedValue(-1);
@@ -317,10 +361,14 @@ export function VideoControls(p: ControlsProps) {
           ? withTiming(f, { duration: 500, easing: Easing.linear })
           : f,
       );
+      loaded.set(dur ? Math.min(1, ticks.loaded() / dur) : 0);
     };
     follow();
     return ticks.subscribe(follow);
-  }, [ticks, dur, playing, played]);
+  }, [ticks, dur, playing, played, loaded]);
+  const loadedStyle = useAnimatedStyle(() => ({
+    width: `${loaded.value * 100}%`,
+  }));
   const fillStyle = useAnimatedStyle(() => ({
     width: `${(scrubbing.value ? scrubAt.value : played.value) * 100}%`,
   }));
@@ -363,6 +411,11 @@ export function VideoControls(p: ControlsProps) {
         setNote({ kind: at.kind, pct });
       },
       end: () => settleLevel(at.kind),
+      cancel: () => {
+        setLevel(at.kind, at.from);
+        settleLevel(at.kind);
+        setNote(undefined);
+      },
     };
   }, [p.fullscreen]);
   // Built once per layout, never per frame: a gesture rebuilt while a finger is down drops the tap (iOS, Android).
@@ -374,6 +427,10 @@ export function VideoControls(p: ControlsProps) {
         width: stageW,
         height: stageH,
         levels,
+        onLeave: () => {
+          haptic.light();
+          exit.current();
+        },
         setShown,
         onTap: () => setPoke((n) => n + 1),
         onSkip: (side) => {
@@ -705,6 +762,10 @@ export function VideoControls(p: ControlsProps) {
             collapsable={false}
           >
             <View style={[styles.track, shown && styles.trackOn]}>
+              <Animated.View
+                style={[styles.loaded, loadedStyle]}
+                pointerEvents="none"
+              />
               <Animated.View
                 style={[styles.fill, fillStyle]}
                 pointerEvents="none"
@@ -1073,6 +1134,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.25)",
   },
   trackOn: { height: 3 },
+  // The part already downloaded, under the red, like YouTube's lighter line.
+  loaded: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(255,255,255,0.4)",
+  },
   fill: { height: "100%", backgroundColor: RED },
   tick: {
     position: "absolute",

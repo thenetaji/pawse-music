@@ -2,24 +2,14 @@
 import { NativeModule, requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
 
-export type ActivityMood =
-  | "groove"
-  | "sleep"
-  | "happy"
-  | "curious"
-  | "hype"
-  | "vibe"
-  | "love"
-  | "sad";
 export type ActivityAction =
   | "toggle"
   | "next"
   | "previous"
   | "like"
   | "dislike";
-export type ActivityCatColor = "orange" | "black" | "white" | "grey";
-/** Wire: the cat rides the progress bar. Classic and time keep the time-left ring; paws adds play and next. */
-export type IslandStyle = "wire" | "classic" | "lyrics" | "paws" | "time";
+/** Classic shows a ring that fills as the song plays; time swaps it for the time left. */
+export type IslandStyle = "classic" | "time";
 
 export interface ActivityState {
   title: string;
@@ -27,19 +17,11 @@ export interface ActivityState {
   /** File name in the App Group, from setArtwork(). */
   artwork: string | null;
   isPlaying: boolean;
-  mood: ActivityMood;
-  frame: number;
   /** Track timeline in ms since epoch; drives the self-moving progress bar. */
   start: number;
   end: number;
   /** 0...1, shown while paused. */
   progress: number;
-  /** Picks the cat-<color>-* frames. */
-  color: ActivityCatColor;
-  /** Mouse cameo frame: 0 none, 1 peeking, 2 head out. */
-  mouse: 0 | 1 | 2;
-  /** The cat's name for VoiceOver; null uses "The cat". */
-  name: string | null;
   /** "#RRGGBB" from the artwork, for the ring, bar and lock screen; null keeps the purple. */
   tint: string | null;
   /** ms since epoch after which iOS treats the activity as out of date (Pawse may have been closed). */
@@ -49,11 +31,8 @@ export interface ActivityState {
   disliked: boolean;
   /** Like and dislike buttons on the big island player and the Lock Screen. */
   rate: boolean;
-  /** Synced line being sung; null when the song has none, "" between lines. */
-  lyric: string | null;
   /** "#RRGGBB": tint nudged by the song's mood. */
   glow: string | null;
-  moodLine: boolean;
 }
 
 type Events = { onAction(event: { action: ActivityAction }): void };

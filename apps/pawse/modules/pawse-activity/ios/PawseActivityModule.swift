@@ -8,25 +8,18 @@ struct PawseActivityStateRecord: Record {
   @Field var artist: String = ""
   @Field var artwork: String? = nil
   @Field var isPlaying: Bool = false
-  @Field var mood: String = "sleep"
-  @Field var frame: Int = 0
   /// Milliseconds since 1970, like JS Date.now().
   @Field var start: Double = 0
   @Field var end: Double = 0
   @Field var progress: Double = 0
-  @Field var color: String = "orange"
-  @Field var mouse: Int = 0
-  @Field var name: String? = nil
   @Field var tint: String? = nil
   /// Milliseconds since 1970; 0 means never stale.
   @Field var staleAt: Double = 0
-  @Field var style: String = "wire"
+  @Field var style: String = "classic"
   @Field var liked: Bool = false
   @Field var disliked: Bool = false
   @Field var rate: Bool = true
-  @Field var lyric: String? = nil
   @Field var glow: String? = nil
-  @Field var moodLine: Bool = false
 
   var staleDate: Date? {
     staleAt > 0 ? Date(timeIntervalSince1970: staleAt / 1000) : nil
@@ -38,22 +31,15 @@ struct PawseActivityStateRecord: Record {
       artist: artist,
       artwork: artwork,
       isPlaying: isPlaying,
-      mood: mood,
-      frame: frame,
       start: Date(timeIntervalSince1970: start / 1000),
       end: Date(timeIntervalSince1970: max(start, end) / 1000),
       progress: min(max(progress, 0), 1),
-      color: color,
-      mouse: min(max(mouse, 0), 2),
-      name: name,
       tint: tint,
       style: style,
       liked: liked,
       disliked: disliked,
       rate: rate,
-      lyric: lyric,
-      glow: glow,
-      moodLine: moodLine
+      glow: glow
     )
   }
 }
@@ -223,12 +209,10 @@ public class PawseActivityModule: Module {
       if s.isPlaying {
         if length > 0 { s.progress = min(max(now.timeIntervalSince(s.start) / length, 0), 1) }
         s.isPlaying = false
-        s.mood = "sleep"
       } else {
         s.start = now.addingTimeInterval(-length * s.progress)
         s.end = s.start.addingTimeInterval(length)
         s.isPlaying = true
-        s.mood = "groove"
       }
       return (activity, ActivityContent(state: s, staleDate: activity.content.staleDate))
     }

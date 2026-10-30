@@ -5,6 +5,11 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- **Hold the cover, then slide for the volume.** Press and hold for a moment, feel the tick, then slide up or down; a small bar shows the level and fades when you let go. A plain swipe never changes it.
+- **Double-tap the cover.** The left and right thirds go back or forward 10 seconds (keep tapping to add more), and the middle likes the song with a heart.
+- **Swipe on the cover, your way.** Settings → Playback and sound → Swipe on the cover: Sideways as before, or Reels, where swiping up plays the next song and down the previous one. In Reels you pull down from the top of the player to close it.
+- **Shake to shuffle.** A switch in Playback and sound (off by default): shake the phone while a song plays to put the songs still to come in a new order, following Smooth shuffle when it's on.
+- **Sort a playlist or Liked songs.** Under the Play row, **Group by** splits any list into Mood, Era or Language sections. Each section has its own Play (a smooth mix) and **Save as playlist**. Pawse looks up the songs it doesn't know yet in the background, with a count you can stop and resume, and not in incognito. Saved sections of Liked songs or your own playlists are marked **Auto** and add matching new songs on their own (and drop songs you remove from the source); ••• → Stop adding songs automatically ends it.
 - **Edit your YouTube playlists in Pawse.** For playlists your account owns, the ••• menu has Edit songs (reorder and remove, with undo), Rename, Description, Privacy and Delete.
 
 ### Changed
@@ -13,6 +18,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **SponsorBlock skips each segment once.** Rewind into a skipped sponsor and it plays.
 - **No dark shade over videos** when the controls show; buttons keep their own circles and text its own shadow.
 - **Edit songs moved into the ••• menu** on playlists, so the Play row has room. Tap or hold the Smooth shuffle wave to see what it does.
+- **The Dynamic Island keeps two styles, Classic and Time left.** The cat, mouse, wire, lyrics and paw styles and the mood line are gone from the island, and the Lock Screen card follows Classic.
 
 ## [1.13.1] - 2026-10-30
 

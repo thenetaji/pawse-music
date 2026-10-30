@@ -219,10 +219,16 @@ function LocalPlaylist({ id }: { id: string }) {
   const local = useLibrary((s) => s.playlists.find((p) => p.id === id));
   const tracks = id === "liked" ? liked : (local?.tracks ?? []);
   const title = id === "liked" ? "Liked songs" : (local?.title ?? "Playlist");
+  const from = local?.sortedFrom?.sourceId;
+  const fromTitle = useLibrary((s) =>
+    from === "liked"
+      ? "Liked songs"
+      : s.playlists.find((p) => p.id === from)?.title,
+  );
   return (
     <Collection
       title={title}
-      subtitle="Pawse"
+      subtitle={fromTitle ? `Auto · from ${fromTitle}` : "Pawse"}
       meta={`${count(tracks.length, "song")}`}
       thumbnails={tracks[0]?.thumbnails ?? []}
       tracks={tracks}

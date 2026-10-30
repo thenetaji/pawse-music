@@ -93,6 +93,22 @@ export function toggleShuffle() {
   else player.setShuffle(true);
 }
 
+/** Puts the songs still to come in a new order, drifting between similar ones when Smooth shuffle is on. */
+export function reshuffleUpcoming(): boolean {
+  const { keys } = upcoming();
+  if (keys.length < 2) return false;
+  if (smoothShuffleOn()) smoothUpcoming();
+  else {
+    const mixed = [...keys];
+    for (let i = mixed.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [mixed[i], mixed[j]] = [mixed[j], mixed[i]];
+    }
+    arrange(mixed);
+  }
+  return true;
+}
+
 export function setSmoothShuffle(on: boolean) {
   if (on === smoothShuffleOn()) return;
   setSetting(SETTING, on);

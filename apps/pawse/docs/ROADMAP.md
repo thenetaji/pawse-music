@@ -374,3 +374,7 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - CarPlay. It needs the entitlement, so a paid Apple account.
 - [x] 137. The Dynamic Island was "cooked": iOS adds its own music bubble next to Pawse's, splitting the island in two. iOS's own player is now the default; Pawse's cat island is an opt-in in Settings → Look and Mochi.
 - [x] 138. Edit your YouTube playlists in Pawse: rename, description, privacy, reorder, remove and delete; the Smooth shuffle wave explains itself.
+- [x] 140. Full screen: a quick swipe down leaves it from anywhere, slow drags on the sides still set volume and brightness. Videos buffer further ahead and the bar shows the buffered part, like YouTube.
+- [x] 141. Dynamic Island trimmed to what looks right: Classic and Time left. The cat, mouse, wire, lyrics and paw styles and their images are gone from the island.
+- [x] 139. Sort a playlist or Liked songs by mood, era or language: sections you can play, save any as a playlist, and saved ones keep filling themselves.
+- [x] 142. Now playing gestures: hold then slide for volume, Reels-style skip as an option, double-tap the cover sides for 10 s and the middle to like, shake to shuffle (off by default).

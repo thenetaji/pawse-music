@@ -13,6 +13,7 @@ import { ToastHost } from "../components/toast";
 import { startAutoBackup } from "../data/auto-backup";
 import { startJournalRecorder } from "../data/journal-recorder";
 import { startScrobbler } from "../data/scrobbler";
+import { startSortKeeper } from "../data/sorted-playlists";
 import { startDiscordStatus } from "../lib/discord-status";
 import { useLibrary } from "../data/library";
 import { startAlarm } from "../features/alarm/alarm";
@@ -25,6 +26,7 @@ import { NowPaletteSync } from "../features/now-playing/now-palette";
 import { startListSpotRecorder } from "../features/playback/list-spot-recorder";
 import { startNowPlayingGuard } from "../features/playback/now-playing-guard";
 import { startResumeController } from "../features/playback/resume-after-interruption";
+import { startShakeShuffle } from "../features/playback/shake-shuffle";
 import { WatchHost } from "../features/watch/watch-host";
 import { maybeShowWhatsNew } from "../features/whats-new/whats-new";
 import { startSharingRatings } from "../lib/contribute";
@@ -64,6 +66,8 @@ export default function RootLayout() {
     const stopMindful = startMindfulTracker();
     const stopMochi = startMochi();
     const stopAlarm = startAlarm();
+    const stopShake = startShakeShuffle();
+    const stopSorted = startSortKeeper();
     // First launch: meet the cat once the persisted library has loaded.
     const onboard = () => {
       maybeShowWhatsNew();
@@ -89,6 +93,8 @@ export default function RootLayout() {
       stopMindful();
       stopMochi();
       stopAlarm();
+      stopShake();
+      stopSorted();
       unsub();
     };
   }, []);

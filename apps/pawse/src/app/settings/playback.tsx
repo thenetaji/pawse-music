@@ -58,6 +58,15 @@ export default function PlaybackSettings() {
           def
           write={setSmoothShuffle}
         />
+        {Platform.OS !== "web" ? (
+          <Toggle
+            k="shakeShuffle"
+            label="Shake to shuffle"
+            hint="Shake the phone to reshuffle what's up next"
+            tip="Shake to shuffle is on. Shake the phone while a song plays"
+            def={false}
+          />
+        ) : null}
         <Toggle
           k="resume"
           label="Open on the last song"
@@ -131,6 +140,18 @@ export default function PlaybackSettings() {
           hint="Jumps over the talking in music videos"
           def
         />
+        {Platform.OS !== "web" ? (
+          <Pick
+            k="skipSwipe"
+            label="Swipe on the cover"
+            hint="How a swipe on the cover changes song"
+            def="sideways"
+            options={[
+              ["sideways", "Sideways"],
+              ["reels", "Reels"],
+            ]}
+          />
+        ) : null}
       </Section>
 
       <Foot>
@@ -139,8 +160,13 @@ export default function PlaybackSettings() {
         and live streams are never crossfaded, and tapping Next cuts quickly.
         Skip non-music parts jumps over the talking in music videos, using
         SponsorBlock. Smooth shuffle plays your songs in an order that moves
-        between similar ones instead of jumping at random. Crossfeed blends the
-        two channels a little, as speakers would, which is easier on headphones.
+        between similar ones instead of jumping at random. Shake to shuffle puts
+        the songs still to come in a new order. On the cover, hold and slide up
+        or down for the volume, double-tap the sides to go back or forward 10
+        seconds, and double-tap the middle to like. Reels swipes up for the next
+        song and down for the previous one, and the player then closes by
+        pulling down from the top. Crossfeed blends the two channels a little,
+        as speakers would, which is easier on headphones.
       </Foot>
     </Screen>
   );

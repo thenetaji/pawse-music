@@ -36,6 +36,17 @@ export async function startLevels() {
 
 export const levelNow = (kind: LevelKind) => now[kind];
 
+/** Reads the volume afresh, since the buttons may have moved it since; undefined where it can't be read. */
+export async function readVolume() {
+  if (Platform.OS === "web") return undefined;
+  const v = await volumeModule()
+    .then((m) => m?.getVolume())
+    .catch(() => undefined);
+  if (v === undefined) delete now.volume;
+  else now.volume = v.volume;
+  return now.volume;
+}
+
 const send = (kind: LevelKind, value: number) => {
   if (kind === "brightness")
     void brightnessModule()

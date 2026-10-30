@@ -1,7 +1,7 @@
 import { bestThumbnail, type Thumbnail, type Track } from "@pawse/music-core";
 import { player, type QueueSource } from "@pawse/player";
 import { router } from "expo-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import {
   Alert,
   Platform,
@@ -43,11 +43,16 @@ import { showToast } from "../../components/toast";
 import { TrackRow } from "../../components/track-row";
 import { PressScale } from "../../components/ui";
 import { downloadMany, useDownloads } from "../../data/downloads";
-import { importPlaylist, useLibrary } from "../../data/library";
+import { type GroupBy, importPlaylist, useLibrary } from "../../data/library";
 import { useListSpot } from "../../data/list-spots";
 import { isPinned, togglePin } from "../../data/pins";
+import { flattenSections, type GroupRow } from "../../data/sort-groups";
+import { startSort, stopSort, useSortJobs } from "../../data/sort-jobs";
+import { savedSection, saveSection } from "../../data/sorted-playlists";
+import { setGroupBy, useGroupBy, useSections } from "../../data/sorting";
 import { isUnfinished, useWatched } from "../../data/watched";
 import { haptic } from "../../lib/haptics";
+import { useRegion } from "../../lib/locale";
 import { count } from "../../lib/plural";
 import { PRIVACY_CHOICES, type PlaylistActions } from "../../lib/playlist-edit";
 import type { Picked } from "../../lib/playlist-remove";
@@ -68,7 +73,11 @@ import { MoreGlyph, PlayGlyph } from "../now-playing/icons";
 import { readable } from "../now-playing/now-palette";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
 import { openWatch } from "../watch/store";
+import { GroupByBar, SectionHead } from "./group-by";
 import { TopGlow } from "./top-glow";
+
+// Below this a list has too few songs for three sections of three.
+const SORT_MIN = 8;
 
 type Props = {
   title: string;
@@ -203,6 +212,28 @@ export function Collection({
 
   const own =
     editableId ?? (source.type === "playlist" ? source.id : undefined);
+
+  const sortable =
+    source.type !== "album" && !videoList && tracks.length >= SORT_MIN;
+  const chosen = useGroupBy(listId);
+  // Selecting and editing work on the list as it is, so sections wait until they end.
+  const by = sortable && !picked && !editing ? chosen : undefined;
+  const sections = useSections(tracks, by);
+  const rows = useMemo(
+    () => (sections ? flattenSections(sections, tracks) : undefined),
+    [sections, tracks],
+  );
+  const job = useSortJobs((s) => s[listId]);
+  const incognito = useLibrary((s) => s.settings.incognito);
+  const region = useRegion();
+  const playlists = useLibrary((s) => s.playlists);
+  // Playlists that follow this list keep themselves up to date; other pages can still save a section.
+  const keep = listId === "liked" || !!editableId;
+  const linked = useLibrary((s) =>
+    editableId
+      ? s.playlists.find((p) => p.id === editableId)?.sortedFrom
+      : undefined,
+  );
   // A playlist copied from YouTube remembers where it came from, so it can be pulled again.
   const sourceId = useLibrary((s) =>
     editableId
@@ -238,6 +269,47 @@ export function Collection({
         },
       ],
     );
+  const choose = (next: GroupBy | undefined) => {
+    haptic.tick();
+    setGroupBy(listId, next);
+    if (next) startSort(listId, tracks, region);
+  };
+  const sectionOpts = (g: GroupRow["group"]) => ({
+    source: {
+      type: "library" as const,
+      id: `${listId}:${by}:${g.id}`,
+      title: `${title} · ${g.label}`,
+    },
+    endless: autoplayMode() === "always",
+  });
+  const playSection = (g: GroupRow["group"], i: number) => {
+    haptic.light();
+    player.setShuffle(false);
+    void player.play(g.tracks, i, sectionOpts(g));
+  };
+  const saveGroup = (g: GroupRow["group"]) => {
+    if (!by) return;
+    haptic.success();
+    const made = saveSection({
+      name: listId === "liked" ? "Liked" : title,
+      section: g,
+      source: listId,
+      by,
+      songs: tracks,
+      keep,
+    });
+    const name = `${listId === "liked" ? "Liked" : title} · ${g.label}`;
+    showToast(
+      !made.created
+        ? made.added
+          ? `Added ${count(made.added, "song")} to ${name}`
+          : `${name} is up to date`
+        : keep && g.named
+          ? `Saved ${name}. It adds matching songs on its own.`
+          : `Saved ${name}`,
+      { thumbnails: g.tracks[0]?.thumbnails, ms: 3200 },
+    );
+  };
   const toggle = (i: number) => {
     haptic.tick();
     setPicked((p) => {
@@ -410,6 +482,20 @@ export function Collection({
                 ),
                 onPress: () => removeDuplicates(editableId),
               },
+              ...(linked
+                ? [
+                    {
+                      label: "Stop adding songs automatically",
+                      icon: (c: string) => (
+                        <RefreshGlyph size={22} weight={1.8} color={c} />
+                      ),
+                      onPress: () => {
+                        useLibrary.getState().unlinkPlaylist(editableId);
+                        showToast(`${title} no longer updates itself`);
+                      },
+                    },
+                  ]
+                : []),
               ...(sourceId
                 ? [
                     {
@@ -454,11 +540,15 @@ export function Collection({
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <Animated.FlatList
-        data={tracks}
-        extraData={[picked, editing]}
+        data={(rows ?? tracks) as (Track | GroupRow)[]}
+        extraData={[picked, editing, by, playlists]}
         onScroll={onScroll}
         scrollEventThrottle={16}
-        keyExtractor={(t, i) => `${t.id}${i}`}
+        keyExtractor={(t, i) =>
+          "group" in t
+            ? `${t.group.id}:${t.track?.id ?? "head"}${i}`
+            : `${t.id}${i}`
+        }
         onEndReached={onEndReached}
         onEndReachedThreshold={0.6}
         refreshControl={
@@ -570,6 +660,17 @@ export function Collection({
                   ) : null}
                 </View>
               ) : null}
+              {sortable && !picked && !editing ? (
+                <GroupByBar
+                  by={by}
+                  accent={readable(palette.accent)}
+                  job={job}
+                  incognito={incognito}
+                  onChange={choose}
+                  onStop={() => stopSort(listId)}
+                  onResume={() => startSort(listId, tracks, region)}
+                />
+              ) : null}
               {canResume ? (
                 <Text style={styles.spot} numberOfLines={1}>
                   {finished ? "Next up" : "Stopped at"}:{" "}
@@ -584,7 +685,38 @@ export function Collection({
           </View>
         }
         renderItem={({ item, index }) =>
-          picked ? (
+          "group" in item ? (
+            item.track ? (
+              <TrackRow
+                track={item.track}
+                index={item.i + 1}
+                onPress={() => playSection(item.group, item.i)}
+                onRemove={
+                  onRemove && item.at >= 0
+                    ? () => onRemove([{ track: item.track!, at: item.at }])
+                    : undefined
+                }
+              />
+            ) : (
+              <SectionHead
+                section={item.group}
+                saved={
+                  !!by &&
+                  item.group.named &&
+                  !!savedSection({
+                    sourceId: listId,
+                    by,
+                    group: item.group.id,
+                  })
+                }
+                onPlay={() => {
+                  haptic.light();
+                  void playSmooth(item.group.tracks, sectionOpts(item.group));
+                }}
+                onSave={() => saveGroup(item.group)}
+              />
+            )
+          ) : picked ? (
             <PickRow
               track={item}
               on={picked.has(index)}

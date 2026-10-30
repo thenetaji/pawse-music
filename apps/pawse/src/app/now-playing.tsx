@@ -5,8 +5,8 @@ import {
   player,
   usePlayerSelect,
 } from "@pawse/player";
-import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { CatState } from "../components/ui";
 import { localVideo } from "../data/downloads";
@@ -17,6 +17,7 @@ import {
 } from "../features/library/track-actions";
 import { NowPlayingView } from "../features/now-playing/now-playing-view";
 import { openWatch } from "../features/watch/store";
+import type { SkipSwipe } from "../lib/cover-gestures";
 import { logEvent } from "../lib/diagnostics";
 import { lyricsService } from "../lib/engine";
 import { push } from "../lib/nav";
@@ -62,6 +63,12 @@ export default function NowPlaying() {
     current && (settled || mode === "lyrics") ? `lyrics:${current.id}` : null,
     () => lyricsService.lyrics(current!),
   );
+  // Reels skips with the cover's vertical swipe, so the sheet's own pull down is off there and the header closes.
+  const reels = useSetting<SkipSwipe>("skipSwipe", "sideways") === "reels";
+  const navigation = useNavigation();
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !(reels && mode === "art") });
+  }, [navigation, reels, mode]);
   // Song | Video: the switch remembers its side from song to song.
   const inPlayer = useSetting("videoInPlayer", true);
   const npVideo = useSetting("npVideo", false);

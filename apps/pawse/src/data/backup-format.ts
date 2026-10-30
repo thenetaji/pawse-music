@@ -10,6 +10,8 @@ import type { JournalData, JournalEvent, JournalPlay } from "./journal-types";
 import {
   DEFAULT_SETTINGS,
   DISLIKED_MAX,
+  GROUP_BYS,
+  type GroupBy,
   type LibraryData,
   type LocalPlaylist,
   type Play,
@@ -226,6 +228,18 @@ export function parseBackup(json: unknown): Backup {
       createdAt: Number(p.createdAt) || now,
       updatedAt: Number(p.updatedAt) || now,
       ...(str(p.sourceId, 100) ? { sourceId: p.sourceId as string } : {}),
+      ...(isObj(p.sortedFrom) &&
+      str(p.sortedFrom.sourceId, 100) &&
+      str(p.sortedFrom.group, 40) &&
+      GROUP_BYS.includes(p.sortedFrom.by as GroupBy)
+        ? {
+            sortedFrom: {
+              sourceId: p.sortedFrom.sourceId as string,
+              by: p.sortedFrom.by as GroupBy,
+              group: p.sortedFrom.group as string,
+            },
+          }
+        : {}),
       ...(isObj(p.added)
         ? {
             added: Object.fromEntries(

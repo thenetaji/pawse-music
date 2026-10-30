@@ -5,7 +5,7 @@
 <h1 align="center">Pawse</h1>
 
 <p align="center">
-  <b>A free music and video app for iPhone, Android, Mac, Windows and Linux. YouTube Music and YouTube without the noise, with a cat in your Dynamic Island.</b><br />
+  <b>A free music and video app for iPhone, Android, Mac, Windows and Linux. YouTube Music and YouTube without the noise, with a cat that listens along.</b><br />
   <sub>Say it like "pause": a cat's paws, and the button you press on music.</sub>
 </p>
 

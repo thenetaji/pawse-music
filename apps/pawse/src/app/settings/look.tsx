@@ -124,9 +124,9 @@ export default function LookSettings() {
         />
         <Toggle
           k="pawseIsland"
-          label={`${catName} in the Dynamic Island`}
+          label="Pawse in the Dynamic Island"
           hint="iOS keeps its own music bubble too, so the two sit side by side"
-          tip={`${catName} now shows while music plays`}
+          tip="Pawse now shows in the Dynamic Island while music plays"
           def={false}
         />
         <Pick
@@ -143,18 +143,15 @@ export default function LookSettings() {
       </Section>
       {Platform.OS === "ios" && pawseIsland ? (
         <Section title="Dynamic Island">
-          <IslandStylePicker catName={catName} />
+          <IslandStylePicker />
           <Toggle k="islandRate" label="Like and dislike on the island" def />
-          <Toggle
-            k="islandMoodLine"
-            label={`${catName}'s mood line`}
-            def={false}
-          />
         </Section>
       ) : null}
       {Platform.OS === "ios" && pawseIsland ? (
         <Foot>
-          {`Off, the island shows iOS's own player. On, iOS splits it into ${catName}'s bubble and its own; long-press for ${catName}'s full player.`}
+          {
+            "Off, the island shows iOS's own player. On, iOS splits it into Pawse's bubble and its own; long-press for Pawse's full player."
+          }
         </Foot>
       ) : null}
 

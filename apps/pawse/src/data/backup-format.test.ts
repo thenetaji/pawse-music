@@ -99,6 +99,26 @@ describe("backup", () => {
       BackupError,
     );
   });
+
+  it("keeps what a sorted playlist follows and drops a bad link", () => {
+    const good = {
+      id: "p",
+      title: "Liked · Chill",
+      tracks: [t("a")],
+      createdAt: 1,
+      updatedAt: 1,
+      sortedFrom: { sourceId: "liked", by: "mood", group: "chill" },
+    };
+    const parsed = parseBackup({
+      ...JSON.parse(JSON.stringify(makeBackup(lib()))),
+      playlists: [
+        good,
+        { ...good, id: "q", sortedFrom: { ...good.sortedFrom, by: "year" } },
+      ],
+    });
+    expect(parsed.playlists[0].sortedFrom).toEqual(good.sortedFrom);
+    expect(parsed.playlists[1].sortedFrom).toBeUndefined();
+  });
 });
 
 describe("library model", () => {

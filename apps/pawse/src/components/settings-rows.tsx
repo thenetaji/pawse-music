@@ -111,11 +111,13 @@ export function Pick<T extends string | number>({
   k,
   label,
   def,
+  hint,
   options,
 }: {
   k: string;
   label: string;
   def: T;
+  hint?: string;
   options: [T, string][];
 }) {
   const saved = useSetting<T>(k, def);
@@ -140,7 +142,14 @@ export function Pick<T extends string | number>({
         pressed && !RIPPLE && styles.pressed,
       ]}
     >
-      <Text style={[styles.label, styles.pickLabel]}>{label}</Text>
+      {hint ? (
+        <View style={styles.pickColumn}>
+          <Text style={styles.label}>{label}</Text>
+          <Text style={styles.hint}>{hint}</Text>
+        </View>
+      ) : (
+        <Text style={[styles.label, styles.pickLabel]}>{label}</Text>
+      )}
       <Text style={[styles.value, styles.pickValue]} numberOfLines={1}>
         {shown}
       </Text>
@@ -217,6 +226,7 @@ export const styles = StyleSheet.create({
   // The label keeps its line; a long value shortens with … instead.
   pickLabel: { flexShrink: 0, marginRight: 12 },
   pickValue: { flex: 1, flexShrink: 1, textAlign: "right" },
+  pickColumn: { flex: 2, paddingVertical: 8, paddingRight: 12 },
   foot: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 13,
