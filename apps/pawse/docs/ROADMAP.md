@@ -385,3 +385,4 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - [x] 147. A song that won't load: fail over within seconds when nothing arrives, wait on a slow but working connection, give up after ~20 s with a message instead of a silent minute; fix the doubled song length on iPhone.
 - [x] 148. The dancing cat is the default on Now playing; it settles into sleep smoothly when you pause and mixes up its moves.
 - [x] 149. The dancing cat looked shaky and unnatural with the added sway and shuffled moves: back to the original dance, keeping the smooth fade into sleep.
+- [x] 150. Songs stopped at the end: the next one was a cached copy that had been cleared, and the player sat idle with no error. Now it re-fetches the song.

@@ -2,6 +2,11 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.13.6] - 2026-10-30
+
+### Fixed
+- **Playback stopped when a song ended** if the next song's saved copy on the phone had been cleared to make room. Pawse now notices and fetches the song again instead of going quiet.
+
 ## [1.13.5] - 2026-10-30
 
 ### Changed
