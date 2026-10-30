@@ -12,6 +12,7 @@ import { listeningStats, useLibrary } from "../../data/library";
 import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { Cat, type CatColor } from "../cat/cat";
+import { VideoWeek } from "../mindful/mindful-ui";
 import { useAccent, useNowPalette } from "../now-playing/now-palette";
 import { useArtworkPalette } from "../now-playing/use-artwork-palette";
 import { BackButton } from "./collection";
@@ -170,6 +171,7 @@ export default function StatsPage() {
             </View>
           </View>
         ))}
+        <VideoWeek />
       </ScrollView>
       <BackButton />
     </View>

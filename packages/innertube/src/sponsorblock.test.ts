@@ -1,4 +1,4 @@
-import { SponsorBlock } from "./sponsorblock";
+import { crowdChapters, SponsorBlock } from "./sponsorblock";
 
 const json = (body: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), { status }));
@@ -55,4 +55,50 @@ test("a video SponsorBlock doesn't know gives nothing to skip", async () => {
     title: undefined,
     thumbnail: undefined,
   });
+});
+
+test("the best part is the best-voted moment, ignoring voted-down ones", async () => {
+  const fetch = jest.fn((url: string) => {
+    expect(url).toContain("actionType=poi");
+    return json([
+      {
+        videoID: "vid",
+        segments: [
+          { segment: [9, 9], category: "poi_highlight", votes: -1, UUID: "a" },
+          {
+            segment: [41.5, 41.5],
+            category: "poi_highlight",
+            votes: 3,
+            UUID: "b",
+          },
+          { segment: [70, 70], category: "poi_highlight", votes: 1, UUID: "c" },
+        ],
+      },
+    ]);
+  });
+  const sb = new SponsorBlock({ fetch, sha256: async () => "abcdef" });
+  expect(await sb.highlight("vid")).toEqual({ at: 41.5, uuid: "b" });
+});
+
+test("community chapters drop overlaps and a lone stray chapter", () => {
+  const seg = (a: number, b: number, d: string, votes = 0) => ({
+    segment: [a, b] as [number, number],
+    category: "chapter",
+    description: d,
+    votes,
+  });
+  expect(
+    crowdChapters([
+      seg(100, 200, "Middle"),
+      seg(0, 100, "Intro"),
+      seg(150, 260, "Overlaps and loses", -1),
+      seg(200, 300, "End"),
+      seg(300, 310, "  "),
+    ]),
+  ).toEqual([
+    { startSec: 0, title: "Intro" },
+    { startSec: 100, title: "Middle" },
+    { startSec: 200, title: "End" },
+  ]);
+  expect(crowdChapters([seg(10, 20, "Alone")])).toEqual([]);
 });

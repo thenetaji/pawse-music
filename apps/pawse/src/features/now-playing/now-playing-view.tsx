@@ -4,7 +4,13 @@ import {
   type Lyrics,
   type Track,
 } from "@pawse/music-core";
-import { usePlayerSelect, useProgress } from "@pawse/player";
+import {
+  getProgress,
+  type PlayerSnapshot,
+  usePlayerSelect,
+  usePlayerStore,
+  useProgress,
+} from "@pawse/player";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
@@ -21,6 +27,7 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
@@ -30,6 +37,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { Artwork } from "../../components/artwork";
 import { Marquee } from "../../components/marquee";
@@ -38,9 +46,11 @@ import { useDataSaverActive } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
+import { levelsAvailable } from "../../lib/audio-fx";
 import { useSetting } from "../../lib/settings";
 import { useSongArt } from "../../lib/song-art";
 import { display } from "../../lib/type";
+import { useSettled } from "../../lib/use-settled";
 import { songVibe } from "../../lib/vibe";
 import type { CatMood } from "../cat/cat";
 import { WatchIcon } from "../shell/icons";
@@ -62,6 +72,16 @@ import {
 import { LyricsView } from "./lyrics-view";
 import { useNowPalette } from "./now-palette";
 import { SongVideoSwitch } from "./song-video-switch";
+import { Visualiser } from "./visualiser";
+import { TintStack, useTintPair } from "./tint-fade";
+
+// One Now playing at a time, so the skip fallback timer lives here rather than in a ref the gesture would read.
+let giveUp: ReturnType<typeof setTimeout> | undefined;
+const cancelGiveUp = () => clearTimeout(giveUp);
+const armGiveUp = (fn: () => void) => {
+  cancelGiveUp();
+  giveUp = setTimeout(fn, 3500);
+};
 
 export type NowPlayingStatus =
   | "idle"
@@ -105,7 +125,14 @@ export type NowPlayingProps = {
   onShareLyric?: (line: string) => void;
 };
 
-const SPRING = { damping: 13, stiffness: 140, mass: 0.9 };
+// Critically damped (damping = 2 * sqrt(stiffness)), so a skip lands on the next art without overshoot.
+const SETTLE = {
+  stiffness: 320,
+  damping: 36,
+  mass: 1,
+  overshootClamping: true,
+};
+const RUBBER = 0.25;
 /** Windows at least this wide (the desktop app) get the two-column player. */
 const WIDE_MIN = 900;
 
@@ -124,6 +151,7 @@ export function NowPlayingView(p: NowPlayingProps) {
     "field",
   );
   const showLine = useSetting("lyricsLine", true);
+  const visualiserOn = useSetting("visualiser", false) && levelsAvailable;
   // Loading counts as live, so a skip doesn't dim the art or re-render this screen twice.
   const playing = usePlayerSelect(
     (s) =>
@@ -140,8 +168,46 @@ export function NowPlayingView(p: NowPlayingProps) {
     live.set(withTiming(playing ? 1 : 0, { duration: 420 }));
   }, [playing, live]);
 
-  // Swipe the artwork sideways to skip; it follows the finger and springs back.
+  // Swipe the artwork sideways to skip. It runs on the UI thread: the art follows the finger, the next or
+  // previous art peeks in beside it, and a release settles on a critically damped spring from the finger's speed.
   const swipeX = useSharedValue(0);
+  const landed = useSharedValue(0);
+  const changed = useSharedValue(0);
+  const settled = useSettled();
+  const nextTrack = usePlayerSelect((s) => neighbour(s, 1));
+  const prevTrack = usePlayerSelect((s) => neighbour(s, -1));
+  const hasNext = !!nextTrack;
+  const hasPrev = !!prevTrack;
+  const width = win.width;
+  useEffect(() => cancelGiveUp, []);
+  // The skip itself: haptic, the player, and a fallback in case the next song never loads.
+  const skip = (dir: -1 | 1) => {
+    haptic.medium();
+    if (dir < 0) p.onNext();
+    else p.onPrev();
+    // Previous restarts a song that is past its first seconds instead of leaving it: the art comes back.
+    if (dir > 0 && getProgress().position > 3) {
+      swipeX.set(withSpring(0, SETTLE));
+      return;
+    }
+    armGiveUp(() => {
+      if (changed.get() === 0) swipeX.set(withSpring(0, SETTLE));
+    });
+  };
+  // The new song is current: once the art has landed, swap to it in place (it is the picture that peeked).
+  const trackId = p.track?.id;
+  useEffect(() => {
+    changed.set(1);
+    cancelGiveUp();
+  }, [trackId, changed]);
+  useAnimatedReaction(
+    () => changed.get() === 1 && landed.get() === 1,
+    (done) => {
+      if (!done) return;
+      swipeX.set(0);
+      landed.set(0);
+    },
+  );
   // Tap the artwork (or its expand button) to see it full screen; tap anywhere to close.
   const [full, setFull] = useState(false);
   const openFull = () => {
@@ -149,25 +215,36 @@ export function NowPlayingView(p: NowPlayingProps) {
     setFull(true);
   };
   const swipe = Gesture.Pan()
-    .runOnJS(true)
     .activeOffsetX([-12, 12])
     .failOffsetY([-14, 14])
-    .onUpdate((e) => swipeX.set(e.translationX))
+    .onBegin(() => {
+      landed.set(0);
+      changed.set(0);
+    })
+    .onUpdate((e) => {
+      const dx = e.translationX;
+      // Nothing to skip to: the art gives a little, then pulls back.
+      const open = dx < 0 ? hasNext : hasPrev;
+      swipeX.set(open ? dx : dx * RUBBER);
+    })
     .onEnd((e) => {
-      const go = Math.abs(e.translationX) > 90 || Math.abs(e.velocityX) > 700;
-      if (go) {
-        haptic.medium();
-        const dir = e.translationX < 0 ? -1 : 1;
+      const dx = e.translationX;
+      const dir = dx < 0 ? -1 : 1;
+      const far = Math.abs(dx) > width * 0.3 || Math.abs(e.velocityX) > 700;
+      // A flick the other way than the drag doesn't count.
+      const agrees = e.velocityX === 0 || e.velocityX < 0 === dx < 0;
+      if (far && agrees && (dir < 0 ? hasNext : hasPrev)) {
         swipeX.set(
-          withSequence(
-            withTiming(dir * 420, { duration: 160 }),
-            withTiming(-dir * 420, { duration: 0 }),
-            withSpring(0, SPRING),
+          withSpring(
+            dir * width,
+            { ...SETTLE, velocity: e.velocityX },
+            (done) => {
+              if (done) landed.set(1);
+            },
           ),
         );
-        if (dir < 0) p.onNext();
-        else p.onPrev();
-      } else swipeX.set(withSpring(0, SPRING));
+        scheduleOnRN(skip, dir);
+      } else swipeX.set(withSpring(0, { ...SETTLE, velocity: e.velocityX }));
     });
   const tap = Gesture.Tap()
     .runOnJS(true)
@@ -177,11 +254,15 @@ export function NowPlayingView(p: NowPlayingProps) {
     });
   // A sideways drag skips; a plain tap opens the artwork.
   const artGesture = Gesture.Exclusive(swipe, tap);
+  // Desktop: the square card only dims and settles; skipping is by the buttons.
   const artStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: swipeX.value }, { scale: 1 + live.value * 0.03 }],
-    opacity:
-      (0.62 + live.value * 0.38) *
-      (1 - Math.min(0.6, Math.abs(swipeX.value) / 500)),
+    transform: [{ scale: 1 + live.get() * 0.03 }],
+    opacity: 0.62 + live.get() * 0.38,
+  }));
+  // Phone: the full-bleed art and its neighbours move together.
+  const heroStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: swipeX.get() }, { scale: 1 + live.get() * 0.03 }],
+    opacity: 0.62 + live.get() * 0.38,
   }));
 
   const heart = useSharedValue(1);
@@ -222,6 +303,16 @@ export function NowPlayingView(p: NowPlayingProps) {
   );
   const base = deepen(palette.colors[0]);
   const tint = background === "black" ? "#000000" : base;
+  const tintPair = useTintPair(tint);
+  const peekArt = (t?: Track) =>
+    t
+      ? heroCandidates(
+          bestThumbnail(t.thumbnails, saver ? 544 : 1080),
+          saver,
+        )[0]
+      : undefined;
+  const prevUri = peekArt(prevTrack);
+  const nextUri = peekArt(nextTrack);
 
   // Desktop: artwork and controls on the left, lyrics always open on the right; Esc closes.
   const wide = win.width >= WIDE_MIN;
@@ -352,11 +443,16 @@ export function NowPlayingView(p: NowPlayingProps) {
       {!lyricsMode ? (
         <Animated.View
           entering={FadeIn.duration(260)}
-          style={[StyleSheet.absoluteFill, { backgroundColor: tint }]}
+          style={StyleSheet.absoluteFill}
           pointerEvents="none"
         >
+          <TintStack tint={tintPair} style={StyleSheet.absoluteFill}>
+            {(c) => (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: c }]} />
+            )}
+          </TintStack>
           <View style={{ height: heroH, overflow: "hidden" }}>
-            <Animated.View style={[StyleSheet.absoluteFill, artStyle]}>
+            <Animated.View style={[StyleSheet.absoluteFill, heroStyle]}>
               {hero.uri ? (
                 <Image
                   source={hero.uri}
@@ -370,13 +466,45 @@ export function NowPlayingView(p: NowPlayingProps) {
                   onLoad={(e) => e.source.width <= 120 && hero.next()}
                 />
               ) : null}
+              {/* The neighbours wait just off screen, already decoded, for a swipe to bring them in. */}
+              {settled && !videoOn && prevUri ? (
+                <Image
+                  source={prevUri}
+                  style={[styles.peek, { left: -width, width }]}
+                  contentFit="cover"
+                  priority="low"
+                />
+              ) : null}
+              {settled && !videoOn && nextUri ? (
+                <Image
+                  source={nextUri}
+                  style={[styles.peek, { left: width, width }]}
+                  contentFit="cover"
+                  priority="low"
+                />
+              ) : null}
               {videoOn ? <View style={styles.videoDim} /> : null}
             </Animated.View>
-            <LinearGradient
-              colors={[`${tint}00`, `${tint}c0`, tint]}
-              locations={[0, 0.6, 0.9]}
+            {/* The fade into the tint sits over the art; it crossfades with the tint under it. */}
+            <TintStack
+              tint={tintPair}
               style={[styles.fade, { bottom: 0, height: heroH * 0.5 }]}
-            />
+            >
+              {(c) => (
+                <LinearGradient
+                  colors={[`${c}00`, `${c}c0`, c]}
+                  locations={[0, 0.6, 0.9]}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+            </TintStack>
+            {visualiserOn && !videoOn ? (
+              <Visualiser
+                color={palette.accent}
+                width={win.width - 56}
+                style={{ position: "absolute", left: 28, bottom: heroH * 0.06 }}
+              />
+            ) : null}
           </View>
           {/* Darkens the top of the artwork so the header reads as its own band, off people's faces. */}
           <LinearGradient
@@ -772,6 +900,18 @@ function ExpandGlyph() {
   );
 }
 
+// The song before or after this one in the queue (wrapping when the queue repeats), if there is one to peek at.
+function neighbour(s: PlayerSnapshot, dir: 1 | -1): Track | undefined {
+  const n = s.queue.length;
+  if (n < 2) return undefined;
+  let i = s.index + dir;
+  if (i < 0 || i >= n) {
+    if (s.repeat !== "all") return undefined;
+    i = (i + n) % n;
+  }
+  return s.queue[i];
+}
+
 // YouTube video stills come letterboxed at 4:3; the 16:9 HD frames don't, so try those first.
 function heroCandidates(url?: string, saver?: boolean): string[] {
   if (!url) return [];
@@ -845,6 +985,7 @@ function useCatMood(
   sourceTitle?: string,
 ): CatMood {
   const [flash, setFlash] = useState<CatMood | null>(null);
+  const fading = usePlayerStore((s) => s.sleepFading);
   const prev = useRef({ liked, id: track?.id, status });
   // The flash timer outlives later dep changes (loading -> playing right after a skip would otherwise strand it).
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -876,6 +1017,7 @@ function useCatMood(
           : 900,
     );
   }, [liked, track, status]);
+  if (fading) return "sleep";
   if (flash) return flash;
   if (status === "playing") return songVibe(track, sourceTitle);
   if (status === "paused" || status === "idle") return "sleep";
@@ -934,6 +1076,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.3)",
   },
   scrim: { position: "absolute", left: 0, right: 0, top: 0 },
+  peek: { position: "absolute", top: 0, bottom: 0 },
   fade: { position: "absolute", left: 0, right: 0 },
   meta: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
   title: {

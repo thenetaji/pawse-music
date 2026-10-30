@@ -1,5 +1,6 @@
 import { artistLine } from "@pawse/music-core";
 import { player, usePlayerState, useProgress } from "@pawse/player";
+import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -11,6 +12,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { TrackArt } from "../../components/artwork";
 import { Marquee } from "../../components/marquee";
 import { Spinner, useBusy } from "../../components/spinner";
@@ -20,21 +22,30 @@ import { NextGlyph, PauseGlyph, PlayGlyph } from "./icons";
 import { useAccent } from "./now-palette";
 
 const MAX_X = 70;
+const LIFT_MAX = 18;
 // No overshoot on the way back.
 const CALM = { damping: 26, stiffness: 260 };
 
 // Lives in the iOS 26 tab bar accessory (or floats above the tab bar elsewhere).
-// Tap opens the player; swipe left/right to skip.
+// Tap or flick up opens the player; swipe left/right to skip.
 export function MiniPlayer({ inline }: { inline?: boolean }) {
   const { current, status } = usePlayerState();
-  const { position, duration } = useProgress();
-  const accent = useAccent();
   const busy = useBusy(status);
   const x = useSharedValue(0);
+  const y = useSharedValue(0);
   const press = useSharedValue(1);
 
+  const open = () => {
+    haptic.light();
+    push("/now-playing");
+  };
+  const skip = (dir: -1 | 1) => {
+    haptic.light();
+    if (dir < 0) player.next();
+    else player.previous();
+  };
+  // Both drags run on the UI thread, so the row tracks the finger without a JS round trip.
   const swipe = Gesture.Pan()
-    .runOnJS(true)
     .activeOffsetX([-10, 10])
     .failOffsetY([-10, 10])
     // Half the finger's travel, held to a short reach, so a swipe nudges rather than flings.
@@ -47,7 +58,6 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
         x.set(withSpring(0, CALM));
         return;
       }
-      haptic.light();
       const dir = e.translationX < 0 ? -1 : 1;
       x.set(
         withSequence(
@@ -56,25 +66,33 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
           withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) }),
         ),
       );
-      if (dir < 0) player.next();
-      else player.previous();
+      scheduleOnRN(skip, dir);
+    });
+  // Pull up (or flick up) to open the full player; the row lifts with the finger and settles back.
+  const lift = Gesture.Pan()
+    .activeOffsetY([-10, 1000])
+    .failOffsetX([-14, 14])
+    .onUpdate((e) => y.set(Math.max(-LIFT_MAX, e.translationY * 0.5)))
+    .onEnd((e) => {
+      y.set(withSpring(0, { ...CALM, velocity: e.velocityY }));
+      if (e.translationY < -36 || e.velocityY < -500) scheduleOnRN(open);
     });
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.value }, { scale: press.value }],
-    opacity: 1 - Math.min(0.7, Math.abs(x.value) / 100),
+    transform: [
+      { translateX: x.get() },
+      { translateY: y.get() },
+      { scale: press.get() },
+    ],
+    opacity: 1 - Math.min(0.7, Math.abs(x.get()) / 100),
   }));
 
   if (!current) return null;
   const playing = status === "playing" || status === "buffering";
-  const frac = duration > 0 ? Math.min(1, position / duration) : 0;
 
   return (
-    <GestureDetector gesture={swipe}>
+    <GestureDetector gesture={Gesture.Race(swipe, lift)}>
       <Pressable
-        onPress={() => {
-          haptic.light();
-          push("/now-playing");
-        }}
+        onPress={open}
         onPressIn={() =>
           press.set(withSpring(0.97, { damping: 15, stiffness: 400 }))
         }
@@ -132,18 +150,35 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
             </Pressable>
           )}
         </Animated.View>
-        {!inline && (
-          <View style={styles.progress}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${frac * 100}%`, backgroundColor: accent },
-              ]}
-            />
-          </View>
-        )}
+        {!inline && <Progress />}
       </Pressable>
     </GestureDetector>
+  );
+}
+
+// The hairline under the row. It reads progress itself, so the row above never re-renders on the tick,
+// and the fill glides between seconds on the UI thread instead of stepping.
+function Progress() {
+  const { position, duration } = useProgress();
+  const accent = useAccent();
+  const frac = duration > 0 ? Math.min(1, position / duration) : 0;
+  const w = useSharedValue(frac);
+  useEffect(() => {
+    // Backwards (a new song, a seek back) and far jumps cut; the usual second glides to the next poll.
+    const ahead = frac - w.get();
+    w.set(
+      ahead < 0 || ahead > 2 / Math.max(1, duration)
+        ? frac
+        : withTiming(frac, { duration: 1000, easing: Easing.linear }),
+    );
+  }, [frac, duration, w]);
+  const fill = useAnimatedStyle(() => ({ width: `${w.get() * 100}%` }));
+  return (
+    <View style={styles.progress}>
+      <Animated.View
+        style={[styles.progressFill, { backgroundColor: accent }, fill]}
+      />
+    </View>
   );
 }
 

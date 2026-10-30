@@ -10,7 +10,10 @@ import { getSetting, setSetting, useSetting } from "../../lib/settings";
 export type CaptionChoice = { track: CaptionTrack; translate?: string };
 
 // The uploader's captions beat speech recognition in the same language.
-function pick(tracks: CaptionTrack[], lang: string): CaptionChoice | undefined {
+export function pick(
+  tracks: CaptionTrack[],
+  lang: string,
+): CaptionChoice | undefined {
   const base = (l: string) => l.toLowerCase().split("-")[0];
   const same = tracks.filter((t) => base(t.lang) === base(lang));
   const own = same.find((t) => !t.auto) ?? same[0];

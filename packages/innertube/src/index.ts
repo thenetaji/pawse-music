@@ -79,7 +79,23 @@ export {
 export * from "./youtube/video";
 export {
   type Branding,
+  type CrowdChapter,
   type SkipSegment,
   SponsorBlock,
   type SponsorBlockOptions,
 } from "./sponsorblock";
+export {
+  Contribute,
+  SEGMENT_CATEGORIES,
+  type SegmentCategory,
+  type Submitted,
+} from "./contribute";
+export { originalTitle } from "./oembed";
+export { RydVotes, type RydIdentity } from "./ryd";
+export {
+  LastFm,
+  type Listen,
+  ListenBrainz,
+  scrobbleAfterSec,
+  type ScrobbleResult,
+} from "./scrobble";

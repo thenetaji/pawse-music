@@ -4,8 +4,9 @@ import {
   parseVideoDetail,
   parseVideoFeed,
   parseVideoSearch,
+  shortCount,
 } from "./parse";
-import { pickVideoFormat, videoLadder } from "./stream";
+import { pickVideoFormat, storyboardOf, videoLadder } from "./stream";
 
 const run = (text: string, browseId?: string) => ({
   text,
@@ -394,6 +395,18 @@ describe("pickVideoFormat", () => {
     expect(pickVideoFormat(formats, 360)).toBeUndefined();
   });
 
+  it("adds AV1 above 1080p only when asked, never below", () => {
+    expect(pickVideoFormat(formats, 4320, false, true)?.itag).toBe(401);
+    expect(pickVideoFormat(formats, 4320)?.itag).toBe(137);
+    expect(pickVideoFormat(formats, 1440, false, true)?.itag).toBe(137);
+    const low = f(394, 360, 'video/mp4; codecs="av01.0.00M.08"');
+    expect(pickVideoFormat([low], 4320, false, true)).toBeUndefined();
+    expect(videoLadder(formats, 4320, false, true).map((x) => x.itag)).toEqual([
+      401, 137, 136,
+    ]);
+    expect(videoLadder(formats, 4320).map((x) => x.itag)).toEqual([137, 136]);
+  });
+
   it("skips ciphered formats unless allowed", () => {
     const ciphered = [
       {
@@ -558,5 +571,62 @@ describe("comments", () => {
       },
     });
     expect(p.items[0]).toMatchObject({ id: "c2", text: "hi", reply: true });
+  });
+});
+
+describe("storyboardOf", () => {
+  const spec = [
+    "https://i.ytimg.com/sb/abc/storyboard3_L$L/$N.jpg?sqp=x",
+    "48#27#100#10#10#0#default#rsA",
+    "80#45#100#10#10#0#default#rsB",
+    "160#90#100#5#5#10000#M$M#rs/C",
+    "320#180#100#3#3#10000#M$M#rsD",
+  ].join("|");
+
+  it("picks the biggest frames up to 180 wide and builds the sheet url", () => {
+    const sb = storyboardOf({
+      storyboards: { playerStoryboardSpecRenderer: { spec } },
+      videoDetails: { lengthSeconds: "1000" },
+    });
+    expect(sb).toMatchObject({
+      width: 160,
+      height: 90,
+      count: 100,
+      cols: 5,
+      rows: 5,
+      everySec: 10,
+      url: "https://i.ytimg.com/sb/abc/storyboard3_L2/M{n}.jpg?sqp=x&sigh=rs%2FC",
+    });
+  });
+
+  it("spreads the frames over the video when no interval is given", () => {
+    const sb = storyboardOf({
+      storyboards: {
+        playerStoryboardSpecRenderer: {
+          spec: spec.split("|").slice(0, 2).join("|"),
+        },
+      },
+      videoDetails: { lengthSeconds: "200" },
+    });
+    expect(sb?.everySec).toBe(2);
+  });
+
+  it("is undefined without a spec", () => {
+    expect(storyboardOf({})).toBeUndefined();
+  });
+});
+
+describe("shortCount", () => {
+  it("shortens raw counts the way YouTube does", () => {
+    expect(shortCount("1,234,567 views")).toBe("1.2M views");
+    expect(shortCount("1200000 views")).toBe("1.2M views");
+    expect(shortCount("19,492,749 views")).toBe("19M views");
+    expect(shortCount("2,345 watching")).toBe("2.3K watching");
+  });
+
+  it("keeps text that is already short or has no plain number", () => {
+    expect(shortCount("1.2M views")).toBe("1.2M views");
+    expect(shortCount("999 views")).toBe("999 views");
+    expect(shortCount("No views")).toBe("No views");
   });
 });

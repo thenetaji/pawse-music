@@ -24,12 +24,18 @@ struct PawseActivityAttributes: ActivityAttributes {
     var name: String?
     /// "#RRGGBB" from the artwork. Optional so an activity from an older build still decodes.
     var tint: String?
-    /// cat | music | time: what the compact island shows. Optional so an activity from an older build still decodes.
+    /// wire | classic | lyrics | paws | time; an older "cat" reads as wire. Optional so an activity from an older build still decodes.
     var style: String?
     /// The song is liked / disliked in Pawse; the big island player's buttons show it.
     var liked: Bool?
     var disliked: Bool?
     /// Show the like and dislike buttons (Settings → Cat).
     var rate: Bool?
+    /// The synced lyric line now being sung. nil: no synced lyrics; empty: between lines.
+    var lyric: String?
+    /// "#RRGGBB": the song's colour nudged by its mood, for the keyline, ring and accents.
+    var glow: String?
+    /// Show the cat's line about the song (Settings → Cat).
+    var moodLine: Bool?
   }
 }

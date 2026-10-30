@@ -15,7 +15,7 @@ import {
 import { yt } from "../../lib/engine";
 import { useRegion } from "../../lib/locale";
 import { display } from "../../lib/type";
-import { useResource } from "../../lib/use-resource";
+import { refreshFailed, useResource } from "../../lib/use-resource";
 import { TopGlow } from "./top-glow";
 
 type Tile = { title: string; params: string; color?: string };
@@ -73,7 +73,15 @@ export default function ExplorePage() {
       title="Explore"
       tab="explore"
       background={<TopGlow height={300} />}
-      onRefresh={() => (moods.reload(), releases.reload(), charts.reload())}
+      onRefresh={async () => {
+        const done = await Promise.all([
+          moods.reload(),
+          releases.reload(),
+          charts.reload(),
+        ]);
+        if (!refreshFailed(done)) setEndless({ shelves: [], next: 0 });
+        return done;
+      }}
       onEndReached={loadMore}
     >
       <SectionTitle title="Moods and genres" />

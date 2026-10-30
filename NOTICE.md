@@ -25,6 +25,12 @@ Pawse is not affiliated with, endorsed by or connected to YouTube, Google, Apple
 
   Full licence texts: `packages/innertube/vendor/ejs/LICENSE` and `THIRD_PARTY_LICENSES.txt`.
 
+## Audio
+
+- **[AutoEq](https://github.com/jaakkopasanen/AutoEq)** by Jaakko Pasanen (MIT). The Equaliser's Headphones page lists AutoEq's results and applies the chosen model's `ParametricEQ.txt`, fetched from `raw.githubusercontent.com` on demand; nothing is bundled. The measurements behind each result belong to their sources (oratory1990, crinacle, Rtings and others, named next to each model).
+- **[bs2b](https://bs2b.sourceforge.net/)** by Boris Mikhaylov (libbs2b, MIT). The headphone crossfeed in `apps/pawse/modules/pawse-audio` follows its published filter design (700 Hz cut, 4.5 dB feed); none of its code is used.
+- **Audio EQ Cookbook** by Robert Bristow-Johnson. The biquad filter formulas in the same module.
+
 ## Desktop sign-in
 
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (Unlicense). `apps/desktop/src/firefox.mjs` ports the Firefox part of `--cookies-from-browser` (`yt_dlp/cookies.py`): where Firefox keeps its profiles (including Flatpak and Snap), picking the most recently used one, reading a copy of `cookies.sqlite`, skipping containers, and the millisecond expiry Firefox 142 introduced.
@@ -46,3 +52,16 @@ BotGuard Proof-of-Origin tokens for YouTube's web clients are minted in `package
 - **[expo-video](https://github.com/expo/expo/tree/main/packages/expo-video)** (MIT). The video player on phones.
 - **[SponsorBlock](https://sponsor.ajay.app)** and **[DeArrow](https://dearrow.ajay.app)** by Ajay Ramachandran. Skip segments, titles and thumbnails come from their public API; the data is licensed [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) and made by their communities. `packages/innertube/src/sponsorblock.ts` follows their documented hash-prefix lookups.
 - **[Return YouTube Dislike](https://returnyoutubedislike.com)**. Like and dislike counts come from its public API (`returnyoutubedislikeapi.com/votes`); dislike counts are its estimates.
+- **[Return YouTube Dislike extension](https://github.com/Anarios/return-youtube-dislike)** (GPL-3.0). Sending likes and dislikes follows its registration puzzle and vote protocol (`Extensions/common/vote-client.js`), rewritten in TypeScript in `packages/innertube/src/ryd.ts` with its own SHA-512.
+- **[YouTube Anti-Translate](https://github.com/zpix1/yt-anti-translate)**. The idea only, no code: showing the uploader's own title from YouTube's oEmbed endpoint instead of the auto-translated one.
+
+## Music data and scrobbling
+
+- **[MusicBrainz](https://musicbrainz.org)** (MetaBrainz Foundation; core data CC0). Release years and tags for mood mixes come from its public web service, at most one request a second.
+- **[Last.fm](https://www.last.fm/api)** and **[ListenBrainz](https://listenbrainz.org)**. Scrobbling and Last.fm tags use their public APIs with the person's own key or token.
+- **[Metrolist](https://github.com/mostafaalagamy/Metrolist)** and **[InnerTune](https://github.com/z-huang/InnerTune)** (GPL-3.0). Ideas, no code: removing songs from YouTube Music playlists by `setVideoId`, and telling owned playlists apart by their editable header.
+
+## Phone features
+
+- **[expo-brightness](https://github.com/expo/expo/tree/main/packages/expo-brightness)** (MIT) and **[react-native-volume-manager](https://github.com/hirbod/react-native-volume-manager)** (MIT). Brightness and volume swipes in full screen.
+- **[ML Kit GenAI](https://developers.google.com/ml-kit/genai)** (Google, under its terms) and Apple's Foundation Models framework. The Experimental on-device AI features; nothing leaves the phone.

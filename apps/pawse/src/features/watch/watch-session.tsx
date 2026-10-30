@@ -14,6 +14,7 @@ import CircleCheck from "lucide-react-native/icons/circle-check";
 import Headphones from "lucide-react-native/icons/headphones";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import ShareIcon from "lucide-react-native/icons/share";
+import Sparkles from "lucide-react-native/icons/sparkles";
 import SlidersHorizontal from "lucide-react-native/icons/sliders-horizontal";
 import ThumbsDownIcon from "lucide-react-native/icons/thumbs-down";
 import ThumbsUpIcon from "lucide-react-native/icons/thumbs-up";
@@ -44,14 +45,7 @@ import Animated, {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 import { SheetNote, showSheet } from "../../components/action-sheet";
-import {
-  AudioTrackGlyph,
-  CaptionsGlyph,
-  DeArrowMark,
-  PinGlyph,
-  QualityGlyph,
-  SpeedGlyph,
-} from "../../components/glyphs";
+import { CloseGlyph, DeArrowMark } from "../../components/glyphs";
 import { Spinner } from "../../components/spinner";
 import { showToast } from "../../components/toast";
 import {
@@ -84,20 +78,23 @@ import {
   videoTrack,
 } from "../../data/watched";
 import { useVideoFilter } from "../../lib/block";
-import { skipNote, useBranding, videoSkips } from "../../lib/community";
+import { useAiFeature } from "../../lib/ai/model";
+import { useBranding, useHighlight, videoSkips } from "../../lib/community";
 import { logEvent } from "../../lib/diagnostics";
 import { useVotes } from "../../lib/dislikes";
 import { ytv } from "../../lib/engine";
 import { noteWatching, useFocus } from "../../lib/focus";
 import { haptic } from "../../lib/haptics";
-import { languageName } from "../../lib/locale";
 import { push } from "../../lib/nav";
+import { networkKind } from "../../lib/net";
 import {
   allowRotation,
   lockLandscape,
   lockPortrait,
   onTurn,
 } from "../../lib/orientation";
+import { isLowData } from "../../lib/quality";
+import { startLevels, stopLevels } from "../../lib/screen-levels";
 import { setSetting, useSetting } from "../../lib/settings";
 import { toggleSubscription } from "../../lib/subscribe";
 import { display } from "../../lib/type";
@@ -105,6 +102,7 @@ import { useResource } from "../../lib/use-resource";
 import { reportsWatching, reportWatching } from "../../lib/youtube-history";
 import {
   forgetStream,
+  prepareStream,
   type Quality,
   type VideoSource,
   videoSource,
@@ -115,36 +113,70 @@ import {
   useWatchPlayer,
   VideoSurface,
 } from "../video/watch-player";
-import { setCaptions, setCaptionsLang, useCaptions } from "./captions";
+import { SummaryPanel } from "./ai-summary";
+import { useAiChapters, useSponsorSpots } from "./ai-watch";
+import { setCaptions, useCaptions } from "./captions";
+import {
+  communityMenu,
+  HighlightPill,
+  skipToast,
+  useCrowdDetail,
+} from "./community";
+import { type MenuPage, PlayerMenu } from "./player-menu";
 import {
   closeWatch,
   minimizeWatch,
   openWatch,
   setWatchFill,
   setWatchFullscreen,
+  unqueueWatch,
   useWatch,
   type WatchSeed,
   watchPrevious,
 } from "./store";
-import { makeClock, VideoControls } from "./video-controls";
+import { SponsorPrompt } from "./sponsor-prompt";
+import { StoryboardFrame } from "./storyboard";
+import { makeClock, SIDE, VideoControls } from "./video-controls";
 import {
   CommentsCard,
+  DescriptionCard,
   CommentsPanel,
   DescriptionPanel,
   short,
   useComments,
 } from "./watch-panels";
 
+const msUntil = (at: number) => Math.max(0, at - Date.now());
+
 type Rating = "like" | "dislike" | "none";
 
 const MAX_W = 980;
+// A buffer must last this long before the spinner shows.
+const SPIN_MS = 300;
+// The next video is prepared this long after this one starts, so it never competes with it.
+const PREPARE_MS = 4000;
 // A drag this far down (or a flick) shrinks the video into the mini player; this far up goes full screen.
 const DISMISS_PX = 110;
 const DISMISS_V = 900;
 const FULL_PX = 70;
 // Eased, no bounce: the page glides between full and the mini player.
 const SLIDE = { duration: 320, easing: Easing.bezier(0.2, 0.8, 0.2, 1) };
-const SETTLE = { damping: 26, stiffness: 240 };
+// Critically damped and clamped: the page settles without overshooting.
+const SETTLE = { damping: 32, stiffness: 240, overshootClamping: true };
+
+/** True once `on` has held for `ms`; false the moment it stops. */
+function useAfter(on: boolean, ms: number) {
+  const [late, setLate] = useState(false);
+  useEffect(() => {
+    if (!on) return;
+    const t = setTimeout(() => setLate(true), ms);
+    return () => {
+      clearTimeout(t);
+      setLate(false);
+    };
+  }, [on, ms]);
+  return on && late;
+}
 
 /** One watch session: the video full screen over the whole app, or shrunk into the mini player while it keeps playing. */
 export function WatchSession({ id }: { id: string }) {
@@ -167,6 +199,8 @@ export function WatchSession({ id }: { id: string }) {
     error?: string;
     /** What to tell you when YouTube said why it won't play. */
     why?: string;
+    /** Asking again won't help (private, removed, blocked here): no Try again, only Next. */
+    final?: boolean;
     /** Where playback picks up: the song's spot at first, the current spot after a quality switch. */
     start?: number;
   }>();
@@ -177,6 +211,8 @@ export function WatchSession({ id }: { id: string }) {
   const [started, setStarted] = useState(false);
   // Waiting for more video after it started: a spinner over the picture, like YouTube.
   const [buffering, setBuffering] = useState(false);
+  // Only once it has lasted: a quick buffer shouldn't flash the spinner.
+  const lagging = useAfter(buffering, SPIN_MS);
   // The position ticks twice a second; only the controls follow it, so the page doesn't re-render with it.
   const [playClock] = useState(makeClock);
   const atRef = useRef(0);
@@ -187,11 +223,14 @@ export function WatchSession({ id }: { id: string }) {
   const skips = useRef<SkipSegment[]>([]);
   const keep = useVideoFilter();
   const brand = useBranding(id);
+  const highlight = useHighlight(id);
   const focus = useFocus();
   const signedIn = useLibrary((s) => !!s.settings.cookies);
   // Phones keep the video pinned at the top; wide screens scroll it with the page.
   const pinned = width < 900;
-  const [panel, setPanel] = useState<"comments" | "description" | null>(null);
+  const [panel, setPanel] = useState<
+    "comments" | "description" | "summary" | null
+  >(null);
   const votes = useVotes(id);
 
   // The local playlist server can be gone after the phone slept; one quiet retry gets a fresh one.
@@ -261,11 +300,20 @@ export function WatchSession({ id }: { id: string }) {
     const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
     if (!seg) return;
     video.seek(seg.end);
-    showToast(skipNote(seg.category));
+    skipToast(seg, id);
   };
 
-  const d = detail.data;
+  const crowd = useCrowdDetail(id, detail.data);
+  const d = useAiChapters(
+    id,
+    src?.stream.captions,
+    src?.stream.durationSec ?? crowd?.video.durationSec,
+    crowd,
+  );
   const v = d?.video;
+  const sponsorSpots = useSponsorSpots(id, src?.stream.captions);
+  const canSummarize =
+    useAiFeature("aiSummary") && !!src?.stream.captions?.length;
   const comments = useComments(id, focus.comments ? d?.comments : undefined);
   // Your like and subscription, changed here before YouTube's copy of the page catches up.
   const [mine, setMine] = useState<{ rating?: Rating }>({});
@@ -304,11 +352,41 @@ export function WatchSession({ id }: { id: string }) {
   const listAt = list ? list.items.findIndex((x) => x.id === id) : -1;
   const inList = listAt >= 0 ? list : undefined;
   const listNext = inList?.items[listAt + 1];
-  const next = inList ? listNext && asVideo(listNext) : related[0];
+  // Videos you lined up play first, then the playlist or Up next.
+  const queue = useWatch((s) => s.queue);
+  const queued = queue.length > 0;
+  const next = queue[0]
+    ? asVideo(queue[0])
+    : inList
+      ? listNext && asVideo(listNext)
+      : related[0];
+  // Where the Next button goes when this video can't play; Focus mode's hidden Up next stays hidden.
+  const upNext = focus.upNext || inList || queued ? next : undefined;
+  // While this one plays the next is made ready, its stream and its picture, so it starts at once.
+  // Not offline or on low mobile data; the stream's urls expire, so it's only kept a few minutes.
+  const nextId = next?.id;
+  const nextPic = next && bestThumbnail(next.thumbnails, 720);
+  useEffect(() => {
+    if (!started || !nextId || networkKind() === "offline" || isLowData())
+      return;
+    const t = setTimeout(() => {
+      prepareStream(nextId);
+      if (nextPic) void Image.prefetch(nextPic);
+    }, PREPARE_MS);
+    return () => clearTimeout(t);
+  }, [started, nextId, nextPic]);
   // Autoplay counts down on the end card, with a cancel, like YouTube; minimised it just goes on.
   const [autoNext, setAutoNext] = useState(false);
   const onEnd = () => {
-    if ((autoplay || inList) && next) {
+    const w = useWatch.getState();
+    if (w.loop) return video.replay();
+    // A sleep timer set for the end of the video stops here, without going on to the next.
+    if (w.sleep === "end") {
+      useWatch.setState({ sleep: undefined });
+      showToast("Sleep timer: paused");
+      return setEnded(true);
+    }
+    if ((autoplay || inList || queued) && next) {
       if (useWatch.getState().mode === "mini")
         return openWatch(next, undefined, { keepMode: true });
       setAutoNext(true);
@@ -345,6 +423,17 @@ export function WatchSession({ id }: { id: string }) {
       artwork: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
     },
   });
+  // The sleep timer pauses the video at its time, whichever video is playing then.
+  const sleep = useWatch((s) => s.sleep);
+  useEffect(() => {
+    if (typeof sleep !== "number") return;
+    const t = setTimeout(() => {
+      video.pause();
+      useWatch.setState({ sleep: undefined });
+      showToast("Sleep timer: paused");
+    }, msUntil(sleep));
+    return () => clearTimeout(t);
+  }, [sleep, video]);
   // The chosen speed carries on from video to video.
   const speed = useWatch((s) => s.speed);
   useEffect(() => {
@@ -439,7 +528,7 @@ export function WatchSession({ id }: { id: string }) {
       )
       .catch((e: Error) => {
         logEvent("video-failed", `${id}: ${e.message}`);
-        if (live) setLoaded({ error: e.message, why: whyNot(e) });
+        if (live) setLoaded({ error: e.message, ...whyNot(e) });
       });
     return () => {
       live = false;
@@ -508,14 +597,14 @@ export function WatchSession({ id }: { id: string }) {
     };
     return Gesture.Pan()
       .maxPointers(1)
-      .activeOffsetY([-12, 12])
+      .activeOffsetY([-18, 18])
       .failOffsetX([-24, 24])
       .onUpdate((e) => {
         // Down follows the finger; up gives a little, a hint that it goes full screen.
         y.set(
           e.translationY > 0
             ? e.translationY * 0.85
-            : Math.max(-36, e.translationY * 0.2),
+            : Math.max(-10, e.translationY * 0.08),
         );
       })
       .onEnd((e) => {
@@ -565,121 +654,65 @@ export function WatchSession({ id }: { id: string }) {
         ? `Auto · ${track}`
         : "Auto"
       : (src?.quality ?? "Quality");
-  const pickQuality = () => {
-    if (!src) return;
-    const choose = (q: Quality) => () => setQuality(q);
+  const cc = useCaptions(src?.stream.captions);
+  // Every chapter with its picture (from the scrubber's frames), the playing one ticked; tap to jump.
+  const pickChapters = () => {
+    const chapters = d?.chapters;
+    if (!chapters?.length) return;
+    const sb = src?.stream.storyboard;
     showSheet({
-      title: "Quality",
-      actions: [
-        {
-          label: src.quality === "auto" ? qualityLabel : "Auto",
-          checked: src.quality === "auto",
-          onPress: choose("auto"),
-        },
-        ...src.options.map((o) => ({
-          label: o.key,
-          checked: src.quality === o.key,
-          onPress: choose(o.key),
-        })),
-      ],
+      title: "Chapters",
+      actions: chapters.map((c, i) => ({
+        label: c.title,
+        sub: (clock(c.startSec) || "0:00") + (c.ai ? " · AI" : ""),
+        checked: i === chapter,
+        icon: sb ? (
+          <StoryboardFrame sb={sb} sec={c.startSec} scale={0.6} />
+        ) : undefined,
+        onPress: () => video.seek(c.startSec, true),
+      })),
     });
   };
-  const cc = useCaptions(src?.stream.captions);
-  const captionName = cc.choice
-    ? cc.choice.translate
-      ? `${cc.choice.track.name} → ${languageName(cc.choice.translate)}`
-      : cc.choice.track.name
-    : "Off";
-  const pickCaptions = () =>
-    showSheet({
-      title: "Captions",
-      actions: [
-        {
-          label: "Off",
-          checked: !cc.on,
-          onPress: () => setCaptions(false),
-        },
-        ...cc.tracks.map((t) => ({
-          label: t.name,
-          checked:
-            cc.on && cc.choice?.track.url === t.url && !cc.choice?.translate,
-          onPress: () => setCaptionsLang(t.lang),
-        })),
-      ],
-    });
   const tracks = src?.stream.audioTracks;
-  const trackName =
-    tracks?.find((t) => t.id === src?.stream.audioTrack)?.name ?? "Original";
-  const pickAudio = () =>
-    tracks &&
+  const where = () => ({
+    id,
+    getTime: video.time,
+    durationSec: src?.stream.durationSec ?? v?.durationSec,
+    storyboard: src?.stream.storyboard,
+    title,
+  });
+  // YouTube's settings sheet: a list of settings, each opening its own page inside the same sheet.
+  const openMenu = (page?: MenuPage) => {
+    if (!src) return;
     showSheet({
-      title: "Audio track",
-      actions: tracks.map((t) => ({
-        label: t.original ? `${t.name} (original)` : t.name,
-        checked: t.id === src?.stream.audioTrack,
-        onPress: () => setAudioTrack(t.id),
-      })),
+      header: (
+        <PlayerMenu
+          page={page}
+          quality={{ current: src.quality, now: track, options: src.options }}
+          onQuality={setQuality}
+          onSpeed={(r) => {
+            useWatch.setState({ speed: r });
+            video.setRate(r);
+          }}
+          captions={cc.tracks}
+          audio={tracks && { tracks, current: src.stream.audioTrack }}
+          onAudio={setAudioTrack}
+          onCommunity={() => communityMenu(where())}
+          pin={{
+            on: isPinned(id),
+            toggle: () =>
+              togglePin({
+                kind: "video",
+                id,
+                title: title ?? "",
+                thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
+              }),
+          }}
+        />
+      ),
+      actions: [],
     });
-  const pickSpeed = () =>
-    showSheet({
-      title: "Playback speed",
-      actions: [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => ({
-        label: r === 1 ? "Normal" : `${r}×`,
-        checked: r === speed,
-        onPress: () => {
-          useWatch.setState({ speed: r });
-          video.setRate(r);
-        },
-      })),
-    });
-  const pickSettings = () =>
-    showSheet({
-      actions: [
-        {
-          label: "Quality",
-          sub: qualityLabel,
-          icon: (c) => <QualityGlyph size={22} color={c} />,
-          onPress: pickQuality,
-        },
-        {
-          label: "Playback speed",
-          sub: speed === 1 ? "Normal" : `${speed}×`,
-          icon: (c) => <SpeedGlyph size={22} color={c} />,
-          onPress: pickSpeed,
-        },
-        ...(cc.available
-          ? [
-              {
-                label: "Captions",
-                sub: captionName,
-                icon: (c: string) => <CaptionsGlyph size={22} color={c} />,
-                onPress: pickCaptions,
-              },
-            ]
-          : []),
-        ...(tracks
-          ? [
-              {
-                label: "Audio track",
-                sub: trackName,
-                icon: (c: string) => <AudioTrackGlyph size={22} color={c} />,
-                onPress: pickAudio,
-              },
-            ]
-          : []),
-        {
-          label: isPinned(id) ? "Unpin from Home" : "Pin to Home",
-          icon: (c) => <PinGlyph size={22} color={c} />,
-          onPress: () =>
-            togglePin({
-              kind: "video",
-              id,
-              title: title ?? "",
-              thumbnails: v?.thumbnails ?? seed?.thumbnails ?? [],
-            }),
-        },
-      ],
-    });
+  };
   const playing = useWatch((s) => s.playing);
   const hasBack = useWatch((s) => s.back.length > 0);
   const share = () => {
@@ -826,7 +859,7 @@ export function WatchSession({ id }: { id: string }) {
           onNext={() => next && openWatch(next)}
           // In full screen the chevron leaves full screen, like YouTube's.
           onMinimize={fs ? exitFs : minimizeWatch}
-          onSettings={pickSettings}
+          onSettings={() => openMenu()}
           onFullscreen={toggleFs}
           fullscreen={fs}
           onZoom={setWatchFill}
@@ -834,6 +867,10 @@ export function WatchSession({ id }: { id: string }) {
           title={fs ? title : undefined}
           cc={cc.available ? cc.on : undefined}
           cues={cc.cues}
+          storyboard={src.stream.storyboard}
+          highlight={highlight?.at}
+          chapter={chapter >= 0 ? d?.chapters[chapter]?.title : undefined}
+          onChapters={pickChapters}
           onCc={() => setCaptions(!cc.on)}
           channel={fs ? v?.channel?.name : undefined}
           getTime={video.time}
@@ -841,6 +878,22 @@ export function WatchSession({ id }: { id: string }) {
             setSetting("videoAutoplay", on);
             showToast(on ? "Autoplay is on" : "Autoplay is off");
           }}
+        />
+      ) : null}
+      {src && started && !ended && mode === "full" ? (
+        <HighlightPill
+          at={highlight?.at}
+          clock={playClock}
+          onJump={(sec) => video.seek(sec, true)}
+        />
+      ) : null}
+      {src && started && !ended && mode === "full" && sponsorSpots.length ? (
+        <SponsorPrompt
+          spots={sponsorSpots}
+          clock={playClock}
+          videoId={id}
+          durationSec={src.stream.durationSec ?? v?.durationSec}
+          onSkip={(sec) => video.seek(sec, true)}
         />
       ) : null}
       {!started ? (
@@ -864,9 +917,19 @@ export function WatchSession({ id }: { id: string }) {
             {loaded?.why ?? "This video won’t play right now."}
           </Text>
           <View style={styles.failRow}>
-            <PressScale onPress={retry} style={styles.offlineBtn}>
-              <Text style={styles.offlineText}>Try again</Text>
-            </PressScale>
+            {upNext ? (
+              <PressScale
+                onPress={() => openWatch(upNext)}
+                style={styles.offlineBtn}
+              >
+                <Text style={styles.offlineText}>Next</Text>
+              </PressScale>
+            ) : null}
+            {loaded?.final ? null : (
+              <PressScale onPress={retry} style={styles.offlineBtn}>
+                <Text style={styles.offlineText}>Try again</Text>
+              </PressScale>
+            )}
             {offlineCopy ? (
               <PressScale onPress={playOffline} style={styles.offlineBtn}>
                 <Text style={styles.offlineText}>Play the downloaded copy</Text>
@@ -875,7 +938,7 @@ export function WatchSession({ id }: { id: string }) {
           </View>
         </View>
       ) : null}
-      {started && buffering && !ended && !error ? (
+      {started && lagging && !ended && !error ? (
         <View style={styles.buffering} pointerEvents="none">
           <View style={styles.spin}>
             <Spinner size={30} />
@@ -884,7 +947,7 @@ export function WatchSession({ id }: { id: string }) {
       ) : null}
       {ended ? (
         <EndCard
-          next={focus.upNext || inList || autoNext ? next : undefined}
+          next={focus.upNext || inList || queued || autoNext ? next : undefined}
           countdown={autoNext}
           onCancel={() => setAutoNext(false)}
           onReplay={() => {
@@ -920,30 +983,29 @@ export function WatchSession({ id }: { id: string }) {
               {title}
             </Text>
             <View style={styles.metaRow}>
-              {brand?.title || brand?.thumbnail ? (
+              {brand?.dearrow || brand?.thumbnail ? (
                 <Pressable
                   hitSlop={10}
                   accessibilityLabel="Changed by DeArrow"
                   onPress={() =>
-                    showToast(
-                      brand.title
-                        ? `Original title: ${v.title}`
-                        : "Thumbnail from DeArrow",
-                    )
+                    communityMenu(where(), brand.dearrow ? v.title : undefined)
                   }
                 >
                   <DeArrowMark size={13} />
                 </Pressable>
               ) : null}
-              <Text style={styles.metaText} numberOfLines={1}>
-                {(focus.counts
-                  ? [v.viewsText, v.publishedText]
-                  : [v.publishedText]
-                )
-                  .filter(Boolean)
-                  .join(" · ")}
-                <Text style={styles.metaMore}> ...more</Text>
-              </Text>
+              {/* With the detail loaded, views, age and "more" live in the description card. */}
+              {d ? null : (
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {(focus.counts
+                    ? [v.viewsText, v.publishedText]
+                    : [v.publishedText]
+                  )
+                    .filter(Boolean)
+                    .join(" · ")}
+                  <Text style={styles.metaMore}> ...more</Text>
+                </Text>
+              )}
             </View>
           </Pressable>
           <View style={styles.channel}>
@@ -1002,9 +1064,16 @@ export function WatchSession({ id }: { id: string }) {
             <Pill
               icon={<GearGlyph />}
               label={qualityLabel}
-              onPress={pickQuality}
+              onPress={() => openMenu("quality")}
             />
             <Pill icon={<HeadphonesGlyph />} label="Listen" onPress={listen} />
+            {canSummarize ? (
+              <Pill
+                icon={<Sparkles size={17} color="#fff" strokeWidth={2} />}
+                label="Summary"
+                onPress={() => setPanel("summary")}
+              />
+            ) : null}
           </ScrollView>
         </Animated.View>
       ) : detail.error ? (
@@ -1024,6 +1093,12 @@ export function WatchSession({ id }: { id: string }) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chapters}
         >
+          <PressScale onPress={pickChapters} style={styles.chapter}>
+            <Text style={styles.chapterTime}>
+              {d.chapters.length} chapters{d.chapters[0].ai ? " · AI" : ""}
+            </Text>
+            <Text style={styles.chapterTitle}>See all</Text>
+          </PressScale>
           {d.chapters.map((c, i) => (
             <PressScale
               key={`${c.startSec}${i}`}
@@ -1031,7 +1106,7 @@ export function WatchSession({ id }: { id: string }) {
               style={[styles.chapter, i === chapter && styles.chapterOn]}
             >
               <Text style={styles.chapterTime}>
-                {clock(c.startSec) || "0:00"}
+                {(clock(c.startSec) || "0:00") + (c.ai ? " · AI" : "")}
               </Text>
               <Text style={styles.chapterTitle} numberOfLines={2}>
                 {c.title}
@@ -1041,6 +1116,14 @@ export function WatchSession({ id }: { id: string }) {
         </ScrollView>
       ) : null}
 
+      {d ? (
+        <DescriptionCard
+          detail={d}
+          onPress={() => setPanel("description")}
+          onSeek={(sec) => video.seek(sec, true)}
+        />
+      ) : null}
+
       {focus.comments && d?.comments ? (
         <CommentsCard
           page={comments.data}
@@ -1048,6 +1131,34 @@ export function WatchSession({ id }: { id: string }) {
           onPress={() => setPanel("comments")}
           onRetry={comments.reload}
         />
+      ) : null}
+
+      {queued ? (
+        <View style={styles.upNext}>
+          <SectionTitle title="Queue" kicker={`${queue.length}`} />
+          {queue.map((x) => (
+            <View key={x.id} style={styles.queueRow}>
+              <View style={{ flex: 1 }}>
+                <VideoRow video={asVideo(x)} onPress={() => openWatch(x)} />
+              </View>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {
+                  haptic.light();
+                  unqueueWatch(x.id);
+                }}
+                style={styles.queueRemove}
+                accessibilityLabel="Remove from the queue"
+              >
+                <CloseGlyph
+                  size={16}
+                  weight={2.6}
+                  color="rgba(255,255,255,0.85)"
+                />
+              </Pressable>
+            </View>
+          ))}
+        </View>
       ) : null}
 
       {inList ? (
@@ -1089,6 +1200,13 @@ export function WatchSession({ id }: { id: string }) {
         onRetry={comments.reload}
         onClose={() => setPanel(null)}
         onSeek={(sec) => video.seek(sec, true)}
+      />
+    ) : panel === "summary" && src?.stream.captions ? (
+      <SummaryPanel
+        id={id}
+        tracks={src.stream.captions}
+        onSeek={(sec) => video.seek(sec, true)}
+        onClose={() => setPanel(null)}
       />
     ) : panel === "description" && d ? (
       <DescriptionPanel
@@ -1272,19 +1390,45 @@ const Thumb = ({ up, on }: { up?: boolean; on?: boolean }) => {
 };
 
 // YouTube's own reason, said plainly, like its player does; a generic line when there's none.
-function whyNot(e: Error): string | undefined {
-  if (!(e instanceof StreamError)) return undefined;
+// Reasons that won't change by asking again (private, removed, blocked here) are final: no Try again.
+function whyNot(e: Error): { why?: string; final?: boolean } {
+  if (!(e instanceof StreamError)) return {};
   switch (e.code) {
     case "age_restricted":
-      return "This video is age-restricted. Sign in to YouTube to watch it.";
+      return {
+        why: /\bage\b|inappropriate/i.test(e.message)
+          ? "This video is age-restricted. Sign in to YouTube to watch it."
+          : plainReason(e.message),
+        final: true,
+      };
     case "unplayable":
-      // "Video unavailable", "This video is private", a region block: YouTube's words, if short.
-      return e.message.length < 120 ? e.message : "This video is unavailable.";
+      return { why: plainReason(e.message), final: true };
     case "network":
-      return "Can't reach YouTube. Check your connection and try again.";
+      return {
+        why: "Can't reach YouTube. Check your connection and try again.",
+      };
     default:
-      return undefined;
+      return {};
   }
+}
+
+// The reasons YouTube gives, in plain words; anything else keeps YouTube's own if it's short.
+function plainReason(said: string): string {
+  if (/\bprivate\b/i.test(said)) return "This video is private.";
+  if (/members|join this channel/i.test(said))
+    return "This video is only for the channel's members.";
+  if (/country|region|location/i.test(said))
+    return "This video isn't available in your country.";
+  if (/copyright/i.test(said))
+    return "This video was blocked on copyright grounds.";
+  if (/terminated|removed|no longer available|deleted/i.test(said))
+    return "This video has been removed.";
+  if (/\b(rent|rental|purchase|buy|premium)\b/i.test(said))
+    return "This video has to be rented or bought, which Pawse can't play.";
+  if (/live event|premiere|will begin|scheduled/i.test(said)) return said;
+  return said.length < 120 && !/^(unplayable|error)$/i.test(said)
+    ? said
+    : "This video is unavailable.";
 }
 
 const asVideo = (s: WatchSeed): VideoItem => ({
@@ -1399,7 +1543,11 @@ function FullscreenLayer({
   const { width, height } = useWindowDimensions();
   const pad = useFullscreenPad();
   const pull = useSharedValue(0);
+  // Phones: the outer thirds are for brightness and volume, so only the middle swipes down to leave.
+  const mine = useSharedValue(true);
   const exit = useMemo(() => {
+    // The web has no brightness or volume swipes, so the whole picture leaves.
+    const free = Platform.OS === "web";
     const leave = () => {
       haptic.light();
       onExit();
@@ -1409,17 +1557,23 @@ function FullscreenLayer({
         .maxPointers(1)
         .activeOffsetY(16)
         .failOffsetX([-30, 30])
+        .onBegin((e) => {
+          mine.set(free || (e.x > width * SIDE && e.x < width * (1 - SIDE)));
+        })
         // The picture follows the finger down and shrinks a little, like YouTube's.
-        .onUpdate((e) => pull.set(Math.max(0, e.translationY)))
+        .onUpdate((e) => {
+          if (mine.get()) pull.set(Math.max(0, e.translationY));
+        })
         .onEnd((e) => {
+          if (!mine.get()) return;
           if (e.translationY > 70 || e.velocityY > 800) {
             scheduleOnRN(leave);
             return;
           }
-          pull.set(withSpring(0, { damping: 24, stiffness: 260 }));
+          pull.set(withSpring(0, SETTLE));
         })
     );
-  }, [onExit, pull]);
+  }, [onExit, pull, mine, width]);
   const follow = useAnimatedStyle(() => ({
     transform: [
       { translateY: pull.value * 0.5 },
@@ -1430,11 +1584,13 @@ function FullscreenLayer({
     if (byTurn) allowRotation();
     else lockLandscape();
     RNStatusBar.setHidden(true, "fade");
+    void startLevels();
     const off = byTurn
       ? onTurn((sideways) => !sideways && onUpright())
       : () => {};
     return () => {
       off();
+      void stopLevels();
       lockPortrait();
       RNStatusBar.setHidden(false, "fade");
     };
@@ -1622,6 +1778,13 @@ const styles = StyleSheet.create({
   subText: { color: "#000", fontSize: 14, ...display("800") },
   subTextOn: { color: "#fff" },
   upNext: { marginTop: 20 },
+  queueRow: { flexDirection: "row", alignItems: "center" },
+  queueRemove: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   side: { position: "absolute", right: 0, bottom: 0, width: 420 },
   pill: {
     flexDirection: "row",

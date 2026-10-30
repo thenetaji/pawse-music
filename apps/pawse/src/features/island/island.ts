@@ -1,5 +1,10 @@
 // Drives Pawse's Live Activity (Dynamic Island + Lock Screen) from the player. iOS only; a no-op elsewhere.
-import { artistLine, bestThumbnail, type Track } from "@pawse/music-core";
+import {
+  artistLine,
+  bestThumbnail,
+  type LyricLine,
+  type Track,
+} from "@pawse/music-core";
 import {
   getProgress,
   onPlayerEvent,
@@ -18,9 +23,12 @@ import {
 } from "../../../modules/pawse-activity";
 import { useLibrary } from "../../data/library";
 import { prepareArtwork } from "../../lib/artwork";
+import { lyricsService } from "../../lib/engine";
+import { activeLine } from "../../lib/lrc";
 import { getSetting } from "../../lib/settings";
 import { songVibe } from "../../lib/vibe";
 import { readable, useNowPalette } from "../now-playing/now-palette";
+import { moodGlow } from "./glow";
 
 /** Mouse visit frame period. The cat no longer dances frame by frame: every update costs battery, and iOS throttles them. */
 export const BEAT_MS = 8000;
@@ -30,6 +38,14 @@ const HAPPY_MS = 1500;
 const SEND_TIMEOUT_MS = 4000;
 /** While playing, re-check this often that the island's timeline still matches the song. */
 const DRIFT_CHECK_MS = 15_000;
+const WIRE_MS = 5000;
+/** Half an interval ahead, so the cat is right on average between updates. */
+const WIRE_LEAD_SEC = WIRE_MS / 2000;
+/** Wire style goes stale quickly, so a closed Pawse doesn't leave the cat frozen on the cable. */
+const WIRE_STALE_MS = 90_000;
+/** Updates land this early to beat ActivityKit's delay. */
+const LYRIC_LEAD_MS = 250;
+const LYRIC_MIN_GAP_MS = 1200;
 const SEEK_SETTLE_MS = 400;
 /** After an island play/pause tap, states that contradict it are held back this long. */
 const TOGGLE_HOLD_MS = 1200;
@@ -65,12 +81,18 @@ const CAMEO_AGAIN_SEC: [number, number] = [60, 90];
 /** Mouse frame per beat tick: peek, head out, peek; the cat is pleased after. */
 const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1];
 
-// "music" (sound bars) is gone: iOS's own player beside the bubble already has them.
-const ISLAND_STYLES: readonly IslandStyle[] = ["cat", "time"];
+const ISLAND_STYLES: readonly IslandStyle[] = [
+  "wire",
+  "classic",
+  "lyrics",
+  "paws",
+  "time",
+];
 
 type CatPrefs = {
   island: boolean;
   style: IslandStyle;
+  moodLine: boolean;
   color: ActivityCatColor;
   cameoChance: number;
   name: string | null;
@@ -83,7 +105,9 @@ export function catPrefs(): CatPrefs {
   const name = typeof s.catName === "string" ? s.catName.trim() : "";
   return {
     island: s.catIsland !== false,
-    style: ISLAND_STYLES.find((v) => v === s.islandStyle) ?? "time",
+    // Older versions saved "cat" for what is now "wire".
+    style: ISLAND_STYLES.find((v) => v === s.islandStyle) ?? "wire",
+    moodLine: s.islandMoodLine === true,
     color: CAT_COLORS.find((c) => c === s.catColor) ?? "orange",
     cameoChance:
       episodes === "off" || episodes === false
@@ -145,6 +169,10 @@ export function startIslandController(): () => void {
     step: CAMEO_FRAMES.length,
   };
 
+  let lyr: { id: string; lines: LyricLine[] | null } = { id: "", lines: null };
+  let lyricTimer: ReturnType<typeof setTimeout> | undefined;
+  let driftMs = 0;
+
   const current = (): Track | undefined => {
     const s = usePlayerStore.getState();
     return s.tracks[s.index];
@@ -161,6 +189,13 @@ export function startIslandController(): () => void {
     // Ignore small drift so steady playback doesn't produce a new state every tick.
     if (Math.abs(start - startMs) > 1500) startMs = start;
     const prefs = catPrefs();
+    const wire = prefs.style === "wire";
+    const vibe = songVibe(track, s.source?.title);
+    const tint = tintHex(
+      getSetting<string>("accentMode", "artwork") === "fixed"
+        ? getSetting("accentColor", "#8B7CFF")
+        : useNowPalette.getState().palette.accent,
+    );
     const showing =
       cameo.trackId === track.id &&
       cameo.step >= 0 &&
@@ -170,31 +205,86 @@ export function startIslandController(): () => void {
       artist: artistLine(track.artists),
       artwork: art.id === track.id ? art.file : null,
       isPlaying: playing,
-      mood:
-        flash?.mood ?? (playing ? songVibe(track, s.source?.title) : "sleep"),
+      mood: flash?.mood ?? (playing ? vibe : "sleep"),
       frame,
       start: Math.round(startMs),
       end: Math.round(startMs + duration * 1000),
-      // Playing bars move on their own from start/end; a fixed value keeps the state from changing every read.
-      progress:
-        duration && !(playing && duration > 0)
+      // The bars move on their own from start/end while playing; only the wire cat needs a live value.
+      progress: !duration
+        ? 0
+        : !playing
           ? Math.min(1, position / duration)
-          : 0,
+          : wire
+            ? Math.round(
+                Math.min(1, (position + WIRE_LEAD_SEC) / duration) * 1000,
+              ) / 1000
+            : 0,
       color: prefs.color,
       mouse: showing ? (CAMEO_FRAMES[cameo.step] ?? 0) : 0,
       name: prefs.name,
       // Follows Settings → Appearance → Accent colour, like the rest of the app.
-      tint: tintHex(
-        getSetting<string>("accentMode", "artwork") === "fixed"
-          ? getSetting("accentColor", "#8B7CFF")
-          : useNowPalette.getState().palette.accent,
-      ),
-      staleAt: staleAt(playing, startMs + duration * 1000),
+      tint,
+      glow: moodGlow(tint, vibe),
+      staleAt:
+        wire && playing
+          ? Math.min(
+              staleAt(playing, startMs + duration * 1000),
+              Math.ceil((Date.now() + WIRE_STALE_MS) / 30_000) * 30_000,
+            )
+          : staleAt(playing, startMs + duration * 1000),
       style: prefs.style,
+      lyric:
+        prefs.style === "lyrics" && lyr.id === track.id && lyr.lines
+          ? lyricAt(lyr.lines, position)
+          : null,
+      moodLine: prefs.moodLine,
       liked: useLibrary.getState().isLiked(track.id),
       disliked: useLibrary.getState().isDisliked(track.id),
       rate: getSetting<boolean>("islandRate", true) !== false,
     };
+  }
+
+  function lyricAt(lines: LyricLine[], position: number): string {
+    const i = activeLine(lines, position * 1000 + LYRIC_LEAD_MS);
+    return i < 0 ? "" : lines[i].text;
+  }
+
+  function loadLyrics(track: Track) {
+    lyr = { id: track.id, lines: null };
+    void lyricsService
+      .lyrics(track)
+      .then((found) => {
+        if (lyr.id !== track.id) return;
+        lyr.lines = found?.synced && found.lines.length ? found.lines : null;
+        push();
+        syncLyrics();
+      })
+      .catch(() => {});
+  }
+
+  // ActivityKit can't follow the clock, so the next line's start is pushed by timer.
+  function syncLyrics() {
+    clearTimeout(lyricTimer);
+    lyricTimer = undefined;
+    if (
+      !active ||
+      !isPlaying(usePlayerStore.getState().status) ||
+      catPrefs().style !== "lyrics"
+    )
+      return;
+    const lines = lyr.lines;
+    if (!lines) return;
+    const posMs = getProgress().position * 1000;
+    const next = lines[activeLine(lines, posMs + LYRIC_LEAD_MS) + 1];
+    if (!next) return;
+    const wait = next.startMs - LYRIC_LEAD_MS - posMs + 30;
+    lyricTimer = setTimeout(
+      () => {
+        push();
+        syncLyrics();
+      },
+      Math.max(wait, LYRIC_MIN_GAP_MS),
+    );
   }
 
   // One native call in flight at a time; only the newest pending state is kept.
@@ -280,10 +370,14 @@ export function startIslandController(): () => void {
   // Buffering and seeks shift the song's timeline; compose only sends a new state when it moved.
   function syncDrift() {
     const want = active && isPlaying(usePlayerStore.getState().status);
-    if (want && !drift) drift = setInterval(push, DRIFT_CHECK_MS);
-    else if (!want && drift) {
+    const ms = catPrefs().style === "wire" ? WIRE_MS : DRIFT_CHECK_MS;
+    if (drift && (!want || ms !== driftMs)) {
       clearInterval(drift);
       drift = undefined;
+    }
+    if (want && !drift) {
+      driftMs = ms;
+      drift = setInterval(push, ms);
     }
   }
 
@@ -405,6 +499,7 @@ export function startIslandController(): () => void {
     }
     if (track.id !== art.id) loadArt(track);
     if (track.id !== cameo.trackId) planCameo(track);
+    if (track.id !== lyr.id && catPrefs().style === "lyrics") loadLyrics(track);
     if (!active) {
       if (s.status === "playing") void begin();
     } else {
@@ -412,6 +507,7 @@ export function startIslandController(): () => void {
     }
     syncBeat();
     syncDrift();
+    syncLyrics();
   }
 
   const unsubStore = usePlayerStore.subscribe((s, prev) => {
@@ -452,7 +548,10 @@ export function startIslandController(): () => void {
   let seekTimer: ReturnType<typeof setTimeout> | undefined;
   const unsubSeeked = onPlayerEvent("seeked", () => {
     clearTimeout(seekTimer);
-    seekTimer = setTimeout(push, SEEK_SETTLE_MS);
+    seekTimer = setTimeout(() => {
+      push();
+      syncLyrics();
+    }, SEEK_SETTLE_MS);
   });
   // The artwork colour arrives a moment after the song changes.
   const unsubPalette = useNowPalette.subscribe(() => push());
@@ -494,6 +593,7 @@ export function startIslandController(): () => void {
     unsubAction();
     unsubSeeked();
     clearTimeout(seekTimer);
+    clearTimeout(lyricTimer);
     if (drift) clearInterval(drift);
     unsubPalette();
     unsubSettings();

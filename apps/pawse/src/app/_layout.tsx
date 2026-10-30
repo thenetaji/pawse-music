@@ -12,14 +12,20 @@ import { ActionSheetHost } from "../components/action-sheet";
 import { ToastHost } from "../components/toast";
 import { startAutoBackup } from "../data/auto-backup";
 import { startJournalRecorder } from "../data/journal-recorder";
+import { startScrobbler } from "../data/scrobbler";
 import { useLibrary } from "../data/library";
+import { startAlarm } from "../features/alarm/alarm";
+import { startMochi } from "../features/cat/mochi";
 import { startAndroidPill } from "../features/island/android-pill";
 import { startIslandController } from "../features/island/island";
+import { MindfulCard } from "../features/mindful/mindful-card";
+import { startMindfulTracker } from "../features/mindful/tracker";
 import { NowPaletteSync } from "../features/now-playing/now-palette";
 import { startListSpotRecorder } from "../features/playback/list-spot-recorder";
 import { startNowPlayingGuard } from "../features/playback/now-playing-guard";
 import { startResumeController } from "../features/playback/resume-after-interruption";
 import { WatchHost } from "../features/watch/watch-host";
+import { startSharingRatings } from "../lib/contribute";
 import { startEngine } from "../lib/engine";
 import { startFreshFeeds } from "../lib/fresh-feeds";
 import { lockPortrait } from "../lib/orientation";
@@ -50,6 +56,11 @@ export default function RootLayout() {
     const stopHistory = startYouTubeHistory();
     const stopBackup = startAutoBackup();
     const stopJournal = startJournalRecorder();
+    const stopScrobbler = startScrobbler();
+    const stopRatings = startSharingRatings();
+    const stopMindful = startMindfulTracker();
+    const stopMochi = startMochi();
+    const stopAlarm = startAlarm();
     // First launch: meet the cat once the persisted library has loaded.
     const onboard = () => {
       if (!getSetting("onboarded", false))
@@ -68,6 +79,11 @@ export default function RootLayout() {
       stopHistory();
       stopBackup();
       stopJournal();
+      stopScrobbler();
+      stopRatings();
+      stopMindful();
+      stopMochi();
+      stopAlarm();
       unsub();
     };
   }, []);
@@ -99,10 +115,18 @@ export default function RootLayout() {
             />
             <Stack.Screen name="settings" options={modal} />
             <Stack.Screen name="about" options={modal} />
+            <Stack.Screen name="equaliser" options={modal} />
             <Stack.Screen name="blocked" options={modal} />
             <Stack.Screen name="experimental" options={modal} />
             <Stack.Screen name="edit-home" options={modal} />
             <Stack.Screen name="focus" options={modal} />
+            <Stack.Screen name="mochi" options={modal} />
+            <Stack.Screen name="alarm" options={modal} />
+            {/* Android's alarm notification links here; it starts the music and steps aside. */}
+            <Stack.Screen
+              name="wake"
+              options={{ presentation: "transparentModal", animation: "none" }}
+            />
             <Stack.Screen name="sign-in" options={modal} />
             <Stack.Screen name="import" options={modal} />
             <Stack.Screen name="downloads" options={modal} />
@@ -117,6 +141,7 @@ export default function RootLayout() {
             />
           </Stack>
           <WatchHost />
+          <MindfulCard />
           <ActionSheetHost />
           <ToastHost />
           <YouTubeSandboxHost />

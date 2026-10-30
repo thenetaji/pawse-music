@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.thenetaji.pawse'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.pawseaudio"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    consumerProguardFiles 'consumer-rules.pro'
+  }
+}
+
+dependencies {
+  // The player library brings the same version at runtime.
+  compileOnly "androidx.media3:media3-exoplayer:1.11.0"
+  compileOnly "androidx.media3:media3-common:1.11.0"
+}

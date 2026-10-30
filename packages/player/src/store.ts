@@ -17,6 +17,7 @@ export interface StoreState extends Queue {
   shuffle: boolean;
   repeat: RepeatMode;
   sleepAt?: number | "endOfTrack";
+  sleepFading: boolean;
   normalize: boolean;
   error?: string;
   radio: boolean;
@@ -27,6 +28,7 @@ export const initialState = (): StoreState => ({
   status: "idle",
   shuffle: false,
   repeat: "off",
+  sleepFading: false,
   normalize: true,
   radio: false,
 });

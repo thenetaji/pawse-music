@@ -13,7 +13,7 @@ import {
 } from "react";
 import { AppState } from "react-native";
 import { useRegion } from "../lib/locale";
-import { useResource } from "../lib/use-resource";
+import { refreshResources, useResource } from "../lib/use-resource";
 import { dropExplicit, yt } from "./clients";
 import { useLibrary } from "./library";
 import { type LocalPlaylist, listeningStats, type Play } from "./library-model";
@@ -470,7 +470,7 @@ function subscribeClock(changed: () => void) {
   };
 }
 /** The local day and when it was first seen; changes at midnight, so render stays pure. */
-const useClock = () =>
+export const useClock = () =>
   useSyncExternalStore(subscribeClock, readClock, readClock);
 
 // ---- Smart playlists ----
@@ -879,6 +879,12 @@ export function useForYou(): {
       res.reload();
     },
   };
+}
+
+/** Rebuilds the For you shelves from fresh answers. */
+export function refreshForYou() {
+  cache.clear();
+  return refreshResources(["foryou."]);
 }
 
 /** About 24 popular artists for the onboarding picker: region charts plus a search per language, two at a time. */

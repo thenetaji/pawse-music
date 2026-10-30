@@ -31,6 +31,12 @@ import { ShuffleGlyph } from "../features/pages/collection";
 import { hasMouse, rightClick } from "../lib/context-menu";
 import { haptic } from "../lib/haptics";
 import { useSetting } from "../lib/settings";
+import {
+  setSmoothShuffle,
+  toggleShuffle,
+  useShuffleOn,
+  useSmoothShuffle,
+} from "../lib/smooth-queue";
 import { display } from "../lib/type";
 
 const SLEEP = [15, 30, 45, 60, 90];
@@ -81,8 +87,9 @@ function undoLast() {
 }
 
 export default function Queue() {
-  const { queue, index, shuffle, repeat, sleepAt, status, source } =
-    usePlayerState();
+  const { queue, index, repeat, sleepAt, status, source } = usePlayerState();
+  const shuffle = useShuffleOn();
+  const smooth = useSmoothShuffle();
   const accent = useAccent();
   const palette = useNowPalette((s) => s.palette);
   const color = useSetting<CatColor>("catColor", "orange");
@@ -142,7 +149,13 @@ export default function Queue() {
           accent={accent}
           label="Shuffle"
           icon={<ShuffleGlyph color={shuffle ? "#000" : "#fff"} />}
-          onPress={() => player.setShuffle(!shuffle)}
+          onPress={toggleShuffle}
+        />
+        <Toggle
+          on={smooth}
+          accent={accent}
+          label="Smooth"
+          onPress={() => setSmoothShuffle(!smooth)}
         />
         <Toggle
           on={repeat !== "off"}

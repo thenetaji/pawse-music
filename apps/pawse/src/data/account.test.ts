@@ -78,3 +78,11 @@ test("pull to refresh syncs likes and playlists now, but not twice within 30 s",
   await refreshLibrary();
   expect(mockYt.likedSongs).toHaveBeenCalledTimes(1);
 });
+
+test("songs without a setVideoId are refused, not reported as removed", async () => {
+  const { removeFromYouTubePlaylist } = load();
+  const track = { id: "a", source: "youtube" } as never;
+  await expect(removeFromYouTubePlaylist("VLPL1", [track])).rejects.toThrow(
+    /can't be removed/,
+  );
+});

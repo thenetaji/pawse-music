@@ -4,9 +4,14 @@ import type { WatchReport } from "@pawse/innertube";
 import { AppState } from "react-native";
 
 import { useLibrary } from "../data/library";
+import { YT_VISITOR_KEY } from "../data/clients";
+import { kv } from "../data/storage";
 import { mergeYouTubeHistory } from "../data/watched";
 import { ytv } from "./engine";
+import { forgetOffered, RECENT_KEY } from "./for-you";
 import { dayEnd } from "./history-days";
+import { learnsFromWatching } from "./learn";
+import { refreshResources } from "./use-resource";
 
 // Coming back to the app reads the history again, at most this often.
 const AGAIN_MS = 2 * 60_000;
@@ -18,9 +23,9 @@ let last = 0;
 let busy = false;
 
 /** Reads your YouTube watch history into Watched and Continue; quietly does nothing signed out. */
-export async function syncYouTubeHistory(force = false): Promise<void> {
-  if (!useLibrary.getState().settings.cookies || busy) return;
-  if (!force && Date.now() - last < AGAIN_MS) return;
+export async function syncYouTubeHistory(force = false): Promise<boolean> {
+  if (!useLibrary.getState().settings.cookies || busy) return true;
+  if (!force && Date.now() - last < AGAIN_MS) return true;
   busy = true;
   try {
     const page = await ytv.history();
@@ -35,8 +40,10 @@ export async function syncYouTubeHistory(force = false): Promise<void> {
     });
     mergeYouTubeHistory(items);
     last = now;
+    return true;
   } catch {
     // History is a nicety; the next return to the app tries again.
+    return false;
   } finally {
     busy = false;
   }
@@ -59,11 +66,21 @@ export function startYouTubeHistory(): () => void {
   };
 }
 
-/** Whether what you watch here should go to your YouTube history. */
+/** Whether what you watch goes to YouTube: your history signed in, this phone's visitor signed out. */
 export const reportsWatching = () => {
   const s = useLibrary.getState().settings;
-  return !!s.cookies && s.reportPlays && !s.incognito;
+  if (s.incognito) return false;
+  return s.cookies ? s.reportPlays : learnsFromWatching();
 };
+
+/** Drops this phone's YouTube visitor so suggestions start over. */
+export function resetRecommendations(): void {
+  ytv.resetVisitor();
+  void kv.removeItem(YT_VISITOR_KEY);
+  void kv.removeItem(RECENT_KEY);
+  forgetOffered();
+  void refreshResources(["home:", "watch:"], ["watch:q:"]);
+}
 
 // YouTube's own player reports about this often.
 const PING_MS = 30_000;

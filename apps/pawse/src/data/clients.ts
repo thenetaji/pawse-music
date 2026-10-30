@@ -14,9 +14,11 @@ import type {
 } from "@pawse/music-core";
 import { Platform } from "react-native";
 import { logEvent } from "../lib/diagnostics";
+import { learnsFromWatching } from "../lib/learn";
 import { languageCode, regionCode } from "../lib/locale";
 import { appFetch } from "../lib/net";
 import { effectiveQuality } from "../lib/quality";
+import { getSetting } from "../lib/settings";
 import { poTokenProvider, prewarmPoToken } from "../lib/po-token";
 import { youtubeSandbox } from "../lib/youtube-sandbox";
 import { useLibrary } from "./library";
@@ -29,12 +31,19 @@ const gl = (region: string) => (region === "ZZ" ? "US" : region);
 const VISITOR_KEY = "pawse.visitorData";
 const savedVisitor = kv.getItem(VISITOR_KEY);
 
+const webOpus =
+  Platform.OS === "web" &&
+  typeof Audio !== "undefined" &&
+  !!new Audio().canPlayType('audio/webm; codecs="opus"');
+
 // One YouTube Music client for the app: cookies only when signed in, and only for catalog/account calls.
 const raw = new YouTubeMusic({
   fetch: appFetch,
   hl: languageCode(settings().language),
   gl: gl(regionCode(settings().region)),
   cookies: () => settings().cookies,
+  // Incognito searches signed out, so YouTube keeps no record of them.
+  privateSearch: () => !!settings().incognito,
   visitorData: typeof savedVisitor === "string" ? savedVisitor : undefined,
   onVisitorData: (v) => void kv.set(VISITOR_KEY, v).catch(() => {}),
   // JS-needing clients (n/sig solver) run in a hidden browser page; without one, only the older client list works.
@@ -42,20 +51,29 @@ const raw = new YouTubeMusic({
   // BotGuard tokens for web_music, minted in that same page.
   poToken: poTokenProvider,
   clientsV2: !!youtubeSandbox,
-  // Android (ExoPlayer) gets its own client order and accepts Opus.
+  // Android (ExoPlayer) gets its own client order; it and browsers that decode WebM prefer Opus over AAC 128.
   platform: Platform.OS,
+  opus: Platform.OS === "android" || webOpus,
   onRequestError: (endpoint, e) =>
     logEvent("request-failed", `${endpoint}: ${(e as Error)?.message ?? e}`),
 });
 prewarmPoToken();
 
+// Kept per install: signed out, YouTube builds the feed for this visitor.
+export const YT_VISITOR_KEY = "pawse.ytVisitor";
+const savedYtVisitor = kv.getItem(YT_VISITOR_KEY);
+
 // YouTube mode's catalog (www.youtube.com, Shorts already dropped), signed in with the same account.
 export const ytv = new YouTubeVideo({
+  visitorData: typeof savedYtVisitor === "string" ? savedYtVisitor : undefined,
+  onVisitorData: (v) => void kv.set(YT_VISITOR_KEY, v).catch(() => {}),
+  learn: learnsFromWatching,
   fetch: appFetch,
   hl: languageCode(settings().language),
   gl: gl(regionCode(settings().region)),
   cookies: () => settings().cookies ?? undefined,
   privateSearch: () => !!settings().incognito,
+  originalAudio: () => getSetting("originalTitles", true),
   sandbox: youtubeSandbox,
   poToken: poTokenProvider,
   // Same as music: with the sandbox, web_music's PO token gets videos past a bot check on VISIONOS.
@@ -74,6 +92,7 @@ const FILTERED = new Set([
   "homeMore",
   "search",
   "searchMore",
+  "searchSuggestions",
   "album",
   "artist",
   "playlist",

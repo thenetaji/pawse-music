@@ -13,6 +13,10 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 
+import { useSetting } from "../../lib/settings";
+import { Hat } from "./accessories";
+import { findItem } from "./mochi-core";
+
 export type CatMood =
   | "groove"
   | "sleep"
@@ -68,6 +72,8 @@ type Props = {
   beatMs?: number;
   /** Looking direction for chase/curious, -1..1. */
   look?: number;
+  /** Draws exactly this hat and `cups`, not the ones equipped (Mochi's wardrobe). */
+  hat?: string;
 };
 
 // Pawse's cat. One vector drawing; moods switch eyes, mouth and pose.
@@ -78,7 +84,13 @@ export function Cat({
   color = "orange",
   beatMs = 520,
   look,
+  hat,
 }: Props) {
+  const equippedHat = useSetting("mochiHat", "none");
+  const equippedCups = useSetting("mochiCups", "artwork");
+  const hatId = hat ?? equippedHat;
+  const cupColors =
+    hat === undefined ? (findItem("cups", equippedCups)?.cups ?? cups) : cups;
   const uid = useId().replace(/:/g, "");
   const period =
     mood === "groove"
@@ -161,8 +173,8 @@ export function Cat({
           <Stop offset="1" stopColor={f.muzzle[1]} />
         </RadialGradient>
         <LinearGradient id={id("cup")} x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={cups[0]} />
-          <Stop offset="1" stopColor={cups[1]} />
+          <Stop offset="0" stopColor={cupColors[0]} />
+          <Stop offset="1" stopColor={cupColors[1]} />
         </LinearGradient>
         <RadialGradient id={id("eye")} cx="40%" cy="35%" r="70%">
           <Stop offset="0" stopColor={dark ? "#D8F27A" : "#5a3b22"} />
@@ -333,6 +345,7 @@ export function Cat({
           fill="#fff"
           opacity={0.28}
         />
+        <Hat id={hatId} />
       </G>
 
       {(mood === "groove" || mood === "vibe" || mood === "sad") && (

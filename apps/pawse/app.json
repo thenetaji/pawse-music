@@ -18,7 +18,8 @@
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSSupportsLiveActivities": true,
-        "NSSupportsLiveActivitiesFrequentUpdates": true
+        "NSSupportsLiveActivitiesFrequentUpdates": true,
+        "NSAlarmKitUsageDescription": "Pawse uses alarms to wake you up with your music."
       },
       "entitlements": {
         "com.apple.security.application-groups": [
@@ -80,6 +81,9 @@
       [
         "expo-build-properties",
         {
+          "android": {
+            "minSdkVersion": 26
+          },
           "ios": {
             "ccacheEnabled": true
           }

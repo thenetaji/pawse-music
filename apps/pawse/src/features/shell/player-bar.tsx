@@ -33,6 +33,7 @@ import {
   QueueGlyph,
 } from "../now-playing/icons";
 import { useAccent } from "../now-playing/now-palette";
+import { toggleShuffle, useShuffleOn } from "../../lib/smooth-queue";
 import { RepeatIcon, ShuffleIcon } from "./icons";
 
 // React Native Web adds hover to the pressable state.
@@ -47,7 +48,8 @@ const fmt = (s: number) => {
 
 /** Desktop: the song, the transport with a seek bar, and lyrics/queue, always at the bottom. */
 export function PlayerBar() {
-  const { current, status, shuffle, repeat } = usePlayerState();
+  const { current, status, repeat } = usePlayerState();
+  const shuffle = useShuffleOn();
   const { position, duration: d } = useProgress();
   const duration = d || current?.durationSec || 0;
   const accent = useAccent();
@@ -111,7 +113,7 @@ export function PlayerBar() {
         <View style={styles.transport}>
           <IconButton
             label={shuffle ? "Shuffle off" : "Shuffle"}
-            onPress={() => player.setShuffle(!shuffle)}
+            onPress={toggleShuffle}
           >
             <ShuffleIcon color={shuffle ? accent : DIM} />
           </IconButton>

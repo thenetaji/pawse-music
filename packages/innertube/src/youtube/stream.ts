@@ -61,16 +61,34 @@ const isAac = (f: AdaptiveFormat): boolean =>
 const isOpus = (f: AdaptiveFormat): boolean =>
   /^audio\/webm\b/i.test(f.mimeType ?? "") && /opus/i.test(f.mimeType ?? "");
 
-/** Direct-url AAC, highest bitrate first, 140 on ties; 'saver' prefers 139. AVPlayer cannot play WebM/Opus, so `opus` (ExoPlayer) only fills in when no AAC is offered. `ciphered` also accepts signatureCipher formats (a JsSandbox can solve them). */
+/**
+ * Direct-url audio, highest bitrate first, 140 on ties; 'saver' prefers 139 or 249. AAC unless `opus` (a player that
+ * decodes WebM/Opus) is set: then Opus wins over AAC, except a much richer AAC (itag 141, Premium) and an Opus larger
+ * than `opusMaxBytes`. `ciphered` also accepts signatureCipher formats (a JsSandbox can solve them).
+ */
 export function pickAudioFormat(
   formats: AdaptiveFormat[] | undefined,
   quality: AudioQuality = "high",
   opus = false,
   ciphered = false,
+  opusMaxBytes?: number,
 ): AdaptiveFormat | undefined {
   const direct = (formats ?? []).filter(ciphered ? hasUrl : isDirect);
-  let usable = direct.filter(isAac);
-  if (!usable.length && opus) usable = direct.filter(isOpus);
+  const aac = direct.filter(isAac);
+  const allOpus = opus ? direct.filter(isOpus) : [];
+  const opuses = allOpus.filter(
+    (f) =>
+      !opusMaxBytes ||
+      !f.contentLength ||
+      Number(f.contentLength) <= opusMaxBytes,
+  );
+  const top = (list: AdaptiveFormat[]) =>
+    Math.max(0, ...list.map((f) => f.bitrate ?? 0));
+  const usable = !aac.length
+    ? allOpus
+    : opuses.length && top(aac) <= top(opuses) * 1.5
+      ? opuses
+      : aac;
   if (quality === "saver") {
     const low = usable.find((f) => f.itag === 139 || f.itag === 249);
     if (low) return low;
@@ -115,27 +133,62 @@ export function isBotAnswer(e: unknown): boolean {
   );
 }
 
+/** Plain text of a YouTube text object ({ simpleText } or { runs }). */
+const textOf = (t: any): string =>
+  typeof t === "string"
+    ? t
+    : typeof t?.simpleText === "string"
+      ? t.simpleText
+      : Array.isArray(t?.runs)
+        ? t.runs.map((r: any) => r?.text ?? "").join("")
+        : "";
+
+/** YouTube's own words for why a video won't play: the headline, then the line under it ("This video is private"). */
+function playabilityDetail(ps: any, reason: string): string {
+  const screen = ps?.errorScreen?.playerErrorMessageRenderer;
+  const sub = (
+    textOf(screen?.subreason) ||
+    textOf(ps?.messages?.[0]) ||
+    textOf(screen?.reason)
+  ).trim();
+  if (!sub || reason.includes(sub)) return reason;
+  if (sub.includes(reason)) return sub;
+  return `${reason.replace(/[.\s]+$/, "")}. ${sub}`;
+}
+
 /** Maps playabilityStatus to a StreamError, or undefined when playable. */
 export function playabilityError(ps: any): StreamError | undefined {
   const status: string | undefined = ps?.status;
   if (status === "OK") return undefined;
   const reason = String(
-    ps?.reason ?? ps?.messages?.[0] ?? status ?? "missing playability status",
+    textOf(ps?.reason) ||
+      textOf(ps?.messages?.[0]) ||
+      status ||
+      "missing playability status",
   );
+  // A bot check is judged on the headline alone, as it always was; a private video says "private" in the line under it.
   if (status === "LOGIN_REQUIRED") {
-    return /bot|sign in to confirm you/i.test(reason) && !/age/i.test(reason)
-      ? new StreamError("blocked", reason)
-      : new StreamError("age_restricted", reason);
+    if (/bot|sign in to confirm you/i.test(reason) && !/age/i.test(reason))
+      return new StreamError("blocked", reason);
+    const detail = playabilityDetail(ps, reason);
+    return /\bprivate\b/i.test(detail)
+      ? new StreamError("unplayable", detail)
+      : new StreamError("age_restricted", detail);
   }
   if (
     status === "AGE_CHECK_REQUIRED" ||
     status === "AGE_VERIFICATION_REQUIRED" ||
     status === "CONTENT_CHECK_REQUIRED"
   ) {
-    return new StreamError("age_restricted", reason);
+    return new StreamError("age_restricted", playabilityDetail(ps, reason));
   }
-  if (status === "UNPLAYABLE" || status === "ERROR")
-    return new StreamError("unplayable", reason);
+  // A live event that hasn't begun, a premiere, a removed video: nothing to play until YouTube says so.
+  if (
+    status === "UNPLAYABLE" ||
+    status === "ERROR" ||
+    status === "LIVE_STREAM_OFFLINE"
+  )
+    return new StreamError("unplayable", playabilityDetail(ps, reason));
   return new StreamError("blocked", reason);
 }
 
@@ -149,8 +202,10 @@ export interface ResolveOptions {
   verify: boolean;
   verifyBudgetMs: number;
   quality?: AudioQuality;
-  /** Accept WebM/Opus when no AAC is offered (ExoPlayer can play it, AVPlayer cannot). */
+  /** The player decodes WebM/Opus (ExoPlayer, browsers; AVPlayer cannot): Opus is preferred over AAC. */
   opus?: boolean;
+  /** An Opus file larger than this loses to AAC, which can be played in small ranges. */
+  opusMaxBytes?: number;
   /** `youtube:<client>` ids never to return (they failed for this track). */
   exclude?: string[];
   /** `youtube:<client>` ids to try last (they failed on this device). */
@@ -349,7 +404,13 @@ async function tryClient(
   o.onPlayerData?.(data);
   const format = o.pick
     ? o.pick(sd?.adaptiveFormats, !!o.sandbox)
-    : pickAudioFormat(sd?.adaptiveFormats, o.quality, o.opus, !!o.sandbox);
+    : pickAudioFormat(
+        sd?.adaptiveFormats,
+        o.quality,
+        o.opus,
+        !!o.sandbox,
+        o.opusMaxBytes,
+      );
   if (!format)
     throw new StreamError(
       "no_audio",

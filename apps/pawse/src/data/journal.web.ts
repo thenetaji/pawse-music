@@ -71,6 +71,18 @@ export async function allPlays(
     .sort((a, b) => a.startedAt - b.startedAt);
 }
 
+export async function listeningDigest(): Promise<
+  { startedAt: number; listenedMs: number; artist: string }[]
+> {
+  return load()
+    .plays.filter((p) => p.origin === "pawse" && p.listenedMs >= 5000)
+    .map((p) => ({
+      startedAt: p.startedAt,
+      listenedMs: p.listenedMs,
+      artist: p.artists[0] ?? "",
+    }));
+}
+
 export async function exportJournal(): Promise<JournalData> {
   return { plays: await allPlays(), events: [...load().events] };
 }

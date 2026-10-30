@@ -10,6 +10,7 @@ import type {
   PlaylistSummary,
   SearchFilter,
   SearchResults,
+  SearchSuggestions,
   Shelf,
   Thumbnail,
   Track,
@@ -503,7 +504,9 @@ export function parseSuggestions(json: unknown): string[] {
   return out;
 }
 
-function pageHeader(json: unknown): Node | undefined {
+const EDITABLE_HEADER = "musicEditablePlaylistDetailHeaderRenderer";
+
+function headerCandidates(json: unknown): unknown[] {
   const first = dig(
     twoCol(json),
     "tabs",
@@ -514,14 +517,46 @@ function pageHeader(json: unknown): Node | undefined {
     "contents",
     0,
   );
-  for (const cand of [first, dig(json, "header")]) {
+  return [first, dig(json, "header")];
+}
+
+/** The suggestion endpoint's two kinds: plain queries (and your own past searches when signed in), and items with artwork. */
+export function parseSearchSuggestions(json: unknown): SearchSuggestions {
+  const queries: string[] = [];
+  const found: CatalogItem[] = [];
+  for (const section of arr(dig(json, "contents"))) {
+    for (const c of arr(
+      dig(section, "searchSuggestionsSectionRenderer", "contents"),
+    )) {
+      const s =
+        dig(c, "searchSuggestionRenderer") ??
+        dig(c, "historySuggestionRenderer");
+      if (s) {
+        const q =
+          dig(s, "navigationEndpoint", "searchEndpoint", "query") ??
+          text(s.suggestion);
+        if (q && !queries.includes(q)) queries.push(q);
+        continue;
+      }
+      const it = parseItem(c);
+      if (it && it.type !== "playlist") found.push(it);
+    }
+  }
+  return { queries, items: found };
+}
+
+function pageHeader(json: unknown): Node | undefined {
+  for (const cand of headerCandidates(json)) {
     let u = unwrap(cand);
-    if (u?.key === "musicEditablePlaylistDetailHeaderRenderer")
-      u = unwrap(u.node.header);
+    if (u?.key === EDITABLE_HEADER) u = unwrap(u.node.header);
     if (u && /Header/.test(u.key)) return u.node;
   }
   return undefined;
 }
+
+/** YouTube only wraps a playlist's header in the editable renderer for its owner. */
+const isEditable = (json: unknown) =>
+  headerCandidates(json).some((c) => unwrap(c)?.key === EDITABLE_HEADER);
 
 const descriptionOf = (h: Node | undefined): string | undefined =>
   text(dig(h, "description", "musicDescriptionShelfRenderer", "description")) ||
@@ -665,6 +700,7 @@ export function parsePlaylist(json: unknown, id: string): PlaylistDetail {
     description: descriptionOf(h),
     tracks: tracksOf(shelf?.contents),
     continuation: continuationOf(shelf),
+    ...(isEditable(json) ? { editable: true } : {}),
   };
 }
 

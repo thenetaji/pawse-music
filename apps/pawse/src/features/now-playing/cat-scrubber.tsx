@@ -84,6 +84,7 @@ export function CatScrubber({
   const showCat = useSetting("catWire", true);
   const color = useSetting<CatColor>("catColor", "orange");
   const freq = useSetting<"off" | "rare" | "often">("catEpisodes", "rare");
+  const idle = useSetting<CatMood>("mochiIdle", "sleep");
   const lift = useSharedValue(0);
   const catDX = useSharedValue(0);
   const mouseX = useSharedValue(-100);
@@ -311,7 +312,9 @@ export function CatScrubber({
   }));
 
   const shownMood: CatMood =
-    drag !== null ? "curious" : (epMood ?? react ?? mood);
+    drag !== null
+      ? "curious"
+      : (epMood ?? react ?? (mood === "sleep" ? idle : mood));
 
   return (
     <View>

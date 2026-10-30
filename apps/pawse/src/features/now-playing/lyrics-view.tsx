@@ -1,6 +1,6 @@
 import type { LyricLine, Lyrics } from "@pawse/music-core";
 import { useProgress } from "@pawse/player";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type LayoutChangeEvent,
   Pressable,
@@ -14,6 +14,7 @@ import { rightClick } from "../../lib/context-menu";
 import { activeLine } from "../../lib/lrc";
 import { useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
+import { type LatinLine, LatinToggle, useLatinLyrics } from "./latin-lyrics";
 
 type Props = {
   lyrics: Lyrics | null | undefined;
@@ -24,13 +25,26 @@ type Props = {
 
 // Full lyrics: the sung line in white, words lighting up as they're sung; tap a line to jump there.
 // Reads progress itself, so the player screen around it never re-renders on the 1 s tick.
-export function LyricsView({ lyrics, loading, onSeek, onShare }: Props) {
+export function LyricsView(props: Props) {
+  const latin = useLatinLyrics(props.lyrics);
+  return (
+    <View style={styles.root}>
+      <LyricsBody {...props} lyrics={latin.lyrics} />
+      {latin.can ? <LatinToggle on={latin.on} /> : null}
+    </View>
+  );
+}
+
+function LyricsBody({ lyrics, loading, onSeek, onShare }: Props) {
   const { position } = useProgress();
   const fs = { s: 24, m: 30, l: 36 }[
     useSetting<"s" | "m" | "l">("lyricsSize", "m")
   ];
   const scroll = useRef<ScrollView>(null);
   const tops = useRef<number[]>([]);
+  const onTop = useCallback((i: number, y: number) => {
+    tops.current[i] = y;
+  }, []);
   const [height, setHeight] = useState(0);
   const [userScrolling, setUserScrolling] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -88,42 +102,76 @@ export function LyricsView({ lyrics, loading, onSeek, onShare }: Props) {
       }}
     >
       {lines.map((line, i) => (
-        <Pressable
+        <Row
           key={i}
-          onLayout={(e: LayoutChangeEvent) =>
-            (tops.current[i] = e.nativeEvent.layout.y)
-          }
-          onPress={() => onSeek(line.startMs / 1000 + 0.01)}
-          onLongPress={() => line.text && onShare?.(line.text)}
-          {...rightClick(() => line.text && onShare?.(line.text))}
-          style={styles.linePress}
-        >
-          <Line
-            fs={fs}
-            line={line}
-            state={i === active ? "now" : i < active ? "past" : "next"}
-            ms={i === active ? ms : 0}
-            distance={Math.abs(i - active)}
-          />
-        </Pressable>
+          i={i}
+          fs={fs}
+          line={line}
+          state={i === active ? "now" : i < active ? "past" : "next"}
+          ms={i === active ? ms : 0}
+          distance={Math.abs(i - active)}
+          onTop={onTop}
+          onSeek={onSeek}
+          onShare={onShare}
+        />
       ))}
     </ScrollView>
   );
 }
 
-function Line({
+// A line only redraws when its own state changes, so the 1 s tick touches one row instead of the whole song.
+const Row = memo(function Row({
+  i,
+  onTop,
   line,
-  state,
-  ms,
-  distance,
-  fs,
+  onSeek,
+  onShare,
+  ...rest
 }: {
+  i: number;
+  onTop: (i: number, y: number) => void;
+  line: LyricLine;
+  fs: number;
+  state: "now" | "past" | "next";
+  ms: number;
+  distance: number;
+  onSeek: (sec: number) => void;
+  onShare?: (line: string) => void;
+}) {
+  return (
+    <Pressable
+      onLayout={(e: LayoutChangeEvent) => onTop(i, e.nativeEvent.layout.y)}
+      onPress={() => onSeek(line.startMs / 1000 + 0.01)}
+      onLongPress={() => line.text && onShare?.(line.text)}
+      {...rightClick(() => line.text && onShare?.(line.text))}
+      style={styles.linePress}
+    >
+      <Line line={line} {...rest} />
+    </Pressable>
+  );
+});
+
+function Line(p: LineProps) {
+  const latin = (p.line as LatinLine).latin;
+  return (
+    <>
+      <PlainLine {...p} />
+      {latin ? (
+        <Text style={[styles.latin, { fontSize: p.fs * 0.6 }]}>{latin}</Text>
+      ) : null}
+    </>
+  );
+}
+
+type LineProps = {
   fs: number;
   line: LyricLine;
   state: "now" | "past" | "next";
   ms: number;
   distance: number;
-}) {
+};
+
+function PlainLine({ line, state, ms, distance, fs }: LineProps) {
   if (!line.text)
     return (
       <Text
@@ -181,6 +229,12 @@ function evenWords(line: LyricLine) {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
+  latin: {
+    color: "rgba(255,255,255,0.55)",
+    ...display("700"),
+    marginTop: 2,
+  },
   empty: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: {
     color: "rgba(255,255,255,0.5)",

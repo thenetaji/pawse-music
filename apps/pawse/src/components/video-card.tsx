@@ -21,7 +21,12 @@ import {
 } from "../data/watched";
 import { showPlaylistPicker } from "../features/library/playlist-tools";
 import { MoreGlyph } from "../features/now-playing/icons";
-import { minimizeWatch, openWatch, useWatch } from "../features/watch/store";
+import {
+  minimizeWatch,
+  openWatch,
+  queueWatch,
+  useWatch,
+} from "../features/watch/store";
 import { blockChannel, hideVideo } from "../lib/block";
 import { useBranding } from "../lib/community";
 import { rightClick } from "../lib/context-menu";
@@ -38,7 +43,9 @@ import {
   HideGlyph,
   MusicGlyph,
   PinGlyph,
+  PlayNextGlyph,
   PlaylistGlyph,
+  QueueAddGlyph,
   ShareGlyph,
   TrashGlyph,
 } from "./glyphs";
@@ -87,6 +94,13 @@ export function showVideoActions(v: VideoItem) {
   const id = ch?.id;
   const track = videoTrack(v);
   const link = `https://youtu.be/${v.id}`;
+  const queueable = !!useWatch.getState().id && useWatch.getState().id !== v.id;
+  const seed = {
+    id: v.id,
+    title: v.title,
+    thumbnails: v.thumbnails,
+    channel: v.channel,
+  };
   showSheet({
     header: (
       <View style={styles.sheetHead}>
@@ -135,6 +149,27 @@ export function showVideoActions(v: VideoItem) {
       },
     ],
     actions: [
+      // The queue belongs to the video being watched, so there's nothing to line up behind without one.
+      ...(queueable
+        ? [
+            {
+              label: "Play next",
+              icon: (c: string) => <PlayNextGlyph size={22} color={c} />,
+              onPress: () => {
+                queueWatch(seed, "next");
+                showToast("Plays next");
+              },
+            },
+            {
+              label: "Add to queue",
+              icon: (c: string) => <QueueAddGlyph size={22} color={c} />,
+              onPress: () => {
+                queueWatch(seed, "end");
+                showToast("Added to the queue");
+              },
+            },
+          ]
+        : []),
       {
         label: "Listen",
         sub: "Plays as audio in the music player",
@@ -296,7 +331,7 @@ export const VideoCard = memo(function VideoCard({
                 weight={2.4}
               />
             ) : null}
-            {brand?.title || brand?.thumbnail ? <DeArrowMark /> : null}
+            {brand?.dearrow || brand?.thumbnail ? <DeArrowMark /> : null}
             <Text style={styles.metaText} numberOfLines={1}>
               {videoMeta(video, !hideChannel, focus.counts)}
             </Text>
@@ -342,7 +377,7 @@ export const VideoRow = memo(function VideoRow({
           {video.music ? (
             <MusicGlyph size={12} color="rgba(255,255,255,0.6)" weight={2.4} />
           ) : null}
-          {brand?.title || brand?.thumbnail ? <DeArrowMark /> : null}
+          {brand?.dearrow || brand?.thumbnail ? <DeArrowMark /> : null}
           <Text style={styles.metaText} numberOfLines={2}>
             {videoMeta(video, true, focus.counts)}
           </Text>

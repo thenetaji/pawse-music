@@ -67,7 +67,7 @@ export interface VideoSearchResults {
 export interface VideoDetail {
   video: VideoItem;
   description?: string;
-  chapters: { title: string; startSec: number }[];
+  chapters: { title: string; startSec: number; ai?: boolean }[];
   related: VideoItem[];
   /** "1.25M subscribers". */
   subscribersText?: string;
@@ -105,6 +105,29 @@ export interface CommentPage {
   continuation?: string;
 }
 
+/** A channel tab Pawse shows (never Shorts, Community or Store). */
+export interface ChannelTab {
+  kind:
+    | "home"
+    | "videos"
+    | "live"
+    | "playlists"
+    | "podcasts"
+    | "releases"
+    | "shows"
+    | "courses";
+  title: string;
+  params: string;
+}
+
+/** A sort: a token that reloads the list (Videos, Live) or the tab's params (Playlists). */
+export interface ChannelSort {
+  title: string;
+  selected?: boolean;
+  token?: string;
+  params?: string;
+}
+
 export interface ChannelPage {
   channel: ChannelItem;
   banner?: Thumbnail[];
@@ -112,6 +135,38 @@ export interface ChannelPage {
   continuation?: string;
   /** Signed in: whether the account is subscribed. */
   subscribed?: boolean;
+  /** "@Fireship" */
+  handle?: string;
+  /** "859 videos" */
+  videoCountText?: string;
+  description?: string;
+  /** In YouTube's order; only on a channel's first page. */
+  tabs?: ChannelTab[];
+  /** Latest, Popular and Oldest. */
+  sorts?: ChannelSort[];
+  about?: string;
+  /** Params of the channel's own search tab. */
+  search?: string;
+}
+
+/** A channel tab, or a search inside the channel; Home also has titled shelves. */
+export interface ChannelTabPage {
+  items: (VideoItem | VideoPlaylistItem)[];
+  sections?: { title: string; items: (VideoItem | VideoPlaylistItem)[] }[];
+  sorts?: ChannelSort[];
+  continuation?: string;
+}
+
+export interface ChannelAbout {
+  description?: string;
+  links: { title: string; url: string }[];
+  /** "Joined Apr 7, 2017" */
+  joined?: string;
+  /** "793,986,739 views" */
+  viewsText?: string;
+  country?: string;
+  subscribersText?: string;
+  videoCountText?: string;
 }
 
 export interface StreamPart {
@@ -126,6 +181,21 @@ export interface StreamPart {
   initRange?: { start: number; end: number };
   /** Byte range of the segment index (`sidx`). */
   indexRange?: { start: number; end: number };
+}
+
+/** A video's preview frames, packed into sheets of `cols` x `rows` pictures, for scrubbing. */
+export interface Storyboard {
+  /** A sheet's url; `{n}` stands for the sheet number, counting from 0 (absent when there is one sheet). */
+  url: string;
+  /** One frame's size in pixels. */
+  width: number;
+  height: number;
+  /** Frames in all, across every sheet. */
+  count: number;
+  cols: number;
+  rows: number;
+  /** Seconds between frames. */
+  everySec: number;
 }
 
 /** Separate H.264 video and AAC audio streams from one client, for a player that merges them. */
@@ -147,6 +217,8 @@ export interface VideoStream {
   audioTrack?: string;
   /** Subtitles YouTube has for the video. */
   captions?: CaptionTrack[];
+  /** Preview frames for the scrubber, when YouTube has them. */
+  storyboard?: Storyboard;
 }
 
 export interface AudioTrackOption {

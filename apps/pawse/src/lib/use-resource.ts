@@ -34,12 +34,18 @@ export function useResource<T>(
     data?: T;
     error?: Error;
     loading: boolean;
-    reload: () => Promise<void>;
+    /** Fetches again, bypassing the cache; settles with the error, if any. */
+    reload: () => Promise<Error | undefined>;
   };
 }
 
 /** Fetches these pages again, e.g. on pull-to-refresh. */
-export const refreshResources = (prefixes: string[]) => cache.refresh(prefixes);
+export const refreshResources = (prefixes: string[], except?: string[]) =>
+  cache.refresh(prefixes, except);
+
+/** Whether a refresh result holds an error, however nested. */
+export const refreshFailed = (r: unknown): boolean =>
+  r instanceof Error || (Array.isArray(r) && r.some(refreshFailed));
 
 /** Drops every cached page and saved copy, e.g. after signing in or out. */
 export const clearResources = () => {

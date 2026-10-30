@@ -21,6 +21,7 @@ const LICENSES = [
   ["Expo and React Native", "MIT"],
   ["Reanimated, Gesture Handler, Skia", "MIT"],
   ["Lyrics", "LRCLIB, Lyrics+, BetterLyrics, Unison, KuGou"],
+  ["AutoEq headphone corrections, bs2b crossfeed", "MIT"],
 ];
 
 export default function About() {

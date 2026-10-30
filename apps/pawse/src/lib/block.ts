@@ -2,6 +2,7 @@ import type { VideoItem } from "@pawse/music-core";
 
 import { useLibrary } from "../data/library";
 import { useWatched } from "../data/watched";
+import { playable } from "./playable";
 import { getSetting, setSetting, useSetting } from "./settings";
 
 export type BlockedChannel = { id: string; name: string };
@@ -18,7 +19,7 @@ export function hideVideo(id: string): void {
   setSetting("hiddenVideos", [id, ...hidden()].slice(0, HIDDEN_MAX));
 }
 
-/** Whether a video stays visible: not from a blocked channel, and no blocked word in its title. */
+/** Whether a video stays visible: it can play, isn't from a blocked channel, and has no blocked word. */
 export function useVideoFilter(): (v: VideoItem) => boolean {
   const ch = useSetting<BlockedChannel[]>("blockedChannels", []);
   const ws = useSetting<string[]>("blockedWords", []);
@@ -28,6 +29,7 @@ export function useVideoFilter(): (v: VideoItem) => boolean {
   const disliked = useWatched((s) => s.disliked);
   const notFor = useSetting<string[]>("hiddenVideos", []);
   return (v) =>
+    playable(v) &&
     !disliked.includes(v.id) &&
     !notFor.includes(v.id) &&
     !(v.channel?.id && ids.has(v.channel.id)) &&

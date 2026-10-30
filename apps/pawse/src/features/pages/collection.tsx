@@ -46,7 +46,13 @@ import { isPinned, togglePin } from "../../data/pins";
 import { isUnfinished, useWatched } from "../../data/watched";
 import { haptic } from "../../lib/haptics";
 import { count } from "../../lib/plural";
+import type { Picked } from "../../lib/playlist-remove";
 import { autoplayMode } from "../../lib/settings";
+import {
+  playSmooth,
+  setSmoothShuffle,
+  useSmoothShuffle,
+} from "../../lib/smooth-queue";
 import { display } from "../../lib/type";
 import {
   removeDuplicates,
@@ -78,6 +84,8 @@ type Props = {
   onSave?: () => void;
   /** Local playlists can be renamed and edited. */
   editableId?: string;
+  /** Set where songs can be taken out (swipe, the song's menu, Select songs, Edit); the page decides what removing means. */
+  onRemove?: (picks: Picked[]) => void;
 };
 
 // Album and playlist pages: the cover's colours wash the top; the cover shrinks and fades as you scroll.
@@ -96,6 +104,7 @@ export function Collection({
   saved,
   onSave,
   editableId,
+  onRemove,
 }: Props) {
   const insets = useSafeAreaInsets();
   const bottom = useBottomSpace();
@@ -126,14 +135,14 @@ export function Collection({
     opacity: interpolate(y.value, [230, 300], [1, 0], "clamp"),
   }));
 
+  const smooth = useSmoothShuffle();
   const play = (i: number, shuffle = false) => {
     haptic.light();
-    player.setShuffle(shuffle);
     // Playlists and albums end where they end unless the user asked for more.
-    void player.play(tracks, i, {
-      source,
-      endless: autoplayMode() === "always",
-    });
+    const opts = { source, endless: autoplayMode() === "always" };
+    if (shuffle && smooth) return void playSmooth(tracks, opts);
+    player.setShuffle(shuffle);
+    void player.play(tracks, i, opts);
   };
   // A YouTube playlist of videos (a course, a series) is watched, in order, not listened to.
   const videoList =
@@ -183,11 +192,10 @@ export function Collection({
       : undefined,
   );
   const removePicked = () => {
-    if (!editableId || !picked?.size) return;
-    const ids = tracks.filter((_, i) => picked.has(i)).map((t) => t.id);
-    useLibrary.getState().removeManyFromPlaylist(editableId, ids);
-    haptic.success();
-    showToast(`Removed ${count(ids.length, "song")}`);
+    if (!onRemove || !picked?.size) return;
+    onRemove(
+      tracks.flatMap((track, at) => (picked.has(at) ? [{ track, at }] : [])),
+    );
     setPicked(null);
   };
   // The YouTube copy replaces this one, so songs added only in Pawse go: ask first.
@@ -357,7 +365,7 @@ export function Collection({
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <Animated.FlatList
         data={tracks}
-        extraData={picked}
+        extraData={[picked, editing]}
         onScroll={onScroll}
         scrollEventThrottle={16}
         keyExtractor={(t, i) => `${t.id}${i}`}
@@ -445,6 +453,17 @@ export function Collection({
                     <ShuffleGlyph />
                     <Text style={styles.btnText}>Shuffle</Text>
                   </PressScale>
+                  <IconBtn
+                    label={smooth ? "Smooth shuffle off" : "Smooth shuffle"}
+                    onPress={() => {
+                      haptic.light();
+                      setSmoothShuffle(!smooth);
+                    }}
+                  >
+                    <SmoothGlyph
+                      color={smooth ? readable(palette.accent) : "#fff"}
+                    />
+                  </IconBtn>
                   {editableId ? (
                     <IconBtn
                       label={editing ? "Done" : "Edit"}
@@ -497,6 +516,9 @@ export function Collection({
               index={index}
               count={tracks.length}
               id={editableId}
+              onRemove={
+                onRemove && (() => onRemove([{ track: item, at: index }]))
+              }
             />
           ) : (
             <TrackRow
@@ -504,6 +526,9 @@ export function Collection({
               index={index + 1}
               showArt={!numbered}
               onPress={() => start(index)}
+              onRemove={
+                onRemove && (() => onRemove([{ track: item, at: index }]))
+              }
               subtitle={
                 numbered
                   ? item.artists.map((a) => a.name).join(", ")
@@ -547,7 +572,7 @@ export function Collection({
           <Text style={styles.pickCount} numberOfLines={1}>
             {picked.size ? `${picked.size} selected` : "Tap songs"}
           </Text>
-          {editableId ? (
+          {onRemove ? (
             <PressScale
               disabled={!picked.size}
               onPress={removePicked}
@@ -631,22 +656,27 @@ function EditRow({
   index,
   count,
   id,
+  onRemove,
 }: {
   track: Track;
   index: number;
   count: number;
   id: string;
+  onRemove?: () => void;
 }) {
   const lib = useLibrary.getState();
   return (
     <View style={styles.editRow}>
-      <Pressable
-        hitSlop={8}
-        onPress={() => lib.removeFromPlaylist(id, track.id)}
-        style={styles.minus}
-      >
-        <MinusGlyph size={14} weight={3} />
-      </Pressable>
+      {onRemove ? (
+        <Pressable
+          hitSlop={8}
+          onPress={onRemove}
+          accessibilityLabel="Remove from playlist"
+          style={styles.minus}
+        >
+          <MinusGlyph size={14} weight={3} />
+        </Pressable>
+      ) : null}
       <Artwork thumbnails={track.thumbnails} size={44} radius={6} />
       <Text style={styles.editTitle} numberOfLines={1}>
         {track.title}
@@ -736,6 +766,23 @@ export function ShuffleGlyph({ color = "#fff" }: { color?: string }) {
       strokeLinejoin="round"
     >
       <Path d="M3 7h3.5c3 0 4.5 10 8 10H21M3 17h3.5c1.6 0 2.7-2.6 3.8-5M14.5 7H21M18 4l3 3-3 3M18 14l3 3-3 3" />
+    </Svg>
+  );
+}
+
+function SmoothGlyph({ color = "#fff" }: { color?: string }) {
+  return (
+    <Svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <Path d="M3 12c3-6 6-6 9 0s6 6 9 0" />
     </Svg>
   );
 }

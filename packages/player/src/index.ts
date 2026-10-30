@@ -7,6 +7,7 @@ export {
   refreshArtwork,
   setPrefetchAhead,
   setupPlayer,
+  startQuiet,
   useProgress,
 } from "./engine";
 export { POS_KEY, QUEUE_KEY } from "./keys";

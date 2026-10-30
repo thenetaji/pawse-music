@@ -24,6 +24,7 @@ import { setSetting, useSetting } from "../lib/settings";
 import { openAlbum, openArtist } from "../lib/song-links";
 import { useSongVideo } from "../lib/song-video";
 import { useResource } from "../lib/use-resource";
+import { useSettled } from "../lib/use-settled";
 import { mutedVideo } from "../lib/video-stream";
 
 const LABEL = {
@@ -55,8 +56,10 @@ export default function NowPlaying() {
   const [mode, setMode] = useState<"art" | "lyrics">(
     start === "lyrics" ? "lyrics" : "art",
   );
+  // Lyrics wait until the sheet has finished sliding up, so parsing them never lands in its frames.
+  const settled = useSettled();
   const lyrics = useResource<Lyrics | null>(
-    current ? `lyrics:${current.id}` : null,
+    current && (settled || mode === "lyrics") ? `lyrics:${current.id}` : null,
     () => lyricsService.lyrics(current!),
   );
   // Song | Video: the switch remembers its side from song to song.

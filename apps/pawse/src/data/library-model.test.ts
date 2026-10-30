@@ -1,7 +1,10 @@
+import type { Track } from "@pawse/music-core";
+
 import {
   DEFAULT_SETTINGS,
   migrateLocale,
   migrateQuality,
+  reinsertTracks,
   type Settings,
 } from "./library-model";
 
@@ -62,5 +65,31 @@ describe("migrateLocale", () => {
     const s = migrateLocale(merged(saved), saved);
     expect(s.region).toBe("US");
     expect(s.language).toBe("hi");
+  });
+});
+
+describe("reinsertTracks", () => {
+  const song = (id: string) => ({ id, title: id }) as unknown as Track;
+  const ids = (l: Track[]) => l.map((t) => t.id).join("");
+
+  it("puts removed songs back where they were", () => {
+    const left = [song("b"), song("d")];
+    const back = reinsertTracks(left, [
+      { track: song("e"), at: 4 },
+      { track: song("a"), at: 0 },
+      { track: song("c"), at: 2 },
+    ]);
+    expect(ids(back)).toBe("abcde");
+  });
+
+  it("skips songs that came back another way and clamps a position past the end", () => {
+    const back = reinsertTracks(
+      [song("a")],
+      [
+        { track: song("a"), at: 3 },
+        { track: song("z"), at: 9 },
+      ],
+    );
+    expect(ids(back)).toBe("az");
   });
 });

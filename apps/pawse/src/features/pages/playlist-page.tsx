@@ -8,11 +8,20 @@ import { useOfflineTracks } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { useSmartPlaylists } from "../../data/recommend";
 import { yt } from "../../lib/engine";
+import {
+  removeFromLiked,
+  removeFromLocalPlaylist,
+  removeFromYouTubePlaylistWithUndo,
+  useRemovedFromYouTube,
+} from "../../lib/playlist-remove";
 import { count } from "../../lib/plural";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { Shell } from "./album-page";
 import { Collection, confirmDelete } from "./collection";
+
+// Liked music and episodes for later are not playlists you remove songs from.
+const NOT_EDITABLE = new Set(["LM", "SE"]);
 
 export default function PlaylistPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,6 +41,9 @@ function RemotePlaylist({ id }: { id: string }) {
     continuation?: string;
   } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const signedIn = useLibrary((s) => !!s.settings.cookies);
+  // Songs just removed stay off the page while YouTube catches up (and while its copy is still cached).
+  const gone = useRemovedFromYouTube(id);
   const p = pl.data;
   if (!p)
     return (
@@ -48,7 +60,12 @@ function RemotePlaylist({ id }: { id: string }) {
         )}
       </Shell>
     );
-  const tracks = more ? [...p.tracks, ...more.tracks] : p.tracks;
+  const all = more ? [...p.tracks, ...more.tracks] : p.tracks;
+  const tracks = gone.length
+    ? all.filter((t) => !t.setVideoId || !gone.includes(t.setVideoId))
+    : all;
+  // Only the owner's playlists come back marked editable, and only when signed in.
+  const removable = signedIn && !!p.editable && !NOT_EDITABLE.has(p.id);
   const cont = more ? more.continuation : p.continuation;
   const loadMore = () => {
     if (!cont || loadingMore) return;
@@ -80,6 +97,11 @@ function RemotePlaylist({ id }: { id: string }) {
       thumbnails={p.thumbnails}
       tracks={tracks}
       source={{ type: "playlist", id: p.id, title: p.title }}
+      onRemove={
+        removable
+          ? (picks) => removeFromYouTubePlaylistWithUndo(p.id, picks)
+          : undefined
+      }
       onEndReached={loadMore}
       // Songs added on YouTube show up without waiting for the cache to expire.
       onRefresh={() => {
@@ -156,6 +178,13 @@ function LocalPlaylist({ id }: { id: string }) {
       tracks={tracks}
       source={{ type: "library", id, title }}
       editableId={local ? id : undefined}
+      onRemove={
+        id === "liked"
+          ? removeFromLiked
+          : local
+            ? (picks) => removeFromLocalPlaylist(id, picks)
+            : undefined
+      }
       footer={
         tracks.length === 0 ? (
           <CatState
