@@ -1,5 +1,4 @@
 import type { CaptionCue, Storyboard } from "@pawse/music-core";
-import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   Platform,
@@ -545,18 +544,6 @@ export function VideoControls(p: ControlsProps) {
       ) : null}
 
       <Animated.View style={[styles.overlay, fade]} pointerEvents={live}>
-        {/* A light scrim, darker only behind the buttons at the top and bottom, so the picture shows through. */}
-        <LinearGradient
-          pointerEvents="none"
-          colors={[
-            "rgba(0,0,0,0.32)",
-            "rgba(0,0,0,0.06)",
-            "rgba(0,0,0,0.06)",
-            "rgba(0,0,0,0.38)",
-          ]}
-          locations={[0, 0.22, 0.75, 1]}
-          style={StyleSheet.absoluteFill}
-        />
         <View
           style={[styles.top, p.fullscreen && styles.topFull]}
           pointerEvents={live}
@@ -856,6 +843,13 @@ const GearGlyph = () => (
   </Svg>
 );
 
+// No scrim over the picture, so text carries its own shadow to stay readable on bright frames.
+const SHADOW = {
+  textShadowColor: "rgba(0,0,0,0.6)",
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 4,
+};
+
 const styles = StyleSheet.create({
   overlay: {
     position: "absolute",
@@ -893,8 +887,13 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: RED,
   },
-  headTitle: { color: "#fff", fontSize: 16, ...display("700") },
-  headSub: { color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 1 },
+  headTitle: { color: "#fff", fontSize: 16, ...SHADOW, ...display("700") },
+  headSub: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 13,
+    marginTop: 1,
+    ...SHADOW,
+  },
   switch: { transform: [{ scale: 0.8 }] },
   // Rows stacked, never overlapping, so each button gets its own touches on every platform.
   center: {
@@ -946,6 +945,7 @@ const styles = StyleSheet.create({
   chapterBtnText: {
     flexShrink: 1,
     color: "rgba(255,255,255,0.9)",
+    ...SHADOW,
     fontSize: 12.5,
     ...display("700"),
   },

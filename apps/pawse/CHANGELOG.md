@@ -9,6 +9,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ### Changed
 - **The Dynamic Island shows iOS's own player by default.** iOS always adds its own music bubble, so Pawse's island next to it split the island in two. Mochi's island is now an opt-in in Settings → Look and Mochi.
+- **No dark shade over videos** when the controls show; buttons keep their own circles and text its own shadow.
 - **Edit songs moved into the ••• menu** on playlists, so the Play row has room. Tap or hold the Smooth shuffle wave to see what it does.
 
 ## [1.13.1] - 2026-10-30
