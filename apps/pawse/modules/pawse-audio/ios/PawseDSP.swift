@@ -1,7 +1,9 @@
 import Foundation
 
-let pawseBands = 10
-private let bandHz: [Double] = [60, 120, 250, 500, 1000, 2000, 3500, 6000, 10000, 15000]
+let pawseBands = 16
+// 40 Hz to 16 kHz in equal log steps, as BAND_HZ in types.ts; a Q of 2.5 makes each band about one step wide.
+private let bandHz: [Double] = (0..<pawseBands).map { 40 * pow(400.0, Double($0) / Double(pawseBands - 1)) }
+private let bandQ = 2.5
 private let silentDb = -60.0
 private let floorDb = -120.0
 
@@ -145,7 +147,7 @@ final class TapState {
       i += 4
     }
     filters = next
-    bandFilters = cfg.meter ? bandHz.filter { $0 < nyquist * 0.9 }.map { Biquad.bandpass(freq: $0, q: 1.5, fs: sampleRate) } : []
+    bandFilters = cfg.meter ? bandHz.filter { $0 < nyquist * 0.9 }.map { Biquad.bandpass(freq: $0, q: bandQ, fs: sampleRate) } : []
     if cfg.crossfeed { designCrossfeed() }
   }
 
