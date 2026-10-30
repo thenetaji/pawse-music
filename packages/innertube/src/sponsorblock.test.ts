@@ -1,4 +1,4 @@
-import { crowdChapters, SponsorBlock } from "./sponsorblock";
+import { crowdChapters, musicSkips, SponsorBlock } from "./sponsorblock";
 
 const json = (body: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), { status }));
@@ -101,4 +101,23 @@ test("community chapters drop overlaps and a lone stray chapter", () => {
     { startSec: 200, title: "End" },
   ]);
   expect(crowdChapters([seg(10, 20, "Alone")])).toEqual([]);
+});
+
+describe("musicSkips", () => {
+  const seg = (start: number, end: number, extra = {}) => ({
+    start,
+    end,
+    category: "music_offtopic",
+    ...extra,
+  });
+
+  it("skips intros and outros", () => {
+    expect(musicSkips([seg(0, 20), seg(200, 240)], 240)).toHaveLength(2);
+  });
+
+  it("leaves a mid-song part unless the community is sure of it", () => {
+    expect(musicSkips([seg(90, 120)], 240)).toEqual([]);
+    expect(musicSkips([seg(90, 120, { votes: 3 })], 240)).toHaveLength(1);
+    expect(musicSkips([seg(90, 120, { locked: true })], 240)).toHaveLength(1);
+  });
 });

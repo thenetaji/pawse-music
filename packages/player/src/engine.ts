@@ -590,7 +590,11 @@ function entered(key: string, rearmSleep: boolean): void {
   loadSegments(s.tracks[i]);
 }
 
+// Each part skips once per play: seeking back into one means you want to hear it.
+const skippedNow = new Set<{ start: number; end: number }>();
+
 function loadSegments(track: Track): void {
+  skippedNow.clear();
   const load = opts?.skipSegments;
   if (!load || segments.has(track.id)) return armSkip();
   segments.set(track.id, []);
@@ -611,7 +615,7 @@ function armSkip(): void {
   const list = segments.get(track.id);
   if (!list?.length) return;
   const pos = TrackPlayer.getProgress().position;
-  const next = list.find((g) => g.end > pos + 0.5);
+  const next = list.find((g) => g.end > pos + 0.5 && !skippedNow.has(g));
   if (!next) return;
   if (pos < next.start - 0.2) {
     skipTimer = setTimeout(armSkip, (next.start - pos) * 1000);
@@ -621,6 +625,7 @@ function armSkip(): void {
     "skip-segment",
     `${track.id} ${next.category} ${Math.round(next.start)}-${Math.round(next.end)}s`,
   );
+  skippedNow.add(next);
   opts?.onSkip?.(track, next.category);
   const dur = chooseDuration(TrackPlayer.getProgress().duration, track) || 0;
   TrackPlayer.seekTo(

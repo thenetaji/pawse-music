@@ -82,6 +82,7 @@ export * from "./youtube/video";
 export {
   type Branding,
   type CrowdChapter,
+  musicSkips,
   type SkipSegment,
   SponsorBlock,
   type SponsorBlockOptions,

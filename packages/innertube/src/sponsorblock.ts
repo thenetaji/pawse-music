@@ -11,6 +11,28 @@ export interface SkipSegment {
   category: string;
   /** SponsorBlock's id for the segment, to vote on it. */
   uuid?: string;
+  votes?: number;
+  locked?: boolean;
+}
+
+const EDGE_SEC = 3;
+const SURE_VOTES = 3;
+
+/**
+ * The non-music parts of a song worth jumping over. Intros and outros are safe to skip; a part in the middle is
+ * often an instrumental break someone mislabelled, so it needs a locked segment or several upvotes.
+ */
+export function musicSkips(
+  segments: SkipSegment[],
+  durationSec?: number,
+): SkipSegment[] {
+  return segments.filter(
+    (s) =>
+      s.start <= EDGE_SEC ||
+      (!!durationSec && s.end >= durationSec - EDGE_SEC) ||
+      s.locked ||
+      (s.votes ?? 0) >= SURE_VOTES,
+  );
 }
 
 /** A chapter made by SponsorBlock's community, for videos without YouTube chapters. */
@@ -132,11 +154,14 @@ export class SponsorBlock {
     );
     const list = Array.isArray(raw) ? raw : (raw?.segments ?? []);
     return list
+      .filter(trusted)
       .map((s) => ({
         start: s.segment[0],
         end: s.segment[1],
         category: s.category,
         uuid: s.UUID,
+        votes: s.votes,
+        ...(s.locked ? { locked: true } : {}),
       }))
       .filter((s) => s.end - s.start >= 1)
       .sort((a, b) => a.start - b.start);

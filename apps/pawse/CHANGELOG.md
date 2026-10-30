@@ -13,6 +13,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **Edit your YouTube playlists in Pawse.** For playlists your account owns, the ••• menu has Edit songs (reorder and remove, with undo), Rename, Description, Privacy and Delete.
 
 ### Changed
+- **Fewer wrong skips in music videos.** Non-music parts are skipped at the start and end; one in the middle (often an instrumental break someone mislabelled) is only skipped when SponsorBlock's community is sure of it, and rewinding into a skipped part plays it.
 - **The Dynamic Island shows iOS's own player by default.** iOS always adds its own music bubble, so Pawse's island next to it split the island in two. Mochi's island is now an opt-in in Settings → Look and Mochi.
 - **A Best part button** next to the time on videos that have one, whenever the controls are up (the pink mark on the bar shows where it is).
 - **SponsorBlock skips each segment once.** Rewind into a skipped sponsor and it plays.
