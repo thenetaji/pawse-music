@@ -1064,11 +1064,11 @@ const styles = StyleSheet.create({
   },
   best: {
     position: "absolute",
-    top: -3,
-    width: 4,
-    height: 9,
-    marginLeft: -2,
-    borderRadius: 2,
+    top: 0,
+    bottom: 0,
+    width: 6,
+    marginLeft: -3,
+    borderRadius: 1,
     backgroundColor: "#ff1684",
   },
   handle: {
