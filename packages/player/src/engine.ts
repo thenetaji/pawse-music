@@ -31,8 +31,8 @@ import type {
 } from "./types";
 
 const REFRESH_MS = 10 * 60_000;
-// Each prefetch is a player call YouTube counts, so only the next song resolves early.
-const AHEAD = 1;
+// The next two songs resolve early, so Next and autoplay start without a spinner; the first one also preloads.
+const AHEAD = 2;
 const FINISHED_AT = 0.8;
 const RADIO_LOW = 3;
 const TICK_MS = 5_000;
@@ -56,12 +56,14 @@ const STREAMS_KEY = "pawse.streams";
 const STREAMS_MAX = 200;
 // A pause this soon after a song change is the item loading, not the system.
 const SETTLE_MS = 1500;
-const ARTWORK_PX = 544;
+const ARTWORK_PX = 1200;
 // Played songs are written to disk and the next one preloads once the current is fully cached.
 const CACHE_BYTES = 256 * 1024 * 1024;
 const PRELOAD_WINDOW = 1;
 // Near the end of a song, retry a next-song prefetch that failed earlier.
 const NEAR_END_SEC = 30;
+// Upcoming URLs that have gone stale (a long pause, a long song) are re-resolved this often at most.
+const STALE_CHECK_MS = 30_000;
 // googlevideo slows one request for more than 10 MiB (about 11 min at 128 kbps) to playback speed, so the
 // cache proxy, which fetches a song in one request, only takes smaller ones; longer ones play from their playlist.
 const CACHE_MAX_STREAM_BYTES = 10 * 1024 * 1024;
@@ -204,10 +206,13 @@ function resolveOptions(track: Track): ResolveOptions | undefined {
   return exclude.length || avoid.length ? { exclude, avoid } : undefined;
 }
 
+const streamListeners = new Set<() => void>();
+
 function remember(id: string, st: ResolvedStream): void {
   streams.delete(id);
   streams.set(id, st);
   saveStreams();
+  for (const cb of streamListeners) cb();
 }
 
 function saveStreams(): void {
@@ -305,7 +310,8 @@ function forgetVia(via: string): void {
 }
 
 const artworkOf = (track: Track) =>
-  opts?.artwork?.(track) ?? bestThumbnail(track.thumbnails, ARTWORK_PX);
+  opts?.artwork?.(track) ??
+  bestThumbnail(track.thumbnails, opts?.artworkPx?.() ?? ARTWORK_PX);
 
 // ExoPlayer opens byte 0 without a Range header, and googlevideo throttles such requests to about 30 KB/s.
 const RANGE_FROM_START =
@@ -411,6 +417,26 @@ export function currentStream(): ResolvedStream | undefined {
   return t ? streams.get(t.id) : undefined;
 }
 
+/** The current song plays from a byte-range playlist, which the native audio tap can't reach. */
+export function currentOnPlaylist(): boolean {
+  const st = currentStream();
+  return !!st && !!playlistOf(st);
+}
+
+const subscribeStream = (cb: () => void) => {
+  streamListeners.add(cb);
+  const off = usePlayerStore.subscribe(cb);
+  return () => {
+    streamListeners.delete(cb);
+    off();
+  };
+};
+
+/** The stream behind the current song; re-renders when the song or its stream changes. */
+export function useCurrentStream(): ResolvedStream | undefined {
+  return useSyncExternalStore(subscribeStream, currentStream, () => undefined);
+}
+
 /** How many upcoming songs get resolved ahead (data saver uses 1); no argument restores the default. */
 export function setPrefetchAhead(n?: number): void {
   ahead = n === undefined ? AHEAD : Math.max(0, Math.round(n));
@@ -420,6 +446,20 @@ function ensureAhead(): void {
   const { index, tracks } = get();
   for (let i = index + 1; i <= index + ahead && i < tracks.length; i++)
     void ensureReady(i, false, true);
+}
+
+let staleCheckedAt = 0;
+/** Re-resolves upcoming songs whose URL went stale while waiting; ones never resolved are left to ensureAhead. */
+function refreshStaleAhead(): void {
+  const now = Date.now();
+  if (now - staleCheckedAt < STALE_CHECK_MS) return;
+  staleCheckedAt = now;
+  const { index, tracks } = get();
+  for (let i = index + 1; i <= index + ahead && i < tracks.length; i++) {
+    const st = streams.get(tracks[i].id);
+    if (st && st.via !== "local" && !isFresh(st.expiresAt))
+      void ensureReady(i, false, true);
+  }
 }
 
 function loadNative(i: number): void {
@@ -902,6 +942,7 @@ function tick(): void {
   )
     return sleepNow("timer backstop");
   if (dur > 0 && dur - position < NEAR_END_SEC) ensureAhead();
+  else refreshStaleAhead();
   guardEnd(position, duration, track);
   armEndFade(position, dur);
 }

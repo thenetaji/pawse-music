@@ -4,6 +4,7 @@ import { followedChannels } from "../data/channels";
 import { ytv } from "../data/clients";
 import { kv } from "../data/storage";
 import { useWatched } from "../data/watched";
+import { noteShown, orderFeed, type Seen } from "./for-you-order";
 import { learnsFromWatching } from "./learn";
 import { playable } from "./playable";
 
@@ -20,9 +21,11 @@ const FEED_CAP = 5;
 const HOPS_PER_SEED = 1;
 const MAX_SEEDS = 30;
 const MAX_SHOWN = 400;
-// Videos earlier opens showed go last, so a refresh leads with new ones.
+// How many of YouTube's leading videos swap places among themselves.
+const LEAD = 10;
+// Videos earlier opens showed go last, and what led the last few refreshes goes last of all.
 export const RECENT_KEY = "pawse.forYou.recent";
-const MAX_RECENT = 300;
+const TOPS_KEY = "pawse.forYou.tops";
 // Signed out, a new visitor has no home feed, so each open searches a few of these.
 const TOPICS = [
   "documentary",
@@ -56,21 +59,24 @@ type State = {
   per: Record<string, number>;
 };
 
-let recent: string[] | undefined;
+let seen: Seen | undefined;
 export const forgetOffered = () => {
-  recent = [];
+  seen = { recent: [], tops: [] };
+  void kv.removeItem(TOPS_KEY);
 };
-const recentIds = () => {
-  if (!recent) {
-    try {
-      const raw = kv.getItem(RECENT_KEY);
-      recent = typeof raw === "string" ? (JSON.parse(raw) as string[]) : [];
-    } catch {
-      recent = [];
-    }
+const read = <T>(key: string, fallback: T): T => {
+  try {
+    const raw = kv.getItem(key);
+    return typeof raw === "string" ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
   }
-  return recent;
 };
+const seenNow = (): Seen =>
+  (seen ??= {
+    recent: read<string[]>(RECENT_KEY, []),
+    tops: read<string[][]>(TOPS_KEY, []),
+  });
 
 /**
  * For you: videos like the ones you watched, your channels' newest uploads and popular ones, in a new order each
@@ -81,10 +87,16 @@ export async function forYou(continuation?: string): Promise<VideoFeed> {
   // A token that isn't ours is YouTube's own, from a page saved earlier.
   if (ytv.isSignedIn() || (continuation && !continuation.startsWith(PREFIX))) {
     const feed = await ytv.home(continuation);
-    return {
-      ...feed,
-      items: feed.items.filter((v) => !watched.has(v.id) && playable(v)),
-    };
+    const items = feed.items.filter((v) => !watched.has(v.id) && playable(v));
+    if (continuation) return { ...feed, items };
+    // YouTube's lead is the same for a while, so its leading videos trade places and last time's go down.
+    const lead = [...shuffled(items.slice(0, LEAD)), ...items.slice(LEAD)];
+    const ordered = orderFeed(lead, seenNow());
+    remember(
+      ordered.map((v) => v.id),
+      true,
+    );
+    return { ...feed, items: ordered };
   }
 
   const first = !continuation;
@@ -161,13 +173,12 @@ export async function forYou(continuation?: string): Promise<VideoFeed> {
       }
       picked.push(v);
     }
-  const offered = new Set(recentIds());
-  const items = [
-    ...picked.filter((v) => !offered.has(v.id)),
-    ...picked.filter((v) => offered.has(v.id)),
-  ];
+  const items = orderFeed(picked, seenNow());
   if (first && !items.length && failure) throw failure;
-  remember(items);
+  remember(
+    items.map((v) => v.id),
+    first,
+  );
 
   // An unwatched related video becomes a seed behind the watched ones.
   const hops = related.flatMap((l) =>
@@ -212,9 +223,10 @@ function pickTopics(count: number): string[] {
   return [...shuffled(TOPICS).slice(0, count), ...mine];
 }
 
-function remember(items: VideoItem[]) {
-  recent = [...recentIds(), ...items.map((v) => v.id)].slice(-MAX_RECENT);
-  void kv.set(RECENT_KEY, JSON.stringify(recent)).catch(() => {});
+function remember(ids: string[], first: boolean) {
+  seen = noteShown(seenNow(), ids, first);
+  void kv.set(RECENT_KEY, JSON.stringify(seen.recent)).catch(() => {});
+  void kv.set(TOPS_KEY, JSON.stringify(seen.tops)).catch(() => {});
 }
 
 function shuffled<T>(xs: T[]): T[] {

@@ -5,18 +5,13 @@ import UsersIcon from "lucide-react-native/icons/users";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
   useWindowDimensions,
   View,
 } from "react-native";
-import {
-  Gesture,
-  GestureDetector,
-  GestureHandlerRootView,
-} from "react-native-gesture-handler";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   type SharedValue,
   useAnimatedStyle,
@@ -27,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 
 import { hideSheet } from "../../components/action-sheet";
+import { SheetScrollView } from "../../components/pull-to-close";
 import {
   AudioTrackGlyph,
   CaptionsGlyph,
@@ -410,8 +406,7 @@ export function PlayerMenu(p: PlayerMenuProps) {
   };
 
   return (
-    // The sheet floats in its own window on iOS, outside the app's gesture root, so it brings one.
-    <GestureHandlerRootView
+    <View
       style={{ height: tall, overflow: "hidden" }}
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
     >
@@ -432,12 +427,12 @@ export function PlayerMenu(p: PlayerMenuProps) {
               <Text style={styles.headText}>{pages[page].title}</Text>
             </View>
           )}
-          <ScrollView bounces={false} style={{ flex: 1 }}>
+          <SheetScrollView style={{ flex: 1 }}>
             {pages[page].body}
-          </ScrollView>
+          </SheetScrollView>
         </Slide>
       ))}
-    </GestureHandlerRootView>
+    </View>
   );
 }
 

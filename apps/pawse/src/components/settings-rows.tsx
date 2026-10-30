@@ -1,11 +1,12 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useAccent } from "../features/now-playing/now-palette";
 import { haptic } from "../lib/haptics";
+import { tipOnce } from "../lib/setting-tip";
 import { setSetting, useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
-import { ChevronRight } from "./glyphs";
+import { ChevronRight, InfoGlyph } from "./glyphs";
 import { RIPPLE } from "./ui";
 
 const CHEV = "rgba(255,255,255,0.35)";
@@ -26,9 +27,27 @@ export function Section({
   );
 }
 
-export const Foot = ({ children }: { children: ReactNode }) => (
-  <Text style={styles.foot}>{children}</Text>
-);
+/** A section's explanation, folded behind an ⓘ under the group until tapped. */
+export function Foot({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View>
+      <Pressable
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={open ? "Hide details" : "More about this"}
+        onPress={() => {
+          haptic.light();
+          setOpen((o) => !o);
+        }}
+        style={styles.footButton}
+      >
+        <InfoGlyph size={15} color={open ? "#fff" : "rgba(255,255,255,0.45)"} />
+      </Pressable>
+      {open ? <Text style={styles.foot}>{children}</Text> : null}
+    </View>
+  );
+}
 
 export function Info({ label, value }: { label: string; value: string }) {
   return (
@@ -39,28 +58,47 @@ export function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * `hint` is a line under the label for an effect you can't see here; `tip` is the toast that
+ * says where to look the first time it is turned on. `write` replaces the plain save.
+ */
 export function Toggle({
   k,
   label,
   def,
+  hint,
+  tip,
   onChange,
+  write,
 }: {
   k: string;
   label: string;
   def: boolean;
+  hint?: string;
+  tip?: string;
   onChange?: (v: boolean) => void;
+  write?: (v: boolean) => void;
 }) {
   const value = useSetting(k, def);
   const accent = useAccent();
   return (
     <View style={styles.row}>
-      <Text style={[styles.label, { flex: 1 }]}>{label}</Text>
+      {hint ? (
+        <View style={styles.labelColumn}>
+          <Text style={styles.label}>{label}</Text>
+          <Text style={styles.hint}>{hint}</Text>
+        </View>
+      ) : (
+        <Text style={[styles.label, { flex: 1 }]}>{label}</Text>
+      )}
       <Switch
         value={value}
         onValueChange={(v) => {
           haptic.tick();
-          setSetting(k, v);
+          if (write) write(v);
+          else setSetting(k, v);
           onChange?.(v);
+          if (v && tip) tipOnce(k, tip);
         }}
         trackColor={{ true: accent, false: "rgba(255,255,255,0.2)" }}
         thumbColor="#fff"
@@ -174,14 +212,22 @@ export const styles = StyleSheet.create({
   pressed: { backgroundColor: "rgba(255,255,255,0.06)" },
   label: { color: "#fff", fontSize: 16 },
   value: { color: "rgba(255,255,255,0.5)", fontSize: 16 },
+  labelColumn: { flex: 1, paddingVertical: 8, paddingRight: 12 },
+  hint: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 2 },
   // The label keeps its line; a long value shortens with … instead.
   pickLabel: { flexShrink: 0, marginRight: 12 },
   pickValue: { flex: 1, flexShrink: 1, textAlign: "right" },
   foot: {
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(255,255,255,0.55)",
     fontSize: 13,
     paddingHorizontal: 32,
-    marginTop: 8,
+    marginTop: 2,
     lineHeight: 18,
+  },
+  footButton: {
+    alignSelf: "flex-end",
+    marginRight: 26,
+    marginTop: 6,
+    padding: 4,
   },
 });

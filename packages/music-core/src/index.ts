@@ -226,6 +226,8 @@ export interface ResolvedStream {
   loudnessDb?: number;
   /** Real length of this audio, when the source says; players can misread it. */
   durationSec?: number;
+  /** Samples per second, when the source says. */
+  sampleRateHz?: number;
   /** Which client or source produced it, for diagnostics. */
   via: string;
   /** A local HLS playlist over small byte ranges of `url`: googlevideo throttles a long file fetched in one request. */
@@ -258,6 +260,8 @@ export interface ResolveOptions {
   exclude?: string[];
   /** `via` values that failed on this device; tried last. */
   avoid?: string[];
+  /** A source tried ahead of the usual one accepts only a near-certain match, so a wrong song never plays. */
+  strict?: boolean;
 }
 
 /** Turns a Track into a playable URL. Implementations try their own fallbacks. */

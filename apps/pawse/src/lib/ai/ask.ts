@@ -13,15 +13,30 @@ const STOP = new Set(
 const wordsOf = (text: string): string[] =>
   text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [];
 
+// A transcript's windows and their words, made once however many questions follow.
+const indexed = new WeakMap<
+  CaptionCue[],
+  { windows: CaptionCue[]; docs: string[][] }
+>();
+
+function indexOf(cues: CaptionCue[]) {
+  let index = indexed.get(cues);
+  if (!index) {
+    const windows = groupCues(cues, WINDOW_SEC);
+    index = { windows, docs: windows.map((w) => wordsOf(w.text)) };
+    indexed.set(cues, index);
+  }
+  return index;
+}
+
 export function excerptsFor(
   question: string,
   cues: CaptionCue[],
   maxTokens = EXCERPT_TOKENS,
 ): string {
-  const windows = groupCues(cues, WINDOW_SEC);
+  const { windows, docs } = indexOf(cues);
   if (!windows.length) return "";
   const terms = [...new Set(wordsOf(question).filter((w) => !STOP.has(w)))];
-  const docs = windows.map((w) => wordsOf(w.text));
   const idf = new Map(
     terms.map((t) => {
       const df = docs.filter((d) => d.includes(t)).length;

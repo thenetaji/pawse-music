@@ -11,8 +11,8 @@ import { smoothOrder } from "./smooth-shuffle";
 const SETTING = "smoothShuffle";
 const WINDOW = 300;
 
-export const useSmoothShuffle = (): boolean => useSetting(SETTING, false);
-export const smoothShuffleOn = (): boolean => getSetting(SETTING, false);
+export const useSmoothShuffle = (): boolean => useSetting(SETTING, true);
+export const smoothShuffleOn = (): boolean => getSetting(SETTING, true);
 
 type Order = {
   active: boolean;

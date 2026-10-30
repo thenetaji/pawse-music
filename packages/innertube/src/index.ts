@@ -15,6 +15,7 @@ export {
   JioSaavn,
   type JioSaavnOptions,
   matchSong,
+  matchSongStrict,
   normalizeTitle,
   type SaavnSong,
   toSaavnSong,

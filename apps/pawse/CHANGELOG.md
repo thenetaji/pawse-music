@@ -2,6 +2,32 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.13.1] - 2026-10-30
+
+### Added
+- **Settings in groups.** Playback and sound, Lyrics, Videos and YouTube, Look and Mochi, Library and downloads, Privacy, Connected accounts, Alarm, Experimental and About each have their own page, with a summary line on the first page and a search box on top. Section notes now sit behind an ⓘ.
+- **Settings say what they do.** A short line under switches whose effect you can't see right away, a one-time tip on where to notice it, and small previews for lyrics and dislikes.
+- **See and hear the equaliser.** A curve that moves with every preset and band, a button you hold to hear the song without it, and a line saying whether it's applied to this song (and why not). An EQ mark on Now playing shows when it is.
+- **More equaliser presets:** Pop, Rock, Hip-hop, Electronic, Jazz, Classical, Acoustic, Less bass, Less treble, Small speakers and Podcasts, each saying what it changes.
+- **The best-sounding copy plays by default.** When JioSaavn has the exact same song at 320 kbps, Pawse plays that instead of YouTube's 128. It only switches when title, artist and length all match and it isn't a live, remix or sped-up version. Turn it off with **Highest quality source**; Low quality always stays on YouTube.
+- **See what you're listening to.** A small tag in the time row shows the quality, such as 320 kbps or AAC 256, with HQ from 256 up. Tap it for the source, codec, bitrate, sample rate, loudness change, crossfade and gapless.
+- **What's new in 1.13,** once after updating, with a Try it button for each.
+- **Send diagnostics** in Settings → About shares the recent app log (no account details, links or searches) so a problem can be fixed exactly.
+- **Pull down to close** on every sheet, with a grab handle.
+- **Video summaries with times.** Points appear as they're written, each with a time you can tap, and the summary keeps going if you close it, so it's ready when you come back.
+
+### Changed
+- **Show dislikes, Skip silence and Smooth shuffle are on by default,** for everyone once; turn them off again in Settings if you prefer.
+- **A new visualiser:** thin bars in the song's colour that rise with the beat and settle when you pause.
+- **Sharper covers** on Now playing, the lock screen, the island and the share card.
+- **Next starts right away.** The next two songs are ready before the current one ends, and their links are refreshed if the queue sits for a while.
+- More room at the sides of the Equaliser screen.
+
+### Fixed
+- The bottom of the Dynamic Island (the bar and the times) was cut off in every style.
+- The first one or two videos in For you never changed between refreshes.
+- Leaving a video summary halfway started it again from the beginning.
+
 ## [1.13.0] - 2026-10-29
 
 ### Added

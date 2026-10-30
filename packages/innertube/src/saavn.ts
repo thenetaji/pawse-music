@@ -27,12 +27,18 @@ export interface SaavnSong {
   /** Decrypted CDN URL at the best available bitrate. */
   mediaUrl?: string;
   is320: boolean;
+  /** JioSaavn's explicit flag; undefined when the listing has none. */
+  explicit?: boolean;
 }
 
 const API = "https://www.jiosaavn.com/api.php";
 const KEY = utf8Encode("38346591");
 const TIMEOUT_MS = 6000;
 const TOLERANCE_SEC = 3;
+const STRICT_TOLERANCE_SEC = 2;
+// A source tried ahead of YouTube must not hold up a song when it is slow or down.
+const STRICT_TIMEOUT_MS = 3500;
+const DOWN_MS = 60_000;
 const TTL_MS = 6 * 3600_000;
 
 const ENTITIES: Record<string, string> = {
@@ -127,6 +133,7 @@ export function toSaavnSong(raw: any): SaavnSong | undefined {
     }
   }
   const duration = Number(info.duration);
+  const flag = raw.explicit_content ?? info.explicit_content;
   return {
     id: String(raw.id),
     title: decodeEntities(String(raw.title ?? raw.song ?? "")),
@@ -141,6 +148,7 @@ export function toSaavnSong(raw: any): SaavnSong | undefined {
         : undefined,
     mediaUrl,
     is320,
+    explicit: flag == null ? undefined : /^(?:1|true)$/i.test(String(flag)),
   };
 }
 
@@ -168,6 +176,75 @@ export function matchSong(
   });
 }
 
+// Versions that sound different from the studio recording, told apart from title and album text.
+const VARIANTS: [string, RegExp][] = [
+  ["live", /\blive\b/],
+  ["remix", /\b(?:remix(?:ed)?|rmx|mashup|bootleg|rework|flip)\b/],
+  ["cover", /\bcover(?:ed)?\b/],
+  ["sped", /\b(?:sped|speed(?:ed)?)[ -]?up\b|\bnightcore\b/],
+  ["slowed", /\b(?:slowed|reverb)\b/],
+  ["lofi", /\blo[ -]?fi\b/],
+  ["8d", /\b8d\b/],
+  ["acoustic", /\b(?:acoustic|unplugged)\b/],
+  ["instrumental", /\b(?:instrumental|karaoke)\b/],
+  ["other", /\b(?:reprise|version|mix)\b/],
+];
+
+function variantsOf(...parts: (string | undefined)[]): string {
+  const text = decodeEntities(parts.filter(Boolean).join(" "))
+    .toLowerCase()
+    .replace(/[([]\s*from\b[^)\]]*[)\]]/g, " ");
+  return VARIANTS.filter(([, re]) => re.test(text))
+    .map(([name]) => name)
+    .join();
+}
+
+/** The artist as listed and each name in a joined credit, normalised. */
+function artistKeys(name: string): string[] {
+  const clean = name.replace(/\s+-\s+topic$/i, "");
+  return [
+    ...new Set(
+      [clean, ...clean.split(/\s*(?:,|;|&|\/|\+| x | and )\s*/i)]
+        .map(normalizeArtist)
+        .filter(Boolean),
+    ),
+  ];
+}
+
+/**
+ * The 320 kbps listing of the same recording, or nothing. Title, primary artist, duration (±2 s) and version
+ * (live, remix, cover, sped up, lofi...) must all agree, so a doubt means YouTube plays instead.
+ */
+export function matchSongStrict(
+  track: Pick<
+    Track,
+    "title" | "artists" | "durationSec" | "album" | "explicit"
+  >,
+  songs: SaavnSong[],
+): SaavnSong | undefined {
+  const title = normalizeTitle(track.title);
+  const artist = track.artists[0]?.name;
+  const length = track.durationSec;
+  if (!title || !artist || !length) return undefined;
+  const wanted = new Set(artistKeys(artist));
+  const version = variantsOf(track.title, track.album?.title);
+  let best: SaavnSong | undefined;
+  let bestGap = Infinity;
+  for (const s of songs) {
+    if (!s.mediaUrl || !s.is320 || !s.durationSec) continue;
+    const gap = Math.abs(s.durationSec - length);
+    if (gap > STRICT_TOLERANCE_SEC || gap >= bestGap) continue;
+    if (normalizeTitle(s.title) !== title) continue;
+    if (variantsOf(s.title, s.album) !== version) continue;
+    if (s.explicit !== undefined && s.explicit !== !!track.explicit) continue;
+    const primary = s.primaryArtists.length ? s.primaryArtists : s.artists;
+    if (!primary.flatMap(artistKeys).some((a) => wanted.has(a))) continue;
+    best = s;
+    bestGap = gap;
+  }
+  return best;
+}
+
 export interface JioSaavnOptions {
   fetch?: FetchLike;
 }
@@ -175,12 +252,16 @@ export interface JioSaavnOptions {
 /** JioSaavn search plus 320 kbps AAC resolution for tracks found elsewhere. */
 export class JioSaavn {
   private readonly f: FetchLike;
+  private downUntil = 0;
 
   constructor(options: JioSaavnOptions = {}) {
     this.f = options.fetch ?? defaultFetch;
   }
 
-  private async api(params: Record<string, string | number>): Promise<any> {
+  private async api(
+    params: Record<string, string | number>,
+    timeoutMs = TIMEOUT_MS,
+  ): Promise<any> {
     const url = `${API}?${query({ ...params, _format: "json", _marker: 0, api_version: 4, ctx: "web6dot0" })}`;
     let res: Response;
     try {
@@ -188,21 +269,32 @@ export class JioSaavn {
         this.f,
         url,
         { headers: { Accept: "application/json" }, credentials: "omit" },
-        TIMEOUT_MS,
+        timeoutMs,
       );
     } catch (e) {
+      this.downUntil = Date.now() + DOWN_MS;
       throw new StreamError(
         "network",
         `JioSaavn request failed: ${(e as Error)?.message ?? e}`,
       );
     }
-    if (!res.ok)
+    if (!res.ok) {
+      if (res.status >= 500) this.downUntil = Date.now() + DOWN_MS;
       throw new StreamError("network", `JioSaavn HTTP ${res.status}`);
+    }
+    this.downUntil = 0;
     return res.json();
   }
 
-  async search(q: string, n = 10): Promise<SaavnSong[]> {
-    const json = await this.api({ __call: "search.getResults", n, p: 1, q });
+  async search(
+    q: string,
+    n = 10,
+    timeoutMs = TIMEOUT_MS,
+  ): Promise<SaavnSong[]> {
+    const json = await this.api(
+      { __call: "search.getResults", n, p: 1, q },
+      timeoutMs,
+    );
     return (Array.isArray(json?.results) ? json.results : [])
       .map(toSaavnSong)
       .filter((s: SaavnSong | undefined): s is SaavnSong => !!s);
@@ -215,7 +307,8 @@ export class JioSaavn {
   }
 
   async resolve(
-    track: Pick<Track, "id" | "source" | "title" | "artists" | "durationSec">,
+    track: Pick<Track, "id" | "source" | "title" | "artists" | "durationSec"> &
+      Partial<Pick<Track, "album" | "explicit">>,
     options: ResolveOptions = {},
   ): Promise<ResolvedStream> {
     let song: SaavnSong | undefined;
@@ -224,7 +317,14 @@ export class JioSaavn {
     } else {
       const q =
         `${normalizeTitle(track.title)} ${track.artists[0]?.name ?? ""}`.trim();
-      song = matchSong(track, await this.search(q));
+      if (options.strict) {
+        if (Date.now() < this.downUntil)
+          throw new StreamError("network", "JioSaavn is not answering");
+        song = matchSongStrict(
+          track,
+          await this.search(q, 10, STRICT_TIMEOUT_MS),
+        );
+      } else song = matchSong(track, await this.search(q));
     }
     if (!song?.mediaUrl)
       throw new StreamError(

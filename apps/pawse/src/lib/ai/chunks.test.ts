@@ -2,7 +2,6 @@ import {
   chunkCues,
   estimateTokens,
   groupCues,
-  packStrings,
   parseStamp,
   stamp,
 } from "./chunks";
@@ -51,10 +50,4 @@ test("a cue over the limit gets a chunk of its own", () => {
 test("short cues are merged into lines of about the span", () => {
   const cues = [cue(0, "a"), cue(3, "b"), cue(6, "c"), cue(12, "d")];
   expect(groupCues(cues, 10).map((c) => c.text)).toEqual(["a b c", "d"]);
-});
-
-test("strings are packed in order", () => {
-  const packed = packStrings(["a ".repeat(400), "b ".repeat(400), "c"], 300);
-  expect(packed.length).toBeGreaterThan(1);
-  expect(packed.join("")).toContain("c");
 });

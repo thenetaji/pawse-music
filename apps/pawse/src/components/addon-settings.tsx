@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Linking, StyleSheet, TextInput, View, Text } from "react-native";
+import { Linking, StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
   checkListenBrainz,
@@ -20,6 +20,7 @@ import {
 } from "./settings-rows";
 import { showToast } from "./toast";
 import { desktop } from "../lib/desktop";
+import { useSetting } from "../lib/settings";
 
 function Field({
   label,
@@ -145,28 +146,58 @@ function ListenBrainzRows() {
   );
 }
 
-export function AddonSettings() {
-  const waiting = useScrobbleAccounts((s) => s.waiting);
+/** Videos in their original language, and the community's best parts and chapters. */
+export function VideoCommunity() {
   return (
     <>
       <Section title="Community">
-        <Toggle k="originalTitles" label="Original titles and audio" def />
-        <Toggle k="sbExtras" label="Best part and community chapters" def />
         <Toggle
-          k="contribute"
-          label="Help SponsorBlock, DeArrow and Return YouTube Dislike"
+          k="originalTitles"
+          label="Original titles and audio"
+          hint="The uploader's title, and dubbed videos in their own language"
+          def
+        />
+        <Toggle
+          k="sbExtras"
+          label="Best part and community chapters"
+          hint="Jump to a video's best part; chapters from viewers"
           def
         />
       </Section>
       <Foot>
         Original titles and audio shows the title the uploader wrote and plays
         the original language of dubbed videos, instead of YouTube’s
-        translation. Helping sends your likes and dislikes, the segments, titles
-        and thumbnails you suggest and your votes on skips to those projects,
-        under a random id made on this device with no account. It is always off
-        in Incognito.
+        translation.
       </Foot>
+    </>
+  );
+}
 
+export function HelpCommunity() {
+  return (
+    <>
+      <Section title="Community">
+        <Toggle
+          k="contribute"
+          label="Help SponsorBlock, DeArrow and Return YouTube Dislike"
+          hint="Shares your votes and suggestions, never who you are"
+          def
+        />
+      </Section>
+      <Foot>
+        Helping sends your likes and dislikes, the segments, titles and
+        thumbnails you suggest and your votes on skips to those projects, under
+        a random id made on this device with no account. It is always off in
+        Incognito.
+      </Foot>
+    </>
+  );
+}
+
+export function Scrobbling() {
+  const waiting = useScrobbleAccounts((s) => s.waiting);
+  return (
+    <>
       <Section title="Scrobbling">
         <LastFmRows />
         <ListenBrainzRows />
@@ -181,20 +212,49 @@ export function AddonSettings() {
         make a free API account at last.fm/api/account/create and paste its key
         and shared secret.
       </Foot>
+    </>
+  );
+}
 
-      {desktop?.discordActivity ? (
-        <>
-          <Section title="Discord">
-            <Toggle k="discordStatus" label="Show what’s playing" def={false} />
-          </Section>
-          <Foot>
-            Friends see “Listening to Pawse” with the song, artist and cover
-            while music plays, through the Discord app on this computer. Never
-            in Incognito.
-          </Foot>
-        </>
+export function DiscordSettings() {
+  if (!desktop?.discordActivity) return null;
+  return (
+    <>
+      <Section title="Discord">
+        <Toggle
+          k="discordStatus"
+          label="Show what’s playing"
+          tip="Friends on Discord now see what you play"
+          def={false}
+        />
+      </Section>
+      <Foot>
+        Friends see “Listening to Pawse” with the song, artist and cover while
+        music plays, through the Discord app on this computer. Never in
+        Incognito.
+      </Foot>
+    </>
+  );
+}
+
+const LATIN_SAMPLE = ["चाँद तारों के नीचे", "Chaand taaron ke neeche"];
+
+/** One sample line, set the way the lyrics will show it. */
+function LatinSample() {
+  const style = useSetting("lyricsLatinStyle", "under");
+  return (
+    <View style={styles.sample}>
+      {style === "under" ? (
+        <Text style={styles.sampleOriginal}>{LATIN_SAMPLE[0]}</Text>
       ) : null}
+      <Text style={styles.sampleLatin}>{LATIN_SAMPLE[1]}</Text>
+    </View>
+  );
+}
 
+export function LatinLyricsSettings() {
+  return (
+    <>
       <Section title="Lyrics in Latin letters">
         <Pick
           k="lyricsLatinStyle"
@@ -205,6 +265,7 @@ export function AddonSettings() {
             ["instead", "Instead of the original"],
           ]}
         />
+        <LatinSample />
       </Section>
       <Foot>
         Tap Aa on the lyrics to switch. Hindi, Marathi, Punjabi, other Indian
@@ -216,6 +277,9 @@ export function AddonSettings() {
 
 const styles = StyleSheet.create({
   fieldLabel: { marginRight: 12 },
+  sample: { paddingHorizontal: 16, paddingVertical: 14, gap: 4 },
+  sampleOriginal: { color: "rgba(255,255,255,0.55)", fontSize: 15 },
+  sampleLatin: { color: "#fff", fontSize: 18, fontWeight: "600" },
   input: {
     flex: 1,
     textAlign: "right",

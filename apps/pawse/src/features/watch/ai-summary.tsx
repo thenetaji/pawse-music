@@ -12,28 +12,21 @@ import {
 
 import { Spinner } from "../../components/spinner";
 import { answerParts, askContext, excerptsFor } from "../../lib/ai/ask";
+import { stamp } from "../../lib/ai/chunks";
 import {
   downloadModel,
-  modelLanguage,
   modelLanguageName,
   respond,
-  summarize,
   useAiStatus,
 } from "../../lib/ai/model";
-import { bulletsOf, summarizeTranscript } from "../../lib/ai/summary";
 import { haptic } from "../../lib/haptics";
 import { useLanguage } from "../../lib/locale";
 import { display } from "../../lib/type";
+import { startSummary, summaryKey, useSummaries } from "./ai-summary-store";
 import { loadTranscript } from "./ai-watch";
 import { Panel } from "./watch-panels";
 
-type Summary =
-  | { state: "working"; done?: number; total?: number }
-  | { state: "done"; bullets: string[] }
-  | { state: "failed" | "empty" };
 type Exchange = { question: string; answer?: string; failed?: boolean };
-
-const summaries = new Map<string, string[]>();
 
 export function SummaryPanel({
   id,
@@ -48,14 +41,10 @@ export function SummaryPanel({
 }) {
   const language = useLanguage();
   const name = modelLanguageName(language);
-  const key = `${id}:${modelLanguage(language)}`;
+  const job = useSummaries((s) => s[summaryKey(id, language)]);
   const status = useAiStatus();
   const [ready, setReady] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [summary, setSummary] = useState<Summary>(() => {
-    const bullets = summaries.get(key);
-    return bullets ? { state: "done", bullets } : { state: "working" };
-  });
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [text, setText] = useState("");
   const scroll = useRef<ScrollView>(null);
@@ -63,30 +52,13 @@ export function SummaryPanel({
 
   if (status === "ready" && !ready) setReady(true);
 
+  // The job runs in the store, so it carries on when this sheet closes. Captions load as the sheet opens.
   useEffect(() => {
-    if (!ready || summaries.has(key)) return;
-    let live = true;
-    void (async () => {
-      const cues = await loadTranscript(id, tracks, language);
-      if (!live) return;
-      if (!cues.length) return setSummary({ state: "empty" });
-      const result = await summarizeTranscript(
-        cues,
-        (chunk) => summarize(chunk, name),
-        (done, total) => live && setSummary({ state: "working", done, total }),
-      );
-      if (!live) return;
-      if (!result) return setSummary({ state: "failed" });
-      const bullets = bulletsOf(result);
-      summaries.set(key, bullets);
-      setSummary({ state: "done", bullets });
-    })();
-    return () => {
-      live = false;
-    };
+    void loadTranscript(id, tracks, language);
+    if (ready) startSummary(id, tracks, language);
     // The video and language decide the summary; the track list is a new array each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, key]);
+  }, [ready, id, language]);
 
   const ask = async () => {
     const question = text.trim();
@@ -140,33 +112,45 @@ export function SummaryPanel({
                 </Text>
               </Pressable>
             </View>
-          ) : summary.state === "working" ? (
-            <View style={styles.working}>
-              <Spinner size={20} />
-              <Text style={styles.note}>
-                {summary.total
-                  ? `Reading part ${Math.min(summary.done ?? 0, summary.total)} of ${summary.total}`
-                  : "Reading the captions"}
-              </Text>
-            </View>
-          ) : summary.state === "done" ? (
-            <View style={styles.card}>
-              {summary.bullets.map((b, i) => (
-                <View key={i} style={styles.bullet}>
-                  <Text style={styles.dot}>•</Text>
-                  <Text style={styles.bulletText}>{b}</Text>
-                </View>
-              ))}
-              <Text style={styles.small}>
-                Made on this phone from the captions.
-              </Text>
-            </View>
-          ) : (
+          ) : job?.state === "failed" || job?.state === "empty" ? (
             <Text style={styles.note}>
-              {summary.state === "empty"
+              {job.state === "empty"
                 ? "This video has no captions to read."
                 : "Couldn’t summarise this one."}
             </Text>
+          ) : (
+            <>
+              {job && "bullets" in job && job.bullets.length ? (
+                <View style={styles.card}>
+                  {job.bullets.map((b, i) => (
+                    <View key={i} style={styles.bullet}>
+                      <Text
+                        style={[styles.bulletText, styles.when]}
+                        onPress={() => onSeek(b.sec)}
+                      >
+                        {stamp(b.sec)}
+                      </Text>
+                      <Text style={styles.bulletText}>{b.text}</Text>
+                    </View>
+                  ))}
+                  {job.state === "done" ? (
+                    <Text style={styles.small}>
+                      Made on this phone from the captions.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+              {job?.state === "done" ? null : (
+                <View style={styles.working}>
+                  <Spinner size={20} />
+                  <Text style={styles.note}>
+                    {job?.state === "working"
+                      ? `Summarising part ${Math.min(job.done + 1, job.total)} of ${job.total}`
+                      : "Reading the captions"}
+                  </Text>
+                </View>
+              )}
+            </>
           )}
 
           {exchanges.map((x, i) => (
@@ -238,7 +222,7 @@ const styles = StyleSheet.create({
   note: { color: "rgba(255,255,255,0.7)", fontSize: 14, lineHeight: 20 },
   small: { color: "rgba(255,255,255,0.45)", fontSize: 12 },
   bullet: { flexDirection: "row", gap: 8 },
-  dot: { color: "#fff", fontSize: 15, lineHeight: 21 },
+  when: { flex: 0, minWidth: 44, color: "#3EA6FF" },
   bulletText: { flex: 1, color: "#fff", fontSize: 15, lineHeight: 21 },
   exchange: { gap: 6 },
   question: { color: "#fff", fontSize: 15, ...display("800") },

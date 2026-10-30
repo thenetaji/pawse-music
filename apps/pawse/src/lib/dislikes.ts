@@ -30,7 +30,7 @@ function votes(id: string): Promise<Votes | null> {
 
 /** The video's likes and estimated dislikes, when "Show dislikes" is on. */
 export function useVotes(id: string): Votes | null {
-  const on = useSetting("showDislikes", false);
+  const on = useSetting("showDislikes", true);
   const [got, setGot] = useState<{ id: string; v: Votes | null }>();
   useEffect(() => {
     if (!on) return;

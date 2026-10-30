@@ -29,6 +29,8 @@ export interface SetupOptions {
   gapless?: () => boolean;
   /** A ready artwork URI (e.g. a local square file) for the system Now Playing; undefined uses the best thumbnail. */
   artwork?: (track: Track) => string | undefined;
+  /** Pixels to ask for when the cover comes straight from the catalog (default 1200); smaller saves data. */
+  artworkPx?: () => number;
   /** Notable playback moments (errors, stalls, interruptions) for an app-side log. */
   onDiagnostic?: (kind: string, detail?: string) => void;
   /** Parts of a song to jump over (SponsorBlock's non-music sections), earliest first. */

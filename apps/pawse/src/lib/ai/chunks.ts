@@ -73,21 +73,3 @@ export function chunkCues(
   flush();
   return out;
 }
-
-export function packStrings(parts: string[], maxTokens: number): string[] {
-  const out: string[] = [];
-  let current: string[] = [];
-  let tokens = 0;
-  for (const part of parts) {
-    const cost = estimateTokens(part) + 2;
-    if (current.length && tokens + cost > maxTokens) {
-      out.push(current.join("\n\n"));
-      current = [];
-      tokens = 0;
-    }
-    current.push(part);
-    tokens += cost;
-  }
-  if (current.length) out.push(current.join("\n\n"));
-  return out;
-}

@@ -9,7 +9,6 @@ import * as Clipboard from "expo-clipboard";
 import { useEffect, useState } from "react";
 import {
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -18,15 +17,21 @@ import {
 
 import { showSheet } from "../../components/action-sheet";
 import { Artwork } from "../../components/artwork";
+import { SheetScrollView } from "../../components/pull-to-close";
 import { isDownloaded } from "../../data/downloads";
 import { haptic } from "../../lib/haptics";
 import { networkKind } from "../../lib/net";
 import { effectiveQuality } from "../../lib/quality";
 import { getSetting } from "../../lib/settings";
+import {
+  sampleRateText,
+  streamFormat,
+  streamKbps,
+} from "../../lib/stream-info";
 import { display } from "../../lib/type";
 import { useAccent } from "../now-playing/now-palette";
 
-type Row = { label: string; value?: string; copy?: boolean };
+export type Row = { label: string; value?: string; copy?: boolean };
 
 /** Everything we know about a song; for the playing one, also what the player actually loaded. */
 export function showSongInfo(track: Track) {
@@ -65,9 +70,8 @@ function SongInfo({ track }: { track: Track }) {
           </Text>
         </View>
       </View>
-      <ScrollView
+      <SheetScrollView
         style={{ maxHeight: Math.max(260, height * 0.62) }}
-        bounces={false}
         showsVerticalScrollIndicator={false}
       >
         <Group title="Song" rows={songRows(track)} />
@@ -81,7 +85,7 @@ function SongInfo({ track }: { track: Track }) {
             }
           />
         ) : null}
-      </ScrollView>
+      </SheetScrollView>
     </View>
   );
 }
@@ -125,15 +129,8 @@ function songRows(t: Track): Row[] {
 }
 
 function streamRows(t: Track, st: ResolvedStream, normalize: boolean): Row[] {
-  const { codec, container } = format(st.mimeType);
-  const dur = st.durationSec ?? t.durationSec;
-  // Downloads don't record a bitrate; size over length is close enough.
-  const kbps =
-    st.bitrate > 0
-      ? Math.round(st.bitrate / 1000)
-      : st.contentLength && dur
-        ? Math.round((st.contentLength * 8) / dur / 1000)
-        : undefined;
+  const { codec, container } = streamFormat(st.mimeType);
+  const kbps = streamKbps(st, t.durationSec);
   const size = st.contentLength ? bytes(st.contentLength) : undefined;
   const db = st.loudnessDb ?? t.loudnessDb;
   const local = st.via === "local";
@@ -147,6 +144,7 @@ function streamRows(t: Track, st: ResolvedStream, normalize: boolean): Row[] {
       value: codec === container ? codec : `${codec} in ${container}`,
     },
     { label: "Bitrate", value: kbps ? `${kbps} kbps` : undefined },
+    { label: "Sample rate", value: sampleRateText(st.sampleRateHz) },
     { label: "Size", value: size },
     {
       label: "Loudness",
@@ -171,7 +169,7 @@ function streamRows(t: Track, st: ResolvedStream, normalize: boolean): Row[] {
   ];
 }
 
-function Group({ title, rows }: { title: string; rows: Row[] }) {
+export function Group({ title, rows }: { title: string; rows: Row[] }) {
   const shown = rows.filter((r) => r.value);
   return (
     <View style={s.group}>
@@ -246,34 +244,6 @@ function qualitySetting(): string {
       ? QUALITY[choice]
       : `Automatic · ${now}`;
   return `${label} (${cell ? "mobile data" : "Wi-Fi"})`;
-}
-
-// 'audio/mp4; codecs="mp4a.40.2"' → AAC in MP4; 'audio/webm; codecs="opus"' → Opus in WebM.
-function format(mime: string): { codec: string; container: string } {
-  const sub = (mime.split(";")[0].split("/")[1] ?? "").trim().toLowerCase();
-  const codecs = (/codecs="?([^";]+)/i.exec(mime)?.[1] ?? "").toLowerCase();
-  const container =
-    sub === "mp4" || sub === "m4a"
-      ? "MP4"
-      : sub === "webm"
-        ? "WebM"
-        : sub === "mpeg"
-          ? "MP3"
-          : sub.toUpperCase() || "Unknown";
-  const codec = codecs.startsWith("mp4a")
-    ? "AAC"
-    : codecs.includes("opus")
-      ? "Opus"
-      : codecs.includes("vorbis")
-        ? "Vorbis"
-        : codecs.includes("flac") || sub === "flac"
-          ? "FLAC"
-          : sub === "mpeg" || sub === "mp3"
-            ? "MP3"
-            : sub === "mp4" || sub === "m4a" || sub === "aac"
-              ? "AAC"
-              : container;
-  return { codec, container };
 }
 
 function bytes(b: number): string {

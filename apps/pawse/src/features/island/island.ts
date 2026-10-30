@@ -67,7 +67,7 @@ export function staleAt(
   return Math.ceil(at / 60_000) * 60_000;
 }
 const CURIOUS_MS = 1000;
-const ART_PX = 120;
+const ART_PX = 300;
 const CAT_COLORS: readonly ActivityCatColor[] = [
   "orange",
   "black",

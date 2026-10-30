@@ -14,6 +14,7 @@ import { haptic } from "../../lib/haptics";
 import { useSetting } from "../../lib/settings";
 import { Cat, type CatColor, type CatMood } from "../cat/cat";
 import { Mouse } from "../cat/mouse";
+import { QualityChip } from "./quality-chip";
 
 const CAT = 50;
 const MOUSE = 34;
@@ -372,6 +373,7 @@ export function CatScrubber({
         <Text style={styles.time}>
           -{fmt(Math.max(0, duration - (drag ?? position)))}
         </Text>
+        <QualityChip />
       </View>
     </View>
   );

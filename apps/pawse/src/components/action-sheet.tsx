@@ -1,15 +1,18 @@
 import { BlurView } from "expo-blur";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, useEffect } from "react";
 import {
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
+import {
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
 import Animated, {
   Easing,
   FadeIn,
@@ -25,6 +28,12 @@ import { create } from "zustand";
 import { readable, useAccent } from "../features/now-playing/now-palette";
 import { display } from "../lib/type";
 import { CheckGlyph } from "./glyphs";
+import {
+  GrabHandle,
+  ScrollTopProvider,
+  SheetScrollView,
+  usePullToClose,
+} from "./pull-to-close";
 
 /** An icon, or a function drawing it in the colour the row wants (white, accent, red). */
 export type SheetIcon = ReactNode | ((color: string) => ReactNode);
@@ -54,6 +63,8 @@ type Sheet = {
   header?: ReactNode;
   quick?: QuickAction[];
   actions: SheetAction[];
+  /** The label of the button under the panel; Cancel unless the sheet is not a choice. */
+  cancel?: string;
 };
 
 const useSheet = create<{ sheet: Sheet | null }>(() => ({ sheet: null }));
@@ -145,6 +156,10 @@ export function ActionSheetHost() {
       { translateY: -Math.max(0, keyboard.height.value - insets.bottom) },
     ],
   }));
+  const pull = usePullToClose(hideSheet);
+  const { reset } = pull;
+  // A sheet that was pulled away leaves the host offset; the next one starts in place.
+  useEffect(reset, [sheet, reset]);
   if (!sheet) return null;
   // Wide windows (desktop) get a centred panel instead of one stretched edge to edge.
   const side = width > 700 ? (width - 440) / 2 : 10;
@@ -157,7 +172,11 @@ export function ActionSheetHost() {
   );
   return (
     <Overlay>
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* On iOS the overlay is its own window, outside the app's gesture root. */}
+      <GestureHandlerRootView
+        style={StyleSheet.absoluteFill}
+        pointerEvents="box-none"
+      >
         <Animated.View
           entering={FadeIn.duration(140)}
           exiting={FadeOut.duration(120)}
@@ -173,178 +192,200 @@ export function ActionSheetHost() {
             lift,
           ]}
         >
-          <Animated.View
-            entering={ENTER}
-            exiting={EXIT}
-            style={[styles.stack, { paddingBottom: insets.bottom + 8 }]}
-          >
-            <Glass style={styles.panel}>
-              {top ? (
-                <View
-                  style={[
-                    styles.top,
-                    sheet.actions.length > 0 && styles.topSep,
-                  ]}
-                >
-                  {sheet.title ? (
-                    <Text style={styles.title}>{sheet.title}</Text>
-                  ) : null}
-                  {sheet.header ? (
-                    <View style={styles.header}>{sheet.header}</View>
-                  ) : null}
-                  {quick.length ? (
-                    <View
-                      style={[
-                        styles.quick,
-                        !sheet.header && { paddingTop: 12 },
-                      ]}
-                    >
-                      {quick.map((q) => {
-                        const tint = q.active ? accent : "#fff";
-                        return (
-                          <Pressable
-                            key={q.label}
-                            accessibilityRole="button"
-                            accessibilityLabel={q.label}
-                            accessibilityState={{ selected: !!q.active }}
-                            onPress={() => {
-                              if (!q.keepOpen) hideSheet();
-                              q.onPress();
-                            }}
-                            style={({ pressed }) => [
-                              styles.tile,
-                              pressed && styles.tilePressed,
+          <GestureDetector gesture={pull.pan}>
+            <Animated.View style={pull.style} onLayout={pull.onLayout}>
+              <Animated.View
+                entering={ENTER}
+                exiting={EXIT}
+                style={[styles.stack, { paddingBottom: insets.bottom + 8 }]}
+              >
+                <ScrollTopProvider value={pull.scrollY}>
+                  <Glass style={styles.panel}>
+                    <View style={styles.handle}>
+                      <GrabHandle />
+                    </View>
+                    {top ? (
+                      <View
+                        style={[
+                          styles.top,
+                          sheet.actions.length > 0 && styles.topSep,
+                        ]}
+                      >
+                        {sheet.title ? (
+                          <Text style={styles.title}>{sheet.title}</Text>
+                        ) : null}
+                        {sheet.header ? (
+                          <View style={styles.header}>{sheet.header}</View>
+                        ) : null}
+                        {quick.length ? (
+                          <View
+                            style={[
+                              styles.quick,
+                              !sheet.header && { paddingTop: 12 },
                             ]}
                           >
-                            {q.active ? (
-                              <View
-                                style={[
-                                  StyleSheet.absoluteFill,
-                                  styles.tileWash,
-                                  { backgroundColor: accent },
-                                ]}
-                              />
-                            ) : null}
-                            {drawIcon(q.icon, tint)}
-                            <Text
-                              style={[styles.tileLabel, { color: tint }]}
-                              numberOfLines={1}
+                            {quick.map((q) => {
+                              const tint = q.active ? accent : "#fff";
+                              return (
+                                <Pressable
+                                  key={q.label}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={q.label}
+                                  accessibilityState={{ selected: !!q.active }}
+                                  onPress={() => {
+                                    if (!q.keepOpen) hideSheet();
+                                    q.onPress();
+                                  }}
+                                  style={({ pressed }) => [
+                                    styles.tile,
+                                    pressed && styles.tilePressed,
+                                  ]}
+                                >
+                                  {q.active ? (
+                                    <View
+                                      style={[
+                                        StyleSheet.absoluteFill,
+                                        styles.tileWash,
+                                        { backgroundColor: accent },
+                                      ]}
+                                    />
+                                  ) : null}
+                                  {drawIcon(q.icon, tint)}
+                                  <Text
+                                    style={[styles.tileLabel, { color: tint }]}
+                                    numberOfLines={1}
+                                  >
+                                    {q.label}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+                    <SheetScrollView style={{ maxHeight: rowsMax }}>
+                      {sheet.actions.map((a, i) => {
+                        const color = a.destructive ? RED : "#fff";
+                        const press = () => {
+                          if (!a.keepOpen) hideSheet();
+                          a.onPress();
+                        };
+                        if (a.checked !== undefined)
+                          return (
+                            <Pressable
+                              key={a.label}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: a.checked }}
+                              onPress={press}
+                              style={({ pressed }) => [
+                                styles.choice,
+                                i > 0 && styles.sep,
+                                pressed && styles.pressed,
+                              ]}
                             >
-                              {q.label}
+                              <Text
+                                style={[
+                                  styles.iconLabel,
+                                  { flex: 1 },
+                                  a.checked && { color: accent },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {a.label}
+                              </Text>
+                              {a.checked ? (
+                                <CheckGlyph
+                                  size={20}
+                                  color={accent}
+                                  weight={2.6}
+                                />
+                              ) : null}
+                            </Pressable>
+                          );
+                        if (a.icon)
+                          return (
+                            <Pressable
+                              key={a.label}
+                              accessibilityRole="button"
+                              onPress={press}
+                              style={({ pressed }) => [
+                                styles.iconRow,
+                                a.sub !== undefined && styles.tallRow,
+                                pressed && styles.pressed,
+                              ]}
+                            >
+                              <View
+                                style={
+                                  a.sub !== undefined
+                                    ? styles.cover
+                                    : styles.icon
+                                }
+                              >
+                                {drawIcon(a.icon, color)}
+                              </View>
+                              {/* The separator starts after the icon, as in iOS lists. */}
+                              <View
+                                style={[styles.iconBody, i > 0 && styles.sep]}
+                              >
+                                <Text
+                                  style={[styles.iconLabel, { color }]}
+                                  numberOfLines={1}
+                                >
+                                  {a.label}
+                                </Text>
+                                {a.sub ? (
+                                  <Text
+                                    style={styles.iconSub}
+                                    numberOfLines={1}
+                                  >
+                                    {a.sub}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            </Pressable>
+                          );
+                        return (
+                          <Pressable
+                            key={a.label}
+                            accessibilityRole="button"
+                            onPress={press}
+                            style={({ pressed }) => [
+                              styles.row,
+                              i > 0 && styles.sep,
+                              pressed && styles.pressed,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.label,
+                                a.destructive && styles.destructive,
+                              ]}
+                            >
+                              {a.label}
                             </Text>
                           </Pressable>
                         );
                       })}
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-              <ScrollView style={{ maxHeight: rowsMax }} bounces={false}>
-                {sheet.actions.map((a, i) => {
-                  const color = a.destructive ? RED : "#fff";
-                  const press = () => {
-                    if (!a.keepOpen) hideSheet();
-                    a.onPress();
-                  };
-                  if (a.checked !== undefined)
-                    return (
-                      <Pressable
-                        key={a.label}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: a.checked }}
-                        onPress={press}
-                        style={({ pressed }) => [
-                          styles.choice,
-                          i > 0 && styles.sep,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.iconLabel,
-                            { flex: 1 },
-                            a.checked && { color: accent },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {a.label}
-                        </Text>
-                        {a.checked ? (
-                          <CheckGlyph size={20} color={accent} weight={2.6} />
-                        ) : null}
-                      </Pressable>
-                    );
-                  if (a.icon)
-                    return (
-                      <Pressable
-                        key={a.label}
-                        accessibilityRole="button"
-                        onPress={press}
-                        style={({ pressed }) => [
-                          styles.iconRow,
-                          a.sub !== undefined && styles.tallRow,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <View
-                          style={
-                            a.sub !== undefined ? styles.cover : styles.icon
-                          }
-                        >
-                          {drawIcon(a.icon, color)}
-                        </View>
-                        {/* The separator starts after the icon, as in iOS lists. */}
-                        <View style={[styles.iconBody, i > 0 && styles.sep]}>
-                          <Text
-                            style={[styles.iconLabel, { color }]}
-                            numberOfLines={1}
-                          >
-                            {a.label}
-                          </Text>
-                          {a.sub ? (
-                            <Text style={styles.iconSub} numberOfLines={1}>
-                              {a.sub}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </Pressable>
-                    );
-                  return (
-                    <Pressable
-                      key={a.label}
-                      accessibilityRole="button"
-                      onPress={press}
-                      style={({ pressed }) => [
-                        styles.row,
-                        i > 0 && styles.sep,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.label,
-                          a.destructive && styles.destructive,
-                        ]}
-                      >
-                        {a.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </Glass>
-            <Pressable
-              onPress={hideSheet}
-              style={({ pressed }) => [
-                styles.cancel,
-                pressed && styles.cancelPressed,
-              ]}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-          </Animated.View>
+                    </SheetScrollView>
+                  </Glass>
+                  <Pressable
+                    onPress={hideSheet}
+                    style={({ pressed }) => [
+                      styles.cancel,
+                      pressed && styles.cancelPressed,
+                    ]}
+                  >
+                    <Text style={styles.cancelText}>
+                      {sheet.cancel ?? "Cancel"}
+                    </Text>
+                  </Pressable>
+                </ScrollTopProvider>
+              </Animated.View>
+            </Animated.View>
+          </GestureDetector>
         </Animated.View>
-      </View>
+      </GestureHandlerRootView>
     </Overlay>
   );
 }
@@ -354,6 +395,7 @@ const styles = StyleSheet.create({
   dim: { backgroundColor: "rgba(0,0,0,0.55)" },
   wrap: { position: "absolute", left: 10, right: 10, bottom: 0 },
   stack: { gap: 8 },
+  handle: { paddingBottom: 6 },
   wrapWide: { bottom: 24 },
   noteTitle: {
     color: "#fff",

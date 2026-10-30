@@ -6,6 +6,7 @@ import { View, type ViewStyle } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { useDataSaverActive } from "../data/downloads";
+import { listCoverPx } from "../lib/cover";
 import { useSongArt } from "../lib/song-art";
 
 const FALLBACK: [string, string][] = [
@@ -34,7 +35,7 @@ export function Artwork({
 }) {
   // Data saver on mobile data asks for roughly a third of the pixels.
   const saver = useDataSaverActive();
-  const px = Math.min(544, Math.round(size * (saver ? 1.5 : 3)));
+  const px = listCoverPx(size, saver);
   const uri = thumbnails?.length ? bestThumbnail(thumbnails, px) : undefined;
   const [failed, setFailed] = useState<string | null>(null);
   const r = round ? size / 2 : radius;

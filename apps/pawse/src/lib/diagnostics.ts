@@ -7,10 +7,21 @@ import { appBuild, appVersion, desktopVersion } from "./app-version";
 // The last few hundred playback moments, kept on the phone so a bug report can include them.
 const KEY = "pawse.diagnostics.v1";
 const MAX = 300;
+// Error text can carry request URLs and tokens; keep what happened, not who it happened to.
+function scrub(text: string): string {
+  return text
+    .replace(/(https?:\/\/[^\s?"')]+)\?[^\s"')]*/g, "$1?…")
+    .replace(
+      /\b(cookie|authorization|bearer|token|sapisid|sig)([=:]\s*)\S+/gi,
+      "$1$2…",
+    )
+    .replace(/[\w-]{32,}/g, "…");
+}
+
 let lines: string[] = [];
 try {
   const raw = kv.getItem(KEY);
-  if (typeof raw === "string") lines = JSON.parse(raw);
+  if (typeof raw === "string") lines = (JSON.parse(raw) as string[]).map(scrub);
 } catch {}
 const listeners = new Set<() => void>();
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -23,10 +34,14 @@ function changed() {
 
 export function logEvent(kind: string, detail?: string): void {
   lines.push(
-    `${new Date().toISOString()} ${kind}${detail ? ` ${detail}` : ""}`,
+    scrub(`${new Date().toISOString()} ${kind}${detail ? ` ${detail}` : ""}`),
   );
   if (lines.length > MAX) lines = lines.slice(-MAX);
   changed();
+}
+
+export function getLogLines(): string[] {
+  return lines;
 }
 
 export function getLogText(): string {

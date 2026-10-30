@@ -1,11 +1,7 @@
-import { player } from "@pawse/player";
-import * as Clipboard from "expo-clipboard";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
-  Alert,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,95 +10,57 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { PawseAudio } from "../../modules/pawse-audio";
-import { PawseIsland } from "../../modules/pawse-island-android";
-import { showSheet } from "../components/action-sheet";
-import { AddonSettings } from "../components/addon-settings";
-import { DownloadOptions } from "../components/download-options";
-import {
-  Foot,
-  Info,
-  Link,
-  Pick,
-  styles as rowStyles,
-  Section,
-  Toggle,
-} from "../components/settings-rows";
-import { PressScale } from "../components/ui";
-import {
-  pickBackupFolder,
-  runAutoBackup,
-  turnOffAutoBackup,
-} from "../data/auto-backup";
-import { useLibrary } from "../data/library";
-import { signOut } from "../features/account/sign-out";
-import { AlarmSettings } from "../features/alarm/alarm-settings";
-import { Cat, type CatColor } from "../features/cat/cat";
-import { IslandStylePicker } from "../features/island/island-style-picker";
-import { MindfulSettings } from "../features/mindful/mindful-ui";
-import { useAccent } from "../features/now-playing/now-palette";
-import { useAiStatus } from "../lib/ai/model";
-import {
-  APP_ICONS,
-  type AppIconId,
-  appIconsSupported,
-  currentAppIcon,
-  setAppIcon,
-} from "../lib/app-icon";
-import { useBlockedCount } from "../lib/block";
-import { clearLog, getLogText, useLogCount } from "../lib/diagnostics";
-import { yt } from "../lib/engine";
-import { haptic } from "../lib/haptics";
-import {
-  LANGUAGES,
-  languageCode,
-  languageName,
-  REGIONS,
-  regionCode,
-  regionName,
-} from "../lib/locale";
-import { push } from "../lib/nav";
-import { count } from "../lib/plural";
-import { useAutoQuality } from "../lib/quality";
-import { autoplayMode, setSetting, useSetting } from "../lib/settings";
-import { display } from "../lib/type";
-import {
-  checkForUpdate,
-  currentVersion,
-  installUpdate,
-  useUpdate,
-} from "../lib/updates";
-import { useResource } from "../lib/use-resource";
-import { resetRecommendations } from "../lib/youtube-history";
 
-const CAT_COLORS: { id: CatColor; fur: string }[] = [
-  { id: "orange", fur: "#F49A3C" },
-  { id: "black", fur: "#2E2E36" },
-  { id: "white", fur: "#F1EEE9" },
-  { id: "grey", fur: "#9AA0AD" },
-];
-const ACCENTS = [
-  "#8B7CFF",
-  "#FF5A7A",
-  "#FF9F43",
-  "#2ED3A2",
-  "#38B6FF",
-  "#F5D547",
+import { ChevronRight } from "../components/glyphs";
+import { styles as rows } from "../components/settings-rows";
+import { RIPPLE } from "../components/ui";
+import { useLibrary } from "../data/library";
+import { useAccent } from "../features/now-playing/now-palette";
+import {
+  type Group,
+  GROUPS,
+  type GroupId,
+  openGroup,
+  groupTitle,
+  useSummaries,
+} from "../features/settings/groups";
+import { searchSettings } from "../features/settings/search";
+import { useAiStatus } from "../lib/ai/model";
+import { yt } from "../lib/engine";
+import { push } from "../lib/nav";
+import { useSetting } from "../lib/settings";
+import { display } from "../lib/type";
+import { useResource } from "../lib/use-resource";
+
+// Daily things first; Alarm, Experimental and About close the list.
+const MAIN: GroupId[] = [
+  "playback",
+  "lyrics",
+  "videos",
+  "look",
+  "library",
+  "privacy",
+  "accounts",
 ];
 
 export default function Settings() {
   const insets = useSafeAreaInsets();
-  const accent = useAccent();
-  const signedIn = useLibrary((s) => !!s.settings.cookies);
-  const accountName = useLibrary((s) => s.settings.accountName);
+  const [query, setQuery] = useState("");
   const catName = useSetting("catName", "Mochi");
-  const catColor = useSetting<CatColor>("catColor", "orange");
-  const catIsland = useSetting("catIsland", true);
-  const androidPill = useSetting("androidPill", false);
+  const summaries = useSummaries();
+  const ai = useAiStatus();
+  const hasAi = !!ai && ai !== "unavailable";
+  const shown = (g: Group) =>
+    (g.id !== "experimental" || hasAi) &&
+    (g.id !== "alarm" || summaries.alarm !== undefined);
+  const searching = query.trim().length > 0;
+  const hits = searching ? searchSettings(query, catName, hasAi) : [];
 
   return (
     <ScrollView
       style={styles.root}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       contentContainerStyle={{ paddingTop: insets.top + 14, paddingBottom: 80 }}
     >
       <View style={styles.head}>
@@ -112,672 +70,162 @@ export default function Settings() {
         </Pressable>
       </View>
 
-      <View style={styles.catCard}>
-        <Cat mood="groove" size={84} color={catColor} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.catKicker}>Your cat</Text>
-          <TextInput
-            value={catName}
-            onChangeText={(v) => setSetting("catName", v.slice(0, 18))}
-            style={styles.catName}
-            placeholder="Name"
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            selectionColor={accent}
-          />
-          <View style={styles.swatches}>
-            {CAT_COLORS.map((c) => (
+      <AccountCard />
+
+      <TextInput
+        value={query}
+        onChangeText={setQuery}
+        style={styles.search}
+        placeholder="Search settings"
+        placeholderTextColor="rgba(255,255,255,0.4)"
+        selectionColor="#fff"
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+        clearButtonMode="while-editing"
+        accessibilityLabel="Search settings"
+      />
+
+      {searching ? (
+        hits.length ? (
+          <View style={rows.group}>
+            {hits.map((h) => (
               <Pressable
-                key={c.id}
-                onPress={() => {
-                  haptic.tick();
-                  setSetting("catColor", c.id);
-                }}
-                style={[
-                  styles.swatch,
-                  { backgroundColor: c.fur },
-                  catColor === c.id && { borderColor: accent },
+                key={`${h.group}:${h.label}`}
+                onPress={() => openGroup(h.group)}
+                android_ripple={RIPPLE}
+                style={({ pressed }) => [
+                  rows.row,
+                  styles.hit,
+                  pressed && !RIPPLE && rows.pressed,
                 ]}
-              />
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={rows.label}>{h.label}</Text>
+                  <Text style={styles.summary}>{groupTitle(h.group)}</Text>
+                </View>
+                <ChevronRight size={16} color="rgba(255,255,255,0.35)" />
+              </Pressable>
             ))}
           </View>
-        </View>
-      </View>
-
-      <Section title="YouTube Music">
-        {signedIn ? (
-          <>
-            <AccountRow fallback={accountName} />
-            <Toggle k="syncLikes" label="Sync likes and follows" def />
-            <Toggle
-              k="reportPlays"
-              label="Add what you play and watch to YouTube history"
-              def
-            />
-            <Link label="Sign out" danger onPress={() => void signOut()} />
-          </>
         ) : (
-          <Link
-            label="Sign in for your feed and likes"
-            tint={accent}
-            onPress={() => push("/sign-in")}
+          <Text style={styles.none}>No settings match “{query.trim()}”.</Text>
+        )
+      ) : (
+        <>
+          <GroupList
+            groups={GROUPS.filter((g) => MAIN.includes(g.id))}
+            summaries={summaries}
           />
-        )}
-      </Section>
-      <Foot>Optional. Music plays without signing in.</Foot>
-
-      <Section title="Playback">
-        <QualityRow k="quality" label="Quality on Wi-Fi" network="wifi" />
-        <QualityRow
-          k="qualityCellular"
-          label="Quality on mobile data"
-          network="cellular"
-        />
-        <Toggle k="preferSaavn" label="Prefer JioSaavn 320 kbps" def={false} />
-        <Toggle
-          k="normalize"
-          label="Same loudness for every song"
-          def
-          onChange={(v) => player.setNormalize(v)}
-        />
-        <Pick
-          k="autoplay"
-          label="Autoplay similar songs"
-          def={autoplayMode()}
-          options={[
-            ["off", "Off"],
-            ["songs", "Not after albums"],
-            ["always", "Always"],
-          ]}
-        />
-        <Toggle k="resume" label="Open on the last song" def />
-        <Toggle
-          k="pauseOnDisconnect"
-          label="Pause when headphones disconnect"
-          def
-        />
-        {Platform.OS !== "web" ? (
-          <Toggle
-            k="resumeAfterInterruption"
-            label="Resume after calls and videos"
-            def
+          <GroupList
+            groups={GROUPS.filter((g) => !MAIN.includes(g.id) && shown(g))}
+            summaries={summaries}
           />
-        ) : null}
-        <Pick
-          k="sleepFade"
-          label="Sleep timer fade-out"
-          def={10}
-          options={[
-            [0, "Off"],
-            [5, "5 s"],
-            [10, "10 s"],
-            [30, "30 s"],
-            [60, "1 min"],
-          ]}
-        />
-        <Pick
-          k="crossfade"
-          label="Crossfade"
-          def={0}
-          options={[
-            [0, "Off"],
-            [3, "3 s"],
-            [6, "6 s"],
-            [9, "9 s"],
-            [12, "12 s"],
-          ]}
-        />
-        <Toggle k="gapless" label="Gapless albums" def />
-        {PawseAudio.available ? (
-          <>
-            <Link label="Equaliser" onPress={() => push("/equaliser")} />
-            <Toggle
-              k="crossfeed"
-              label="Crossfeed for headphones"
-              def={false}
-            />
-            <Toggle
-              k="trimSilence"
-              label="Skip silence at song ends"
-              def={false}
-            />
-          </>
-        ) : null}
-        <Toggle k="skipNonMusic" label="Skip non-music parts" def />
-      </Section>
-
-      <Foot>
-        Automatic picks the quality from your connection. Crossfade fades
-        unrelated songs into each other; songs from the same album, long mixes
-        and live streams are never crossfaded, and tapping Next cuts quickly.
-        Skip non-music parts jumps over the talking in music videos, using
-        SponsorBlock. Crossfeed blends the two channels a little, as speakers
-        would, which is easier on headphones.
-      </Foot>
-
-      {Platform.OS !== "web" ? <DownloadOptions manage /> : null}
-
-      <VideoSettings />
-
-      <AddonSettings />
-
-      <Section title="Lyrics">
-        <Toggle k="lyricsLine" label="Lyric line under the title" def />
-        <Pick
-          k="lyricsSize"
-          label="Text size"
-          def="m"
-          options={[
-            ["s", "Small"],
-            ["m", "Medium"],
-            ["l", "Large"],
-          ]}
-        />
-      </Section>
-
-      <Section title="Appearance">
-        <AppIconRow />
-        <Pick
-          k="accentMode"
-          label="Accent colour"
-          def="artwork"
-          options={[
-            ["artwork", "From the artwork"],
-            ["fixed", "Fixed"],
-          ]}
-        />
-        <AccentRow />
-        <Pick
-          k="npBackground"
-          label="Now Playing background"
-          def="field"
-          options={[
-            ["field", "Colour field"],
-            ["blur", "Blurred artwork"],
-            ["black", "Pure black"],
-          ]}
-        />
-        <Toggle k="reduceMotion" label="Reduce motion" def={false} />
-      </Section>
-
-      <Section title="Cat">
-        <Toggle k="catWire" label={`${catName} on the progress bar`} def />
-        <Toggle k="catIsland" label={`${catName} in the Dynamic Island`} def />
-        <Pick
-          k="catEpisodes"
-          label="Mouse visits"
-          def="rare"
-          options={[
-            ["off", "Off"],
-            ["rare", "Now and then"],
-            ["often", "Often"],
-          ]}
-        />
-        <Link label={`${catName}'s wardrobe`} onPress={() => push("/mochi")} />
-      </Section>
-      {Platform.OS === "ios" && catIsland ? (
-        <Section title="Dynamic Island">
-          <IslandStylePicker catName={catName} />
-          <Toggle k="islandRate" label="Like and dislike on the island" def />
-          <Toggle
-            k="islandMoodLine"
-            label={`${catName}'s mood line`}
-            def={false}
-          />
-        </Section>
-      ) : null}
-      {Platform.OS === "ios" && catIsland ? (
-        <Foot>
-          {`While music plays, the island's player is iOS's own and ${catName} sits in a small bubble beside it.`}
-        </Foot>
-      ) : null}
-
-      <MindfulSettings />
-      <AlarmSettings />
-
-      <Section title="Content">
-        <Pick
-          k="region"
-          label="Region"
-          def="auto"
-          options={[
-            ["auto", `Automatic (${regionName(regionCode("auto"))})`],
-            ["ZZ", "Worldwide"],
-            ...REGIONS,
-          ]}
-        />
-        <Pick
-          k="language"
-          label="Feed language"
-          def="auto"
-          options={[
-            ["auto", `Automatic (${languageName(languageCode("auto"))})`],
-            ...LANGUAGES,
-          ]}
-        />
-        <Toggle k="explicitFilter" label="Hide explicit songs" def={false} />
-      </Section>
-
-      <Section title="Privacy">
-        <Toggle k="incognito" label="Incognito" def={false} />
-        <Toggle k="pauseHistory" label="Pause listening history" def={false} />
-        <Link
-          label="Clear search history"
-          onPress={() => useLibrary.getState().clearSearches()}
-        />
-        <Link
-          label="Clear listening history"
-          danger
-          onPress={() =>
-            showSheet({
-              actions: [
-                {
-                  label: "Clear listening history",
-                  destructive: true,
-                  onPress: () => {
-                    useLibrary.setState({ history: [] });
-                    void import("../data/journal").then((m) =>
-                      m.clearJournal(),
-                    );
-                  },
-                },
-              ],
-            })
-          }
-        />
-      </Section>
-      <Foot>
-        Incognito keeps nothing you play, watch or search: no history, no
-        Continue, nothing learned for recommendations, and nothing sent to
-        YouTube&apos;s history. Turn it on or off by holding the Settings button
-        on Home.
-      </Foot>
-
-      {Platform.OS === "android" ? (
-        <Section title="Android">
-          <Toggle
-            k="androidPill"
-            label={`${catName} pill around the camera`}
-            def={false}
-            onChange={(v) => {
-              if (v && !PawseIsland.hasOverlayPermission())
-                PawseIsland.requestOverlayPermission();
-            }}
-          />
-          {androidPill ? (
-            <Pick
-              k="androidPillOffset"
-              label="Pill position"
-              def={0}
-              options={[
-                [-6, "Higher"],
-                [0, "Centred on camera"],
-                [6, "Lower"],
-              ]}
-            />
-          ) : null}
-          {PawseIsland.needsBatteryTip() ? (
-            <Link
-              label="Keep playing in the background"
-              onPress={() => PawseIsland.openBatterySettings()}
-            />
-          ) : null}
-        </Section>
-      ) : null}
-
-      <Section title="Library">
-        <Link label="Import music library" onPress={() => push("/import")} />
-        <Link
-          label="Back up library"
-          onPress={() =>
-            void import("../data/backup")
-              .then((m) => m.exportLibrary())
-              .catch((e: Error) => Alert.alert("Backup failed", e.message))
-          }
-        />
-        {Platform.OS !== "web" ? <AutoBackupRow /> : null}
-        <Link
-          label="Restore backup"
-          onPress={() =>
-            void import("../data/backup")
-              .then((m) => m.importLibrary())
-              .then(
-                (r) =>
-                  r &&
-                  Alert.alert(
-                    "Backup restored",
-                    `${count(r.liked, "like")}, ${count(r.playlists, "playlist")}, ${count(Math.max(r.plays, r.journal ?? 0), "play")}`,
-                  ),
-              )
-              .catch((e: Error) => Alert.alert("Restore failed", e.message))
-          }
-        />
-      </Section>
-      <BackupNote />
-
-      <ExperimentalSection />
-
-      <Section title="About">
-        <Link label="About Pawse" onPress={() => push("/about")} />
-        {Platform.OS !== "web" ? <UpdateRow tint={accent} /> : null}
-        <DiagnosticsRow />
-        <Link
-          label="Show onboarding again"
-          onPress={() => {
-            setSetting("onboarded", false);
-            push("/onboarding");
-          }}
-        />
-      </Section>
+        </>
+      )}
     </ScrollView>
   );
 }
 
-// Checks GitHub Releases; Android installs the APK itself, iOS hands the IPA to SideStore.
-function UpdateRow({ tint }: { tint: string }) {
-  const st = useUpdate();
-  const busy = st.kind === "checking" || st.kind === "downloading";
-  const label =
-    st.kind === "available"
-      ? `Update to ${st.update.version}`
-      : st.kind === "downloading"
-        ? `Downloading ${st.update.version}…`
-        : "Check for updates";
-  const value =
-    st.kind === "checking"
-      ? "Checking…"
-      : st.kind === "current"
-        ? "Up to date"
-        : st.kind === "downloading"
-          ? `${Math.round(st.progress * 100)}%`
-          : st.kind === "error"
-            ? "Couldn’t check"
-            : currentVersion();
-  return (
-    <Pressable
-      disabled={busy}
-      onPress={() =>
-        st.kind === "available"
-          ? void installUpdate(st.update)
-          : void checkForUpdate()
-      }
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      {st.kind === "downloading" ? (
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              width: `${st.progress * 100}%`,
-              backgroundColor: tint,
-              opacity: 0.2,
-            },
-          ]}
-        />
-      ) : null}
-      <Text style={[styles.label, st.kind === "available" && { color: tint }]}>
-        {label}
-      </Text>
-      <Text style={styles.value}>{value}</Text>
-    </Pressable>
-  );
-}
-
-const QUALITY_LABEL = { auto: "Automatic", high: "High", saver: "Low" };
-
-// Automatic shows what it is choosing on that network right now.
-function QualityRow({
-  k,
-  label,
-  network,
+function GroupList({
+  groups,
+  summaries,
 }: {
-  k: "quality" | "qualityCellular";
-  label: string;
-  network: "wifi" | "cellular";
+  groups: Group[];
+  summaries: Partial<Record<GroupId, string>>;
 }) {
-  const raw = useSetting<string>(k, "auto");
-  const value = raw === "saver" || raw === "high" ? raw : "auto";
-  const now = useAutoQuality()[network];
-  const shown =
-    value === "auto"
-      ? `Automatic · ${now === "saver" ? "Low" : "High"}`
-      : QUALITY_LABEL[value];
-  const options: ["auto" | "high" | "saver", string][] = [
-    ["auto", "Automatic (recommended)"],
-    ["high", "High"],
-    ["saver", "Low · saves data"],
-  ];
   return (
-    <Pressable
-      onPress={() =>
-        showSheet({
-          title: label,
-          actions: options.map(([v, l]) => ({
-            label: l,
-            checked: v === value,
-            onPress: () => setSetting(k, v),
-          })),
-        })
-      }
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      <Text style={[styles.label, { flex: 1 }]}>{label}</Text>
-      <Text style={styles.value}>{shown} ›</Text>
-    </Pressable>
-  );
-}
-
-// Daily backup to a folder the user picks; the sheet manages it once it's on.
-function AutoBackupRow() {
-  const on = !!useSetting<string | null>("backupFolder", null);
-  const folder = useSetting<string | null>("backupFolderName", null) ?? "On";
-  const at = useSetting("backupAt", 0);
-  const pick = () =>
-    void pickBackupFolder()
-      .then((ok) => ok && runAutoBackup(true))
-      .catch((e: Error) => Alert.alert("Backup failed", e.message));
-  const onPress = () =>
-    on
-      ? showSheet({
-          actions: [
-            {
-              label: "Back up now",
-              onPress: () => void runAutoBackup(true),
-            },
-            { label: "Change folder", onPress: pick },
-            {
-              label: "Turn off",
-              destructive: true,
-              onPress: turnOffAutoBackup,
-            },
-          ],
-        })
-      : pick();
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      <Text style={styles.label}>Automatic backup</Text>
-      <Text style={[styles.value, { flexShrink: 1 }]} numberOfLines={1}>
-        {on ? (at ? `${folder} · ${daysAgo(at)}` : folder) : "Off"} ›
-      </Text>
-    </Pressable>
-  );
-}
-
-function daysAgo(at: number): string {
-  const day = (t: number) => new Date(t).setHours(0, 0, 0, 0);
-  const n = Math.round((day(Date.now()) - day(at)) / 86_400_000);
-  return n <= 0 ? "Today" : n === 1 ? "Yesterday" : `${n} days ago`;
-}
-
-// Copies the playback log so a bug report says what actually happened.
-// What a backup holds, so it's clear the stats travel with it.
-function BackupNote() {
-  const liked = useLibrary((s) => s.liked.length);
-  const lists = useLibrary((s) => s.playlists.length);
-  const plays = useLibrary((s) => s.history.length);
-  const error = useSetting<string | null>("backupError", null);
-  if (error)
-    return (
-      <Foot>
-        <Text style={{ color: "#FF5A6A" }}>{error}</Text>
-      </Foot>
-    );
-  return (
-    <Foot>
-      A backup has your {count(liked, "like")}, {count(lists, "playlist")} and{" "}
-      {count(plays, "play")}. Deleting the app deletes them.
-    </Foot>
-  );
-}
-
-function DiagnosticsRow() {
-  const count = useLogCount();
-  return (
-    <Pressable
-      onPress={() =>
-        showSheet({
-          actions: [
-            {
-              label: "Copy diagnostics",
-              onPress: () =>
-                void Clipboard.setStringAsync(getLogText()).then(() =>
-                  Alert.alert(
-                    "Copied",
-                    "Paste it in a message to the developer.",
-                  ),
-                ),
-            },
-            { label: "Clear", destructive: true, onPress: clearLog },
-          ],
-        })
-      }
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-    >
-      <Text style={styles.label}>Diagnostics</Text>
-      <Text style={styles.value}>{count} events ›</Text>
-    </Pressable>
-  );
-}
-
-// Asks YouTube who is signed in, so a rejected session is visible instead of silently doing nothing.
-function AccountRow({ fallback }: { fallback: string | null }) {
-  const me = useResource("account:me", () => yt.accountInfo());
-  if (me.loading) return <Info label="Signed in" value="Checking…" />;
-  if (!me.data)
-    return (
-      <Pressable onPress={() => push("/sign-in")} style={styles.row}>
-        <Text style={[styles.label, { color: "#FF9F43", flex: 1 }]}>
-          YouTube didn’t accept this sign-in. Tap to sign in again.
-        </Text>
-      </Pressable>
-    );
-  return (
-    <View style={[styles.row, { gap: 12, justifyContent: "flex-start" }]}>
-      {me.data.photo ? (
-        <Image
-          source={me.data.photo}
-          style={{ width: 32, height: 32, borderRadius: 16 }}
-        />
-      ) : null}
-      <View style={{ flex: 1 }}>
-        <Text style={styles.label}>{me.data.name ?? fallback}</Text>
-        {me.data.handle ? (
-          <Text style={[styles.value, { fontSize: 13 }]}>{me.data.handle}</Text>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function AppIconRow() {
-  const [icon, setIcon] = useState<AppIconId>(currentAppIcon);
-  const accent = useAccent();
-  if (!appIconsSupported) return null;
-  return (
-    <View style={[styles.row, styles.iconRow]}>
-      <Text style={[rowStyles.label, styles.iconLabel]}>App icon</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.icons}
-      >
-        {APP_ICONS.map((a) => {
-          const on = a.id === icon;
-          return (
-            <PressScale
-              key={a.name}
-              accessibilityLabel={`${a.name} icon`}
-              accessibilityState={{ selected: on }}
-              onPress={async () => {
-                if (on) return;
-                haptic.tick();
-                if (await setAppIcon(a.id)) setIcon(a.id);
-              }}
-              style={styles.iconItem}
-            >
-              <View style={[styles.iconRing, on && { borderColor: accent }]}>
-                <Image source={a.preview} style={styles.iconImg} />
-              </View>
-              <Text
-                style={[styles.iconName, on && { color: "#fff" }]}
-                numberOfLines={1}
-              >
-                {a.name}
-              </Text>
-            </PressScale>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
-
-function AccentRow() {
-  const mode = useSetting<string>("accentMode", "artwork");
-  const color = useSetting("accentColor", "#8B7CFF");
-  if (mode !== "fixed") return null;
-  return (
-    <View style={[styles.row, { gap: 12, justifyContent: "flex-start" }]}>
-      {ACCENTS.map((c) => (
-        <PressScale
-          key={c}
-          onPress={() => setSetting("accentColor", c)}
-          style={[
-            styles.accent,
-            { backgroundColor: c },
-            color === c && styles.accentOn,
+    <View style={[rows.group, styles.list]}>
+      {groups.map(({ id, title, Icon }) => (
+        <Pressable
+          key={id}
+          onPress={() => openGroup(id)}
+          android_ripple={RIPPLE}
+          style={({ pressed }) => [
+            rows.row,
+            styles.hit,
+            pressed && !RIPPLE && rows.pressed,
           ]}
         >
-          <View />
-        </PressScale>
+          <View style={styles.tile}>
+            <Icon size={18} color="#fff" strokeWidth={2} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={rows.label}>{title}</Text>
+            {summaries[id] ? (
+              <Text style={styles.summary} numberOfLines={1}>
+                {summaries[id]}
+              </Text>
+            ) : null}
+          </View>
+          <ChevronRight size={16} color="rgba(255,255,255,0.35)" />
+        </Pressable>
       ))}
     </View>
   );
 }
 
+// Who is signed in to YouTube Music, or the way to sign in; both lead on from here.
+function AccountCard() {
+  const accent = useAccent();
+  const signedIn = useLibrary((s) => !!s.settings.cookies);
+  if (!signedIn)
+    return (
+      <Pressable style={styles.card} onPress={() => push("/sign-in")}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.cardTitle, { color: accent }]}>
+            Sign in to YouTube Music
+          </Text>
+          <Text style={styles.summary}>
+            For your feed, likes and playlists. Music plays without it.
+          </Text>
+        </View>
+        <ChevronRight size={16} color="rgba(255,255,255,0.35)" />
+      </Pressable>
+    );
+  return <SignedInCard />;
+}
+
+// Asks YouTube who is signed in, so a rejected session is visible instead of silently doing nothing.
+function SignedInCard() {
+  const fallback = useLibrary((s) => s.settings.accountName);
+  const me = useResource("account:me", () => yt.accountInfo());
+  const rejected = !me.loading && !me.data;
+  return (
+    <Pressable
+      style={styles.card}
+      onPress={() => (rejected ? push("/sign-in") : openGroup("accounts"))}
+    >
+      {me.data?.photo ? (
+        <Image source={me.data.photo} style={styles.photo} />
+      ) : null}
+      <View style={{ flex: 1 }}>
+        {rejected ? (
+          <Text style={[styles.cardTitle, { color: "#FF9F43" }]}>
+            YouTube didn’t accept this sign-in. Tap to sign in again.
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.cardTitle}>
+              {me.loading
+                ? (fallback ?? "Signed in")
+                : (me.data?.name ?? fallback)}
+            </Text>
+            <Text style={styles.summary}>
+              {me.data?.handle ?? "YouTube Music"}
+            </Text>
+          </>
+        )}
+      </View>
+      {rejected ? null : (
+        <ChevronRight size={16} color="rgba(255,255,255,0.35)" />
+      )}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
-  iconRow: {
-    flexDirection: "column",
-    alignItems: "stretch",
-    paddingHorizontal: 0,
-    paddingTop: 14,
-    paddingBottom: 12,
-    gap: 12,
-  },
-  iconLabel: { paddingHorizontal: 16 },
-  icons: { paddingHorizontal: 16, gap: 14 },
-  iconItem: { alignItems: "center", gap: 6, width: 66 },
-  iconRing: {
-    padding: 3,
-    borderRadius: 19,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  iconImg: { width: 56, height: 56, borderRadius: 13 },
-  iconName: { color: "rgba(255,255,255,0.55)", fontSize: 12 },
   head: {
     flexDirection: "row",
     alignItems: "center",
@@ -786,7 +234,7 @@ const styles = StyleSheet.create({
   },
   h1: { color: "#fff", fontSize: 34, ...display("800"), letterSpacing: -0.8 },
   done: { color: "#fff", fontSize: 17, fontWeight: "600" },
-  catCard: {
+  card: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
@@ -796,156 +244,34 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
-  catKicker: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 12,
-    ...display("700"),
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-  },
-  catName: {
-    color: "#fff",
-    fontSize: 24,
-    ...display("800"),
-    paddingVertical: 2,
-  },
-  swatches: { flexDirection: "row", gap: 10, marginTop: 6 },
-  swatch: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2.5,
-    borderColor: "transparent",
-  },
-  section: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
-    ...display("700"),
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    paddingHorizontal: 32,
-    marginTop: 28,
-    marginBottom: 8,
-  },
-  group: {
+  photo: { width: 48, height: 48, borderRadius: 24 },
+  cardTitle: { color: "#fff", fontSize: 18, ...display("800") },
+  search: {
     marginHorizontal: 16,
-    borderRadius: 16,
-    overflow: "hidden",
+    marginTop: 14,
+    marginBottom: 6,
+    height: 42,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    color: "#fff",
+    fontSize: 16,
     backgroundColor: "rgba(255,255,255,0.08)",
   },
-  row: {
-    minHeight: 52,
-    flexDirection: "row",
+  list: { marginTop: 20 },
+  hit: { paddingVertical: 10, gap: 12 },
+  tile: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
-  pressed: { backgroundColor: "rgba(255,255,255,0.06)" },
-  label: { color: "#fff", fontSize: 16 },
-  value: { color: "rgba(255,255,255,0.5)", fontSize: 16 },
-  foot: {
-    color: "rgba(255,255,255,0.4)",
-    fontSize: 13,
+  summary: { color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 1 },
+  none: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 15,
     paddingHorizontal: 32,
-    marginTop: 8,
-    lineHeight: 18,
+    paddingTop: 20,
   },
-  accent: { width: 30, height: 30, borderRadius: 15 },
-  accentOn: { borderWidth: 3, borderColor: "#fff" },
 });
-
-// Videos and the Home that shows them: on for everyone, one switch for music only.
-function VideoSettings() {
-  const videos = useSetting("videos", true);
-  const blocked = useBlockedCount();
-  const focus = useSetting("focusMode", false);
-  const higher = useSetting("videoHigher", false);
-  return (
-    <>
-      <Section title="Home and videos">
-        <Link
-          label={focus ? "Focus mode · On" : "Focus mode"}
-          onPress={() => push("/focus")}
-        />
-        <Link label="Edit Home" onPress={() => push("/edit-home")} />
-        <Toggle k="videos" label="YouTube videos" def />
-        {videos ? (
-          <>
-            <Pick<"auto" | number>
-              k="videoPreferred"
-              label="Video quality"
-              def="auto"
-              options={[
-                ["auto", "Auto"],
-                ...(higher && Platform.OS !== "web"
-                  ? ([
-                      [2160, "4K"],
-                      [1440, "1440p"],
-                    ] as [number, string][])
-                  : []),
-                [1080, "1080p"],
-                [720, "720p"],
-                [480, "480p"],
-                [360, "360p"],
-              ]}
-            />
-            {Platform.OS !== "web" ? (
-              <Toggle
-                k="videoHigher"
-                label="Higher qualities (AV1)"
-                def={false}
-              />
-            ) : null}
-            <Toggle k="videoAutoplay" label="Play the next video" def={false} />
-            <Toggle k="skipSponsors" label="Skip sponsors" def />
-            <Toggle k="dearrow" label="Honest titles and thumbnails" def />
-            <Toggle k="videoInPlayer" label="Song and Video switch" def />
-            <Toggle k="showDislikes" label="Show dislikes" def={false} />
-            <Toggle
-              k="learnFromWatching"
-              label="Let YouTube learn from what I watch"
-              def
-            />
-            <Link
-              label="Reset YouTube recommendations"
-              onPress={() =>
-                showSheet({
-                  actions: [
-                    {
-                      label: "Reset YouTube recommendations",
-                      destructive: true,
-                      onPress: resetRecommendations,
-                    },
-                  ],
-                })
-              }
-            />
-            <Link
-              label={
-                blocked ? `Blocked (${blocked})` : "Blocked channels and words"
-              }
-              onPress={() => push("/blocked")}
-            />
-          </>
-        ) : null}
-      </Section>
-      <Foot>
-        {videos
-          ? "Videos from YouTube in Home, Search and the player, never Shorts. Auto picks the quality as your connection allows. Higher qualities add 1440p and 4K as AV1, which only phones that decode AV1 in hardware (iPhone 15 Pro and newer, recent Android flagships) play smoothly; the rest may stutter and drain the battery. Focus mode leaves out comments, counts, suggestions and autoplay. The Song and Video switch shows a song’s video in the player, in time with the music. Sponsor skips come from SponsorBlock, honest titles from DeArrow, and dislike counts are estimates from Return YouTube Dislike. Signed out, YouTube learns from the videos you watch here, with no account, to suggest more like them; Reset starts it over, and incognito never sends anything."
-          : "Pawse shows music only."}
-      </Foot>
-    </>
-  );
-}
-
-function ExperimentalSection() {
-  const status = useAiStatus();
-  if (!status || status === "unavailable") return null;
-  return (
-    <Section title="Try new things">
-      <Link label="Experimental" onPress={() => push("/experimental")} />
-    </Section>
-  );
-}
