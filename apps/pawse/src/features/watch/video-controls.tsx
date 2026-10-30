@@ -549,12 +549,12 @@ export function VideoControls(p: ControlsProps) {
         <LinearGradient
           pointerEvents="none"
           colors={[
-            "rgba(0,0,0,0.5)",
-            "rgba(0,0,0,0.14)",
-            "rgba(0,0,0,0.14)",
-            "rgba(0,0,0,0.5)",
+            "rgba(0,0,0,0.32)",
+            "rgba(0,0,0,0.06)",
+            "rgba(0,0,0,0.06)",
+            "rgba(0,0,0,0.38)",
           ]}
-          locations={[0, 0.32, 0.68, 1]}
+          locations={[0, 0.22, 0.75, 1]}
           style={StyleSheet.absoluteFill}
         />
         <View

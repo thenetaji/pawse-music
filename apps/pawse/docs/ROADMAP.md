@@ -259,7 +259,7 @@ The goal: a yearly Wrapped and a monthly recap, like YouTube Music Recap and App
 Everything asked for on 2026-10-29, in the user's words where it helps. Tick each one in the commit that finishes it. One branch (`feat/feeds-search-moods`), everything ships as one update (v1.13.0): tests once at the end, a CI test build, then the release.
 
 ### Bugs
-- [ ] 90. Black screen in the video player: pause a video, the controls show, and the picture behind them goes black. It should keep the paused frame. Defensive fix in (redraw the paused frame when the video view is re-attached, light gradient scrim, Live Text off); needs a check on the phone.
+- [x] 90. Black screen in the video player: pause a video, the controls show, and the picture behind them goes black. It should keep the paused frame. Defensive fix in (redraw the paused frame when the video view is re-attached, light gradient scrim, Live Text off); needs a check on the phone. Then (screenshot, 2026-10-30): the dark band was the controls' scrim and the round button was iOS Live Text on the paused frame; the scrim is now much lighter and Live Text is off.
 - [x] 91. Videos that won't play ("says can't play, maybe because the video is private, but Pawse doesn't say"): show YouTube's real reason (private, removed, region-locked, members-only) with Next, and Retry only where it can help.
 - [x] 92. Can't remove songs from a playlist. Fix it for Pawse playlists and YouTube playlists: swipe, the long-press menu, Undo.
 - [x] 93. Pull-to-refresh doesn't bring anything new on Home and every other feed. Refresh skips caches, keeps the old content until the new arrives; Home and Videos refresh by themselves after 30+ min away.

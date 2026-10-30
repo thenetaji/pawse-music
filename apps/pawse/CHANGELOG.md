@@ -46,7 +46,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 ### Fixed
 - **Videos that can't play say why** ("This video is private", "isn't available in your country") with **Next**, and private videos are no longer called age-restricted. Private, deleted, members-only and not-yet-premiered videos are left out of feeds.
 - **You can remove songs from playlists again,** by swiping, from the song's menu or with Select songs, in Pawse playlists, YouTube Music playlists and Liked songs, with Undo.
-- **The paused video keeps its picture** instead of going black, and the controls sit on a light fade.
+- **The paused video keeps its picture** instead of going black, the controls sit on a much lighter fade, and iOS's Live Text button no longer pops up over a paused frame.
 - **Scrolling no longer sets cards bouncing,** and dragging the video down settles without a wobble.
 - **The island's cat line no longer gets cut off;** it's an opt-in now.
 
