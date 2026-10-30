@@ -20,7 +20,11 @@ import {
   Toggle,
 } from "../../components/settings-rows";
 import { PressScale, Screen } from "../../components/ui";
-import { CAT_KINDS, useCatKind } from "../../features/cat/alt/cat-kind";
+import {
+  CAT_KINDS,
+  DEFAULT_CAT_KIND,
+  useCatKind,
+} from "../../features/cat/alt/cat-kind";
 import { Cat, type CatColor } from "../../features/cat/cat";
 import { IslandStylePicker } from "../../features/island/island-style-picker";
 import { useAccent } from "../../features/now-playing/now-palette";
@@ -124,7 +128,7 @@ export default function LookSettings() {
             k="catKind"
             label="Cat on Now Playing"
             hint="Mochi's wardrobe and streaks stay with Mochi"
-            def="mochi"
+            def={DEFAULT_CAT_KIND}
             options={CAT_KINDS}
           />
         ) : null}

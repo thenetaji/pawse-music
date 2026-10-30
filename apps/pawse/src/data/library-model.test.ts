@@ -3,6 +3,7 @@ import type { Track } from "@pawse/music-core";
 import {
   DEFAULT_SETTINGS,
   migrateAudioFormat,
+  migrateCatKind,
   migrateDefaults,
   migrateLocale,
   migrateQuality,
@@ -109,6 +110,25 @@ describe("migrateDefaults", () => {
       defaultsV3: true,
     } as Partial<Settings>;
     expect(migrateDefaults(merged(saved), saved).showDislikes).toBe(false);
+  });
+});
+
+describe("migrateCatKind", () => {
+  it("moves a saved Mochi to the dancing cat once", () => {
+    const saved = { catKind: "mochi" } as Partial<Settings>;
+    const s = migrateCatKind(merged(saved), saved);
+    expect(s.catKind).toBe("lottie");
+    expect(s.catKindV2).toBe(true);
+  });
+
+  it("keeps the pixel kitten", () => {
+    const saved = { catKind: "kitten" } as Partial<Settings>;
+    expect(migrateCatKind(merged(saved), saved).catKind).toBe("kitten");
+  });
+
+  it("keeps a Mochi picked after the switch", () => {
+    const saved = { catKind: "mochi", catKindV2: true } as Partial<Settings>;
+    expect(migrateCatKind(merged(saved), saved).catKind).toBe("mochi");
   });
 });
 

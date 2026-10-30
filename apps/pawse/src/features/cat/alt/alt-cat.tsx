@@ -1,11 +1,9 @@
 import { lazy, Suspense } from "react";
 
 import type { AltCatKind } from "./cat-kind";
+import { LottieCat } from "./lottie-cat";
 
-// Loaded when first shown, so the animation files stay unread until someone picks one of these cats.
-const LottieCat = lazy(() =>
-  import("./lottie-cat").then((m) => ({ default: m.LottieCat })),
-);
+// The dancing cat is the default, so it loads with the screen; the kitten's sprite sheet stays unread until someone picks it.
 const KittenCat = lazy(() =>
   import("./kitten-cat").then((m) => ({ default: m.KittenCat })),
 );
@@ -19,13 +17,10 @@ export type AltCatProps = {
 };
 
 export function AltCat({ kind, size, playing, liked }: AltCatProps) {
+  if (kind === "lottie") return <LottieCat size={size} playing={playing} />;
   return (
     <Suspense fallback={null}>
-      {kind === "lottie" ? (
-        <LottieCat size={size} playing={playing} />
-      ) : (
-        <KittenCat size={size} playing={playing} liked={liked} />
-      )}
+      <KittenCat size={size} playing={playing} liked={liked} />
     </Suspense>
   );
 }

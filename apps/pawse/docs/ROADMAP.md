@@ -383,3 +383,4 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - [x] 144. Opus on iPhone: YouTube's better Opus audio, repackaged on the phone (no re-encoding), with AAC as the fallback. You can also pick the audio format yourself (Best available, Opus, AAC, JioSaavn 320) from the quality chip, and the chip says what you are hearing in plain words.
 - [x] 146. Mochi dances part by part to the music and sleeps when paused; Settings can swap in a Lottie cat or a pixel kitten.
 - [x] 147. A song that won't load: fail over within seconds when nothing arrives, wait on a slow but working connection, give up after ~20 s with a message instead of a silent minute; fix the doubled song length on iPhone.
+- [x] 148. The dancing cat is the default on Now playing; it settles into sleep smoothly when you pause and mixes up its moves.

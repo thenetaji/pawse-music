@@ -58,6 +58,8 @@ export type Settings = {
   /** Set once the old India/English defaults have moved to Automatic. */
   localeV2: boolean;
   defaultsV3: boolean;
+  /** Set once everyone who never picked another cat has moved to the dancing cat. */
+  catKindV2: boolean;
   radioContinue: boolean;
   /** Also add similar songs after a playlist or album ends. */
   listsContinue: boolean;
@@ -169,6 +171,7 @@ export const DEFAULT_SETTINGS: Settings = {
   qualityV2: true,
   localeV2: true,
   defaultsV3: true,
+  catKindV2: true,
   radioContinue: true,
   listsContinue: false,
   resume: true,
@@ -199,7 +202,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pawseIsland: false,
   catEpisodes: "rare",
   catColor: "orange",
-  catKind: "mochi",
+  catKind: "lottie",
   mochiHat: "none",
   mochiCups: "artwork",
   mochiIdle: "sleep",
@@ -546,4 +549,17 @@ export function migrateDefaults(
 ): Settings {
   if (!saved || saved.defaultsV3) return s;
   return { ...s, showDislikes: true, trimSilence: true, defaultsV3: true };
+}
+
+// Older builds saved Mochi for everyone, so a saved Mochi can't be told from a pick. The dancing cat is the default now: move those once, and leave a pixel kitten alone.
+export function migrateCatKind(
+  s: Settings,
+  saved?: Partial<Settings>,
+): Settings {
+  if (!saved || saved.catKindV2) return s;
+  return {
+    ...s,
+    catKind: saved.catKind === "kitten" ? "kitten" : "lottie",
+    catKindV2: true,
+  };
 }
