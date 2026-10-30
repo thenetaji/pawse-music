@@ -17,3 +17,8 @@ android {
 dependencies {
   implementation "com.google.mlkit:genai-prompt:1.0.0-beta4"
 }
+
+// ML Kit GenAI is built with a newer Kotlin than React Native's; its metadata is still readable.
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+  compilerOptions.freeCompilerArgs.add("-Xskip-metadata-version-check")
+}
