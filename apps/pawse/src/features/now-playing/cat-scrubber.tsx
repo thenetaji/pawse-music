@@ -361,6 +361,7 @@ export function CatScrubber({
                     size={ALT_SIZE[kind]}
                     playing={playing}
                     liked={shownMood === "happy"}
+                    track={trackId}
                   />
                 </View>
               )}

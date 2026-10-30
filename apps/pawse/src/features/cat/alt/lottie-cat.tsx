@@ -1,8 +1,10 @@
-import LottieView from "lottie-react-native";
-import { useEffect, useRef } from "react";
+import type LottieView from "lottie-react-native";
+import { useEffect, useMemo, useRef } from "react";
 import { StyleSheet } from "react-native";
 import Animated, {
   Easing,
+  FadeIn,
+  FadeOut,
   interpolate,
   type SharedValue,
   useAnimatedStyle,
@@ -10,12 +12,11 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import dance from "../../../../assets/cats/dance.json";
 import sleep from "../../../../assets/cats/sleep.json";
+import { Lottie } from "../../../components/lottie";
 import { useCatCalm, useCatVisible } from "../use-cat-motion";
+import { DANCES, nextDance } from "./dances";
 
-// The dance cat's feet end above the bottom of its picture; this puts them back on the wire.
-const FEET = 0.12;
 const FADE_MS = 400;
 const CALM_FADE_MS = 250;
 const INTRO_MS = 450;
@@ -26,9 +27,11 @@ const SETTLE = 0.06;
 export function LottieCat({
   size,
   playing,
+  track,
 }: {
   size: number;
   playing: boolean;
+  track?: string;
 }) {
   const visible = useCatVisible();
   const calm = useCatCalm();
@@ -69,6 +72,7 @@ export function LottieCat({
         run={run && playing}
         mix={mix}
         settle={settle}
+        track={track}
       />
     </Animated.View>
   );
@@ -105,19 +109,38 @@ function Sleeper({ size, run, mix, settle }: LayerProps) {
 
   return (
     <Animated.View style={[styles.layer, style]}>
-      <LottieView
-        ref={ref}
-        source={sleep}
-        resizeMode="contain"
-        style={{ width: size, height: size }}
-      />
+      <Lottie ref={ref} source={sleep} size={size} />
     </Animated.View>
   );
 }
 
-// Plays the animation as its artist made it, looping; it keeps moving while it fades out, then stops.
-function Dancer({ size, run, mix, settle }: LayerProps) {
+// One pick per song, kept outside the components so the Home cat and the Now playing cat agree, and reopening Now playing keeps the dance.
+const picks = new Map<string, number>();
+let last = 0;
+
+function danceFor(track: string | undefined): number {
+  if (!track) return last;
+  let d = picks.get(track);
+  if (d === undefined) {
+    d = picks.size ? nextDance(last) : 0;
+    if (picks.size > 200) picks.clear();
+    picks.set(track, d);
+  }
+  last = d;
+  return d;
+}
+
+// Each song gets a different dance, crossfaded in. Every one plays as its artist made it, looping.
+function Dancer({
+  size,
+  run,
+  mix,
+  settle,
+  track,
+}: LayerProps & { track?: string }) {
   const ref = useRef<LottieView>(null);
+  const index = useMemo(() => danceFor(track), [track]);
+  const dance = DANCES[index];
 
   useEffect(() => {
     if (run) {
@@ -131,22 +154,27 @@ function Dancer({ size, run, mix, settle }: LayerProps) {
   const style = useAnimatedStyle(() => {
     const m = mix.get();
     const scale = 1 - settle * (1 - m);
-    return {
-      opacity: m,
-      transform: [{ translateY: size * FEET }, { scale }],
-    };
+    return { opacity: m, transform: [{ scale }] };
   });
 
   return (
     <Animated.View style={[styles.layer, style]}>
-      <LottieView
-        ref={ref}
-        source={dance}
-        autoPlay={run}
-        loop
-        resizeMode="contain"
-        style={{ width: size, height: size }}
-      />
+      <Animated.View
+        key={dance.id}
+        entering={FadeIn.duration(FADE_MS)}
+        exiting={FadeOut.duration(FADE_MS)}
+        style={[
+          styles.layer,
+          {
+            transform: [
+              { translateY: size * dance.lift },
+              { scale: dance.scale ?? 1 },
+            ],
+          },
+        ]}
+      >
+        <Lottie ref={ref} source={dance.load()} size={size} autoPlay={run} />
+      </Animated.View>
     </Animated.View>
   );
 }

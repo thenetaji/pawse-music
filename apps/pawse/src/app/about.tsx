@@ -22,7 +22,10 @@ const LICENSES = [
   ["Reanimated, Gesture Handler, Skia", "MIT"],
   ["Lyrics", "LRCLIB, Lyrics+, BetterLyrics, Unison, KuGou"],
   ["AutoEq headphone corrections, bs2b crossfeed", "MIT"],
-  ["Dancing cat: Alice and MereCalm", "Lottie Simple License"],
+  [
+    "Dancing cats: Alice, MereCalm, Vika Hysar, JuanMakes, Christine Somkunwar, Abdul Latif, Нуртилек Орозов, Julio, Denys Zavalii, Agung Setya Nugraha, Lucia Sepulveda, Mohammad Saiduzzaman Sayed, Miroslav",
+    "Lottie Simple License",
+  ],
   ["Pixel kitten: Segel", "CC0"],
 ];
 

@@ -5,7 +5,7 @@ import type {
   VideoFeed,
   VideoItem,
 } from "@pawse/music-core";
-import { player } from "@pawse/player";
+import { player, usePlayerSelect } from "@pawse/player";
 import { useState } from "react";
 import {
   Platform,
@@ -48,6 +48,8 @@ import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { refreshResources, useResource } from "../../lib/use-resource";
+import { useCatKind } from "../cat/alt/cat-kind";
+import { LottieCat } from "../cat/alt/lottie-cat";
 import { Cat, type CatColor } from "../cat/cat";
 import { ContinueCard, VideoShelf, YourPeople } from "../home/home-blocks";
 import { MoodChips } from "../home/mood-chips";
@@ -543,9 +545,17 @@ function Mixes() {
 }
 const MIX = ["#FF5A7A", "#8B7CFF", "#2ED3A2", "#FF9F43", "#38B6FF", "#F5D547"];
 
+// The dancing cat follows the player: the song's dance while music plays, asleep otherwise.
 function HomeCat() {
   const color = useSetting<CatColor>("catColor", "orange");
+  const kind = useCatKind();
+  const playing = usePlayerSelect(
+    (s) => s.status === "playing" || s.status === "buffering",
+  );
+  const track = usePlayerSelect((s) => s.current?.id);
   const h = new Date().getHours();
+  if (kind === "lottie")
+    return <LottieCat size={40} playing={playing} track={track} />;
   return (
     <Cat
       mood={h >= 23 || h < 6 ? "sleep" : "groove"}

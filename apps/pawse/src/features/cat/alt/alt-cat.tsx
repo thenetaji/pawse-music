@@ -14,10 +14,13 @@ export type AltCatProps = {
   playing: boolean;
   /** Just liked: the kitten jumps. */
   liked: boolean;
+  /** A new song starts a new dance. */
+  track?: string;
 };
 
-export function AltCat({ kind, size, playing, liked }: AltCatProps) {
-  if (kind === "lottie") return <LottieCat size={size} playing={playing} />;
+export function AltCat({ kind, size, playing, liked, track }: AltCatProps) {
+  if (kind === "lottie")
+    return <LottieCat size={size} playing={playing} track={track} />;
   return (
     <Suspense fallback={null}>
       <KittenCat size={size} playing={playing} liked={liked} />
