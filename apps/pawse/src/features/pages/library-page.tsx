@@ -113,7 +113,7 @@ export default function LibraryPage() {
     ...playlists.map((p) => ({
       id: p.id,
       title: p.title,
-      sub: `${count(p.tracks.length, "song")} · Pawse`,
+      sub: `${count(p.tracks.length, "song")} · Pawse${p.sortedFrom ? " · Auto" : ""}`,
       thumbs: p.tracks[0]?.thumbnails,
       at: p.updatedAt,
     })),

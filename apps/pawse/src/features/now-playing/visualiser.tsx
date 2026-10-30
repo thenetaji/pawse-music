@@ -17,7 +17,7 @@ import {
   VISUALISER_REACH as REACH,
 } from "./visualiser-levels";
 
-// Thin rounded bars mirrored from the middle, drawn as one stroked path whose string is rebuilt on the UI thread.
+// Thin rounded bars, bass on the left, drawn as one stroked path whose string is rebuilt on the UI thread.
 export function Visualiser({
   color,
   width,

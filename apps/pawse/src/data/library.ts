@@ -16,6 +16,7 @@ import {
   HISTORY_MAX,
   type LibraryData,
   mergeLikes,
+  migrateAudioFormat,
   migrateDefaults,
   migrateLocale,
   migrateQuality,
@@ -23,6 +24,7 @@ import {
   type PlaylistSort,
   reinsertTracks,
   type Settings,
+  type SortedFrom,
   sortTracks,
   strip,
 } from "./library-model";
@@ -43,7 +45,13 @@ type Library = LibraryData & {
   recordPlay(track: Track): void;
   removeFromHistory(at: number): void;
   clearHistory(): void;
-  createPlaylist(title: string, tracks?: Track[]): string;
+  createPlaylist(
+    title: string,
+    tracks?: Track[],
+    sortedFrom?: SortedFrom,
+  ): string;
+  /** Stops a sorted playlist following its source. */
+  unlinkPlaylist(id: string): void;
   addToPlaylist(id: string, track: Track): void;
   /** Adds songs not already in the playlist; returns how many went in. */
   addManyToPlaylist(id: string, tracks: Track[]): number;
@@ -186,7 +194,7 @@ export const useLibrary = create<Library>()(
       removeFromHistory: (at) =>
         set((s) => ({ history: s.history.filter((p) => p.at !== at) })),
       clearHistory: () => set({ history: [] }),
-      createPlaylist(title, tracks = []) {
+      createPlaylist(title, tracks = [], sortedFrom) {
         const id = newId();
         const now = Date.now();
         set((s) => ({
@@ -198,12 +206,21 @@ export const useLibrary = create<Library>()(
               createdAt: now,
               updatedAt: now,
               added: Object.fromEntries(tracks.map((t) => [t.id, now])),
+              ...(sortedFrom ? { sortedFrom } : {}),
             },
             ...s.playlists,
           ],
         }));
         return id;
       },
+      unlinkPlaylist: (id) =>
+        set((s) => ({
+          playlists: s.playlists.map((p) =>
+            p.id === id && p.sortedFrom
+              ? { ...p, sortedFrom: undefined, updatedAt: Date.now() }
+              : p,
+          ),
+        })),
       addToPlaylist: (id, track) => void get().addManyToPlaylist(id, [track]),
       addManyToPlaylist(id, tracks) {
         let added = 0;
@@ -405,10 +422,13 @@ export const useLibrary = create<Library>()(
         return {
           ...current,
           ...p,
-          settings: migrateDefaults(
-            migrateLocale(
-              migrateQuality(
-                { ...DEFAULT_SETTINGS, ...p.settings, cookies },
+          settings: migrateAudioFormat(
+            migrateDefaults(
+              migrateLocale(
+                migrateQuality(
+                  { ...DEFAULT_SETTINGS, ...p.settings, cookies },
+                  p.settings,
+                ),
                 p.settings,
               ),
               p.settings,

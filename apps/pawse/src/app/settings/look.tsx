@@ -20,6 +20,7 @@ import {
   Toggle,
 } from "../../components/settings-rows";
 import { PressScale, Screen } from "../../components/ui";
+import { CAT_KINDS, useCatKind } from "../../features/cat/alt/cat-kind";
 import { Cat, type CatColor } from "../../features/cat/cat";
 import { IslandStylePicker } from "../../features/island/island-style-picker";
 import { useAccent } from "../../features/now-playing/now-palette";
@@ -54,7 +55,9 @@ export default function LookSettings() {
   const accent = useAccent();
   const catName = useSetting("catName", "Mochi");
   const catColor = useSetting<CatColor>("catColor", "orange");
-  const catIsland = useSetting("catIsland", true);
+  const kind = useCatKind();
+  const who = kind === "mochi" ? catName : "The cat";
+  const pawseIsland = useSetting("pawseIsland", false);
   const androidPill = useSetting("androidPill", false);
 
   return (
@@ -116,17 +119,27 @@ export default function LookSettings() {
       </Section>
 
       <Section title="Cat">
+        {CAT_KINDS.length > 1 ? (
+          <Pick
+            k="catKind"
+            label="Cat on Now Playing"
+            hint="Mochi's wardrobe and streaks stay with Mochi"
+            def="mochi"
+            options={CAT_KINDS}
+          />
+        ) : null}
         <Toggle
           k="catWire"
-          label={`${catName} on the progress bar`}
-          tip={`${catName} now rides the progress bar in Now Playing`}
+          label={`${who} on the progress bar`}
+          tip={`${who} now rides the progress bar in Now Playing`}
           def
         />
         <Toggle
-          k="catIsland"
-          label={`${catName} in the Dynamic Island`}
-          tip={`${catName} now shows while music plays`}
-          def
+          k="pawseIsland"
+          label="Pawse in the Dynamic Island"
+          hint="iOS keeps its own music bubble too, so the two sit side by side"
+          tip="Pawse now shows in the Dynamic Island while music plays"
+          def={false}
         />
         <Pick
           k="catEpisodes"
@@ -138,22 +151,24 @@ export default function LookSettings() {
             ["often", "Often"],
           ]}
         />
-        <Link label={`${catName}'s wardrobe`} onPress={() => push("/mochi")} />
-      </Section>
-      {Platform.OS === "ios" && catIsland ? (
-        <Section title="Dynamic Island">
-          <IslandStylePicker catName={catName} />
-          <Toggle k="islandRate" label="Like and dislike on the island" def />
-          <Toggle
-            k="islandMoodLine"
-            label={`${catName}'s mood line`}
-            def={false}
+        {kind === "mochi" ? (
+          <Link
+            label={`${catName}'s wardrobe`}
+            onPress={() => push("/mochi")}
           />
+        ) : null}
+      </Section>
+      {Platform.OS === "ios" && pawseIsland ? (
+        <Section title="Dynamic Island">
+          <IslandStylePicker />
+          <Toggle k="islandRate" label="Like and dislike on the island" def />
         </Section>
       ) : null}
-      {Platform.OS === "ios" && catIsland ? (
+      {Platform.OS === "ios" && pawseIsland ? (
         <Foot>
-          {`While music plays, the island's player is iOS's own and ${catName} sits in a small bubble beside it.`}
+          {
+            "Off, the island shows iOS's own player. On, iOS splits it into Pawse's bubble and its own; long-press for Pawse's full player."
+          }
         </Foot>
       ) : null}
 

@@ -137,8 +137,7 @@ export default function Onboarding() {
               <Cat mood="excited" size={170} color={color} />
               <Text style={styles.title}>Meet your cat</Text>
               <Text style={styles.sub}>
-                It lives on your progress bar and in the Dynamic Island, and
-                dances to everything you play.
+                It lives on your progress bar and dances to everything you play.
               </Text>
               <TextInput
                 value={name}

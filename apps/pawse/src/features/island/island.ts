@@ -1,10 +1,5 @@
 // Drives Pawse's Live Activity (Dynamic Island + Lock Screen) from the player. iOS only; a no-op elsewhere.
-import {
-  artistLine,
-  bestThumbnail,
-  type LyricLine,
-  type Track,
-} from "@pawse/music-core";
+import { artistLine, bestThumbnail, type Track } from "@pawse/music-core";
 import {
   getProgress,
   onPlayerEvent,
@@ -15,37 +10,20 @@ import {
 import { AppState } from "react-native";
 
 import {
-  type ActivityCatColor,
-  type ActivityMood,
   type ActivityState,
   type IslandStyle,
   PawseActivity,
 } from "../../../modules/pawse-activity";
 import { useLibrary } from "../../data/library";
 import { prepareArtwork } from "../../lib/artwork";
-import { lyricsService } from "../../lib/engine";
-import { activeLine } from "../../lib/lrc";
 import { getSetting } from "../../lib/settings";
 import { songVibe } from "../../lib/vibe";
 import { readable, useNowPalette } from "../now-playing/now-palette";
 import { moodGlow } from "./glow";
 
-/** Mouse visit frame period. The cat no longer dances frame by frame: every update costs battery, and iOS throttles them. */
-export const BEAT_MS = 8000;
-/** No mouse visits after this long in the background. */
-export const BACKGROUND_BEAT_BUDGET_MS = 10 * 60_000;
-const HAPPY_MS = 1500;
 const SEND_TIMEOUT_MS = 4000;
 /** While playing, re-check this often that the island's timeline still matches the song. */
 const DRIFT_CHECK_MS = 15_000;
-const WIRE_MS = 5000;
-/** Half an interval ahead, so the cat is right on average between updates. */
-const WIRE_LEAD_SEC = WIRE_MS / 2000;
-/** Wire style goes stale quickly, so a closed Pawse doesn't leave the cat frozen on the cable. */
-const WIRE_STALE_MS = 90_000;
-/** Updates land this early to beat ActivityKit's delay. */
-const LYRIC_LEAD_MS = 250;
-const LYRIC_MIN_GAP_MS = 1200;
 const SEEK_SETTLE_MS = 400;
 /** After an island play/pause tap, states that contradict it are held back this long. */
 const TOGGLE_HOLD_MS = 1200;
@@ -66,56 +44,22 @@ export function staleAt(
       : now + STALE_WHEN_PAUSED_MS;
   return Math.ceil(at / 60_000) * 60_000;
 }
-const CURIOUS_MS = 1000;
+
 const ART_PX = 300;
-const CAT_COLORS: readonly ActivityCatColor[] = [
-  "orange",
-  "black",
-  "white",
-  "grey",
-];
-/** Chance that a song gets the mouse cameo, by the catEpisodes setting. */
-const CAMEO_CHANCE = { rare: 0.8, often: 1 };
-/** Long songs get another visit this many seconds after the last one. */
-const CAMEO_AGAIN_SEC: [number, number] = [60, 90];
-/** Mouse frame per beat tick: peek, head out, peek; the cat is pleased after. */
-const CAMEO_FRAMES: readonly (1 | 2)[] = [1, 2, 1];
 
-const ISLAND_STYLES: readonly IslandStyle[] = [
-  "wire",
-  "classic",
-  "lyrics",
-  "paws",
-  "time",
-];
+const ISLAND_STYLES: readonly IslandStyle[] = ["classic", "time"];
 
-type CatPrefs = {
+type IslandPrefs = {
   island: boolean;
   style: IslandStyle;
-  moodLine: boolean;
-  color: ActivityCatColor;
-  cameoChance: number;
-  name: string | null;
 };
 
-// The cat fields are new to Settings; read them loosely with defaults so older saved state works.
-export function catPrefs(): CatPrefs {
+// Read loosely so older saved settings work; a retired style ("wire", "cat", "lyrics", "paws") shows Classic.
+function islandPrefs(): IslandPrefs {
   const s = (useLibrary.getState().settings ?? {}) as Record<string, unknown>;
-  const episodes = s.catEpisodes;
-  const name = typeof s.catName === "string" ? s.catName.trim() : "";
   return {
-    island: s.catIsland !== false,
-    // Older versions saved "cat" for what is now "wire".
-    style: ISLAND_STYLES.find((v) => v === s.islandStyle) ?? "wire",
-    moodLine: s.islandMoodLine === true,
-    color: CAT_COLORS.find((c) => c === s.catColor) ?? "orange",
-    cameoChance:
-      episodes === "off" || episodes === false
-        ? 0
-        : episodes === "often"
-          ? CAMEO_CHANCE.often
-          : CAMEO_CHANCE.rare,
-    name: name ? name.slice(0, 32) : null,
+    island: s.pawseIsland === true,
+    style: ISLAND_STYLES.find((v) => v === s.islandStyle) ?? "classic",
   };
 }
 
@@ -144,14 +88,7 @@ export function startIslandController(): () => void {
 
   let active = false;
   let starting = false;
-  let frame = 0;
-  let flash: {
-    mood: ActivityMood;
-    timer: ReturnType<typeof setTimeout>;
-  } | null = null;
-  let beat: ReturnType<typeof setInterval> | undefined;
   let drift: ReturnType<typeof setInterval> | undefined;
-  let backgroundSince = AppState.currentState === "active" ? 0 : Date.now();
   let art: { id: string; file: string | null } = { id: "", file: null };
   let startMs = 0;
   let lastKey = "";
@@ -160,18 +97,6 @@ export function startIslandController(): () => void {
   let hold: { playing: boolean; timer: ReturnType<typeof setTimeout> } | null =
     null;
   let queued: ActivityState | null = null;
-  // The first song of a session always gets the mouse, so the episode is actually seen.
-  let firstCameo = true;
-  // At most one cameo per song. step: -1 waiting, 0..n-1 showing, CAMEO_FRAMES.length done.
-  let cameo: { trackId: string; atSec: number; step: number } = {
-    trackId: "",
-    atSec: 0,
-    step: CAMEO_FRAMES.length,
-  };
-
-  let lyr: { id: string; lines: LyricLine[] | null } = { id: "", lines: null };
-  let lyricTimer: ReturnType<typeof setTimeout> | undefined;
-  let driftMs = 0;
 
   const current = (): Track | undefined => {
     const s = usePlayerStore.getState();
@@ -188,103 +113,30 @@ export function startIslandController(): () => void {
     const start = Date.now() - position * 1000;
     // Ignore small drift so steady playback doesn't produce a new state every tick.
     if (Math.abs(start - startMs) > 1500) startMs = start;
-    const prefs = catPrefs();
-    const wire = prefs.style === "wire";
     const vibe = songVibe(track, s.source?.title);
     const tint = tintHex(
       getSetting<string>("accentMode", "artwork") === "fixed"
         ? getSetting("accentColor", "#8B7CFF")
         : useNowPalette.getState().palette.accent,
     );
-    const showing =
-      cameo.trackId === track.id &&
-      cameo.step >= 0 &&
-      cameo.step < CAMEO_FRAMES.length;
     return {
       title: track.title,
       artist: artistLine(track.artists),
       artwork: art.id === track.id ? art.file : null,
       isPlaying: playing,
-      mood: flash?.mood ?? (playing ? vibe : "sleep"),
-      frame,
       start: Math.round(startMs),
       end: Math.round(startMs + duration * 1000),
-      // The bars move on their own from start/end while playing; only the wire cat needs a live value.
-      progress: !duration
-        ? 0
-        : !playing
-          ? Math.min(1, position / duration)
-          : wire
-            ? Math.round(
-                Math.min(1, (position + WIRE_LEAD_SEC) / duration) * 1000,
-              ) / 1000
-            : 0,
-      color: prefs.color,
-      mouse: showing ? (CAMEO_FRAMES[cameo.step] ?? 0) : 0,
-      name: prefs.name,
+      // The bars and ring move on their own from start/end while playing; only a pause needs a value.
+      progress: duration && !playing ? Math.min(1, position / duration) : 0,
       // Follows Settings → Appearance → Accent colour, like the rest of the app.
       tint,
       glow: moodGlow(tint, vibe),
-      staleAt:
-        wire && playing
-          ? Math.min(
-              staleAt(playing, startMs + duration * 1000),
-              Math.ceil((Date.now() + WIRE_STALE_MS) / 30_000) * 30_000,
-            )
-          : staleAt(playing, startMs + duration * 1000),
-      style: prefs.style,
-      lyric:
-        prefs.style === "lyrics" && lyr.id === track.id && lyr.lines
-          ? lyricAt(lyr.lines, position)
-          : null,
-      moodLine: prefs.moodLine,
+      staleAt: staleAt(playing, startMs + duration * 1000),
+      style: islandPrefs().style,
       liked: useLibrary.getState().isLiked(track.id),
       disliked: useLibrary.getState().isDisliked(track.id),
       rate: getSetting<boolean>("islandRate", true) !== false,
     };
-  }
-
-  function lyricAt(lines: LyricLine[], position: number): string {
-    const i = activeLine(lines, position * 1000 + LYRIC_LEAD_MS);
-    return i < 0 ? "" : lines[i].text;
-  }
-
-  function loadLyrics(track: Track) {
-    lyr = { id: track.id, lines: null };
-    void lyricsService
-      .lyrics(track)
-      .then((found) => {
-        if (lyr.id !== track.id) return;
-        lyr.lines = found?.synced && found.lines.length ? found.lines : null;
-        push();
-        syncLyrics();
-      })
-      .catch(() => {});
-  }
-
-  // ActivityKit can't follow the clock, so the next line's start is pushed by timer.
-  function syncLyrics() {
-    clearTimeout(lyricTimer);
-    lyricTimer = undefined;
-    if (
-      !active ||
-      !isPlaying(usePlayerStore.getState().status) ||
-      catPrefs().style !== "lyrics"
-    )
-      return;
-    const lines = lyr.lines;
-    if (!lines) return;
-    const posMs = getProgress().position * 1000;
-    const next = lines[activeLine(lines, posMs + LYRIC_LEAD_MS) + 1];
-    if (!next) return;
-    const wait = next.startMs - LYRIC_LEAD_MS - posMs + 30;
-    lyricTimer = setTimeout(
-      () => {
-        push();
-        syncLyrics();
-      },
-      Math.max(wait, LYRIC_MIN_GAP_MS),
-    );
   }
 
   // One native call in flight at a time; only the newest pending state is kept.
@@ -318,7 +170,6 @@ export function startIslandController(): () => void {
     active = false;
     lastKey = "";
     queued = null;
-    syncBeat();
     syncDrift();
     if (AppState.currentState === "active") onChange();
   }
@@ -337,8 +188,8 @@ export function startIslandController(): () => void {
   async function begin() {
     if (starting || active) return;
     const state = compose();
-    // Island cat off: no activity at all, so iOS's own Now Playing island is the only one.
-    if (!state || !catPrefs().island || !PawseActivity.isSupported()) return;
+    // Pawse's island off: no activity at all, so iOS's own Now Playing island is the only one.
+    if (!state || !islandPrefs().island || !PawseActivity.isSupported()) return;
     starting = true;
     // iOS refuses to start an activity from the background; we retry when the app is active again.
     const ok = await PawseActivity.start(state);
@@ -346,7 +197,7 @@ export function startIslandController(): () => void {
     if (
       !ok ||
       !isPlaying(usePlayerStore.getState().status) ||
-      !catPrefs().island
+      !islandPrefs().island
     ) {
       if (ok) void PawseActivity.end();
       return;
@@ -354,7 +205,6 @@ export function startIslandController(): () => void {
     active = true;
     lastKey = JSON.stringify(state);
     push();
-    syncBeat();
     syncDrift();
   }
 
@@ -362,7 +212,6 @@ export function startIslandController(): () => void {
     active = false;
     lastKey = "";
     queued = null;
-    syncBeat();
     syncDrift();
     void PawseActivity.end();
   }
@@ -370,14 +219,11 @@ export function startIslandController(): () => void {
   // Buffering and seeks shift the song's timeline; compose only sends a new state when it moved.
   function syncDrift() {
     const want = active && isPlaying(usePlayerStore.getState().status);
-    const ms = catPrefs().style === "wire" ? WIRE_MS : DRIFT_CHECK_MS;
-    if (drift && (!want || ms !== driftMs)) {
+    if (!want && drift) {
       clearInterval(drift);
       drift = undefined;
-    }
-    if (want && !drift) {
-      driftMs = ms;
-      drift = setInterval(push, ms);
+    } else if (want && !drift) {
+      drift = setInterval(push, DRIFT_CHECK_MS);
     }
   }
 
@@ -397,83 +243,6 @@ export function startIslandController(): () => void {
         art = { id: track.id, file };
         push();
       });
-  }
-
-  function planCameo(track: Track) {
-    const chance = catPrefs().cameoChance;
-    const duration = track.durationSec || 0;
-    // Somewhere in the first 80 s, never in the last 20 s.
-    const atSec = 15 + Math.random() * 65;
-    const lucky =
-      chance > 0 &&
-      (firstCameo || Math.random() < chance) &&
-      (!duration || atSec < duration - 20);
-    if (lucky) firstCameo = false;
-    cameo = {
-      trackId: track.id,
-      atSec,
-      step: lucky ? -1 : CAMEO_FRAMES.length,
-    };
-  }
-
-  // Runs on a beat tick and takes that tick's update instead of the groove swap, so it costs nothing extra.
-  function stepCameo(spentMs: number): boolean {
-    if (cameo.trackId !== current()?.id || cameo.step >= CAMEO_FRAMES.length)
-      return false;
-    if (cameo.step >= 0) {
-      cameo.step += 1;
-      if (cameo.step === CAMEO_FRAMES.length) {
-        setFlash("happy", HAPPY_MS);
-        // The mouse comes back later in a long song.
-        const [a, b] = CAMEO_AGAIN_SEC;
-        const next = getProgress().position + a + Math.random() * (b - a);
-        const duration = current()?.durationSec ?? 0;
-        if (duration && next < duration - 20)
-          cameo = { trackId: cameo.trackId, atSec: next, step: -1 };
-      }
-      return true;
-    }
-    if (flash || catPrefs().cameoChance === 0) return false;
-    if (getProgress().position < cameo.atSec) return false;
-    const needMs = (CAMEO_FRAMES.length + 1) * BEAT_MS;
-    if (spentMs + needMs > BACKGROUND_BEAT_BUDGET_MS) return false;
-    cameo.step = 0;
-    return true;
-  }
-
-  function syncBeat() {
-    // Only ticks while a mouse visit is still due for this song; otherwise nothing changes between songs.
-    const want =
-      active &&
-      cameo.trackId === current()?.id &&
-      cameo.step < CAMEO_FRAMES.length &&
-      isPlaying(usePlayerStore.getState().status) &&
-      backgroundSince > 0 &&
-      Date.now() - backgroundSince < BACKGROUND_BEAT_BUDGET_MS;
-    if (want && !beat) {
-      beat = setInterval(() => {
-        const spent = Date.now() - backgroundSince;
-        if (spent < BACKGROUND_BEAT_BUDGET_MS) stepCameo(spent);
-        push();
-        syncBeat();
-      }, BEAT_MS);
-    } else if (!want && beat) {
-      clearInterval(beat);
-      beat = undefined;
-    }
-  }
-
-  function setFlash(mood: ActivityMood, ms: number) {
-    if (!active) return;
-    if (flash) clearTimeout(flash.timer);
-    flash = {
-      mood,
-      timer: setTimeout(() => {
-        flash = null;
-        push();
-      }, ms),
-    };
-    push();
   }
 
   // The last track ran out with nothing to refill: RNTP just pauses, so look at the position.
@@ -498,16 +267,12 @@ export function startIslandController(): () => void {
       return;
     }
     if (track.id !== art.id) loadArt(track);
-    if (track.id !== cameo.trackId) planCameo(track);
-    if (track.id !== lyr.id && catPrefs().style === "lyrics") loadLyrics(track);
     if (!active) {
       if (s.status === "playing") void begin();
     } else {
       push();
     }
-    syncBeat();
     syncDrift();
-    syncLyrics();
   }
 
   const unsubStore = usePlayerStore.subscribe((s, prev) => {
@@ -519,10 +284,6 @@ export function startIslandController(): () => void {
       onChange();
     }
   });
-  const unsubLiked = onPlayerEvent("liked", () => setFlash("happy", HAPPY_MS));
-  const unsubSkipped = onPlayerEvent("skipped", () =>
-    setFlash("curious", CURIOUS_MS),
-  );
   // Native already flipped play/pause on the island, so the next real state must always be sent.
   const unsubAction = PawseActivity.onAction((action) => {
     lastKey = "";
@@ -548,10 +309,7 @@ export function startIslandController(): () => void {
   let seekTimer: ReturnType<typeof setTimeout> | undefined;
   const unsubSeeked = onPlayerEvent("seeked", () => {
     clearTimeout(seekTimer);
-    seekTimer = setTimeout(() => {
-      push();
-      syncLyrics();
-    }, SEEK_SETTLE_MS);
+    seekTimer = setTimeout(push, SEEK_SETTLE_MS);
   });
   // The artwork colour arrives a moment after the song changes.
   const unsubPalette = useNowPalette.subscribe(() => push());
@@ -561,46 +319,32 @@ export function startIslandController(): () => void {
   });
   const unsubSettings = useLibrary.subscribe((s, prev) => {
     if (s.settings === prev.settings) return;
-    if (!catPrefs().island) {
+    if (!islandPrefs().island) {
       if (active || starting) finish();
       return;
     }
-    // Starts the activity if the cat was just switched on, or pushes the new colour/name.
+    // Starts the activity if it was just switched on, or pushes the new style.
     onChange();
   });
   const appState = AppState.addEventListener("change", (st) => {
-    if (st === "active") {
-      backgroundSince = 0;
-      frame = 0;
-      // The cameo is a background treat; a half-shown one counts as this song's.
-      if (cameo.step >= 0) cameo.step = CAMEO_FRAMES.length;
-      onChange();
-    } else if (!backgroundSince) {
-      backgroundSince = Date.now();
-    }
-    syncBeat();
+    if (st === "active") onChange();
   });
 
   // A previous process may have left an activity behind; start clean.
-  if (!isPlaying(usePlayerStore.getState().status) || !catPrefs().island)
+  if (!isPlaying(usePlayerStore.getState().status) || !islandPrefs().island)
     void PawseActivity.end();
   onChange();
 
   stopController = () => {
     unsubStore();
-    unsubLiked();
-    unsubSkipped();
     unsubAction();
     unsubSeeked();
     clearTimeout(seekTimer);
-    clearTimeout(lyricTimer);
     if (drift) clearInterval(drift);
     unsubPalette();
     unsubSettings();
     unsubLikes();
     appState.remove();
-    if (flash) clearTimeout(flash.timer);
-    if (beat) clearInterval(beat);
     stopController = null;
   };
   return stopController;

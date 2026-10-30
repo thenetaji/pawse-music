@@ -66,7 +66,14 @@ export function useWatchPlayer(
     return () => hls.destroy();
   }, [video, o.uri]);
   useEffect(() => {
-    const time = () => cb.current.onTime?.(video.currentTime);
+    const time = () => {
+      const { buffered, currentTime } = video;
+      let loaded = 0;
+      for (let i = 0; i < buffered.length; i++)
+        if (buffered.start(i) <= currentTime && buffered.end(i) >= currentTime)
+          loaded = buffered.end(i);
+      cb.current.onTime?.(currentTime, loaded);
+    };
     const end = () => cb.current.onEnd?.();
     const on = () => cb.current.onPlaying?.(true);
     const off = () => cb.current.onPlaying?.(false);

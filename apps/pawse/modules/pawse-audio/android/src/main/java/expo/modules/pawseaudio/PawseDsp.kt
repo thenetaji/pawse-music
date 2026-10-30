@@ -21,13 +21,16 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-private const val BANDS = 10
+private const val BANDS = 16
+// A Q of 2.5 makes each band about one log step wide.
+private const val BAND_Q = 2.5
 private const val RING = 64
 private const val SILENT_DB = -60.0
 private const val FLOOR_DB = -120.0
 private const val LATENCY_NS = 300_000_000L
 private const val STALE_NS = 600_000_000L
-private val BAND_HZ = doubleArrayOf(60.0, 120.0, 250.0, 500.0, 1000.0, 2000.0, 3500.0, 6000.0, 10000.0, 15000.0)
+// 40 Hz to 16 kHz in equal log steps, as BAND_HZ in types.ts.
+private val BAND_HZ = DoubleArray(BANDS) { 40.0 * 400.0.pow(it / (BANDS - 1.0)) }
 
 private class Biquad(
   val b0: Double, val b1: Double, val b2: Double, val a1: Double, val a2: Double,
@@ -254,7 +257,7 @@ object PawseDsp : BaseAudioProcessor() {
     }
     filters = next.toTypedArray()
     bandFilters = if (cfg.meter) {
-      BAND_HZ.filter { it < nyquist * 0.9 }.map { Biquad.bandpass(it, 1.5, sampleRate) }.toTypedArray()
+      BAND_HZ.filter { it < nyquist * 0.9 }.map { Biquad.bandpass(it, BAND_Q, sampleRate) }.toTypedArray()
     } else {
       emptyArray()
     }

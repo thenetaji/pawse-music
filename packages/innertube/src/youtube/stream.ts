@@ -40,6 +40,8 @@ const PLAYER_URL =
 const DEFAULT_TTL_SEC = 300;
 const PLAYER_TIMEOUT_MS = 8000;
 const MINT_CAP_MS = 8000;
+/** Opus larger than this is not repackaged: it is held in memory whole. About 14 minutes at 160 kbps. */
+const REMUX_MAX_BYTES = 16 << 20;
 const viaOf = (c: StreamClient) => `youtube:${c.name}`;
 const NONCE_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
@@ -207,6 +209,8 @@ export interface ResolveOptions {
   opus?: boolean;
   /** An Opus file larger than this loses to AAC, which can be played in small ranges. */
   opusMaxBytes?: number;
+  /** Also return the best WebM/Opus rendition as `opus` when AAC was chosen (the player repackages it). */
+  alsoOpus?: boolean;
   /** `youtube:<client>` ids never to return (they failed for this track). */
   exclude?: string[];
   /** `youtube:<client>` ids to try last (they failed on this device). */
@@ -317,6 +321,46 @@ async function decipher(
     return url;
   } catch (e) {
     throw new StreamError("network", `sig/n solver failed: ${reason(e)}`);
+  }
+}
+
+/** The best WebM/Opus rendition that fits REMUX_MAX_BYTES, with its url unlocked; undefined when there is none or it can't be. */
+async function opusRendition(
+  formats: AdaptiveFormat[] | undefined,
+  o: ResolveOptions,
+  player: PlayerJs | undefined,
+  suffix: string,
+  headers: Record<string, string>,
+): Promise<ResolvedStream["opus"]> {
+  const f = (formats ?? [])
+    .filter(o.sandbox ? hasUrl : isDirect)
+    .filter(isOpus)
+    .filter(
+      (x) => !x.contentLength || Number(x.contentLength) <= REMUX_MAX_BYTES,
+    )
+    .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0))[0];
+  if (!f) return undefined;
+  try {
+    let url = f.url;
+    if (
+      o.sandbox &&
+      (f.signatureCipher || f.cipher || (player && nChallengeOf(url ?? "")))
+    ) {
+      player ??= await getPlayer(o.fetch);
+      url = await decipher(f, player, o.sandbox);
+    }
+    if (!url) return undefined;
+    const length = Number(f.contentLength);
+    return {
+      url: url + suffix,
+      mimeType: f.mimeType ?? 'audio/webm; codecs="opus"',
+      bitrate: f.bitrate ?? 0,
+      contentLength: length > 0 ? length : undefined,
+      headers,
+    };
+  } catch {
+    // The song just plays as AAC.
+    return undefined;
   }
 }
 
@@ -485,6 +529,16 @@ async function tryClient(
     }
     o.onExtra(list);
   }
+  const opus =
+    o.alsoOpus && isAac(format)
+      ? await opusRendition(
+          sd?.adaptiveFormats,
+          o,
+          player,
+          suffix,
+          mediaHeaders,
+        )
+      : undefined;
   return {
     url,
     mimeType: format.mimeType ?? "audio/mp4",
@@ -496,6 +550,7 @@ async function tryClient(
     durationSec: ms > 0 ? ms / 1000 : undefined,
     sampleRateHz: rate > 0 ? rate : undefined,
     via: viaOf(c),
+    opus,
   };
 }
 

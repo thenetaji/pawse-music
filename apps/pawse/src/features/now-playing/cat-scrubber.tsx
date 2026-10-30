@@ -12,12 +12,16 @@ import Animated, {
 
 import { haptic } from "../../lib/haptics";
 import { useSetting } from "../../lib/settings";
+import { AltCat } from "../cat/alt/alt-cat";
+import { useCatKind } from "../cat/alt/cat-kind";
 import { Cat, type CatColor, type CatMood } from "../cat/cat";
 import { Mouse } from "../cat/mouse";
 import { QualityChip } from "./quality-chip";
 
 const CAT = 50;
 const MOUSE = 34;
+// The other cats are drawn a little differently, so each gets the size that stands it on the wire.
+const ALT_SIZE = { lottie: 72, kitten: 58 } as const;
 
 type Props = {
   position: number;
@@ -83,6 +87,7 @@ export function CatScrubber({
   const [mouseFlip, setMouseFlip] = useState(false);
   const [mouseFrame, setMouseFrame] = useState(0);
   const showCat = useSetting("catWire", true);
+  const kind = useCatKind();
   const color = useSetting<CatColor>("catColor", "orange");
   const freq = useSetting<"off" | "rare" | "often">("catEpisodes", "rare");
   const idle = useSetting<CatMood>("mochiIdle", "sleep");
@@ -334,19 +339,31 @@ export function CatScrubber({
               pointerEvents="none"
               style={[styles.cat, { left: catLeft }, catStyle]}
             >
-              <Cat
-                mood={shownMood}
-                size={CAT}
-                cups={cups}
-                color={color}
-                look={
-                  episode && episode !== "prank"
-                    ? episode === "cable"
-                      ? 1
-                      : -1
-                    : undefined
-                }
-              />
+              {kind === "mochi" ? (
+                <Cat
+                  mood={shownMood}
+                  size={CAT}
+                  cups={cups}
+                  color={color}
+                  live
+                  look={
+                    episode && episode !== "prank"
+                      ? episode === "cable"
+                        ? 1
+                        : -1
+                      : undefined
+                  }
+                />
+              ) : (
+                <View style={styles.alt}>
+                  <AltCat
+                    kind={kind}
+                    size={ALT_SIZE[kind]}
+                    playing={playing}
+                    liked={shownMood === "happy"}
+                  />
+                </View>
+              )}
             </Animated.View>
           ) : (
             <View pointerEvents="none" style={[styles.knob, { left: x - 7 }]} />
@@ -394,6 +411,15 @@ const styles = StyleSheet.create({
   },
   played: { height: 4, backgroundColor: "rgba(255,255,255,0.85)" },
   cat: { position: "absolute", bottom: 1, width: CAT, height: CAT },
+  alt: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
   knob: {
     position: "absolute",
     bottom: -1,

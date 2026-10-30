@@ -26,6 +26,8 @@ const ERA_FROM = 1960;
 const ERA_TO = 2025;
 export const eraOf = (year: number): number =>
   Math.min(1, Math.max(0, (year - ERA_FROM) / (ERA_TO - ERA_FROM)));
+export const yearOf = (era: number): number =>
+  Math.round(ERA_FROM + era * (ERA_TO - ERA_FROM));
 
 // Without evidence a song sits between "retro" and "modern", and mid-energy.
 const NEUTRAL = { era: eraOf(2008), energy: 0.5 };
@@ -158,21 +160,28 @@ export const sessionCues = (near: Vector[]): Cue[] =>
     },
   ]);
 
-export function combine(cues: Cue[]): Vector {
+export type Axes = Record<"era" | "energy", { value: number; sure: number }>;
+
+export function axesOf(cues: Cue[]): Axes {
   const sum = { era: 0, energy: 0 };
   const weight = { era: 0, energy: 0 };
   for (const c of cues) {
     sum[c.axis] += c.value * c.weight;
     weight[c.axis] += c.weight;
   }
-  const at = (axis: "era" | "energy") =>
-    (sum[axis] + NEUTRAL[axis] * PRIOR) / (weight[axis] + PRIOR);
-  const sure = (axis: "era" | "energy") =>
-    weight[axis] / (weight[axis] + PRIOR);
+  const axis = (a: "era" | "energy") => ({
+    value: (sum[a] + NEUTRAL[a] * PRIOR) / (weight[a] + PRIOR),
+    sure: weight[a] / (weight[a] + PRIOR),
+  });
+  return { era: axis("era"), energy: axis("energy") };
+}
+
+export function combine(cues: Cue[]): Vector {
+  const { era, energy } = axesOf(cues);
   return {
-    era: at("era"),
-    energy: at("energy"),
-    confidence: (sure("era") + sure("energy")) / 2,
+    era: era.value,
+    energy: energy.value,
+    confidence: (era.sure + energy.sure) / 2,
   };
 }
 

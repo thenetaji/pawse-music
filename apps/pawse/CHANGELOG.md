@@ -2,6 +2,39 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.13.2] - 2026-10-30
+
+### Added
+- **Equaliser in the player's ••• menu,** so you can switch presets while a song plays.
+- **Opus on iPhone.** YouTube's Opus audio sounds better than its 128 kbps AAC, but an iPhone can't play the WebM files it comes in. Pawse now downloads the next songs' Opus, repackages it on the phone without re-encoding, and plays that. It takes a few seconds per song, so the song you start plays as AAC at once and Opus begins with the one after it. Low quality, mobile data with Wi-Fi only, and any song that can't be prepared stay on AAC. Settings → Playback and sound → Opus on iPhone turns it off.
+- **Pick the audio format.** Tap the quality chip on Now playing, then Format: Best available (JioSaavn 320 when it is certainly the song, else Opus, else AAC), Opus, AAC or JioSaavn 320. The song restarts in it from the same spot; choices that can't work for this song are greyed out with the reason. It replaces "Highest quality source" and is also in Settings → Playback and sound.
+- **Hold the cover, then slide for the volume.** Press and hold for a moment, feel the tick, then slide up or down; a small bar shows the level and fades when you let go. A plain swipe never changes it.
+- **Double-tap the cover.** The left and right thirds go back or forward 10 seconds (keep tapping to add more), and the middle likes the song with a heart.
+- **Swipe on the cover, your way.** Settings → Playback and sound → Swipe on the cover: Sideways as before, or Reels, where swiping up plays the next song and down the previous one. In Reels you pull down from the top of the player to close it.
+- **Shake to shuffle.** A switch in Playback and sound (off by default): shake the phone while a song plays to put the songs still to come in a new order, following Smooth shuffle when it's on.
+- **Sort a playlist or Liked songs.** Under the Play row, **Group by** splits any list into Mood, Era or Language sections. Each section has its own Play (a smooth mix) and **Save as playlist**. Pawse looks up the songs it doesn't know yet in the background, with a count you can stop and resume, and not in incognito. Saved sections of Liked songs or your own playlists are marked **Auto** and add matching new songs on their own (and drop songs you remove from the source); ••• → Stop adding songs automatically ends it.
+- **Edit your YouTube playlists in Pawse.** For playlists your account owns, the ••• menu has Edit songs (reorder and remove, with undo), Rename, Description, Privacy and Delete.
+- **Mochi dances part by part.** Mochi crouches, hops with a tilt to one side, lands with a squash and does the other side, with the ears a moment behind, the headphones thumping on each beat, a blink every few seconds and notes floating off. The tempo and the size of the hops follow the song (loud songs hop, quiet ones nod); when Pawse can't hear a song it dances at an easy pace. Paused, Mochi curls up and breathes slowly, twitches an ear now and then, and stretches when you press play. It all runs without redrawing the screen, stops when the screen isn't showing, and holds still with Reduce motion on.
+- **Pick the cat on Now playing.** Settings → Look and Mochi → Cat on Now Playing: Mochi, a dancing cat that sleeps when paused, or a pixel kitten that idles when paused, runs to the beat and jumps when you like the song. The wardrobe and streaks stay with Mochi.
+
+### Changed
+- **The quality chip says it in words.** "AAC 128 kbps", "Opus 160 kbps", "320 kbps · JioSaavn", and "AAC 48 kbps · data saver" for the small streams, which are no longer rounded up to a bigger number. The sheet explains in a sentence what it means for the sound and why it was picked, and a small stream gets **Play in high quality**.
+- **Fewer wrong skips in music videos.** Non-music parts are skipped at the start and end; one in the middle (often an instrumental break someone mislabelled) is only skipped when SponsorBlock's community is sure of it, and rewinding into a skipped part plays it.
+- **The Dynamic Island shows iOS's own player by default.** iOS always adds its own music bubble, so Pawse's island next to it split the island in two. Mochi's island is now an opt-in in Settings → Look and Mochi.
+- **A Best part button** next to the time on videos that have one, whenever the controls are up (the pink mark on the bar shows where it is).
+- **SponsorBlock skips each segment once.** Rewind into a skipped sponsor and it plays.
+- **No dark shade over videos** when the controls show; buttons keep their own circles and text its own shadow.
+- **Edit songs moved into the ••• menu** on playlists, so the Play row has room. Tap or hold the Smooth shuffle wave to see what it does.
+- **The Dynamic Island keeps two styles, Classic and Time left.** The cat, mouse, wire, lyrics and paw styles and the mood line are gone from the island, and the Lock Screen card follows Classic.
+- **The visualiser's bars each follow their own part of the sound.** Sixteen bands from bass to treble, each scaled to its own range, so kicks, snares and hats move different bars instead of the whole row. Songs Pawse can't measure, like long songs on iPhone, get a gentle drift instead of a frozen row.
+
+### Fixed
+- **A song that won't load no longer holds you for a minute.** When YouTube sends nothing at all, Pawse moves to the next source in about 5 seconds, and it already has that source ready. When the network is only slow, it waits and says "Weak connection, still loading…" instead of starting over with another client, which only made it slower. After 20 seconds it gives up with a message ("Couldn't load … — connection too slow" or "YouTube didn't send this song"), keeps the song in your queue, and moves on. JioSaavn gets its turn inside those 20 seconds. Time with the app in the background doesn't count.
+- **One bad stretch of network no longer demotes every YouTube source.** A source is moved down only when the server refuses it (an HTTP 403), or when another source delivered while it sent nothing, and for 10 minutes, not 30. Playing a song through forgives it.
+- **Songs no longer drop to a muddy 48 kbps after a hiccup.** Automatic quality used to switch to Low for 15 minutes after two stalls, whatever the cause, which meant YouTube's HE-AAC 48 kbps stream. It now steps down only when downloads are measured slow, never for a stall with no data or while the app is in the background, and goes back to full quality as soon as a download is fast. Songs kept offline are saved at your chosen quality, not at a passing Low, and an old Low copy is replaced the next time the song plays online.
+- **Song length on iPhone.** iOS reads YouTube's HE-AAC files at twice their length; the progress bar, seeking and the Lock Screen now use the real length.
+
+
 ## [1.13.1] - 2026-10-30
 
 ### Added

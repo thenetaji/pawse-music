@@ -513,7 +513,21 @@ diff --git a/ios/player/AudioPlayer.swift b/ios/player/AudioPlayer.swift
 index 626e4a4..1b485a7 100644
 --- a/ios/player/AudioPlayer.swift
 +++ b/ios/player/AudioPlayer.swift
-@@ -233,7 +233,7 @@ class AudioPlayer {
+@@ -78,7 +78,12 @@ class AudioPlayer {
+   // MARK: - Computed Properties
+ 
+   var currentTime: Double { engine.currentTime }
+-  var duration: Double { engine.duration }
++  // Pawse patch: AVPlayer reads some HE-AAC files at twice their length; a length the app gave the item wins when they disagree widely.
++  var duration: Double {
++    let measured = engine.duration
++    guard let given = currentItem?.duration, given > 0, currentItem?.isLive != true else { return measured }
++    return abs(measured - given) > max(10, given * 0.15) ? given : measured
++  }
+   var bufferedPosition: Double { engine.bufferedPosition }
+   var cachedPosition: Double { engine.cachedPosition }
+   var currentItem: AudioItem? { queue.current }
+@@ -233,7 +238,7 @@ class AudioPlayer {
  
      guard let itemUrl = url else { return }
  
@@ -522,7 +536,7 @@ index 626e4a4..1b485a7 100644
      state = .loading
    }
  
-@@ -485,7 +485,7 @@ class AudioPlayer {
+@@ -485,7 +490,7 @@ class AudioPlayer {
        artworkUri: nil,
        genre: nil
      )
@@ -531,7 +545,7 @@ index 626e4a4..1b485a7 100644
      state = .loading
      resetNowPlaying(for: item)
      onCurrentItemChanged?(item, queue.currentIndex, reason)
-@@ -519,9 +519,10 @@ class AudioPlayer {
+@@ -519,9 +524,10 @@ class AudioPlayer {
  
      for i in startIndex..<endIndex {
        let item = queue.items[i]

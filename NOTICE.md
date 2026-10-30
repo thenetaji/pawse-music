@@ -30,6 +30,8 @@ Pawse is not affiliated with, endorsed by or connected to YouTube, Google, Apple
 - **[AutoEq](https://github.com/jaakkopasanen/AutoEq)** by Jaakko Pasanen (MIT). The Equaliser's Headphones page lists AutoEq's results and applies the chosen model's `ParametricEQ.txt`, fetched from `raw.githubusercontent.com` on demand; nothing is bundled. The measurements behind each result belong to their sources (oratory1990, crinacle, Rtings and others, named next to each model).
 - **[bs2b](https://bs2b.sourceforge.net/)** by Boris Mikhaylov (libbs2b, MIT). The headphone crossfeed in `apps/pawse/modules/pawse-audio` follows its published filter design (700 Hz cut, 4.5 dB feed); none of its code is used.
 - **Audio EQ Cookbook** by Robert Bristow-Johnson. The biquad filter formulas in the same module.
+- **[Opus in ISOBMFF](https://opus-codec.org/docs/opus_in_isobmff.html)** (Xiph.Org Foundation), **[RFC 6716](https://www.rfc-editor.org/rfc/rfc6716)** and **[RFC 7845](https://www.rfc-editor.org/rfc/rfc7845)** (Ogg Opus, the `OpusHead` layout), the **[Matroska/WebM](https://www.matroska.org/technical/elements.html)** element list and Apple's **Core Audio Format Specification**. The specifications `packages/innertube/src/remux/` follows to repackage YouTube's Opus on iPhone (WebM in; MP4 or CAF out); no code is taken from any project.
+- **[FFmpeg](https://ffmpeg.org)** (LGPL-2.1+). Ideas only, no code: its MP4 muxer writes Opus with an edit list for the pre-skip and a `roll` sample group, and its CAF muxer shows that iOS needs 960 frames per packet.
 
 ## Desktop sign-in
 
@@ -60,6 +62,12 @@ BotGuard Proof-of-Origin tokens for YouTube's web clients are minted in `package
 - **[MusicBrainz](https://musicbrainz.org)** (MetaBrainz Foundation; core data CC0). Release years and tags for mood mixes come from its public web service, at most one request a second.
 - **[Last.fm](https://www.last.fm/api)** and **[ListenBrainz](https://listenbrainz.org)**. Scrobbling and Last.fm tags use their public APIs with the person's own key or token.
 - **[Metrolist](https://github.com/mostafaalagamy/Metrolist)** and **[InnerTune](https://github.com/z-huang/InnerTune)** (GPL-3.0). Ideas, no code: removing songs from YouTube Music playlists by `setVideoId`, and telling owned playlists apart by their editable header.
+
+## Cats
+
+- **["Dance cat"](https://lottiefiles.com/free-animation/dance-cat-5wfbtgfSi0)** by Alice and **["Sleeping Cat Breathing Loop"](https://lottiefiles.com/free-animation/sleeping-cat-breathing-loop-dPo784b3lF)** by MereCalm, from LottieFiles ([Lottie Simple License, FL 9.13.21](https://lottiefiles.com/page/license)). They are the Dancing cat in Settings → Look and Mochi. The speech bubble and background of the first are removed, its dark greys lightened, and the second is cropped; the edited files stay under that licence, with its text in `apps/pawse/assets/cats/LICENSE-lottie.txt`.
+- **[Tiny Kitten Game Sprite](https://opengameart.org/content/tiny-kitten-game-sprite)** by Segel on OpenGameArt ([CC0](https://creativecommons.org/publicdomain/zero/1.0/)). Frames of it, cropped and scaled into one sheet, are the Pixel kitten. Credit isn't required; it is given anyway.
+- **[lottie-react-native](https://github.com/lottie-react-native/lottie-react-native)** (Apache-2.0). Plays the Lottie files on phones.
 
 ## Desktop
 

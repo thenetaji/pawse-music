@@ -8,10 +8,6 @@ import {
   searchIndex,
 } from "./autoeq";
 import { chainFor, DEFAULT_EQ } from "./eq";
-import { BAR_COUNT, easeLevels, mirrorBars, toBar } from "./bars";
-
-jest.mock("../../../modules/pawse-audio", () => ({ LEVEL_BANDS: 10 }));
-jest.mock("./index", () => ({ holdMeter: jest.fn(), readLevels: jest.fn() }));
 
 describe("biquad", () => {
   it("peaks at the centre by the set gain", () => {
@@ -128,27 +124,5 @@ describe("AutoEq", () => {
       ],
     });
     expect(parseParametricEq("404: Not Found")).toBeNull();
-  });
-});
-
-describe("visualiser bars", () => {
-  it("maps dB onto 0 to 1", () => {
-    expect(toBar(-90)).toBe(0);
-    expect(toBar(-20)).toBe(1);
-    expect(toBar(-45)).toBeCloseTo(0.5);
-  });
-  it("rises faster than it falls", () => {
-    const up = easeLevels([0], [1], 60)[0];
-    const down = easeLevels([1], [0], 60)[0];
-    expect(up).toBeGreaterThan(0.6);
-    expect(1 - down).toBeLessThan(0.3);
-  });
-  it("mirrors the bands with the lows in the middle", () => {
-    const bars = mirrorBars([1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-    expect(bars).toHaveLength(BAR_COUNT);
-    expect(bars[BAR_COUNT / 2]).toBe(bars[BAR_COUNT / 2 - 1]);
-    expect(bars[BAR_COUNT / 2]).toBe(1);
-    expect(bars[0]).toBe(0);
-    expect(bars[BAR_COUNT - 1]).toBe(0);
   });
 });

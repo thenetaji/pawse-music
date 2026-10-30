@@ -9,33 +9,20 @@ struct PawseActivityAttributes: ActivityAttributes {
     /// "<app group id>/<file name>" of a small JPEG, nil when there is no art yet.
     var artwork: String?
     var isPlaying: Bool
-    /// groove | sleep | happy | curious, or a song mood: hype | vibe | love | sad
-    var mood: String
-    var frame: Int
     var start: Date
     var end: Date
     /// 0...1, used for the static bar while paused.
     var progress: Double
-    /// orange | black | white | grey. Optional so an activity from an older build still decodes.
-    var color: String?
-    /// Mouse cameo frame: 0 none, 1 peeking, 2 head out.
-    var mouse: Int?
-    /// The cat's name, read out by VoiceOver.
-    var name: String?
     /// "#RRGGBB" from the artwork. Optional so an activity from an older build still decodes.
     var tint: String?
-    /// wire | classic | lyrics | paws | time; an older "cat" reads as wire. Optional so an activity from an older build still decodes.
+    /// classic | time; anything else reads as classic. Optional so an activity from an older build still decodes.
     var style: String?
     /// The song is liked / disliked in Pawse; the big island player's buttons show it.
     var liked: Bool?
     var disliked: Bool?
-    /// Show the like and dislike buttons (Settings → Cat).
+    /// Show the like and dislike buttons (Settings → Look and Mochi).
     var rate: Bool?
-    /// The synced lyric line now being sung. nil: no synced lyrics; empty: between lines.
-    var lyric: String?
     /// "#RRGGBB": the song's colour nudged by its mood, for the keyline, ring and accents.
     var glow: String?
-    /// Show the cat's line about the song (Settings → Cat).
-    var moodLine: Bool?
   }
 }

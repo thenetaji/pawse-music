@@ -31,7 +31,13 @@ import {
 import { display } from "../../lib/type";
 import { useAccent } from "../now-playing/now-palette";
 
-export type Row = { label: string; value?: string; copy?: boolean };
+export type Row = {
+  label: string;
+  value?: string;
+  copy?: boolean;
+  /** The row is a button; its value reads as a link. */
+  onPress?: () => void;
+};
 
 /** Everything we know about a song; for the playing one, also what the player actually loaded. */
 export function showSongInfo(track: Track) {
@@ -134,6 +140,7 @@ function streamRows(t: Track, st: ResolvedStream, normalize: boolean): Row[] {
   const size = st.contentLength ? bytes(st.contentLength) : undefined;
   const db = st.loudnessDb ?? t.loudnessDb;
   const local = st.via === "local";
+  const prepared = st.via.startsWith("remux:");
   return [
     {
       label: "Audio",
@@ -159,11 +166,13 @@ function streamRows(t: Track, st: ResolvedStream, normalize: boolean): Row[] {
     { label: "Served by", value: served(st.via) },
     {
       label: "Loaded from",
-      value: !local
-        ? "Streaming"
-        : isDownloaded(t.id)
-          ? "Download"
-          : "Offline cache",
+      value: prepared
+        ? "Prepared on this device"
+        : !local
+          ? "Streaming"
+          : isDownloaded(t.id)
+            ? "Download"
+            : "Offline cache",
     },
     { label: "Quality setting", value: qualitySetting() },
   ];
@@ -192,15 +201,25 @@ function InfoRow({ row, first }: { row: Row; first: boolean }) {
     return () => clearTimeout(t);
   }, [copied]);
   return (
-    <View style={[s.row, !first && s.sep]}>
+    <Pressable
+      disabled={!row.onPress}
+      accessibilityRole={row.onPress ? "button" : undefined}
+      onPress={row.onPress}
+      style={({ pressed }) => [
+        s.row,
+        !first && s.sep,
+        pressed && { opacity: 0.6 },
+      ]}
+    >
       <Text style={s.label}>{row.label}</Text>
       <Text
-        style={s.value}
+        style={[s.value, row.onPress && { color: accent }]}
         numberOfLines={row.copy ? 1 : 2}
         ellipsizeMode={row.copy ? "middle" : "tail"}
-        selectable
+        selectable={!row.onPress}
       >
         {row.value}
+        {row.onPress ? " ›" : ""}
       </Text>
       {row.copy ? (
         <Pressable
@@ -219,7 +238,7 @@ function InfoRow({ row, first }: { row: Row; first: boolean }) {
           </Text>
         </Pressable>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -227,6 +246,7 @@ function served(via: string): string {
   if (via === "local") return "This device";
   if (via === "saavn") return "JioSaavn";
   const [kind, client] = via.split(":");
+  if (kind === "remux") return "YouTube · repackaged for iPhone";
   if (kind === "youtube") return client ? `YouTube · ${client}` : "YouTube";
   return via;
 }

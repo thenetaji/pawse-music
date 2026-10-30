@@ -20,6 +20,11 @@ export {
   type SaavnSong,
   toSaavnSong,
 } from "./saavn";
+export {
+  type OpusContainer,
+  type Repackaged,
+  repackageOpus,
+} from "./remux";
 export { desEcb } from "./util/des";
 export type { FetchLike } from "./util/http";
 export { sha1Hex } from "./util/sha1";
@@ -40,6 +45,7 @@ export * from "./youtube/explore";
 export {
   FALLBACK_CLIENT_VERSION,
   InnerTubeError,
+  type PlaylistPrivacy,
   parseYtcfg,
   SEARCH_PARAMS,
   YouTubeMusic,
@@ -81,6 +87,7 @@ export * from "./youtube/video";
 export {
   type Branding,
   type CrowdChapter,
+  musicSkips,
   type SkipSegment,
   SponsorBlock,
   type SponsorBlockOptions,

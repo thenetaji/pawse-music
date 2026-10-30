@@ -1,4 +1,5 @@
 import {
+  type BufferOptions,
   useVideoPlayer,
   type VideoPlayer,
   type VideoSource,
@@ -6,6 +7,8 @@ import {
 } from "expo-video";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
+
+import { isLowData } from "../../lib/quality";
 
 /** What the player hands to a VideoSurface: the native player object (a <video> element on the web). */
 export type SurfaceRef = VideoPlayer;
@@ -36,7 +39,8 @@ export interface WatchPlayerOptions {
   headers?: Record<string, string>;
   /** Seconds to start from each time the source changes. */
   startAt?: number;
-  onTime?: (sec: number) => void;
+  /** The seconds played, and how far the video is loaded (0 or -1 when the player can't tell). */
+  onTime?: (sec: number, loaded?: number) => void;
   onEnd?: () => void;
   onError?: (message: string) => void;
   /** The picture height (and frame rate) now playing, as Auto moves between qualities. */
@@ -58,7 +62,18 @@ const start = (p: VideoPlayer) => {
   const r = rates.get(p);
   if (r && r !== 1) p.playbackRate = r;
 };
+// How far ahead of the playhead to download. The Android byte cap keeps a long buffer of a heavy
+// stream from filling the app's memory; iOS manages its own.
+const AHEAD_SEC = 60;
+const AHEAD_LOW_SEC = 20;
+const AHEAD_BYTES = 100 * 1024 * 1024;
+const buffering = (low: boolean): BufferOptions => ({
+  preferredForwardBufferDuration: low ? AHEAD_LOW_SEC : AHEAD_SEC,
+  ...(low ? {} : { maxBufferBytes: AHEAD_BYTES }),
+});
 async function load(p: VideoPlayer, src: VideoSource, at?: number) {
+  // Per video, not at setup: the phone may have moved between Wi-Fi and mobile data since.
+  p.bufferOptions = buffering(isLowData());
   await p.replaceAsync(src);
   if (at) p.currentTime = at;
   start(p);
@@ -120,7 +135,7 @@ export function useWatchPlayer(o: WatchPlayerOptions): WatchPlayer {
     const subs = [
       player.addListener("playToEnd", () => cb.current.onEnd?.()),
       player.addListener("timeUpdate", (e) =>
-        cb.current.onTime?.(e.currentTime),
+        cb.current.onTime?.(e.currentTime, e.bufferedPosition),
       ),
       player.addListener("playingChange", (e) =>
         cb.current.onPlaying?.(e.isPlaying),

@@ -22,7 +22,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -37,14 +37,15 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
-import { scheduleOnRN } from "react-native-worklets";
 
 import { Artwork } from "../../components/artwork";
 import { Marquee } from "../../components/marquee";
+import { GrabHandle } from "../../components/pull-to-close";
 import { Spinner, useBusy } from "../../components/spinner";
 import { useDataSaverActive } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
 import { COVER_PX, coverSources, useCover } from "../../lib/cover";
+import type { SkipSwipe } from "../../lib/cover-gestures";
 import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
 import { levelsAvailable } from "../../lib/audio-fx";
@@ -59,6 +60,7 @@ import { SyncedVideo } from "../video/synced-video";
 import { AirPlay } from "./airplay";
 import { CatScrubber } from "./cat-scrubber";
 import { ColorField } from "./color-field";
+import { HeartPop, SkipBubble, VolumePill } from "./cover-overlays";
 import {
   ChevronDown,
   HeartGlyph,
@@ -75,6 +77,7 @@ import { useAccent, useNowPalette } from "./now-palette";
 import { SongVideoSwitch } from "./song-video-switch";
 import { Visualiser } from "./visualiser";
 import { TintStack, useTintPair } from "./tint-fade";
+import { SETTLE, useCoverGestures } from "./use-cover-gestures";
 
 // One Now playing at a time, so the skip fallback timer lives here rather than in a ref the gesture would read.
 let giveUp: ReturnType<typeof setTimeout> | undefined;
@@ -126,14 +129,6 @@ export type NowPlayingProps = {
   onShareLyric?: (line: string) => void;
 };
 
-// Critically damped (damping = 2 * sqrt(stiffness)), so a skip lands on the next art without overshoot.
-const SETTLE = {
-  stiffness: 320,
-  damping: 36,
-  mass: 1,
-  overshootClamping: true,
-};
-const RUBBER = 0.25;
 /** Windows at least this wide (the desktop app) get the two-column player. */
 const WIDE_MIN = 900;
 
@@ -172,9 +167,11 @@ export function NowPlayingView(p: NowPlayingProps) {
     live.set(withTiming(playing ? 1 : 0, { duration: 420 }));
   }, [playing, live]);
 
-  // Swipe the artwork sideways to skip. It runs on the UI thread: the art follows the finger, the next or
-  // previous art peeks in beside it, and a release settles on a critically damped spring from the finger's speed.
-  const swipeX = useSharedValue(0);
+  // Swipe the artwork to skip (sideways, or up and down in Reels). It runs on the UI thread: the art follows the
+  // finger, the next or previous art peeks in beside it, and a release settles on a critically damped spring from
+  // the finger's speed.
+  const reels = useSetting<SkipSwipe>("skipSwipe", "sideways") === "reels";
+  const slide = useSharedValue(0);
   const landed = useSharedValue(0);
   const changed = useSharedValue(0);
   const settled = useSettled();
@@ -191,11 +188,11 @@ export function NowPlayingView(p: NowPlayingProps) {
     else p.onPrev();
     // Previous restarts a song that is past its first seconds instead of leaving it: the art comes back.
     if (dir > 0 && getProgress().position > 3) {
-      swipeX.set(withSpring(0, SETTLE));
+      slide.set(withSpring(0, SETTLE));
       return;
     }
     armGiveUp(() => {
-      if (changed.get() === 0) swipeX.set(withSpring(0, SETTLE));
+      if (changed.get() === 0) slide.set(withSpring(0, SETTLE));
     });
   };
   // The new song is current: once the art has landed, swap to it in place (it is the picture that peeked).
@@ -208,7 +205,7 @@ export function NowPlayingView(p: NowPlayingProps) {
     () => changed.get() === 1 && landed.get() === 1,
     (done) => {
       if (!done) return;
-      swipeX.set(0);
+      slide.set(0);
       landed.set(0);
     },
   );
@@ -218,46 +215,6 @@ export function NowPlayingView(p: NowPlayingProps) {
     haptic.light();
     setFull(true);
   };
-  const swipe = Gesture.Pan()
-    .activeOffsetX([-12, 12])
-    .failOffsetY([-14, 14])
-    .onBegin(() => {
-      landed.set(0);
-      changed.set(0);
-    })
-    .onUpdate((e) => {
-      const dx = e.translationX;
-      // Nothing to skip to: the art gives a little, then pulls back.
-      const open = dx < 0 ? hasNext : hasPrev;
-      swipeX.set(open ? dx : dx * RUBBER);
-    })
-    .onEnd((e) => {
-      const dx = e.translationX;
-      const dir = dx < 0 ? -1 : 1;
-      const far = Math.abs(dx) > width * 0.3 || Math.abs(e.velocityX) > 700;
-      // A flick the other way than the drag doesn't count.
-      const agrees = e.velocityX === 0 || e.velocityX < 0 === dx < 0;
-      if (far && agrees && (dir < 0 ? hasNext : hasPrev)) {
-        swipeX.set(
-          withSpring(
-            dir * width,
-            { ...SETTLE, velocity: e.velocityX },
-            (done) => {
-              if (done) landed.set(1);
-            },
-          ),
-        );
-        scheduleOnRN(skip, dir);
-      } else swipeX.set(withSpring(0, { ...SETTLE, velocity: e.velocityX }));
-    });
-  const tap = Gesture.Tap()
-    .runOnJS(true)
-    .maxDuration(300)
-    .onEnd((_e, ok) => {
-      if (ok && art) openFull();
-    });
-  // A sideways drag skips; a plain tap opens the artwork.
-  const artGesture = Gesture.Exclusive(swipe, tap);
   // Desktop: the square card only dims and settles; skipping is by the buttons.
   const artStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 + live.get() * 0.03 }],
@@ -265,7 +222,11 @@ export function NowPlayingView(p: NowPlayingProps) {
   }));
   // Phone: the full-bleed art and its neighbours move together.
   const heroStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: swipeX.get() }, { scale: 1 + live.get() * 0.03 }],
+    transform: [
+      { translateX: reels ? 0 : slide.get() },
+      { translateY: reels ? slide.get() : 0 },
+      { scale: 1 + live.get() * 0.03 },
+    ],
     opacity: 0.62 + live.get() * 0.38,
   }));
 
@@ -305,6 +266,25 @@ export function NowPlayingView(p: NowPlayingProps) {
   const heroH = Math.round(
     Math.min(win.width * 1.2, Math.max(win.width, artBottom + 40)),
   );
+  // A double tap on the cover likes the song but never un-likes it.
+  const likeFromCover = () => (p.liked ? haptic.light() : like());
+  const cover = useCoverGestures({
+    reels,
+    width,
+    height: heroH,
+    hasNext,
+    hasPrev,
+    slide,
+    landed,
+    changed,
+    onSkip: skip,
+    onOpen: () => {
+      if (art) openFull();
+    },
+    onLike: likeFromCover,
+    onSeek: p.onSeek,
+    onClose: p.onClose,
+  });
   const base = deepen(palette.colors[0]);
   const tint = background === "black" ? "#000000" : base;
   const tintPair = useTintPair(tint);
@@ -312,6 +292,11 @@ export function NowPlayingView(p: NowPlayingProps) {
     t ? coverSources(t.thumbnails, COVER_PX, saver)[0] : undefined;
   const prevUri = peekArt(prevTrack);
   const nextUri = peekArt(nextTrack);
+  // Beside the cover when swiping sideways; above and below it in Reels.
+  const peekStyle = (side: -1 | 1) =>
+    reels
+      ? [styles.peekRow, { top: side * heroH, width, height: heroH }]
+      : [styles.peek, { left: side * width, width }];
 
   // Desktop: artwork and controls on the left, lyrics always open on the right; Esc closes.
   const wide = win.width >= WIDE_MIN;
@@ -469,7 +454,7 @@ export function NowPlayingView(p: NowPlayingProps) {
               {settled && !videoOn && prevUri ? (
                 <Image
                   source={prevUri}
-                  style={[styles.peek, { left: -width, width }]}
+                  style={peekStyle(-1)}
                   contentFit="cover"
                   priority="low"
                 />
@@ -477,7 +462,7 @@ export function NowPlayingView(p: NowPlayingProps) {
               {settled && !videoOn && nextUri ? (
                 <Image
                   source={nextUri}
-                  style={[styles.peek, { left: width, width }]}
+                  style={peekStyle(1)}
                   contentFit="cover"
                   priority="low"
                 />
@@ -537,53 +522,62 @@ export function NowPlayingView(p: NowPlayingProps) {
         </View>
       ) : null}
 
-      <View
-        style={[
-          styles.body,
-          { paddingTop: insets.top + 6, paddingBottom: insets.bottom + 10 },
-        ]}
-      >
-        <View style={styles.header}>
-          <Pressable hitSlop={12} onPress={p.onClose} style={styles.headerBtn}>
-            <ChevronDown color="rgba(255,255,255,0.8)" />
-          </Pressable>
-          {p.video && !lyricsMode ? (
-            <View style={styles.context}>
-              <SongVideoSwitch
-                on={p.video.on && !p.video.none}
-                none={p.video.none}
-                onChange={p.video.onChange}
-              />
+      <View style={[styles.body, { paddingBottom: insets.bottom + 10 }]}>
+        {/* In Reels the cover's vertical swipe skips, so pulling down from here is what closes. */}
+        <GestureDetector gesture={cover.header}>
+          <View collapsable={false} style={{ paddingTop: insets.top + 6 }}>
+            {reels ? <GrabHandle /> : null}
+            <View style={styles.header}>
+              <Pressable
+                hitSlop={12}
+                onPress={p.onClose}
+                style={styles.headerBtn}
+              >
+                <ChevronDown color="rgba(255,255,255,0.8)" />
+              </Pressable>
+              {p.video && !lyricsMode ? (
+                <View style={styles.context}>
+                  <SongVideoSwitch
+                    on={p.video.on && !p.video.none}
+                    none={p.video.none}
+                    onChange={p.video.onChange}
+                  />
+                </View>
+              ) : (
+                <>
+                  {p.onVideo ? <View style={styles.headerBtn} /> : null}
+                  <View style={styles.context}>
+                    <Text style={styles.contextLabel} numberOfLines={1}>
+                      {p.context?.label ?? "Now playing"}
+                    </Text>
+                    {p.context?.title ? (
+                      <Text style={styles.contextTitle} numberOfLines={1}>
+                        {p.context.title}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {p.onVideo ? (
+                    <Pressable
+                      hitSlop={8}
+                      onPress={p.onVideo}
+                      style={styles.headerBtn}
+                      accessibilityLabel="Watch the video"
+                    >
+                      <WatchIcon size={20} color="rgba(255,255,255,0.8)" />
+                    </Pressable>
+                  ) : null}
+                </>
+              )}
+              <Pressable
+                hitSlop={12}
+                onPress={p.onMore}
+                style={styles.headerBtn}
+              >
+                <MoreGlyph color="rgba(255,255,255,0.8)" />
+              </Pressable>
             </View>
-          ) : (
-            <>
-              {p.onVideo ? <View style={styles.headerBtn} /> : null}
-              <View style={styles.context}>
-                <Text style={styles.contextLabel} numberOfLines={1}>
-                  {p.context?.label ?? "Now playing"}
-                </Text>
-                {p.context?.title ? (
-                  <Text style={styles.contextTitle} numberOfLines={1}>
-                    {p.context.title}
-                  </Text>
-                ) : null}
-              </View>
-              {p.onVideo ? (
-                <Pressable
-                  hitSlop={8}
-                  onPress={p.onVideo}
-                  style={styles.headerBtn}
-                  accessibilityLabel="Watch the video"
-                >
-                  <WatchIcon size={20} color="rgba(255,255,255,0.8)" />
-                </Pressable>
-              ) : null}
-            </>
-          )}
-          <Pressable hitSlop={12} onPress={p.onMore} style={styles.headerBtn}>
-            <MoreGlyph color="rgba(255,255,255,0.8)" />
-          </Pressable>
-        </View>
+          </View>
+        </GestureDetector>
 
         {lyricsMode ? (
           <Animated.View
@@ -615,14 +609,15 @@ export function NowPlayingView(p: NowPlayingProps) {
           </Animated.View>
         ) : (
           <>
-            <GestureDetector gesture={artGesture}>
+            <GestureDetector gesture={cover.cover}>
               <View
                 style={styles.artArea}
-                onLayout={(e) =>
+                onLayout={(e) => {
+                  cover.onLayout(e);
                   setArtBottom(
                     e.nativeEvent.layout.y + e.nativeEvent.layout.height,
-                  )
-                }
+                  );
+                }}
               >
                 {videoOn ? (
                   <Animated.View
@@ -665,6 +660,11 @@ export function NowPlayingView(p: NowPlayingProps) {
                   >
                     <ExpandGlyph />
                   </Pressable>
+                ) : null}
+                <VolumePill {...cover.volume} />
+                {cover.skip ? <SkipBubble note={cover.skip} /> : null}
+                {cover.heart ? (
+                  <HeartPop key={cover.heart.n} note={cover.heart} />
                 ) : null}
               </View>
             </GestureDetector>
@@ -1054,6 +1054,7 @@ const styles = StyleSheet.create({
   },
   scrim: { position: "absolute", left: 0, right: 0, top: 0 },
   peek: { position: "absolute", top: 0, bottom: 0 },
+  peekRow: { position: "absolute", left: 0 },
   fade: { position: "absolute", left: 0, right: 0 },
   meta: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 },
   title: {

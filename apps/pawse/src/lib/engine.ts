@@ -1,5 +1,11 @@
 import type { Track } from "@pawse/music-core";
-import { POS_KEY, QUEUE_KEY, setupPlayer } from "@pawse/player";
+import {
+  POS_KEY,
+  QUEUE_KEY,
+  refreshUpcoming,
+  setupPlayer,
+} from "@pawse/player";
+import { Platform } from "react-native";
 
 import { startAccountSync } from "../data/account";
 import { resolver, yt } from "../data/clients";
@@ -15,8 +21,10 @@ import { logEvent } from "./diagnostics";
 import { withPlaylist } from "./long-stream";
 import { COVER_PX, COVER_SAVER_PX } from "./cover";
 import { relayStream } from "./net";
-import { isLowData, noteStall } from "./quality";
+import { prepareOpus } from "./opus-remux";
+import { isLowData, noteThroughput } from "./quality";
 import { autoplayMode } from "./settings";
+import { probeStream } from "./stream-probe";
 import { clearResources } from "./use-resource";
 
 export { lyricsService, saavn, yt, ytv } from "../data/clients";
@@ -40,6 +48,15 @@ useLibrary.subscribe((st) => {
   clearResources();
 });
 
+// A different audio format, or Opus on iPhone turned on or off, changes the streams of the songs still to come.
+useLibrary.subscribe((st, prev) => {
+  if (
+    st.settings.audioFormat !== prev.settings.audioFormat ||
+    st.settings.opusIphone !== prev.settings.opusIphone
+  )
+    refreshUpcoming();
+});
+
 let started: Promise<void> | null = null;
 export function startEngine() {
   started ??= setupPlayer({
@@ -60,12 +77,22 @@ export function startEngine() {
     artwork: readyArtwork,
     artworkPx: () => (isLowData() ? COVER_SAVER_PX : COVER_PX),
     streamUrl: relayStream,
+    upgrade: Platform.OS === "ios" ? prepareOpus : undefined,
     skipSegments: songSkips,
     onSkip: (_t, category) => showToast(skipNote(category)),
-    onDiagnostic: (kind, detail) => {
-      logEvent(kind, detail);
-      // Automatic quality steps down when streams keep stalling.
-      if (kind === "error" && detail?.startsWith("stalled")) noteStall();
+    onDiagnostic: logEvent,
+    probe: probeStream,
+    // Automatic quality follows measured speed, not stalls: a stall with no data says nothing about bandwidth.
+    onThroughput: noteThroughput,
+    onLoadIssue: (issue) => {
+      if (issue.kind === "weak")
+        return showToast("Weak connection, still loading…", { ms: 3000 });
+      showToast(
+        issue.reason === "slow"
+          ? `Couldn't load ${issue.track.title} — connection too slow`
+          : `Couldn't load ${issue.track.title} — YouTube didn't send this song`,
+        { bad: true },
+      );
     },
     onPlayed: (track: Track, playedSec: number) => {
       const lib = useLibrary.getState();

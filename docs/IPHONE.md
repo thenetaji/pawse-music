@@ -130,4 +130,4 @@ Open an [issue](https://github.com/thenetaji/pawse-music/issues/new/choose) and 
 
 ## The Dynamic Island
 
-The cat lives in the Dynamic Island on iPhones that have one (iPhone 14 Pro and newer). Other iPhones get the Lock Screen card. Pick its look in **Settings → Cat → Dynamic Island style**: the cat with sound bars, sound bars only, or the time left.
+Pawse can show its own Dynamic Island on iPhones that have one (iPhone 14 Pro and newer); other iPhones get the Lock Screen card. Turn it on in **Settings → Look and Mochi → Pawse in the Dynamic Island**, then pick Classic (sound bars and a progress ring) or Time left.

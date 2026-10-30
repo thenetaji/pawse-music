@@ -1,10 +1,11 @@
 // Web and desktop: a Web Audio graph on the player's audio element, built the first time a feature is switched on.
 import { type Chain, NO_CHAIN } from "../../src/lib/audio-fx/eq";
-import { LEVEL_BANDS, type Levels, type PawseAudioApi } from "./types";
+import { BAND_HZ, LEVEL_BANDS, type Levels, type PawseAudioApi } from "./types";
 
 export { LEVEL_BANDS, type Levels };
 
-const BAND_HZ = [60, 120, 250, 500, 1000, 2000, 3500, 6000, 10000, 15000];
+// Half a band either side of the centre.
+const EDGE = (BAND_HZ[1] / BAND_HZ[0]) ** 0.5;
 const SILENT_DB = -60;
 const TYPE = {
   peak: "peaking",
@@ -63,7 +64,7 @@ function open(): Graph | null {
   if (!el || !Ctx) return null;
   const ctx = new Ctx();
   const analyser = ctx.createAnalyser();
-  analyser.fftSize = 2048;
+  analyser.fftSize = 4096;
   analyser.smoothingTimeConstant = 0;
   const g: Graph = {
     ctx,
@@ -202,11 +203,11 @@ export const PawseAudio: PawseAudioApi = {
     const spectrum = new Float32Array(analyser.frequencyBinCount);
     analyser.getFloatFrequencyData(spectrum);
     const hzPerBin = ctx.sampleRate / analyser.fftSize;
-    const bands = BAND_HZ.slice(0, LEVEL_BANDS).map((hz) => {
-      const from = Math.max(1, Math.floor(hz / Math.SQRT2 / hzPerBin));
+    const bands = BAND_HZ.map((hz) => {
+      const from = Math.max(1, Math.floor(hz / EDGE / hzPerBin));
       const to = Math.min(
         spectrum.length - 1,
-        Math.ceil((hz * Math.SQRT2) / hzPerBin),
+        Math.max(from, Math.ceil((hz * EDGE) / hzPerBin)),
       );
       let power = 0;
       for (let i = from; i <= to; i++) power += 10 ** (spectrum[i] / 10);

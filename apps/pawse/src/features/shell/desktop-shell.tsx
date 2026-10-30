@@ -138,7 +138,7 @@ function SidebarCat() {
   const color = useSetting<CatColor>("catColor", "orange");
   return (
     <View style={styles.cat} pointerEvents="none">
-      <Cat mood={playing ? "groove" : "sleep"} size={72} color={color} />
+      <Cat mood={playing ? "groove" : "sleep"} size={72} color={color} live />
     </View>
   );
 }

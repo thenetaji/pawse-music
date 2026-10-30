@@ -37,8 +37,14 @@ function index(cat: string): Entry[] {
     },
     {
       group: "playback",
-      label: "Prefer JioSaavn 320 kbps",
-      words: "saavn jio",
+      label: "Audio format",
+      words: "opus aac saavn jio 320 codec best quality source",
+    },
+    {
+      group: "playback",
+      label: "Opus on iPhone",
+      words: "opus youtube sound quality codec repackage",
+      when: Platform.OS === "ios",
     },
     {
       group: "playback",
@@ -51,6 +57,12 @@ function index(cat: string): Entry[] {
       words: "radio endless continue",
     },
     { group: "playback", label: "Smooth shuffle", words: "random similar" },
+    {
+      group: "playback",
+      label: "Shake to shuffle",
+      words: "shake motion reshuffle queue gesture",
+      when: native,
+    },
     {
       group: "playback",
       label: "Open on the last song",
@@ -92,6 +104,13 @@ function index(cat: string): Entry[] {
       group: "playback",
       label: "Skip non-music parts",
       words: "sponsorblock talking music video",
+    },
+    {
+      group: "playback",
+      label: "Swipe on the cover",
+      words:
+        "reels skip next previous sideways vertical gesture double tap volume hold",
+      when: native,
     },
 
     {
@@ -205,13 +224,19 @@ function index(cat: string): Entry[] {
     { group: "look", label: "Your cat", words: `name colour fur ${cat} mochi` },
     {
       group: "look",
+      label: "Cat on Now Playing",
+      words: "dancing kitten pixel lottie mochi cat",
+      when: native,
+    },
+    {
+      group: "look",
       label: `${cat} on the progress bar`,
       words: "cat mochi wire",
     },
     {
       group: "look",
-      label: `${cat} in the Dynamic Island`,
-      words: "cat mochi",
+      label: "Pawse in the Dynamic Island",
+      words: "island live activity",
     },
     { group: "look", label: "Mouse visits", words: "cat mochi" },
     { group: "look", label: `${cat}'s wardrobe`, words: "cat mochi hat cups" },
@@ -224,12 +249,6 @@ function index(cat: string): Entry[] {
     {
       group: "look",
       label: "Like and dislike on the island",
-      words: "dynamic island",
-      when: Platform.OS === "ios",
-    },
-    {
-      group: "look",
-      label: `${cat}'s mood line`,
       words: "dynamic island",
       when: Platform.OS === "ios",
     },

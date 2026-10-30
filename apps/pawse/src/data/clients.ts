@@ -2,6 +2,7 @@ import {
   createResolver,
   JioSaavn,
   LyricsService,
+  type ResolvableTrack,
   YouTubeMusic,
   YouTubeVideo,
 } from "@pawse/innertube";
@@ -13,6 +14,7 @@ import type {
   Track,
 } from "@pawse/music-core";
 import { Platform } from "react-native";
+import { opusNative, saavnMisses, withFormat } from "../lib/audio-format";
 import { logEvent } from "../lib/diagnostics";
 import { learnsFromWatching } from "../lib/learn";
 import { languageCode, regionCode } from "../lib/locale";
@@ -31,11 +33,6 @@ const gl = (region: string) => (region === "ZZ" ? "US" : region);
 const VISITOR_KEY = "pawse.visitorData";
 const savedVisitor = kv.getItem(VISITOR_KEY);
 
-const webOpus =
-  Platform.OS === "web" &&
-  typeof Audio !== "undefined" &&
-  !!new Audio().canPlayType('audio/webm; codecs="opus"');
-
 // One YouTube Music client for the app: cookies only when signed in, and only for catalog/account calls.
 const raw = new YouTubeMusic({
   fetch: appFetch,
@@ -52,8 +49,9 @@ const raw = new YouTubeMusic({
   poToken: poTokenProvider,
   clientsV2: !!youtubeSandbox,
   // Android (ExoPlayer) gets its own client order; it and browsers that decode WebM prefer Opus over AAC 128.
+  // An iPhone can't read WebM: its Opus comes alongside the AAC and is repackaged (lib/opus-remux.ts).
   platform: Platform.OS,
-  opus: Platform.OS === "android" || webOpus,
+  opus: opusNative,
   onRequestError: (endpoint, e) =>
     logEvent("request-failed", `${endpoint}: ${(e as Error)?.message ?? e}`),
 });
@@ -171,13 +169,23 @@ const base = {
   // Streaming quality follows the network; downloads pass their own.
   quality: () => effectiveQuality(),
 };
-const resolvers = {
-  youtube: createResolver(base),
-  saavn: createResolver({ ...base, preferSaavn: true }),
-};
+const resolveSong = createResolver(base);
 
-/** Local file first, then JioSaavn 320 kbps when it is certainly the same song, else YouTube; `remoteOnly` skips downloads. */
+/** Local file first, then the copy Audio format asks for (JioSaavn 320 when certain, Opus, AAC); `remoteOnly` skips downloads. */
 export const resolver: StreamResolver = {
-  resolve: (t, o?: ResolveOptions) =>
-    (settings().bestSource ? resolvers.saavn : resolvers.youtube).resolve(t, o),
+  async resolve(t: ResolvableTrack, o?: ResolveOptions) {
+    const opts = withFormat(o);
+    const st = await resolveSong.resolve(t, opts);
+    // JioSaavn is only tried first for songs at High quality; a YouTube answer then means it had no certain match.
+    if (
+      opts.saavn === "first" &&
+      t.kind === "song" &&
+      (opts.quality ?? effectiveQuality()) === "high" &&
+      st.via !== "local"
+    ) {
+      if (st.via === "saavn") saavnMisses.delete(t.id);
+      else saavnMisses.add(t.id);
+    }
+    return st;
+  },
 };

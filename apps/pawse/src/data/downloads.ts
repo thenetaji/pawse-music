@@ -19,7 +19,13 @@ import {
   networkStore,
   refreshNetworkKind,
 } from "../lib/net";
-import { isLowData, useLowData } from "../lib/quality";
+import {
+  autoIsLow,
+  effectiveQuality,
+  isLowData,
+  keepQuality,
+  useLowData,
+} from "../lib/quality";
 import { autoDownloadMode } from "../lib/settings";
 import { resolver, setLocalLookup, ytv } from "./clients";
 import {
@@ -80,7 +86,7 @@ const safeDelete = (f: File) => {
   }
 };
 
-async function fetchRange(
+export async function fetchRange(
   url: string,
   headers: Record<string, string> | undefined,
   start: number,
@@ -214,8 +220,9 @@ const cacheBlockedOn = (kind: NetworkKind) =>
 
 const cacheManager = createDownloadManager(cacheIndex, cacheLive, {
   ...fileDeps(cacheDir),
-  // Streaming quality for the current network.
-  resolve: (track) => resolver.resolve(track, { remoteOnly: true }),
+  // Kept at the listener's own quality: a copy made while Automatic was stepping down would stay low-quality for good.
+  resolve: (track) =>
+    resolver.resolve(track, { remoteOnly: true, quality: keepQuality() }),
   async canDownload() {
     const kind = await refreshNetworkKind().catch(networkKind);
     if (kind === "offline") return "offline";
@@ -244,10 +251,25 @@ function stream(
   };
 }
 
+// HE-AAC (YouTube's 48 kbps Low) sounds muddy; a cached copy of it is dropped as soon as a better stream is wanted.
+const lowCopy = (s: ResolvedStream) => /mp4a\.40\.(5|29)\b/i.test(s.mimeType);
+
 /** The downloaded (or cached) copy as a stream, or undefined; used by the resolver so playback works offline. */
 export function localStream(id: string): ResolvedStream | undefined {
   if (!native) return undefined;
-  return stream(index, downloadsDir, id) ?? stream(cacheIndex, cacheDir, id);
+  const kept = stream(index, downloadsDir, id);
+  if (kept) return kept;
+  const cached = stream(cacheIndex, cacheDir, id);
+  if (
+    cached &&
+    lowCopy(cached) &&
+    effectiveQuality() !== "saver" &&
+    networkKind() !== "offline"
+  ) {
+    queueMicrotask(() => cacheManager.remove(id));
+    return undefined;
+  }
+  return cached;
 }
 
 /** file:// uri of the saved artwork, for offline rows. */
@@ -512,7 +534,7 @@ function maybeCache(track?: Track): void {
   const id = track.id;
   if (index.getState().entries[id] || cacheIndex.getState().entries[id]) return;
   const kind = networkKind();
-  if (kind === "offline" || cacheBlockedOn(kind)) return;
+  if (kind === "offline" || cacheBlockedOn(kind) || autoIsLow()) return;
   cacheManager.download(track);
 }
 

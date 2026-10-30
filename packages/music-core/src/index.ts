@@ -232,6 +232,14 @@ export interface ResolvedStream {
   via: string;
   /** A local HLS playlist over small byte ranges of `url`: googlevideo throttles a long file fetched in one request. */
   playlist?: string;
+  /** The same song as WebM/Opus from the same answer, for a player that can't read WebM but can repackage it. */
+  opus?: {
+    url: string;
+    mimeType: string;
+    bitrate: number;
+    contentLength?: number;
+    headers?: Record<string, string>;
+  };
 }
 
 export class StreamError extends Error {
@@ -262,6 +270,14 @@ export interface ResolveOptions {
   avoid?: string[];
   /** A source tried ahead of the usual one accepts only a near-certain match, so a wrong song never plays. */
   strict?: boolean;
+  /** YouTube's audio codec: "aac" never picks WebM; otherwise Opus wherever the player decodes it. */
+  codec?: "opus" | "aac";
+  /** JioSaavn 320 kbps: "first" tries it before YouTube (certain matches only), "never" leaves it as a last resort. */
+  saavn?: "first" | "never";
+  /** Go straight to JioSaavn's loose-match fallback: the caller is out of time for more YouTube clients. */
+  skipYouTube?: boolean;
+  /** Also return the song's WebM/Opus rendition as `opus` (players that must repackage it). */
+  alsoOpus?: boolean;
 }
 
 /** Turns a Track into a playable URL. Implementations try their own fallbacks. */

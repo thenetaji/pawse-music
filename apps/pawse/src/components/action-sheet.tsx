@@ -48,6 +48,8 @@ export type SheetAction = {
   keepOpen?: boolean;
   /** A choice in a list: a tick on the right marks the current one. */
   checked?: boolean;
+  /** A choice that can't be picked now; `sub` says why. */
+  disabled?: boolean;
 };
 /** A tile in the row under the header (Like, Download, Share...). */
 export type QuickAction = {
@@ -86,9 +88,13 @@ export function askText(o: {
   onSubmit: (text: string) => void;
   /** Starting text, e.g. the current name when renaming. */
   initial?: string;
+  /** Hands over an empty answer instead of the placeholder, e.g. to clear a description. */
+  allowEmpty?: boolean;
+  maxLength?: number;
 }) {
   let text = o.initial ?? "";
-  const submit = () => o.onSubmit(text.trim() || o.placeholder);
+  const submit = () =>
+    o.onSubmit(text.trim() || (o.allowEmpty ? "" : o.placeholder));
   showSheet({
     header: (
       <View>
@@ -107,7 +113,7 @@ export function askText(o: {
             submit();
           }}
           returnKeyType="done"
-          maxLength={80}
+          maxLength={o.maxLength ?? 80}
           selectionColor="#fff"
           style={styles.input}
         />
@@ -276,24 +282,39 @@ export function ActionSheetHost() {
                             <Pressable
                               key={a.label}
                               accessibilityRole="button"
-                              accessibilityState={{ selected: a.checked }}
+                              accessibilityState={{
+                                selected: a.checked,
+                                disabled: a.disabled,
+                              }}
+                              disabled={a.disabled}
                               onPress={press}
                               style={({ pressed }) => [
                                 styles.choice,
+                                a.sub !== undefined && styles.tallChoice,
                                 i > 0 && styles.sep,
+                                a.disabled && styles.dimmed,
                                 pressed && styles.pressed,
                               ]}
                             >
-                              <Text
-                                style={[
-                                  styles.iconLabel,
-                                  { flex: 1 },
-                                  a.checked && { color: accent },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {a.label}
-                              </Text>
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={[
+                                    styles.iconLabel,
+                                    a.checked && { color: accent },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {a.label}
+                                </Text>
+                                {a.sub ? (
+                                  <Text
+                                    style={styles.iconSub}
+                                    numberOfLines={2}
+                                  >
+                                    {a.sub}
+                                  </Text>
+                                ) : null}
+                              </View>
                               {a.checked ? (
                                 <CheckGlyph
                                   size={20}
@@ -446,6 +467,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 20,
   },
+  tallChoice: { height: undefined, minHeight: 52, paddingVertical: 8 },
+  dimmed: { opacity: 0.4 },
   quick: {
     flexDirection: "row",
     gap: 8,

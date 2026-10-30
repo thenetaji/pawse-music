@@ -6,6 +6,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { isLowData } from "../lib/quality";
 import { yt } from "./clients";
 import { useOfflineTracks } from "./downloads";
+import { languageList, tagLanguage } from "./language";
 import { lookupTags } from "./lastfm-tags";
 import { useLibrary } from "./library";
 import type { Play } from "./library-model";
@@ -13,6 +14,7 @@ import {
   CHARTS_LIST,
   decadeList,
   decadeOf,
+  type Evidence,
   type Filters,
   type Item,
   isAllowed,
@@ -43,6 +45,8 @@ type Label = {
   fmAt?: number;
 };
 type Lists = {
+  /** Which fetchLists shape this is; older ones lack the language lists. */
+  rev?: number;
   at: number;
   finds: Track[];
   songs: Record<string, string[]>;
@@ -51,6 +55,7 @@ type Lists = {
 export const LABELS_MAX = 5000;
 const FINDS_MAX = 1500;
 const LISTS_TTL_MS = 7 * 86400_000;
+const LISTS_REV = 2;
 const RETRY_AFTER_MS = 10 * 60_000;
 const EMPTY_LISTS: Lists = { at: 0, finds: [], songs: {} };
 
@@ -149,6 +154,20 @@ function baseVector(t: Track, key: string, now: number, near: Vector[] = []) {
   );
 }
 
+/** What is known about a song, for sorting a list: the first release year wins over a saved album's, which can be a reissue. */
+export function evidenceOf(
+  t: Track,
+  known: Pick<State, "labels" | "lists"> = useMoodLabels.getState(),
+): Evidence {
+  const key = trackKey(t);
+  const label = known.labels[key];
+  return {
+    year: label?.year ?? albumYear(t),
+    tags: [...(label?.mb ?? []), ...(label?.fm ?? [])],
+    lists: known.lists.songs[key],
+  };
+}
+
 export function trackVector(t: Track, now = Date.now()): Vector {
   const key = trackKey(t);
   const { near, tracks } = sessionsOf();
@@ -212,21 +231,70 @@ export function useMoodPool(): Track[] {
 const LOOKUPS_PER_RUN = 150;
 const FAILURES_MAX = 3;
 const SAVE_EVERY = 10;
+const PROGRESS_EVERY = 25;
 let looked = 0;
 let working = false;
 
 const incognito = () => useLibrary.getState().settings.incognito;
 
-async function labelSongs(songs: Track[]): Promise<void> {
-  if (working) return;
-  working = true;
-  const fmKey = vaultGet("lastfm.key");
+type Need = { mb: boolean; fm: boolean };
+
+const needOf = (t: Track, fmKey: string | undefined, fmDown = false): Need => {
+  const have = useMoodLabels.getState().labels[trackKey(t)];
+  return {
+    mb: !have?.mbAt && !albumYear(t),
+    fm: !!fmKey && !fmDown && !have?.fmAt,
+  };
+};
+
+export const isLabelled = (t: Track): boolean => {
+  if (!t.artists[0]) return true;
+  const need = needOf(t, vaultGet("lastfm.key") ?? undefined);
+  return !need.mb && !need.fm;
+};
+
+async function fetchLabel(
+  t: Track,
+  need: Need,
+  fmKey: string | undefined,
+  onFmDown: () => void,
+): Promise<Label> {
+  const next: Label = {};
+  if (need.mb) {
+    const r = await lookupRecording(t);
+    next.mbAt = Date.now();
+    next.year = r?.year;
+    next.mb = r?.tags;
+  }
+  if (need.fm && fmKey) {
+    next.fm = await lookupTags(fmKey, t).catch(() => {
+      onFmDown();
+      return undefined;
+    });
+    if (next.fm) next.fmAt = Date.now();
+  }
+  return next;
+}
+
+function labelSaver() {
   const pending: Record<string, Label> = {};
-  const save = () => {
+  const flush = () => {
     if (Object.keys(pending).length === 0) return;
     useMoodLabels.getState().patch({ ...pending });
     for (const k of Object.keys(pending)) delete pending[k];
   };
+  const add = (key: string, label: Label) => {
+    pending[key] = { ...pending[key], ...label };
+    if (Object.keys(pending).length >= SAVE_EVERY) flush();
+  };
+  return { add, flush };
+}
+
+async function labelSongs(songs: Track[]): Promise<void> {
+  if (working) return;
+  working = true;
+  const fmKey = vaultGet("lastfm.key") ?? undefined;
+  const saver = labelSaver();
   let failures = 0;
   let fmDown = false;
   try {
@@ -234,39 +302,66 @@ async function labelSongs(songs: Track[]): Promise<void> {
       if (looked >= LOOKUPS_PER_RUN || failures >= FAILURES_MAX) break;
       if (incognito() || isLowData()) break;
       if (!t.artists[0]) continue;
-      const key = trackKey(t);
-      const have = useMoodLabels.getState().labels[key];
-      const needMb = !have?.mbAt && !albumYear(t);
-      const needFm = !!fmKey && !fmDown && !have?.fmAt;
-      if (!needMb && !needFm) continue;
+      const need = needOf(t, fmKey, fmDown);
+      if (!need.mb && !need.fm) continue;
       looked++;
-      const next: Label = { ...pending[key] };
       try {
-        if (needMb) {
-          const r = await lookupRecording(t);
-          next.mbAt = Date.now();
-          next.year = r?.year;
-          next.mb = r?.tags;
-        }
-        if (needFm && fmKey) {
-          next.fm = await lookupTags(fmKey, t).catch(() => {
-            fmDown = true;
-            return undefined;
-          });
-          if (next.fm) next.fmAt = Date.now();
-        }
+        saver.add(
+          trackKey(t),
+          await fetchLabel(t, need, fmKey, () => (fmDown = true)),
+        );
         failures = 0;
       } catch {
         failures++;
-        continue;
       }
-      pending[key] = next;
-      if (Object.keys(pending).length >= SAVE_EVERY) save();
     }
   } finally {
-    save();
+    saver.flush();
     working = false;
   }
+}
+
+/**
+ * Looks up every song of a list that still lacks a label, with no per-launch cap. Returns the
+ * songs it is done with; it stops early when asked, in incognito, on data saver or after repeated failures.
+ */
+export async function labelFocused(
+  songs: Track[],
+  o: { onProgress?: (done: number) => void; stopped?: () => boolean } = {},
+): Promise<Track[]> {
+  const fmKey = vaultGet("lastfm.key") ?? undefined;
+  const saver = labelSaver();
+  const handled: Track[] = [];
+  let failures = 0;
+  let fmDown = false;
+  try {
+    for (const t of songs) {
+      if (o.stopped?.() || failures >= FAILURES_MAX) break;
+      if (incognito() || isLowData()) break;
+      const need = t.artists[0]
+        ? needOf(t, fmKey, fmDown)
+        : { mb: false, fm: false };
+      const lookup = need.mb || need.fm;
+      if (lookup) {
+        try {
+          saver.add(
+            trackKey(t),
+            await fetchLabel(t, need, fmKey, () => (fmDown = true)),
+          );
+          failures = 0;
+        } catch {
+          failures++;
+          continue;
+        }
+      }
+      handled.push(t);
+      if (lookup || handled.length % PROGRESS_EVERY === 0)
+        o.onProgress?.(handled.length);
+    }
+  } finally {
+    saver.flush();
+  }
+  return handled;
 }
 
 const MOOD_PAGES: { tile: string; list: string }[] = [
@@ -279,11 +374,12 @@ const MOOD_PAGES: { tile: string; list: string }[] = [
   { tile: "Energize", list: "energize" },
   { tile: "Party", list: "party" },
 ];
+const LANGUAGE_TILES_MAX = 6;
 const SHELVES_PER_PAGE = 3;
 const PER_DECADE = 2;
 const SONGS_PER_LIST = 40;
 
-type Pick = { id: string; lists: string[] };
+type Candidate = { id: string; lists: string[] };
 
 const settle = <T>(job: Promise<T>) => job.catch(() => undefined);
 
@@ -294,7 +390,7 @@ function pickLists(
   shelves: Shelf[],
   list: string,
   decades: Map<number, number>,
-): Pick[] {
+): Candidate[] {
   const out = new Map<string, string[]>();
   for (const shelf of shelves.slice(0, SHELVES_PER_PAGE)) {
     const first = playlistsOf(shelf)[0];
@@ -316,13 +412,24 @@ async function fetchLists(region: string): Promise<Lists> {
     tiles.find((t) => t.title.toLowerCase() === title.toLowerCase());
   const decades = new Map<number, number>();
   const picks = new Map<string, string[]>();
-  const add = (p: Pick) =>
+  const add = (p: Candidate) =>
     picks.set(p.id, [...new Set([...(picks.get(p.id) ?? []), ...p.lists])]);
 
   for (const page of MOOD_PAGES) {
     const t = tile(page.tile);
     const shelves = t && (await settle(yt.moodPage(t.params)));
     if (shelves) pickLists(shelves, page.list, decades).forEach(add);
+  }
+  // Genre tiles named after a language (Bollywood, Punjabi, K-Pop…) tell which language their songs are in.
+  for (const t of tiles
+    .filter((x) => tagLanguage(x.title))
+    .slice(0, LANGUAGE_TILES_MAX)) {
+    const shelves = await settle(yt.moodPage(t.params));
+    const lang = languageList(tagLanguage(t.title)!);
+    for (const shelf of shelves?.slice(0, 2) ?? []) {
+      const first = playlistsOf(shelf)[0];
+      if (first) add({ id: first.id, lists: [lang] });
+    }
   }
   const decadeTile = tile("Decades");
   const decadeShelves =
@@ -345,6 +452,7 @@ async function fetchLists(region: string): Promise<Lists> {
     for (const t of detail.tracks.slice(0, SONGS_PER_LIST)) {
       const key = trackKey(t);
       songs[key] = [...new Set([...(songs[key] ?? []), ...lists])];
+      if (lists.every((l) => l.startsWith("lang:"))) continue;
       if (!finds.has(key) && finds.size < FINDS_MAX)
         finds.set(key, {
           ...t,
@@ -354,16 +462,16 @@ async function fetchLists(region: string): Promise<Lists> {
     }
   }
   if (!finds.size) throw new Error("No mood lists");
-  return { at: Date.now(), finds: [...finds.values()], songs };
+  return { rev: LISTS_REV, at: Date.now(), finds: [...finds.values()], songs };
 }
 
 let loadingLists: Promise<void> | undefined;
 let listsFailedAt = 0;
 export function ensureMoodLists(region: string): Promise<void> {
-  const { at } = useMoodLabels.getState().lists;
+  const { at, rev = 1 } = useMoodLabels.getState().lists;
   const now = Date.now();
-  if (now - at < LISTS_TTL_MS || now - listsFailedAt < RETRY_AFTER_MS)
-    return Promise.resolve();
+  const fresh = rev >= LISTS_REV && now - at < LISTS_TTL_MS;
+  if (fresh || now - listsFailedAt < RETRY_AFTER_MS) return Promise.resolve();
   loadingLists ??= fetchLists(region)
     .then((lists) => useMoodLabels.getState().setLists(lists))
     .catch(() => {

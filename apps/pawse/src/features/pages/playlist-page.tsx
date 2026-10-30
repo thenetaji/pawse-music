@@ -1,13 +1,18 @@
 import type { PlaylistDetail, Track } from "@pawse/music-core";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text } from "react-native";
 
+import { showToast } from "../../components/toast";
 import { CatState, PressScale, SkeletonRows } from "../../components/ui";
+import { moveInYouTubePlaylist } from "../../data/account";
 import { useOfflineTracks } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { moveItem } from "../../data/library-model";
 import { useSmartPlaylists } from "../../data/recommend";
 import { yt } from "../../lib/engine";
+import { haptic } from "../../lib/haptics";
+import { youTubePlaylistActions } from "../../lib/playlist-edit";
 import {
   removeFromLiked,
   removeFromLocalPlaylist,
@@ -42,6 +47,9 @@ function RemotePlaylist({ id }: { id: string }) {
   } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const signedIn = useLibrary((s) => !!s.settings.cookies);
+  const navigation = useNavigation();
+  // The order songs were moved into, shown until YouTube's copy is read again.
+  const [moved, setMoved] = useState<Track[] | null>(null);
   // Songs just removed stay off the page while YouTube catches up (and while its copy is still cached).
   const gone = useRemovedFromYouTube(id);
   const p = pl.data;
@@ -60,13 +68,43 @@ function RemotePlaylist({ id }: { id: string }) {
         )}
       </Shell>
     );
-  const all = more ? [...p.tracks, ...more.tracks] : p.tracks;
+  const loaded = more ? [...p.tracks, ...more.tracks] : p.tracks;
+  const movedIds = new Set(moved?.map((t) => t.setVideoId));
+  const all = moved
+    ? [
+        ...moved,
+        ...loaded.filter((t) => t.setVideoId && !movedIds.has(t.setVideoId)),
+      ]
+    : loaded;
   const tracks = gone.length
     ? all.filter((t) => !t.setVideoId || !gone.includes(t.setVideoId))
     : all;
   // Only the owner's playlists come back marked editable, and only when signed in.
-  const removable = signedIn && !!p.editable && !NOT_EDITABLE.has(p.id);
+  const editable = signedIn && !!p.editable && !NOT_EDITABLE.has(p.id);
   const cont = more ? more.continuation : p.continuation;
+  const move = (from: number, to: number) => {
+    const track = tracks[from];
+    const next = moveItem(tracks, from, to);
+    const after = next[to + 1];
+    if (!track?.setVideoId || (after && !after.setVideoId))
+      return void showToast("This song can't be moved");
+    // "To the end" would land past songs that aren't loaded yet.
+    if (!after && cont)
+      return void showToast(
+        "Scroll down to load the rest of the playlist first",
+      );
+    haptic.tick();
+    setMoved(next);
+    moveInYouTubePlaylist(p.id, track.setVideoId, after?.setVideoId).catch(
+      () => {
+        setMoved(null);
+        haptic.error();
+        showToast("YouTube didn't move the song. Try again later.", {
+          bad: true,
+        });
+      },
+    );
+  };
   const loadMore = () => {
     if (!cont || loadingMore) return;
     setLoadingMore(true);
@@ -97,8 +135,19 @@ function RemotePlaylist({ id }: { id: string }) {
       thumbnails={p.thumbnails}
       tracks={tracks}
       source={{ type: "playlist", id: p.id, title: p.title }}
+      ytEdit={
+        editable
+          ? {
+              ...youTubePlaylistActions(p.id, p.title, () => {
+                if (navigation.isFocused()) router.back();
+              }),
+              description: p.description,
+              onMove: move,
+            }
+          : undefined
+      }
       onRemove={
-        removable
+        editable
           ? (picks) => removeFromYouTubePlaylistWithUndo(p.id, picks)
           : undefined
       }
@@ -106,6 +155,7 @@ function RemotePlaylist({ id }: { id: string }) {
       // Songs added on YouTube show up without waiting for the cache to expire.
       onRefresh={() => {
         setMore(null);
+        setMoved(null);
         pl.reload();
       }}
       refreshing={pl.loading}
@@ -169,10 +219,16 @@ function LocalPlaylist({ id }: { id: string }) {
   const local = useLibrary((s) => s.playlists.find((p) => p.id === id));
   const tracks = id === "liked" ? liked : (local?.tracks ?? []);
   const title = id === "liked" ? "Liked songs" : (local?.title ?? "Playlist");
+  const from = local?.sortedFrom?.sourceId;
+  const fromTitle = useLibrary((s) =>
+    from === "liked"
+      ? "Liked songs"
+      : s.playlists.find((p) => p.id === from)?.title,
+  );
   return (
     <Collection
       title={title}
-      subtitle="Pawse"
+      subtitle={fromTitle ? `Auto · from ${fromTitle}` : "Pawse"}
       meta={`${count(tracks.length, "song")}`}
       thumbnails={tracks[0]?.thumbnails ?? []}
       tracks={tracks}

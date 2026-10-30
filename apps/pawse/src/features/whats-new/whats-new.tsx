@@ -49,7 +49,7 @@ function items(): Item[] {
     Platform.OS === "ios"
       ? {
           title: "Dynamic Island styles",
-          body: "Mochi on the wire, lyrics, paw controls or just the time left.",
+          body: "Classic with a progress ring, or just the time left.",
           open: () => push("/settings/look"),
         }
       : {

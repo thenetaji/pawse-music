@@ -1,6 +1,12 @@
 import type { Chain } from "../../src/lib/audio-fx/eq";
 
-export const LEVEL_BANDS = 10;
+export const LEVEL_BANDS = 16;
+
+/** Band centres, 40 Hz to 16 kHz in equal log steps; the native meters compute the same. */
+export const BAND_HZ = Array.from(
+  { length: LEVEL_BANDS },
+  (_, i) => 40 * 400 ** (i / (LEVEL_BANDS - 1)),
+);
 
 export interface Levels {
   silentMs: number;

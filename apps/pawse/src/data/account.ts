@@ -1,5 +1,7 @@
+import type { PlaylistPrivacy } from "@pawse/innertube";
 import type { ArtistSummary, Track } from "@pawse/music-core";
 import { desktop } from "../lib/desktop";
+import { refreshResources } from "../lib/use-resource";
 import { yt, ytAccount } from "./clients";
 import { onDislike, onLike, useLibrary } from "./library";
 import { listeningStats, parsePlaylistId, strip } from "./library-model";
@@ -279,6 +281,7 @@ export function mirrorFollow(channelId: string, on: boolean): void {
 let editSeq = 0;
 const NOT_SIGNED_IN = "Sign in to YouTube Music to edit playlists";
 function bumpCount(playlistId: string, delta: number): void {
+  if (!delta) return;
   const id = bareId(playlistId);
   useLibrary.setState((s) => ({
     ytPlaylists: s.ytPlaylists.map((p) =>
@@ -342,6 +345,74 @@ export async function removeFromYouTubePlaylist(
   return queuePlaylistEdit(playlistId, -items.length, () =>
     ytAccount.removeFromPlaylist(bareId(playlistId), items),
   );
+}
+
+// Edits of one playlist still on their way; its cached page is read again once the last one settles.
+const inFlight = new Map<string, number>();
+
+function editYouTubePlaylist(
+  playlistId: string,
+  send: () => Promise<void>,
+): Promise<void> {
+  if (!signedIn()) return Promise.reject(new Error(NOT_SIGNED_IN));
+  const id = bareId(playlistId);
+  inFlight.set(id, (inFlight.get(id) ?? 0) + 1);
+  return queuePlaylistEdit(id, 0, send).finally(() => {
+    const left = (inFlight.get(id) ?? 1) - 1;
+    if (left) return void inFlight.set(id, left);
+    inFlight.delete(id);
+    void refreshResources([`playlist:${id}`, `playlist:VL${id}`]);
+  });
+}
+
+/** Moves a song of an owned playlist before another; both are setVideoIds, and `before` is left out to send it to the end. */
+export function moveInYouTubePlaylist(
+  playlistId: string,
+  setVideoId: string,
+  before?: string,
+): Promise<void> {
+  return editYouTubePlaylist(playlistId, () =>
+    ytAccount.movePlaylistItem(bareId(playlistId), setVideoId, before),
+  );
+}
+
+export async function renameYouTubePlaylist(
+  playlistId: string,
+  name: string,
+): Promise<void> {
+  await editYouTubePlaylist(playlistId, () =>
+    ytAccount.renamePlaylist(bareId(playlistId), name),
+  );
+  // The edit went through; a failed list read must not report it as refused.
+  await refreshYouTubePlaylists().catch(() => {});
+}
+
+export function describeYouTubePlaylist(
+  playlistId: string,
+  description: string,
+): Promise<void> {
+  return editYouTubePlaylist(playlistId, () =>
+    ytAccount.setPlaylistDescription(bareId(playlistId), description),
+  );
+}
+
+export function setYouTubePlaylistPrivacy(
+  playlistId: string,
+  privacy: PlaylistPrivacy,
+): Promise<void> {
+  return editYouTubePlaylist(playlistId, () =>
+    ytAccount.setPlaylistPrivacy(bareId(playlistId), privacy),
+  );
+}
+
+/** Deletes an owned playlist from the account and from the library list once YouTube accepted it. */
+export async function deleteYouTubePlaylist(playlistId: string): Promise<void> {
+  const id = bareId(playlistId);
+  if (!signedIn()) throw new Error(NOT_SIGNED_IN);
+  await queuePlaylistEdit(id, 0, () => ytAccount.deletePlaylist(id));
+  useLibrary.setState((s) => ({
+    ytPlaylists: s.ytPlaylists.filter((p) => bareId(p.id) !== id),
+  }));
 }
 
 let started = false;

@@ -1,6 +1,7 @@
 import {
   type Branding,
   type CrowdChapter,
+  musicSkips,
   originalTitle,
   type SkipSegment,
   SponsorBlock,
@@ -39,7 +40,7 @@ function lookup(id: string, categories: string[]): Promise<SkipSegment[]> {
 /** The talking, intros and outros of a music video, which the music player jumps over. */
 export const songSkips = (track: Track): Promise<SkipSegment[]> =>
   track.source === "youtube" && getSetting("skipNonMusic", true)
-    ? lookup(track.id, MUSIC)
+    ? lookup(track.id, MUSIC).then((s) => musicSkips(s, track.durationSec))
     : Promise.resolve([]);
 
 /** Sponsor reads, self-promotion and "subscribe" reminders in a video. */

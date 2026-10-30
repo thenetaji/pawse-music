@@ -372,4 +372,14 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - yt-dlp fallback on the VPS for when on-device stream clients fail (YouTube bot-checks datacenter IPs).
 - Local files.
 - CarPlay. It needs the entitlement, so a paid Apple account.
-
+- [x] 137. The Dynamic Island was "cooked": iOS adds its own music bubble next to Pawse's, splitting the island in two. iOS's own player is now the default; Pawse's cat island is an opt-in in Settings → Look and Mochi.
+- [x] 138. Edit your YouTube playlists in Pawse: rename, description, privacy, reorder, remove and delete; the Smooth shuffle wave explains itself.
+- [x] 140. Full screen: a quick swipe down leaves it from anywhere, slow drags on the sides still set volume and brightness. Videos buffer further ahead and the bar shows the buffered part, like YouTube.
+- [x] 141. Dynamic Island trimmed to what looks right: Classic and Time left. The cat, mouse, wire, lyrics and paw styles and their images are gone from the island.
+- [x] 139. Sort a playlist or Liked songs by mood, era or language: sections you can play, save any as a playlist, and saved ones keep filling themselves.
+- [x] 142. Now playing gestures: hold then slide for volume, Reels-style skip as an option, double-tap the cover sides for 10 s and the middle to like, shake to shuffle (off by default).
+- [x] 145. Music videos skipped instrumental parts as "non-music": only intros, outros and parts the community is sure of are skipped now, and each part skips once.
+- [x] 143. The visualiser moved as one block: each bar now follows its own part of the sound (16 bands, each scaled to its own range), with a gentle fallback when a song can't be measured.
+- [x] 144. Opus on iPhone: YouTube's better Opus audio, repackaged on the phone (no re-encoding), with AAC as the fallback. You can also pick the audio format yourself (Best available, Opus, AAC, JioSaavn 320) from the quality chip, and the chip says what you are hearing in plain words.
+- [x] 146. Mochi dances part by part to the music and sleeps when paused; Settings can swap in a Lottie cat or a pixel kitten.
+- [x] 147. A song that won't load: fail over within seconds when nothing arrives, wait on a slow but working connection, give up after ~20 s with a message instead of a silent minute; fix the doubled song length on iPhone.
