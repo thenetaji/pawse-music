@@ -1639,6 +1639,21 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
         nativeState === PlaybackState.Buffering);
     if (!on && wantPlay && !loading && !settling)
       diag("paused-by-system", nativeState);
+    // A file on the phone that went missing (cache cleanup) leaves the player idle with no error: get the song again.
+    const here = get();
+    const st = streams.get(here.tracks[here.index]?.id ?? "");
+    if (
+      !on &&
+      wantPlay &&
+      !loading &&
+      nativeState === PlaybackState.Idle &&
+      st &&
+      onDevice(st)
+    )
+      void onError({
+        code: "source",
+        message: "The saved copy couldn't be opened",
+      } as unknown as PlaybackErrorEvent);
     playing = on;
     if (on) {
       watch = undefined;
