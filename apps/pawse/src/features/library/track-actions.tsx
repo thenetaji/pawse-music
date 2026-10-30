@@ -17,6 +17,7 @@ import {
   PinGlyph,
   PlaylistGlyph,
   PlayNextGlyph,
+  QualityGlyph,
   QueueAddGlyph,
   RadioGlyph,
   ShareGlyph,
@@ -158,6 +159,13 @@ export function showTrackActions(
               ),
               onPress: () =>
                 setSetting("visualiser", !getSetting("visualiser", false)),
+            },
+            {
+              label: "Equaliser",
+              icon: (c: string) => (
+                <QualityGlyph size={I} weight={W} color={c} />
+              ),
+              onPress: () => push("/equaliser"),
             },
           ]
         : []),
