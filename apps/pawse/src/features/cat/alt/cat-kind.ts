@@ -19,7 +19,10 @@ export const CAT_KINDS: [CatKind, string][] = [
     : []),
 ];
 
+// A kind this build can't draw falls back to Mochi, which is how the web build gets its cat.
+export const DEFAULT_CAT_KIND: CatKind = altCatsSupported ? "lottie" : "mochi";
+
 export function useCatKind(): CatKind {
-  const kind = useSetting<CatKind>("catKind", "mochi");
+  const kind = useSetting<CatKind>("catKind", DEFAULT_CAT_KIND);
   return CAT_KINDS.some(([k]) => k === kind) ? kind : "mochi";
 }

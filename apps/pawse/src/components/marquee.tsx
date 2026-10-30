@@ -22,6 +22,10 @@ import Animated, {
 import { useSetting } from "../lib/settings";
 
 const GAP = 40;
+
+// Layout passes elsewhere on screen can report widths a fraction apart; ignoring those keeps the title still.
+const steady = (next: number) => (prev: number) =>
+  Math.abs(prev - next) < 1 ? prev : next;
 const EDGE = 14;
 
 // One line that slides sideways when it's too long, like Apple Music's titles: wait, scroll
@@ -86,13 +90,13 @@ export function Marquee({
   return (
     <View
       style={styles.clip}
-      onLayout={(e) => setBox(e.nativeEvent.layout.width)}
+      onLayout={(e) => setBox(steady(e.nativeEvent.layout.width))}
     >
       <View style={styles.measure} pointerEvents="none" aria-hidden>
         <Text
           style={style}
           numberOfLines={1}
-          onLayout={(e) => setFull(e.nativeEvent.layout.width)}
+          onLayout={(e) => setFull(steady(e.nativeEvent.layout.width))}
         >
           {children}
         </Text>
@@ -111,7 +115,8 @@ export function Marquee({
           </Text>
         </Animated.View>
       ) : (
-        <Text style={style} numberOfLines={1}>
+        // Sized to the text, not the box: a title within a pixel of fitting would otherwise flip to "…".
+        <Text style={[style, full > 0 && { width: w }]} numberOfLines={1}>
           {children}
         </Text>
       )}

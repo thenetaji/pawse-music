@@ -2,6 +2,14 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.13.4] - 2026-10-30
+
+### Changed
+- **The dancing cat is the default on Now playing.** Anyone who hadn't picked the pixel kitten gets it once; Settings → Look and Mochi → Cat on Now Playing puts Mochi back. The web app keeps Mochi.
+- **Pausing no longer makes the cat vanish.** The dancing cat and the sleeping cat both stay ready and fade into each other, so it curls up when you pause and wakes when you press play, with no empty moment. It also fades in when Now playing opens. With Reduce motion on, you get a short plain fade between two still cats.
+- **The dancing cat mixes up its moves.** It no longer repeats one step: it sways, spins round and sways again in changing order, sometimes the other way, now and then turning to face the other side. It dances faster for a quick song and slower for a slow one, and hops and leans on the beat. It stops moving when the screen isn't showing.
+- Long song titles no longer flicker between the full title and one cut short with “…” while the visualiser is on.
+
 ## [1.13.3] - 2026-10-30
 
 ### Fixed

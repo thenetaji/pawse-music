@@ -17,6 +17,7 @@ import {
   type LibraryData,
   mergeLikes,
   migrateAudioFormat,
+  migrateCatKind,
   migrateDefaults,
   migrateLocale,
   migrateQuality,
@@ -422,11 +423,14 @@ export const useLibrary = create<Library>()(
         return {
           ...current,
           ...p,
-          settings: migrateAudioFormat(
-            migrateDefaults(
-              migrateLocale(
-                migrateQuality(
-                  { ...DEFAULT_SETTINGS, ...p.settings, cookies },
+          settings: migrateCatKind(
+            migrateAudioFormat(
+              migrateDefaults(
+                migrateLocale(
+                  migrateQuality(
+                    { ...DEFAULT_SETTINGS, ...p.settings, cookies },
+                    p.settings,
+                  ),
                   p.settings,
                 ),
                 p.settings,
