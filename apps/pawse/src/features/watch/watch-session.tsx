@@ -299,6 +299,8 @@ export function WatchSession({ id }: { id: string }) {
     if (sec > 0 && !started) setStarted(true);
     const seg = skips.current.find((g) => sec >= g.start && sec < g.end - 0.5);
     if (!seg) return;
+    // Each segment skips once: going back into it means you want to watch it.
+    skips.current = skips.current.filter((g) => g !== seg);
     video.seek(seg.end);
     skipToast(seg, id);
   };
