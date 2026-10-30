@@ -47,7 +47,7 @@ export function startShakeShuffle(): () => void {
     listener = m.Accelerometer.addListener((a) => {
       if (!detect(a, Date.now()) || !reshuffleUpcoming()) return;
       haptic.success();
-      showToast("Shuffled");
+      showToast("Shuffled", { cat: "rainbow" });
     });
   };
 

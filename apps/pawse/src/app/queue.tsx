@@ -94,7 +94,7 @@ export default function Queue() {
   const palette = useNowPalette((s) => s.palette);
   const color = useSetting<CatColor>("catColor", "orange");
   const current = queue[index];
-  const upNext = queue.slice(index + 1);
+  const upNext = useMemo(() => queue.slice(index + 1), [queue, index]);
   const sleepLabel =
     sleepAt === "endOfTrack"
       ? "End of song"
@@ -221,7 +221,8 @@ export default function Queue() {
       {upNext.length ? (
         <ReorderableList
           data={upNext}
-          keyExtractor={(t, i) => `${t.id}:${i}`}
+          // Keyed by place in the whole queue, so playing a song from the list keeps the rows after it instead of rebuilding every one.
+          keyExtractor={(t, i) => `${t.id}:${index + 1 + i}`}
           onReorder={onReorder}
           panGesture={listPan}
           shouldUpdateActiveItem

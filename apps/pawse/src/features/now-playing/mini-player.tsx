@@ -14,8 +14,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { TrackArt } from "../../components/artwork";
+import { CatSpinner } from "../../components/cat-spinner";
 import { Marquee } from "../../components/marquee";
-import { Spinner, useBusy } from "../../components/spinner";
+import { useBusy } from "../../components/spinner";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { NextGlyph, PauseGlyph, PlayGlyph } from "./icons";
@@ -129,7 +130,7 @@ export function MiniPlayer({ inline }: { inline?: boolean }) {
             style={styles.btn}
           >
             {busy !== "no" ? (
-              <Spinner size={inline ? 18 : 22} />
+              <CatSpinner size={inline ? 22 : 28} />
             ) : playing ? (
               <PauseGlyph size={inline ? 22 : 26} />
             ) : (

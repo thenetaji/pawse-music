@@ -386,3 +386,9 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - [x] 148. The dancing cat is the default on Now playing; it settles into sleep smoothly when you pause and mixes up its moves.
 - [x] 149. The dancing cat looked shaky and unnatural with the added sway and shuffled moves: back to the original dance, keeping the smooth fade into sleep.
 - [x] 150. Songs stopped at the end: the next one was a cached copy that had been cleared, and the player sat idle with no error. Now it re-fetches the song.
+- [x] 151. Different dance per song: eleven free hand-drawn cats from LottieFiles, crossfaded on each new song.
+- [x] 152. A cat for each player gesture (volume, double-tap skip, like, shake to shuffle) and an animated cat beside Settings on Home.
+- [x] 153. The buffering spinner is the "Cat mark loading" cat.
+- [x] 154. A volume bar on Now playing, quiet until touched, with the party cat riding the knob.
+- [x] 155. No haptics on video pause, skip or seek.
+- [x] 156. Smoother queue and Now playing: cat animations only redraw when their props change; queue rows keep their identity when the playing song moves.

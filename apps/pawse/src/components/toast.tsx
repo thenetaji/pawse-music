@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FullWindowOverlay } from "react-native-screens";
 import { create } from "zustand";
 
+import { GestureCat } from "../features/cat/alt/gesture-cat";
 import { display } from "../lib/type";
 import { Artwork } from "./artwork";
 
@@ -18,6 +19,8 @@ type Toast = {
   /** A button on the toast, such as Undo; it is the only touchable toast. */
   action?: { label: string; onPress: () => void };
   votes?: { up: () => void; down: () => void };
+  /** One of the dancing cats, shown where a cover would be. */
+  cat?: string;
   key: number;
 };
 const useToast = create<{ toast: Toast | null }>(() => ({ toast: null }));
@@ -30,7 +33,7 @@ export function showToast(
   {
     ms,
     ...o
-  }: Pick<Toast, "thumbnails" | "bad" | "action" | "votes"> & {
+  }: Pick<Toast, "thumbnails" | "bad" | "action" | "votes" | "cat"> & {
     ms?: number;
   } = {},
 ) {
@@ -69,6 +72,8 @@ export function ToastHost() {
         >
           {toast.thumbnails?.length ? (
             <Artwork thumbnails={toast.thumbnails} size={28} radius={6} />
+          ) : toast.cat ? (
+            <GestureCat dance={toast.cat} size={32} />
           ) : null}
           <Text style={styles.text} numberOfLines={2}>
             {toast.text}

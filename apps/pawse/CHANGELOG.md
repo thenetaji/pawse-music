@@ -4,8 +4,18 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 
 ## [1.13.6] - 2026-10-30
 
+### Added
+- **Eleven dancing cats.** Each new song brings a different hand-drawn dance, crossfaded in, never the same one twice in a row. The cat next to Settings on Home dances along with the song and sleeps when it's paused.
+- **A cat for every gesture.** One parties beside the volume slider, one pounces on a double-tap skip, one cheers inside the like heart and a rainbow cat rolls when you shake to shuffle.
+- **A loading cat** turns round under a spinner while a song loads, instead of the plain ring.
+
+### Changed
+- **A volume bar on Now playing**, under the play controls. It's a thin, quiet line until you touch it, and follows the buttons on the side of the phone.
+- **Videos no longer buzz** when you pause, skip or seek.
+
 ### Fixed
 - **Playback stopped when a song ended** if the next song's saved copy on the phone had been cleared to make room. Pawse now notices and fetches the song again instead of going quiet.
+- **Lag after picking a song from the queue, and on Now playing generally.** The dancing cat re-read its whole animation on every redraw, and the queue rebuilt every row when the playing song moved. Both now redraw only what changed.
 
 ## [1.13.5] - 2026-10-30
 

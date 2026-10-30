@@ -22,6 +22,7 @@ import { scheduleOnRN } from "react-native-worklets";
 
 import { SEEK_SEC } from "../../lib/cover-gestures";
 import { display } from "../../lib/type";
+import { GestureCat } from "../cat/alt/gesture-cat";
 
 const HEART = 92;
 const BUBBLE = 84;
@@ -51,6 +52,7 @@ export function VolumePill({
   return (
     <Animated.View pointerEvents="none" style={[styles.pillWrap, fade]}>
       <View style={styles.pill}>
+        <GestureCat dance="party" size={30} />
         <Icon size={18} color="#fff" strokeWidth={2} />
         <View style={styles.track}>
           <Animated.View style={[styles.fill, fill]} />
@@ -81,6 +83,7 @@ export function SkipBubble({ note }: { note: SkipNote }) {
       pointerEvents="none"
       style={[styles.bubbleWrap, note.side < 0 ? styles.left : styles.right]}
     >
+      <GestureCat dance="pounce" size={56} flip={note.side < 0} />
       <Animated.View style={[styles.bubble, style]}>
         <Icon size={22} color="#fff" strokeWidth={2} fill="#fff" />
         <Text style={styles.bubbleText}>{note.n * SEEK_SEC} s</Text>
@@ -102,6 +105,9 @@ export function HeartPop({ note }: { note: HeartNote }) {
       ]}
     >
       <Heart size={HEART} color="#FF4F6D" fill="#FF4F6D" strokeWidth={1.5} />
+      <View style={styles.heartCat}>
+        <GestureCat dance="confetti" size={HEART * 0.62} />
+      </View>
     </Animated.View>
   );
 }
@@ -143,7 +149,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: "50%",
     width: "33.33%",
-    marginTop: -BUBBLE / 2,
+    marginTop: -BUBBLE / 2 - 56,
     alignItems: "center",
   },
   left: { left: 0 },
@@ -159,4 +165,13 @@ const styles = StyleSheet.create({
   },
   bubbleText: { color: "#fff", fontSize: 14, ...display("700") },
   heart: { position: "absolute", width: HEART, height: HEART },
+  heartCat: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

@@ -39,16 +39,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { Artwork } from "../../components/artwork";
+import { CatSpinner } from "../../components/cat-spinner";
 import { Marquee } from "../../components/marquee";
 import { GrabHandle } from "../../components/pull-to-close";
-import { Spinner, useBusy } from "../../components/spinner";
+import { useBusy } from "../../components/spinner";
 import { useDataSaverActive } from "../../data/downloads";
 import { useLibrary } from "../../data/library";
+import { levelsAvailable } from "../../lib/audio-fx";
 import { COVER_PX, coverSources, useCover } from "../../lib/cover";
 import type { SkipSwipe } from "../../lib/cover-gestures";
 import { haptic } from "../../lib/haptics";
 import { activeLine } from "../../lib/lrc";
-import { levelsAvailable } from "../../lib/audio-fx";
 import { useSetting } from "../../lib/settings";
 import { useSongArt } from "../../lib/song-art";
 import { display } from "../../lib/type";
@@ -75,9 +76,10 @@ import {
 import { LyricsView } from "./lyrics-view";
 import { useAccent, useNowPalette } from "./now-palette";
 import { SongVideoSwitch } from "./song-video-switch";
-import { Visualiser } from "./visualiser";
 import { TintStack, useTintPair } from "./tint-fade";
 import { SETTLE, useCoverGestures } from "./use-cover-gestures";
+import { Visualiser } from "./visualiser";
+import { VolumeSlider } from "./volume-slider";
 
 // One Now playing at a time, so the skip fallback timer lives here rather than in a ref the gesture would read.
 let giveUp: ReturnType<typeof setTimeout> | undefined;
@@ -754,6 +756,8 @@ export function NowPlayingView(p: NowPlayingProps) {
           </Btn>
         </View>
 
+        <VolumeSlider />
+
         <View style={styles.bottom}>
           <Pressable
             hitSlop={8}
@@ -845,11 +849,11 @@ function Scrubber({
   );
 }
 
-// Spinner once loading lasts a moment, otherwise play or pause.
+// The loading cat once loading lasts a moment, otherwise play or pause.
 function PlayIcon({ size }: { size: number }) {
   const status = usePlayerSelect((s) => s.status);
   const busy = useBusy(status);
-  if (busy !== "no") return <Spinner size={40} width={4} />;
+  if (busy !== "no") return <CatSpinner size={44} />;
   return status === "playing" || status === "buffering" ? (
     <PauseGlyph size={size} />
   ) : (

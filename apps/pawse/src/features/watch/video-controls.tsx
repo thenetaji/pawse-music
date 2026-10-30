@@ -383,7 +383,6 @@ export function VideoControls(p: ControlsProps) {
 
   const touch = () => setPoke((n) => n + 1);
   const act = (fn: () => void) => () => {
-    haptic.light();
     touch();
     fn();
   };
@@ -434,7 +433,6 @@ export function VideoControls(p: ControlsProps) {
         setShown,
         onTap: () => setPoke((n) => n + 1),
         onSkip: (side) => {
-          haptic.light();
           onSeek(
             Math.max(0, Math.min(dur || Infinity, getTime() + side * SKIP_SEC)),
           );
@@ -473,7 +471,6 @@ export function VideoControls(p: ControlsProps) {
     };
     const seekTo = (sec: number) => {
       onSeek(sec);
-      haptic.light();
     };
     const done = () => {
       setScrub(undefined);
