@@ -2,6 +2,11 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.13.3] - 2026-10-30
+
+### Fixed
+- The computer apps build again (1.13.2 shipped for phones only).
+
 ## [1.13.2] - 2026-10-30
 
 ### Added
