@@ -2,6 +2,11 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.13.7] - 2026-10-31
+
+### Fixed
+- **Songs that never moved on to the next one.** Some songs are read by iPhone as twice their real length. Pawse showed the right length but then sat in silence for the second half, and a song that stopped on its last second without saying it had ended was left there too. Both now go on to the next song.
+
 ## [1.13.6] - 2026-10-30
 
 ### Added
