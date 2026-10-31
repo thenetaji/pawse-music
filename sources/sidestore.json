@@ -11,6 +11,15 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.13.7",
+          "buildVersion": "11307",
+          "date": "2026-10-31",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.13.7/Pawse.ipa",
+          "size": 24755354,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Fixed:\n• Songs that never moved on to the next one. Some songs are read by iPhone as twice their real length. Pawse showed the right length but then sat in silence for the second half, and a song that stopped on its last second without saying it had ended was left there too. Both now go on to the next song."
+        },
+        {
           "version": "1.13.6",
           "buildVersion": "11306",
           "date": "2026-10-30",
