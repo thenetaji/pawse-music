@@ -73,6 +73,8 @@ const STREAMS_KEY = "pawse.streams";
 const STREAMS_MAX = 200;
 // A pause this soon after a song change is the item loading, not the system.
 const SETTLE_MS = 1500;
+const END_GRACE_SEC = 1.5;
+const STOP_GRACE_MS = 1500;
 const ARTWORK_PX = 1200;
 // Played songs are written to disk and the next one preloads once the current is fully cached.
 const CACHE_BYTES = 256 * 1024 * 1024;
@@ -151,6 +153,7 @@ let stallTimer: ReturnType<typeof setInterval> | undefined;
 const diag = (kind: string, detail?: string) =>
   opts?.onDiagnostic?.(kind, detail);
 let endTimer: ReturnType<typeof setTimeout> | undefined;
+let stopTimer: ReturnType<typeof setTimeout> | undefined;
 type Skip = { start: number; end: number; category: string };
 const segments = new Map<string, Skip[]>(); // track id -> parts to skip (empty while loading or none)
 let skipTimer: ReturnType<typeof setTimeout> | undefined;
@@ -1451,38 +1454,61 @@ function sleepNow(reason: string): void {
 }
 
 // When the player's own length is wrong, end the song at its real length instead of playing silence.
+// The native player reports the length the app gave it, so a song still going past that length is the sign.
 function guardEnd(position: number, native: number, track: Track): void {
   clearTimeout(endTimer);
-  const trusted = trustedDuration(track, native);
-  if (!playing || !trusted || !disagrees(native, trusted) || native < trusted)
-    return;
-  const left = trusted + 1.5 - position;
+  const end = chooseDuration(native, track);
+  if (!playing || !end || end > MIX_SEC) return;
+  const left = end + END_GRACE_SEC - position;
   if (left > TICK_MS / 1000) return;
   const key = get().keys[get().index];
   endTimer = setTimeout(
     () => {
-      const s = get();
-      if (s.keys[s.index] !== key || !playing) return;
-      diag(
-        "duration-guard",
-        `${track.id} native=${Math.round(native)}s real=${Math.round(trusted)}s`,
-      );
-      const n = Q.stepIndex(s.tracks.length, s.index, 1, s.repeat === "all");
-      // "End of this song": stop, with the next song loaded for whenever play is pressed.
-      if (sleepDue()) {
-        sleepNow("end of song");
-        if (n !== null && n !== s.index) void goTo(n, ++navGen, false);
-        return;
-      }
-      if (s.repeat === "one") return void TrackPlayer.seekTo(0);
-      if (n !== null && n !== s.index) void goTo(n, ++navGen, true);
-      else {
-        pause();
-        seekTo(0);
-      }
+      if (get().keys[get().index] !== key || !playing) return;
+      diag("duration-guard", `${track.id} ${Math.round(end)}s`);
+      endByHand();
     },
     Math.max(0, left * 1000),
   );
+}
+
+// The player stopped on the last second and never said the song ended: move on as if it had.
+function guardStop(): void {
+  clearTimeout(stopTimer);
+  const s = get();
+  const track = s.tracks[s.index];
+  if (!track || !nativeLoaded) return;
+  const { position, duration } = TrackPlayer.getProgress();
+  const end = chooseDuration(duration, track);
+  if (!end || end - position > END_GRACE_SEC) return;
+  const key = s.keys[s.index];
+  stopTimer = setTimeout(() => {
+    if (get().keys[get().index] !== key || playing || !wantPlay || loading)
+      return;
+    diag("stopped-at-end", `${track.id} at ${Math.round(position)}s`);
+    endByHand();
+  }, STOP_GRACE_MS);
+}
+
+function endByHand(): void {
+  const s = get();
+  const n = Q.stepIndex(s.tracks.length, s.index, 1, s.repeat === "all");
+  // "End of this song": stop, with the next song loaded for whenever play is pressed.
+  if (sleepDue()) {
+    sleepNow("end of song");
+    if (n !== null && n !== s.index) void goTo(n, ++navGen, false);
+    return;
+  }
+  if (s.repeat === "one" || n === s.index) {
+    TrackPlayer.seekTo(0);
+    TrackPlayer.play();
+    return;
+  }
+  if (n !== null && n !== s.index) void goTo(n, ++navGen, true);
+  else {
+    pause();
+    seekTo(0);
+  }
 }
 
 function savePosition(position: number): void {
@@ -1637,8 +1663,10 @@ export function setupPlayer(o: SetupOptions): Promise<void> {
       Date.now() - changedAt < SETTLE_MS &&
       (nativeState === PlaybackState.Ready ||
         nativeState === PlaybackState.Buffering);
-    if (!on && wantPlay && !loading && !settling)
+    if (!on && wantPlay && !loading && !settling) {
       diag("paused-by-system", nativeState);
+      guardStop();
+    }
     // A file on the phone that went missing (cache cleanup) leaves the player idle with no error: get the song again.
     const here = get();
     const st = streams.get(here.tracks[here.index]?.id ?? "");

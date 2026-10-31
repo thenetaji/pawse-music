@@ -392,3 +392,5 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - [x] 154. A volume bar on Now playing, quiet until touched, with the party cat riding the knob.
 - [x] 155. No haptics on video pause, skip or seek.
 - [x] 156. Smoother queue and Now playing: cat animations only redraw when their props change; queue rows keep their identity when the playing song moves.
+
+- [x] 157. Songs stuck at -0:00: the end guard compared the native length with the real one, but the native player now reports the real one. It now watches the position, and also moves on when the player stops on the last second.

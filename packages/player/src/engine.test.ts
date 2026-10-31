@@ -667,6 +667,36 @@ test("a pause while the next song loads is not logged as a system pause", async 
   expect(diag).toHaveBeenCalledWith("paused-by-system", "ready");
 });
 
+test("a song still playing past its length moves on to the next", async () => {
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve }, onDiagnostic: diag });
+  await player.play(tracks("a", "b"));
+  await flush();
+  await rntp.__emit("event.is-playing-changed", { playing: true });
+  native.position = 202;
+  // The check runs on the five-second progress tick.
+  await new Promise((r) => setTimeout(r, 6000));
+  await flush();
+  expect(diag).toHaveBeenCalledWith("duration-guard", "a 200s");
+  expect(tp.skipToIndex).toHaveBeenCalledWith(1);
+}, 12_000);
+
+test("a song that stops on its last second without ending moves on to the next", async () => {
+  const diag = jest.fn();
+  await setupPlayer({ resolver: { resolve }, onDiagnostic: diag });
+  await player.play(tracks("a", "b"));
+  await flush();
+  await rntp.__emit("event.is-playing-changed", { playing: true });
+  now += 60_000;
+  native.position = 199.5;
+  await rntp.__emit("event.playback-state-changed", { state: "ready" });
+  await rntp.__emit("event.is-playing-changed", { playing: false });
+  await new Promise((r) => setTimeout(r, 1600));
+  await flush();
+  expect(diag).toHaveBeenCalledWith("stopped-at-end", "a at 200s");
+  expect(tp.skipToIndex).toHaveBeenCalledWith(1);
+});
+
 test("on iOS an HE-AAC song saved with the doubled length plays to its real length", async () => {
   jest.replaceProperty(Platform, "OS", "ios");
   resolve.mockImplementationOnce(async (t) => ({
