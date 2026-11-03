@@ -15,13 +15,7 @@ import { getSetting } from "../../lib/settings";
 import { useResource } from "../../lib/use-resource";
 
 export type Kind =
-  | "all"
-  | "songs"
-  | "videos"
-  | "albums"
-  | "artists"
-  | "playlists"
-  | "channels";
+  "all" | "songs" | "videos" | "albums" | "artists" | "playlists" | "channels";
 
 /** The order sections and chips follow; videos and channels are YouTube's own, so they need videos on. */
 export const KINDS: { id: Kind; label: string; youtube?: boolean }[] = [
@@ -74,18 +68,7 @@ export function itemSub(i: CatalogItem): string {
   return [itemKind(i), ...tail].filter(Boolean).join(" · ");
 }
 
-const plain = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-
-/** Whether YouTube Music's best match is what was searched for, by name: "daft punk" and the artist Daft Punk. */
-export function namesMatch(query: string, item?: CatalogItem): boolean {
-  const q = plain(query);
-  const n = item ? plain(itemTitle(item)) : "";
-  return q.length >= 3 && n.length >= 3 && (n.includes(q) || q.includes(n));
-}
+export { namesMatch } from "./names-match";
 
 /** Which chip a result belongs under. */
 export const chipOf = (i: CatalogItem): Kind =>

@@ -69,6 +69,7 @@ export const DEFAULT_HOME_TOPICS = [
 const HOME_PREFIX = "home:";
 
 const TIMEOUT_MS = 12_000;
+const SEARCH_BUDGET = { ms: 7000, retries: 1 };
 const BOOTSTRAP_RETRY_MS = 5 * 60_000;
 
 export interface YouTubeVideoOptions {
@@ -295,6 +296,7 @@ export class YouTubeVideo {
     endpoint: string,
     body: Record<string, unknown>,
     signedOut = false,
+    budget?: { ms: number; retries: number },
   ): Promise<any> {
     const cfg = await this.config();
     const headers: Record<string, string> = {
@@ -325,9 +327,9 @@ export class YouTubeVideo {
         }),
         credentials: "omit",
       },
-      TIMEOUT_MS,
+      budget?.ms ?? TIMEOUT_MS,
       // A signed-in call is never repeated.
-      headers.Authorization ? 0 : 1,
+      headers.Authorization ? 0 : (budget?.retries ?? 1),
     );
     if (!res.ok)
       throw new InnerTubeError(
@@ -518,12 +520,20 @@ export class YouTubeVideo {
       ? { continuation }
       : { query: q, ...(type ? { params: SEARCH_TYPE_PARAMS[type] } : {}) };
     const quiet = this.opts.privateSearch?.();
-    // As the account when there is one, for YouTube's own ranking; if that fails, signed out.
+    // As the account when there is one, for YouTube's own ranking; if that fails, signed out once.
+    // Each try is capped so a slow connection shows results or an error, not a minute of placeholders.
     try {
-      return parseVideoSearch(await this.call("search", body, quiet));
+      return parseVideoSearch(
+        await this.call("search", body, quiet, SEARCH_BUDGET),
+      );
     } catch (e) {
       if (quiet || !this.isSignedIn()) throw e;
-      return parseVideoSearch(await this.call("search", body, true));
+      return parseVideoSearch(
+        await this.call("search", body, true, {
+          ...SEARCH_BUDGET,
+          retries: 0,
+        }),
+      );
     }
   }
 

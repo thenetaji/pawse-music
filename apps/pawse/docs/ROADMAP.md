@@ -395,3 +395,14 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 
 - [x] 157. Songs stuck at -0:00: the end guard compared the native length with the real one, but the native player now reports the real one. It now watches the position, and also moves on when the player stops on the last second.
 - [x] 158. Videos failed with "Sign in to confirm you're not a bot": after two refusals Pawse now tries a VISIONOS client, benches the refused clients for 15 min, and rests 5/15/30 min when every client is refused, with a plain message.
+
+## Tonight (approved 2026-11-03)
+
+- [x] 1. Next video in full screen went landscape → portrait → landscape: the portrait lock and status bar wait a moment and are skipped when the next video's full screen takes over; how full screen was entered carries over.
+- [x] 2. Swipe down to leave full screen didn't work: the level drag gives up the middle of the picture.
+- [ ] 3. Player smoothness in general: needs on-device profiling (beyond the flip fix).
+- [x] 4. Channel page: YouTube-style underlined tabs instead of chips; sorts stay as chips under them.
+- [x] 5. Speeds above 2× (to 3×), − / + steps and 1.0–3.0 presets, like YouTube's speed sheet.
+- [ ] 6. Player menu tidier, YouTube-style: waiting on what feels hard to use.
+- [x] 7. Search stuck: 7 s budget per try, signed-out fallback without a retry.
+- [x] 8. Search not like YouTube: a short music name inside a longer query no longer switches to the music layout.

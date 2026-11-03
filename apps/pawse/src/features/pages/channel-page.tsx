@@ -348,6 +348,7 @@ export default function ChannelPage() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={styles.tabs}
             contentContainerStyle={styles.chips}
           >
             {p.search ? (
@@ -370,15 +371,23 @@ export default function ChannelPage() {
                 </Svg>
               </PressScale>
             ) : null}
-            {tabs.map((t) => (
-              <Chip
-                key={t.kind}
-                label={t.title}
-                on={!query && t.kind === kind}
-                accent={accent}
-                onPress={() => pick(t.kind)}
-              />
-            ))}
+            {tabs.map((t) => {
+              const on = !query && t.kind === kind;
+              return (
+                <Pressable
+                  key={t.kind}
+                  onPress={() => pick(t.kind)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  style={styles.tab}
+                >
+                  <Text style={[styles.tabText, on && styles.tabTextOn]}>
+                    {t.title}
+                  </Text>
+                  <View style={[styles.tabLine, on && styles.tabLineOn]} />
+                </Pressable>
+              );
+            })}
           </ScrollView>
           {searching ? (
             <View style={styles.field}>
@@ -524,16 +533,31 @@ const styles = StyleSheet.create({
     marginTop: 4,
     ...display("700"),
   },
-  chips: { gap: 8, paddingHorizontal: 16, alignItems: "center" },
+  // YouTube's channel tabs: plain words, the open one white and underlined, over a hairline.
+  tabs: {
+    flexGrow: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.2)",
+  },
+  chips: { gap: 22, paddingHorizontal: 16, alignItems: "center" },
+  tab: { paddingTop: 10 },
+  tabText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 16,
+    ...display("700"),
+  },
+  tabTextOn: { color: "#fff" },
+  tabLine: { height: 3, marginTop: 10, borderRadius: 1.5 },
+  tabLineOn: { backgroundColor: "#fff" },
   sorts: { gap: 8, paddingHorizontal: 16, paddingTop: 12 },
   searchBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: "transparent",
   },
   field: {
     flexDirection: "row",

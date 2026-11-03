@@ -2,10 +2,18 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
-## [Unreleased]
+## [1.13.8] - 2026-11-03
+
+### Changed
+- **Channel pages have YouTube's tabs.** Home, Videos, Shorts, Live, Playlists and the rest are plain tabs with a line under the open one, and only that tab's own sorts (Latest, Popular, Oldest) show as chips under them.
+- **Speeds above 2×.** The speed page goes up to 3×, with − and + buttons beside the slider for 0.05 steps and 1.0, 1.25, 1.5, 2.0 and 3.0 to tap.
 
 ### Fixed
 - **Videos stopped with "Sign in to confirm you're not a bot"** after YouTube refused the first two ways Pawse asks, without trying the one that usually still plays. Pawse now tries it, skips the refused ones for the next videos, and waits a few minutes before asking again if every way is refused, telling you why instead of failing on each Try again.
+- **The next video in full screen flipped the phone upright and back.** It now stays sideways, without the status bar flashing or the picture fading in again, and still leaves when you turn the phone upright if that's how you went in.
+- **Swiping down in full screen didn't leave it.** The brightness and volume drags took the swipe even in the middle of the picture; the middle is now the swipe down again.
+- **Search could sit on placeholders for half a minute** on a weak connection. Each try now gives up sooner, so you get results or a Try again.
+- **Searches that weren't music were laid out as music** when a song or artist with a short name appeared in them, pushing YouTube's own results down. YouTube's order stays unless you searched for the song or artist.
 
 ## [1.13.7] - 2026-10-31
 
