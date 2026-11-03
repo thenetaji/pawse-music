@@ -394,3 +394,4 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - [x] 156. Smoother queue and Now playing: cat animations only redraw when their props change; queue rows keep their identity when the playing song moves.
 
 - [x] 157. Songs stuck at -0:00: the end guard compared the native length with the real one, but the native player now reports the real one. It now watches the position, and also moves on when the player stops on the last second.
+- [x] 158. Videos failed with "Sign in to confirm you're not a bot": after two refusals Pawse now tries a VISIONOS client, benches the refused clients for 15 min, and rests 5/15/30 min when every client is refused, with a plain message.

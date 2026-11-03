@@ -26,10 +26,11 @@ import {
   ClientsConfig,
   DEFAULT_VIDEO_STREAM_CLIENTS_V2,
   defaultStreamClients,
+  type StreamClient,
 } from "../clients";
 import { InnerTubeError, parseYtcfg } from "../music";
 import type { JsSandbox, PoTokenProvider } from "../sandbox";
-import type { ResolveAttempt } from "../stream";
+import { isBotAnswer, type ResolveAttempt, restingError } from "../stream";
 import {
   parseChannel,
   parseChannelAbout,
@@ -147,6 +148,12 @@ function visitorCookieId(visitorData: string | undefined): string | undefined {
   }
 }
 
+const MIN = 60_000;
+/** How long a client that got a bot check sits out, so later videos skip straight to one that plays. */
+const BENCH_MS = 15 * MIN;
+/** No stream asks after a resolve ends on a bot check: asking again only deepens the flag. Longer each time in a row. */
+const REST_MS = [5 * MIN, 15 * MIN, 30 * MIN];
+
 export class YouTubeVideo {
   hl: string;
   gl: string;
@@ -161,6 +168,9 @@ export class YouTubeVideo {
   private webPending?: Promise<WebConfig>;
   private webFailedAt = 0;
   private visitorData?: string;
+  private readonly benched = new Map<string, number>();
+  private restUntil = 0;
+  private rests = 0;
   private readonly channels = new Map<string, ChannelItem>();
 
   constructor(options: YouTubeVideoOptions = {}) {
@@ -623,25 +633,71 @@ export class YouTubeVideo {
       av1?: boolean;
     } = {},
   ): Promise<VideoStream> {
-    const cfg = await this.config();
     this.lastResolveAttempts = [];
-    return resolveVideoStream(
-      videoId,
-      {
-        fetch: this.f,
-        clients: await this.clients.get(),
-        hl: this.hl,
-        gl: this.gl,
-        visitorData: cfg.visitorData ?? this.visitorData,
-        verify: options.verify ?? true,
-        maxHeight: options.maxHeight,
-        audioTrack: options.audioTrack,
-        originalAudio: this.opts.originalAudio?.() ?? true,
-        av1: options.av1,
-        sandbox: this.opts.sandbox,
-        poToken: this.opts.poToken,
-      },
-      this.lastResolveAttempts,
+    if (this.isResting()) throw restingError();
+    const cfg = await this.config();
+    const clients = await this.clients.get();
+    const now = Date.now();
+    for (const [via, until] of this.benched)
+      if (until <= now) this.benched.delete(via);
+    const run = (list: StreamClient[], exclude: string[]) =>
+      resolveVideoStream(
+        videoId,
+        {
+          fetch: this.f,
+          clients: list,
+          hl: this.hl,
+          gl: this.gl,
+          visitorData: cfg.visitorData ?? this.visitorData,
+          verify: options.verify ?? true,
+          maxHeight: options.maxHeight,
+          audioTrack: options.audioTrack,
+          originalAudio: this.opts.originalAudio?.() ?? true,
+          av1: options.av1,
+          sandbox: this.opts.sandbox,
+          poToken: this.opts.poToken,
+          exclude,
+          onBot: (via) => this.benched.set(via, Date.now() + BENCH_MS),
+        },
+        this.lastResolveAttempts,
+      );
+    try {
+      const stream = await run(clients, [...this.benched.keys()]).catch(
+        (e: unknown) => {
+          // The chain stops on a second bot check, but web_music and the TV client are often refused while VISIONOS plays.
+          const plain = isBotAnswer(e) && this.untriedPlainClient(clients);
+          if (!plain) throw e;
+          return run([plain], []);
+        },
+      );
+      this.rests = 0;
+      return stream;
+    } catch (e) {
+      // The next video resolving in the background can hit the same check: it counts once.
+      if (isBotAnswer(e) && !this.isResting()) {
+        this.restUntil =
+          Date.now() + REST_MS[Math.min(this.rests, REST_MS.length - 1)];
+        this.rests += 1;
+        this.benched.clear();
+      }
+      throw e;
+    }
+  }
+
+  /** True while video streams wait out a bot check. */
+  isResting(): boolean {
+    return Date.now() < this.restUntil;
+  }
+
+  private untriedPlainClient(
+    clients: StreamClient[],
+  ): StreamClient | undefined {
+    const tried = new Set(this.lastResolveAttempts.map((a) => a.client));
+    return clients.find(
+      (c) =>
+        !c.needs?.length &&
+        !tried.has(c.name) &&
+        !this.benched.has(`youtube:${c.name}`),
     );
   }
 }

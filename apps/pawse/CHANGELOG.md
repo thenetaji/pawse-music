@@ -2,6 +2,11 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [Unreleased]
+
+### Fixed
+- **Videos stopped with "Sign in to confirm you're not a bot"** after YouTube refused the first two ways Pawse asks, without trying the one that usually still plays. Pawse now tries it, skips the refused ones for the next videos, and waits a few minutes before asking again if every way is refused, telling you why instead of failing on each Try again.
+
 ## [1.13.7] - 2026-10-31
 
 ### Fixed
