@@ -11,6 +11,15 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.13.8",
+          "buildVersion": "11308",
+          "date": "2026-11-03",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.13.8/Pawse.ipa",
+          "size": 24759352,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Changed:\n• Channel pages have YouTube's tabs. Home, Videos, Shorts, Live, Playlists and the rest are plain tabs with a line under the open one, and only that tab's own sorts (Latest, Popular, Oldest) show as chips under them.\n• Speeds above 2×. The speed page goes up to 3×, with − and + buttons beside the slider for 0.05 steps and 1.0, 1.25, 1.5, 2.0 and 3.0 to tap.\n\nFixed:\n• Videos stopped with \"Sign in to confirm you're not a bot\" after YouTube refused the first two ways Pawse asks, without trying the one that usually still plays. Pawse now tries it, skips the refused ones for the next videos, and waits a few minutes before asking again if every way is refused, telling you why instead of failing on each Try again.\n• The next video in full screen flipped the phone upright and back. It now stays sideways, without the status bar flashing or the picture fading in again, and still leaves when you turn the phone upright if that's how you went in.\n• Swiping down in full screen didn't leave it. The brightness and volume drags took the swipe even in the middle of the picture; the middle is now the swipe down again.\n• Search could sit on placeholders for half a minute on a weak connection. Each try now gives up sooner, so you get results or a Try again.\n• Searches that weren't music were laid out as music when a song or artist with a short name appeared in them, pushing YouTube's own results down. YouTube's order stays unless you searched for the song or artist."
+        },
+        {
           "version": "1.13.7",
           "buildVersion": "11307",
           "date": "2026-10-31",
