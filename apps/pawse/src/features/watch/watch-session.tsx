@@ -1,4 +1,8 @@
-import type { SkipSegment } from "@pawse/innertube";
+import {
+  isBotAnswer,
+  isYouTubeResting,
+  type SkipSegment,
+} from "@pawse/innertube";
 import {
   bestThumbnail,
   StreamError,
@@ -1413,6 +1417,12 @@ function whyNot(e: Error): { why?: string; final?: boolean } {
       return {
         why: "Can't reach YouTube. Check your connection and try again.",
       };
+    case "blocked":
+      return isBotAnswer(e) || isYouTubeResting(e)
+        ? {
+            why: "YouTube is checking for bots on this connection. Try again in a few minutes, or switch between Wi‑Fi and mobile data.",
+          }
+        : {};
     default:
       return {};
   }
