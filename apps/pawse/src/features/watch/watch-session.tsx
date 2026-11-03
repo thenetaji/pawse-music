@@ -94,7 +94,7 @@ import { networkKind } from "../../lib/net";
 import {
   allowRotation,
   lockLandscape,
-  lockPortrait,
+  releaseToPortrait,
   onTurn,
 } from "../../lib/orientation";
 import { isLowData } from "../../lib/quality";
@@ -561,13 +561,12 @@ export function WatchSession({ id }: { id: string }) {
   const fsPad = useFullscreenPad();
   const fullscreen = Platform.OS !== "web" || width < 600;
   // Turned sideways by hand (not the button): turning upright again leaves.
-  const [byTurn, setByTurn] = useState(false);
+  const byTurn = useWatch((s) => s.turned);
   // Left full screen on purpose while holding the phone sideways: don't jump straight back in.
   const [upright, setUpright] = useState(false);
   const enterFs = (turned: boolean) => {
-    setByTurn(turned);
     setWatchFill(false);
-    setWatchFullscreen(true);
+    setWatchFullscreen(true, turned);
   };
   const exitFs = () => {
     setUpright(true);
@@ -587,7 +586,7 @@ export function WatchSession({ id }: { id: string }) {
     const off = onTurn((sideways) => sideways && enterFs(true));
     return () => {
       off();
-      lockPortrait();
+      releaseToPortrait();
     };
   }, [mode, fs, started, upright]);
   // Down shrinks the video into the mini player, up goes full screen, like YouTube. Built once, not per frame.
@@ -1542,6 +1541,10 @@ function useFullscreenPad() {
     : { left: insets.top, right: insets.bottom, bottom: 0 };
 }
 
+let showingBar: ReturnType<typeof setTimeout> | undefined;
+let fullscreenLeftAt = 0;
+const SWAP_MS = 500;
+
 /** Full screen: the phone turns to landscape (iPhone then hides the status bar), the video fills
  * the black screen, and swiping down leaves, like YouTube. */
 function FullscreenLayer({
@@ -1558,6 +1561,8 @@ function FullscreenLayer({
 }) {
   const { width, height } = useWindowDimensions();
   const pad = useFullscreenPad();
+  // The next video in full screen appears in place, not faded in over the page.
+  const [swapIn] = useState(() => Date.now() - fullscreenLeftAt < SWAP_MS);
   const pull = useSharedValue(0);
   // Phones: the outer thirds are for brightness and volume, so only the middle follows the finger down to leave
   // (a fast swipe on a side leaves too, from the controls).
@@ -1600,6 +1605,7 @@ function FullscreenLayer({
   useEffect(() => {
     if (byTurn) allowRotation();
     else lockLandscape();
+    clearTimeout(showingBar);
     RNStatusBar.setHidden(true, "fade");
     void startLevels();
     const off = byTurn
@@ -1608,8 +1614,10 @@ function FullscreenLayer({
     return () => {
       off();
       void stopLevels();
-      lockPortrait();
-      RNStatusBar.setHidden(false, "fade");
+      // The next video's full screen takes over in the same moment: no flip upright and back, no status bar flash.
+      releaseToPortrait();
+      showingBar = setTimeout(() => RNStatusBar.setHidden(false, "fade"), 0);
+      fullscreenLeftAt = Date.now();
     };
     // Set up once per full screen; onUpright only sets state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1627,7 +1635,10 @@ function FullscreenLayer({
         transform: [{ rotate: "90deg" }],
       };
   return (
-    <Animated.View entering={FadeIn.duration(200)} style={styles.full}>
+    <Animated.View
+      entering={swapIn ? undefined : FadeIn.duration(200)}
+      style={styles.full}
+    >
       <StatusBar hidden />
       <GestureDetector gesture={exit}>
         <View

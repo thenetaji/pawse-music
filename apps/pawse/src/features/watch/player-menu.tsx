@@ -34,6 +34,7 @@ import {
   SpeedGlyph,
 } from "../../components/glyphs";
 import { showToast } from "../../components/toast";
+import { PressScale } from "../../components/ui";
 import { haptic } from "../../lib/haptics";
 import { LANGUAGES, languageName } from "../../lib/locale";
 import { useSetting } from "../../lib/settings";
@@ -72,9 +73,9 @@ export type PlayerMenuProps = {
   onCommunity?: () => void;
 };
 
-const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+const SPEEDS = [1, 1.25, 1.5, 2, 3];
 const SLOW = 0.25;
-const FAST = 2;
+const FAST = 3;
 const STEP = 0.05;
 const SLEEP_MIN = [15, 30, 45, 60];
 // "Data saver" plays the tallest quality at or under this.
@@ -82,6 +83,8 @@ const SAVER_HEIGHT = 360;
 const SLIDE_MS = 240;
 
 const frac = (r: number) => (r - SLOW) / (FAST - SLOW);
+const clampRate = (r: number) =>
+  Math.round(Math.max(SLOW, Math.min(FAST, r)) * 100) / 100;
 const heightOf = (key: string) => parseInt(key, 10) || 0;
 const speedText = (r: number) => (r === 1 ? "Normal" : `${r}×`);
 const tagOf = (height: number) =>
@@ -520,7 +523,7 @@ function Row({
   );
 }
 
-/** Speed as YouTube has it: the value big, a slider in 0.05 steps, and the usual speeds as chips. */
+/** Speed as YouTube has it: the value big, − and + either side of a slider in 0.05 steps, and the usual speeds below. */
 function SpeedPage({
   speed,
   onSpeed,
@@ -566,34 +569,58 @@ function SpeedPage({
     transform: [{ translateX: pos.value * track - THUMB / 2 }],
   }));
   const fill = useAnimatedStyle(() => ({ width: pos.value * track }));
+  const nudge = (by: number) => {
+    const rate = clampRate(useWatch.getState().speed + by);
+    if (rate === useWatch.getState().speed) return;
+    haptic.tick();
+    onSpeed(rate);
+  };
   return (
     <View style={styles.speedBody}>
-      <Text style={styles.big}>{speed === 1 ? "1×" : `${speed}×`}</Text>
-      <GestureDetector gesture={slide}>
-        <View
-          style={styles.sliderHit}
-          onLayout={(e) => setTrack(e.nativeEvent.layout.width)}
+      <Text style={styles.big}>{speed.toFixed(2)}×</Text>
+      <View style={styles.sliderRow}>
+        <PressScale
+          onPress={() => nudge(-STEP)}
+          accessibilityLabel="Slower"
+          style={styles.stepBtn}
         >
-          <View style={styles.sliderTrack}>
-            <Animated.View style={[styles.sliderFill, fill]} />
-          </View>
-          <Animated.View style={[styles.thumb, thumb]} />
-        </View>
-      </GestureDetector>
-      <View style={styles.chips}>
-        {SPEEDS.map((r) => (
-          <Pressable
-            key={r}
-            onPress={() => {
-              haptic.light();
-              onSpeed(r);
-            }}
-            style={[styles.chip, r === speed && styles.chipOn]}
+          <Text style={styles.stepText}>−</Text>
+        </PressScale>
+        <GestureDetector gesture={slide}>
+          <View
+            style={styles.sliderHit}
+            onLayout={(e) => setTrack(e.nativeEvent.layout.width)}
           >
-            <Text style={[styles.chipText, r === speed && styles.chipTextOn]}>
-              {r === 1 ? "Normal" : `${r}×`}
-            </Text>
-          </Pressable>
+            <View style={styles.sliderTrack}>
+              <Animated.View style={[styles.sliderFill, fill]} />
+            </View>
+            <Animated.View style={[styles.thumb, thumb]} />
+          </View>
+        </GestureDetector>
+        <PressScale
+          onPress={() => nudge(STEP)}
+          accessibilityLabel="Faster"
+          style={styles.stepBtn}
+        >
+          <Text style={styles.stepText}>+</Text>
+        </PressScale>
+      </View>
+      <View style={styles.presets}>
+        {SPEEDS.map((r) => (
+          <View key={r} style={styles.preset}>
+            <Pressable
+              onPress={() => {
+                haptic.light();
+                onSpeed(r);
+              }}
+              style={[styles.chip, r === speed && styles.chipOn]}
+            >
+              <Text style={[styles.chipText, r === speed && styles.chipTextOn]}>
+                {Number.isInteger(r) ? r.toFixed(1) : r}
+              </Text>
+            </Pressable>
+            {r === 1 ? <Text style={styles.presetNote}>Normal</Text> : null}
+          </View>
         ))}
       </View>
     </View>
@@ -648,7 +675,17 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     ...display("800"),
   },
-  sliderHit: { height: 36, justifyContent: "center", marginHorizontal: 11 },
+  sliderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  stepBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  stepText: { color: "#fff", fontSize: 24, lineHeight: 28, ...display("700") },
+  sliderHit: { flex: 1, height: 36, justifyContent: "center" },
   sliderTrack: {
     height: 4,
     borderRadius: 2,
@@ -664,11 +701,14 @@ const styles = StyleSheet.create({
     borderRadius: THUMB / 2,
     backgroundColor: "#fff",
   },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  presets: { flexDirection: "row", gap: 8 },
+  preset: { flex: 1, alignItems: "center", gap: 6 },
+  presetNote: { color: "rgba(255,255,255,0.55)", fontSize: 12 },
   chip: {
-    paddingHorizontal: 14,
-    height: 34,
-    borderRadius: 17,
+    alignSelf: "stretch",
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.12)",
   },

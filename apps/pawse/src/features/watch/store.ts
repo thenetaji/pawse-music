@@ -37,6 +37,8 @@ interface WatchState {
   queue: WatchSeed[];
   /** Landscape full screen; it stays on as the next video starts, like YouTube. */
   fullscreen: boolean;
+  /** Full screen came from turning the phone sideways, so turning it upright leaves; kept for the next video too. */
+  turned: boolean;
   /** Pinched out in full screen: the picture fills the screen. */
   fill: boolean;
   /** Playback speed; kept from video to video. */
@@ -58,15 +60,18 @@ export const useWatch = create<WatchState>(() => ({
   back: [],
   queue: [],
   fullscreen: false,
+  turned: false,
   fill: false,
   speed: 1,
   loop: false,
   swapped: false,
 }));
 
-export const setWatchFullscreen = (on: boolean) =>
+export const setWatchFullscreen = (on: boolean, turned = false) =>
   useWatch.setState(
-    on ? { fullscreen: true } : { fullscreen: false, fill: false },
+    on
+      ? { fullscreen: true, turned }
+      : { fullscreen: false, turned: false, fill: false },
   );
 export const setWatchFill = (fill: boolean) => useWatch.setState({ fill });
 

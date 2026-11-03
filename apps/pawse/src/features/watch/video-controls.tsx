@@ -242,6 +242,11 @@ function stageGesture(
         .maxPointers(1)
         .activeOffsetY([-12, 12])
         .failOffsetX([-24, 24])
+        // A finger in the middle is the swipe down out of full screen: let that gesture have it.
+        .onTouchesDown((e, manager) => {
+          const x = e.allTouches[0]?.x ?? 0;
+          if (x >= o.width * SIDE && x <= o.width * (1 - SIDE)) manager.fail();
+        })
         .onBegin((e) => {
           swipe.down = Date.now();
           swipe.side =
