@@ -6,7 +6,6 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
   StyleSheet,
-  Switch,
   Text,
   useWindowDimensions,
   View,
@@ -20,9 +19,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
-
 import { hideSheet } from "../../components/action-sheet";
-import { SheetScrollView } from "../../components/pull-to-close";
 import {
   AudioTrackGlyph,
   CaptionsGlyph,
@@ -33,6 +30,8 @@ import {
   QualityGlyph,
   SpeedGlyph,
 } from "../../components/glyphs";
+import { SheetScrollView } from "../../components/pull-to-close";
+import { Switch } from "../../components/switch";
 import { showToast } from "../../components/toast";
 import { PressScale } from "../../components/ui";
 import { haptic } from "../../lib/haptics";

@@ -2,7 +2,7 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
-## [Unreleased]
+## [1.14.0] - 2026-11-06
 
 ### Added
 - **Share a song from Shazam to Pawse.** After Shazam finds a song, tap Share and pick Pawse: it finds the song and plays it. If it can't be sure which upload is the right one, it opens the search instead of guessing.
@@ -17,6 +17,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 - **Changing region or language didn't reach the video feed** until Pawse restarted.
 - **Pictures could stay blank on desktop** after they had loaded. They now show as soon as they arrive, without the fade.
 - **Some albums said "Watch" and opened the video player** when most of their songs came as music videos. Albums now always play.
+- **Switches sat above the middle of their row on iPhone.** They now line up with their labels everywhere.
 
 ## [1.13.8] - 2026-11-03
 

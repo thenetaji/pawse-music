@@ -2,15 +2,7 @@ import type { Track } from "@pawse/music-core";
 import * as Application from "expo-application";
 import { startActivityAsync } from "expo-intent-launcher";
 import { useState } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native";
-
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { PawseAlarm } from "../../../modules/pawse-alarm";
 import { Artwork } from "../../components/artwork";
 import {
@@ -19,6 +11,7 @@ import {
   styles as rows,
   Section,
 } from "../../components/settings-rows";
+import { Switch } from "../../components/switch";
 import { Chip, PressScale, Screen } from "../../components/ui";
 import { useLibrary } from "../../data/library";
 import { haptic } from "../../lib/haptics";
