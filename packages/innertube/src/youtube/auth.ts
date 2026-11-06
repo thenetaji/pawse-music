@@ -1,5 +1,15 @@
-import { sha1Hex } from "../util/sha1";
 import { parseCookies } from "../util/http";
+import { sha1Hex } from "../util/sha1";
+
+/** Whether YouTube took a call as signed in; undefined when its answer doesn't say. A 200 can still be signed out. */
+export function answeredSignedIn(json: unknown): boolean | undefined {
+  const context = (json as { responseContext?: any } | null)?.responseContext;
+  if (context?.mainAppWebResponseContext?.loggedOut === true) return false;
+  for (const service of context?.serviceTrackingParams ?? [])
+    for (const param of service?.params ?? [])
+      if (param?.key === "logged_in") return param.value === "1";
+  return undefined;
+}
 
 /** Authorization value the web app sends: SAPISIDHASH plus the 1P/3P variants when those cookies exist. */
 export function sapisidAuthorization(

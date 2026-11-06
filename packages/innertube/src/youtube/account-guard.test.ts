@@ -54,3 +54,40 @@ describe("signed-in safety", () => {
     await expect(yt.rate("abc", "like")).rejects.toThrow();
   });
 });
+
+describe("session answers", () => {
+  const answers = async (body: unknown, cookies: string | null = COOKIE) => {
+    const seen: boolean[] = [];
+    const yt = new YouTubeMusic({
+      fetch: jest.fn(async () => reply(body)),
+      clientsConfigUrl: null,
+      cookies: () => cookies,
+      onSessionAnswer: (signedIn) => seen.push(signedIn),
+    });
+    await yt.home().catch(() => {});
+    return seen;
+  };
+  const tracking = (value: string) => ({
+    responseContext: {
+      serviceTrackingParams: [{ params: [{ key: "logged_in", value }] }],
+    },
+  });
+
+  it("reports a signed-out answer to a call that sent cookies", async () => {
+    expect(await answers(tracking("0"))).toEqual([false]);
+    expect(
+      await answers({
+        responseContext: { mainAppWebResponseContext: { loggedOut: true } },
+      }),
+    ).toEqual([false]);
+  });
+
+  it("reports a signed-in answer", async () => {
+    expect(await answers(tracking("1"))).toEqual([true]);
+  });
+
+  it("says nothing when the answer doesn't say, or no cookies were sent", async () => {
+    expect(await answers({})).toEqual([]);
+    expect(await answers(tracking("0"), null)).toEqual([]);
+  });
+});

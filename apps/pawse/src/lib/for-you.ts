@@ -4,7 +4,7 @@ import { followedChannels } from "../data/channels";
 import { ytv } from "../data/clients";
 import { kv } from "../data/storage";
 import { useWatched } from "../data/watched";
-import { noteShown, orderFeed, type Seen } from "./for-you-order";
+import { keepRank, noteShown, orderFeed, type Seen } from "./for-you-order";
 import { learnsFromWatching } from "./learn";
 import { playable } from "./playable";
 
@@ -21,8 +21,6 @@ const FEED_CAP = 5;
 const HOPS_PER_SEED = 1;
 const MAX_SEEDS = 30;
 const MAX_SHOWN = 400;
-// How many of YouTube's leading videos swap places among themselves.
-const LEAD = 10;
 // Videos earlier opens showed go last, and what led the last few refreshes goes last of all.
 export const RECENT_KEY = "pawse.forYou.recent";
 const TOPS_KEY = "pawse.forYou.tops";
@@ -89,9 +87,7 @@ export async function forYou(continuation?: string): Promise<VideoFeed> {
     const feed = await ytv.home(continuation);
     const items = feed.items.filter((v) => !watched.has(v.id) && playable(v));
     if (continuation) return { ...feed, items };
-    // YouTube's lead is the same for a while, so its leading videos trade places and last time's go down.
-    const lead = [...shuffled(items.slice(0, LEAD)), ...items.slice(LEAD)];
-    const ordered = orderFeed(lead, seenNow());
+    const ordered = keepRank(items, seenNow());
     remember(
       ordered.map((v) => v.id),
       true,

@@ -6,14 +6,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -25,6 +18,7 @@ import Animated, {
 } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
+import { Switch } from "../../components/switch";
 
 import { clock } from "../../components/video-card";
 import { haptic } from "../../lib/haptics";

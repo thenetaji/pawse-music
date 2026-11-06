@@ -49,6 +49,7 @@ import { levelsAvailable } from "../../lib/audio-fx";
 import { COVER_PX, coverSources, useCover } from "../../lib/cover";
 import type { SkipSwipe } from "../../lib/cover-gestures";
 import { haptic } from "../../lib/haptics";
+import { imageFade } from "../../lib/image-fade";
 import { activeLine } from "../../lib/lrc";
 import { useSetting } from "../../lib/settings";
 import { useSongArt } from "../../lib/song-art";
@@ -368,7 +369,7 @@ export function NowPlayingView(p: NowPlayingProps) {
                     source={art}
                     style={StyleSheet.absoluteFill}
                     contentFit="cover"
-                    transition={300}
+                    transition={imageFade(300)}
                     recyclingKey={p.track?.id}
                   />
                 ) : null}
@@ -444,7 +445,7 @@ export function NowPlayingView(p: NowPlayingProps) {
                   source={hero.uri}
                   style={StyleSheet.absoluteFill}
                   contentFit="cover"
-                  transition={350}
+                  transition={imageFade(350)}
                   blurRadius={videoOn ? 40 : 0}
                   recyclingKey={p.track?.id}
                   onError={hero.next}
@@ -795,7 +796,7 @@ export function NowPlayingView(p: NowPlayingProps) {
                 source={hero.uri ?? art}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
-                transition={200}
+                transition={imageFade(200)}
               />
             </Animated.View>
             <LinearGradient

@@ -19,9 +19,10 @@ import { logEvent } from "../lib/diagnostics";
 import { learnsFromWatching } from "../lib/learn";
 import { languageCode, regionCode } from "../lib/locale";
 import { appFetch } from "../lib/net";
-import { effectiveQuality } from "../lib/quality";
-import { getSetting } from "../lib/settings";
 import { poTokenProvider, prewarmPoToken } from "../lib/po-token";
+import { effectiveQuality } from "../lib/quality";
+import { noteSessionAnswer, resetSessionAnswers } from "../lib/session-state";
+import { getSetting } from "../lib/settings";
 import { youtubeSandbox } from "../lib/youtube-sandbox";
 import { useLibrary } from "./library";
 import { kv } from "./storage";
@@ -54,6 +55,7 @@ const raw = new YouTubeMusic({
   opus: opusNative,
   onRequestError: (endpoint, e) =>
     logEvent("request-failed", `${endpoint}: ${(e as Error)?.message ?? e}`),
+  onSessionAnswer: noteSessionAnswer,
 });
 prewarmPoToken();
 
@@ -70,6 +72,7 @@ export const ytv = new YouTubeVideo({
   hl: languageCode(settings().language),
   gl: gl(regionCode(settings().region)),
   cookies: () => settings().cookies ?? undefined,
+  onSessionAnswer: noteSessionAnswer,
   privateSearch: () => !!settings().incognito,
   originalAudio: () => getSetting("originalTitles", true),
   sandbox: youtubeSandbox,
@@ -78,12 +81,13 @@ export const ytv = new YouTubeVideo({
   clientsV2: !!youtubeSandbox,
   platform: Platform.OS,
 });
-useLibrary.subscribe((s) =>
-  raw.setLocale(
-    languageCode(s.settings.language),
-    gl(regionCode(s.settings.region)),
-  ),
-);
+useLibrary.subscribe((s, prev) => {
+  const hl = languageCode(s.settings.language);
+  const country = gl(regionCode(s.settings.region));
+  raw.setLocale(hl, country);
+  ytv.setLocale(hl, country);
+  if (s.settings.cookies !== prev.settings.cookies) resetSessionAnswers();
+});
 
 const FILTERED = new Set([
   "home",

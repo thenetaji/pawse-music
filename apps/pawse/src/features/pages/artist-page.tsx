@@ -20,6 +20,7 @@ import { mirrorFollow } from "../../data/account";
 import { useLibrary } from "../../data/library";
 import { yt } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
+import { imageFade } from "../../lib/image-fade";
 import { useContentWidth } from "../../lib/layout";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
@@ -91,7 +92,7 @@ export default function ArtistPage() {
                 source={hero}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
-                transition={300}
+                transition={imageFade(300)}
               />
             ) : null}
           </Animated.View>
@@ -216,6 +217,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", gap: 10, marginTop: 16 },
   btn: {
     flex: 1,
+    maxWidth: 200,
     height: 48,
     borderRadius: 14,
     flexDirection: "row",

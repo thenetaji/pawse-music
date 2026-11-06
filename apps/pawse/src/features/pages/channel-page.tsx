@@ -1,9 +1,9 @@
 import {
   bestThumbnail,
-  type ChannelPage as Page,
   type ChannelSort,
   type ChannelTab,
   type ChannelTabPage,
+  type ChannelPage as Page,
   type VideoItem,
   type VideoPlaylistItem,
 } from "@pawse/music-core";
@@ -40,7 +40,7 @@ import {
   SectionTitle,
   SkeletonShelves,
 } from "../../components/ui";
-import { VideoCard, VideoPlaylistRow } from "../../components/video-card";
+import { VideoPlaylistRow, VideoTiles } from "../../components/video-card";
 import { markChannelSeen, useSubscribed } from "../../data/channels";
 import { isPinned, togglePin } from "../../data/pins";
 import { blockChannel, useVideoFilter } from "../../lib/block";
@@ -264,18 +264,28 @@ export default function ChannelPage() {
       ],
     });
 
-  const row = (i: Item, n: number) => (
-    <Animated.View
-      key={`${i.type}${i.id}`}
-      entering={FadeInDown.duration(360).delay(Math.min(n, 6) * 50)}
-    >
-      {i.type === "video" ? (
-        <VideoCard video={i} hideChannel />
-      ) : (
-        <VideoPlaylistRow list={i} />
-      )}
-    </Animated.View>
-  );
+  // Videos side by side run together into one grid; a playlist keeps its own row.
+  const rows = (items: Item[]) => {
+    const blocks: (VideoItem[] | VideoPlaylistItem)[] = [];
+    for (const i of items) {
+      const last = blocks[blocks.length - 1];
+      if (i.type !== "video") blocks.push(i);
+      else if (Array.isArray(last)) last.push(i);
+      else blocks.push([i]);
+    }
+    return blocks.map((b, n) => (
+      <Animated.View
+        key={Array.isArray(b) ? `run${b[0].id}` : `list${b.id}`}
+        entering={FadeInDown.duration(360).delay(Math.min(n, 6) * 50)}
+      >
+        {Array.isArray(b) ? (
+          <VideoTiles videos={b} hideChannel />
+        ) : (
+          <VideoPlaylistRow list={b} />
+        )}
+      </Animated.View>
+    ));
+  };
 
   return (
     <Screen
@@ -448,13 +458,13 @@ export default function ChannelPage() {
               ) : (
                 <View key={sec.title}>
                   <SectionTitle title={sec.title} />
-                  {sec.items.slice(0, 5).map(row)}
+                  {rows(sec.items.slice(0, 5))}
                 </View>
               ),
             )
           ) : shown ? (
             list.length ? (
-              list.map(row)
+              rows(list)
             ) : busy ? null : (
               <CatState
                 kind="empty"
@@ -521,6 +531,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 14,
     aspectRatio: 5.5,
+    maxHeight: 180,
     borderRadius: 12,
     backgroundColor: "#111",
   },

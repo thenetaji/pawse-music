@@ -5,19 +5,19 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-import { Foot, Section, styles as rows } from "../components/settings-rows";
+import { Foot, styles as rows, Section } from "../components/settings-rows";
+import { Switch } from "../components/switch";
 import { showToast } from "../components/toast";
 import { CurveAxis } from "../features/equaliser/curve-axis";
 import { ResponseCurve } from "../features/equaliser/response-curve";
 import { useAccent } from "../features/now-playing/now-palette";
+import { setEqBypass } from "../lib/audio-fx";
 import { type AutoEqEntry, searchIndex } from "../lib/audio-fx/autoeq";
 import { loadIndex, loadProfile } from "../lib/audio-fx/autoeq-source";
 import { chainCurve } from "../lib/audio-fx/curve";
@@ -33,7 +33,6 @@ import {
   PRESETS,
   presetGains,
 } from "../lib/audio-fx/eq";
-import { setEqBypass } from "../lib/audio-fx";
 import { useEqStatus } from "../lib/audio-fx/use-eq-status";
 import { haptic } from "../lib/haptics";
 import { setSetting, useSetting } from "../lib/settings";

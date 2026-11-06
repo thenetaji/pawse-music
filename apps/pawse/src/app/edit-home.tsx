@@ -1,7 +1,7 @@
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
-
 import { Foot, Link, Section } from "../components/settings-rows";
+import { Switch } from "../components/switch";
 import { Screen } from "../components/ui";
 import { useAccent } from "../features/now-playing/now-palette";
 import { setFocusMode, useFocusMode } from "../lib/focus";

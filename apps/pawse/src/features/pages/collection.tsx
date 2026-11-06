@@ -33,8 +33,8 @@ import {
   MinusGlyph,
   PencilGlyph,
   PinGlyph,
-  PlayNextGlyph,
   PlaylistGlyph,
+  PlayNextGlyph,
   RefreshGlyph,
   TrashGlyph,
 } from "../../components/glyphs";
@@ -53,9 +53,9 @@ import { setGroupBy, useGroupBy, useSections } from "../../data/sorting";
 import { isUnfinished, useWatched } from "../../data/watched";
 import { haptic } from "../../lib/haptics";
 import { useRegion } from "../../lib/locale";
-import { count } from "../../lib/plural";
-import { PRIVACY_CHOICES, type PlaylistActions } from "../../lib/playlist-edit";
+import { type PlaylistActions, PRIVACY_CHOICES } from "../../lib/playlist-edit";
 import type { Picked } from "../../lib/playlist-remove";
+import { count } from "../../lib/plural";
 import { autoplayMode } from "../../lib/settings";
 import {
   playSmooth,
@@ -173,6 +173,7 @@ export function Collection({
   };
   // A YouTube playlist of videos (a course, a series) is watched, in order, not listened to.
   const videoList =
+    source.type !== "album" &&
     tracks.length > 0 &&
     tracks.filter((t) => t.kind === "video").length * 2 > tracks.length;
   const listId = source.id ?? `title:${title}`;
@@ -1097,12 +1098,14 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 10,
     marginTop: 18,
     alignSelf: "stretch",
   },
   btn: {
     flex: 1,
+    maxWidth: 200,
     height: 48,
     borderRadius: 14,
     flexDirection: "row",

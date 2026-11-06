@@ -6,8 +6,15 @@ import {
 } from "@pawse/music-core";
 import { player } from "@pawse/player";
 import { Image } from "expo-image";
-import { memo } from "react";
-import { Platform, Share, StyleSheet, Text, View } from "react-native";
+import { memo, useState } from "react";
+import {
+  Platform,
+  Share,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 
 import { ytv } from "../data/clients";
 import { downloadVideo } from "../data/downloads";
@@ -31,8 +38,10 @@ import { blockChannel, hideVideo } from "../lib/block";
 import { useBranding } from "../lib/community";
 import { rightClick } from "../lib/context-menu";
 import { plainThumb, useFocus } from "../lib/focus";
+import { imageFade } from "../lib/image-fade";
 import { go } from "../lib/nav";
 import { display } from "../lib/type";
+import { videoColumns } from "../lib/video-columns";
 import { showSheet } from "./action-sheet";
 import {
   BlockGlyph,
@@ -43,8 +52,8 @@ import {
   HideGlyph,
   MusicGlyph,
   PinGlyph,
-  PlayNextGlyph,
   PlaylistGlyph,
+  PlayNextGlyph,
   QueueAddGlyph,
   ShareGlyph,
   TrashGlyph,
@@ -258,7 +267,7 @@ function Thumb({
         source={src ?? bestThumbnail(v.thumbnails, 720)}
         style={StyleSheet.absoluteFill}
         contentFit="cover"
-        transition={200}
+        transition={imageFade(200)}
       />
       {v.live ? (
         <Text style={[styles.badge, styles.live]}>LIVE</Text>
@@ -350,13 +359,54 @@ export const VideoCard = memo(function VideoCard({
   );
 });
 
+/** Videos as full cards on phones and a grid of tiles on wider screens. */
+export function VideoTiles({
+  videos,
+  hideChannel,
+}: {
+  videos: VideoItem[];
+  hideChannel?: boolean;
+}) {
+  const screen = useWindowDimensions().width;
+  const [width, setWidth] = useState(0);
+  const cols = videoColumns(width || screen);
+  const rows: VideoItem[][] = [];
+  for (let i = 0; i < videos.length; i += cols)
+    rows.push(videos.slice(i, i + cols));
+  return (
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {cols === 1
+        ? videos.map((v) => (
+            <VideoCard key={v.id} video={v} hideChannel={hideChannel} />
+          ))
+        : rows.map((row) => (
+            <View key={row[0].id} style={styles.tileRow}>
+              {row.map((v) => (
+                <VideoCard
+                  key={v.id}
+                  video={v}
+                  hideChannel={hideChannel}
+                  tile
+                />
+              ))}
+              {Array.from({ length: cols - row.length }, (_, k) => (
+                <View key={k} style={{ flex: 1 }} />
+              ))}
+            </View>
+          ))}
+    </View>
+  );
+}
+
 /** A compact row for "Up next": small thumbnail beside the title. */
 export const VideoRow = memo(function VideoRow({
   video,
   onPress,
+  thumb = 150,
 }: {
   video: VideoItem;
   onPress?: () => void;
+  thumb?: number;
 }) {
   const brand = useBranding(video.id);
   const focus = useFocus();
@@ -368,7 +418,7 @@ export const VideoRow = memo(function VideoRow({
       {...rightClick(() => showVideoActions(video))}
       style={styles.row}
     >
-      <Thumb v={video} width={150} src={pic} />
+      <Thumb v={video} width={thumb} src={pic} />
       <View style={{ flex: 1 }}>
         <Text style={styles.rowTitle} numberOfLines={2}>
           {brand?.title ?? video.title}
@@ -424,7 +474,7 @@ export function VideoPlaylistRow({ list }: { list: VideoPlaylistItem }) {
             source={bestThumbnail(list.thumbnails, 360)}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            transition={200}
+            transition={imageFade(200)}
           />
           <View style={styles.countBadge}>
             <PlaylistGlyph size={13} color="#fff" />
@@ -484,6 +534,7 @@ const styles = StyleSheet.create({
   sheetSub: { color: "rgba(255,255,255,0.55)", fontSize: 13, marginTop: 2 },
   card: { marginBottom: 20 },
   tile: { flex: 1, marginBottom: 22 },
+  tileRow: { flexDirection: "row", gap: 16, paddingHorizontal: 16 },
   bleed: { borderRadius: 0 },
   thumb: {
     width: "100%",

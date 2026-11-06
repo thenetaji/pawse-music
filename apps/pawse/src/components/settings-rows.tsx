@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useAccent } from "../features/now-playing/now-palette";
 import { haptic } from "../lib/haptics";
 import { tipOnce } from "../lib/setting-tip";
@@ -7,6 +7,7 @@ import { setSetting, useSetting } from "../lib/settings";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
 import { ChevronRight, InfoGlyph } from "./glyphs";
+import { Switch } from "./switch";
 import { RIPPLE } from "./ui";
 
 const CHEV = "rgba(255,255,255,0.35)";
