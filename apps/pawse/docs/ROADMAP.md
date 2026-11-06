@@ -410,7 +410,7 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 ## Tonight (approved 2026-11-06)
 
 - [x] 1. Share a song from Shazam to Pawse on Android: Pawse reads the title, artist and length from the link, finds it on YouTube Music and plays it from the start, with a "Wrong song?" way out.
-- [ ] 2. The same share on iOS: needs a share extension, and a check of SideStore's app limits.
+- [ ] 2. The same share on iOS: a share extension saves the link in the App Group and opens Pawse through the responder chain, which Apple doesn't support; if that fails the song plays when Pawse is next opened. Tick after testing on an iPhone through SideStore.
 - [x] 3. Feed looks signed out while signed in: YouTube's answers are now checked, and Home and Videos say when it has signed you out or sent no suggestions.
 - [x] 4. Videos For you keeps YouTube's ranking instead of shuffling its top ten; what opened the last refreshes only steps a little way down.
 - [x] 5. Signed in, YouTube Music's own first shelves lead For you on Home, in place of Pawse's Quick picks.

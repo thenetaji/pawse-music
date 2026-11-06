@@ -149,6 +149,11 @@ export default function RootLayout() {
               name="wake"
               options={{ presentation: "transparentModal", animation: "none" }}
             />
+            {/* The iOS share extension links here to bring Pawse forward. */}
+            <Stack.Screen
+              name="shared"
+              options={{ presentation: "transparentModal", animation: "none" }}
+            />
             <Stack.Screen name="sign-in" options={modal} />
             <Stack.Screen name="import" options={modal} />
             <Stack.Screen name="downloads" options={modal} />

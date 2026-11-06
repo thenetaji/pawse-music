@@ -1,6 +1,7 @@
 import type { SearchResults, Track } from "@pawse/music-core";
 import { player } from "@pawse/player";
 import { router } from "expo-router";
+import { AppState } from "react-native";
 
 import { onShare, takeInitialShare } from "../../modules/pawse-share";
 import { showToast } from "../components/toast";
@@ -60,7 +61,18 @@ async function openSharedText(text: string) {
 
 /** Call once at start: plays what Shazam shared, whether that launched Pawse or reached it while running. */
 export function startSharedSongs(): () => void {
-  const first = takeInitialShare();
-  if (first) void openSharedText(first);
-  return onShare((text) => void openSharedText(text));
+  const check = () => {
+    const text = takeInitialShare();
+    if (text) void openSharedText(text);
+  };
+  check();
+  // iOS leaves the share in the App Group, whether or not its extension managed to open Pawse.
+  const foreground = AppState.addEventListener("change", (state) => {
+    if (state === "active") check();
+  });
+  const stop = onShare((text) => void openSharedText(text));
+  return () => {
+    foreground.remove();
+    stop();
+  };
 }

@@ -5,7 +5,7 @@ All notable changes to Pawse (called Flow before 0.4.0). The format follows [Kee
 ## [Unreleased]
 
 ### Added
-- **Share a song from Shazam to Pawse (Android).** After Shazam finds a song, tap Share and pick Pawse: it finds the song and plays it. If it can't be sure which upload is the right one, it opens the search instead of guessing.
+- **Share a song from Shazam to Pawse.** After Shazam finds a song, tap Share and pick Pawse: it finds the song and plays it. If it can't be sure which upload is the right one, it opens the search instead of guessing.
 
 ### Changed
 - **For you follows YouTube's ranking when you're signed in.** Videos no longer shuffle YouTube's top picks, and on Home YouTube Music's own shelves come first.
