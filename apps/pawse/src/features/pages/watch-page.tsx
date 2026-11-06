@@ -32,8 +32,11 @@ import { useVideoFilter } from "../../lib/block";
 import { ytv } from "../../lib/engine";
 import { forYou } from "../../lib/for-you";
 import { useHomeSections } from "../../lib/home-sections";
+import { push } from "../../lib/nav";
+import { useSessionLost } from "../../lib/session-state";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
+import { videoColumns } from "../../lib/video-columns";
 import { useHasSubs } from "../home/home-blocks";
 import { MindfulToday } from "../mindful/mindful-ui";
 import { useAccent } from "../now-playing/now-palette";
@@ -56,6 +59,7 @@ const TOPICS = [
 type Page = {
   items: (VideoFeed | VideoSearchResults)["items"];
   continuation?: string;
+  standIn?: boolean;
 };
 
 /** YouTube without the noise: a feed or your subscriptions, search, and no Shorts anywhere. */
@@ -79,6 +83,7 @@ export default function WatchPage({
 
   // Signed in, the chips are YouTube's own, from the top of your feed; signed out, a fixed set of topics.
   const account = useLibrary((s) => !!s.settings.cookies);
+  const sessionLost = useSessionLost();
   const forYouFeed = useResource<VideoFeed>("watch:home", () => forYou(), {
     keep: true,
   });
@@ -155,9 +160,8 @@ export default function WatchPage({
     Keyboard.dismiss();
   };
 
-  // Phones get one edge-to-edge column; wider screens a grid of tiles.
   const [width, setWidth] = useState(0);
-  const cols = width >= 1050 ? 3 : width >= 640 ? 2 : 1;
+  const cols = videoColumns(width);
   const keep = useVideoFilter();
   const seen = new Set<string>();
   const unique = items.filter(
@@ -249,6 +253,20 @@ export default function WatchPage({
       {query ? (
         <Text style={styles.note} numberOfLines={1}>
           Results for “{query}”
+        </Text>
+      ) : null}
+      {account && !query && sessionLost ? (
+        <Pressable onPress={() => push("/sign-in")}>
+          <Text style={styles.warn}>
+            YouTube signed you out, so these aren&apos;t your suggestions. Tap
+            to sign in again.
+          </Text>
+        </Pressable>
+      ) : feed === "home" && !query && first.data?.standIn ? (
+        <Text style={styles.warn}>
+          YouTube sent no suggestions for your account, so these are popular
+          videos. Turning on watch history in your Google account usually brings
+          them back.
         </Text>
       ) : null}
       <View
@@ -354,6 +372,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.3)",
   },
   chips: { gap: 8, paddingHorizontal: 16, paddingTop: 14 },
+  warn: {
+    color: "#FF9F43",
+    fontSize: 13,
+    lineHeight: 18,
+    marginHorizontal: 16,
+    marginTop: 14,
+  },
   note: {
     color: "rgba(255,255,255,0.55)",
     fontSize: 13,

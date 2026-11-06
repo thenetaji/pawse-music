@@ -12,10 +12,9 @@ import { ActionSheetHost } from "../components/action-sheet";
 import { ToastHost } from "../components/toast";
 import { startAutoBackup } from "../data/auto-backup";
 import { startJournalRecorder } from "../data/journal-recorder";
+import { useLibrary } from "../data/library";
 import { startScrobbler } from "../data/scrobbler";
 import { startSortKeeper } from "../data/sorted-playlists";
-import { startDiscordStatus } from "../lib/discord-status";
-import { useLibrary } from "../data/library";
 import { startAlarm } from "../features/alarm/alarm";
 import { startMochi } from "../features/cat/mochi";
 import { startAndroidPill } from "../features/island/android-pill";
@@ -30,8 +29,10 @@ import { startShakeShuffle } from "../features/playback/shake-shuffle";
 import { WatchHost } from "../features/watch/watch-host";
 import { maybeShowWhatsNew } from "../features/whats-new/whats-new";
 import { startSharingRatings } from "../lib/contribute";
+import { startDiscordStatus } from "../lib/discord-status";
 import { startEngine } from "../lib/engine";
 import { startFreshFeeds } from "../lib/fresh-feeds";
+import { startSharedSongs } from "../lib/open-shared";
 import { lockPortrait } from "../lib/orientation";
 import { getSetting, useSetting } from "../lib/settings";
 import { checkOnLaunch } from "../lib/updates";
@@ -68,6 +69,7 @@ export default function RootLayout() {
     const stopAlarm = startAlarm();
     const stopShake = startShakeShuffle();
     const stopSorted = startSortKeeper();
+    const stopShared = startSharedSongs();
     // First launch: meet the cat once the persisted library has loaded.
     const onboard = () => {
       maybeShowWhatsNew();
@@ -95,6 +97,7 @@ export default function RootLayout() {
       stopAlarm();
       stopShake();
       stopSorted();
+      stopShared();
       unsub();
     };
   }, []);

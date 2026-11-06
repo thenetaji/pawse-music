@@ -170,11 +170,16 @@ function TrackGrid({
   items: CatalogItem[];
   removable?: boolean;
 }) {
-  const pages: CatalogItem[][] = [];
-  for (let i = 0; i < items.length; i += 4) pages.push(items.slice(i, i + 4));
   // One page per screen width with the next peeking in; wide windows show columns side by side.
   const width = useContentWidth();
-  const PAGE_W = width > 700 ? Math.min(420, (width - 40) / 2) : width - 44;
+  const wide = width > 700;
+  const PAGE_W = wide ? Math.min(420, (width - 40) / 2) : width - 44;
+  // A short list spreads evenly over the columns that fit, instead of four rows and a stray one.
+  const fit = Math.max(1, Math.floor(width / PAGE_W));
+  const perPage = wide ? Math.min(4, Math.ceil(items.length / fit)) : 4;
+  const pages: CatalogItem[][] = [];
+  for (let i = 0; i < items.length; i += perPage)
+    pages.push(items.slice(i, i + perPage));
   return (
     <FlatList
       horizontal

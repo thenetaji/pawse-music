@@ -7,6 +7,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { useDataSaverActive } from "../data/downloads";
 import { listCoverPx } from "../lib/cover";
+import { imageFade } from "../lib/image-fade";
 import { useSongArt } from "../lib/song-art";
 
 const FALLBACK: [string, string][] = [
@@ -84,7 +85,7 @@ export function Artwork({
           source={uri}
           style={{ width: size, height: size }}
           contentFit="cover"
-          transition={200}
+          transition={imageFade(200)}
           recyclingKey={uri}
           onError={() => setFailed(uri)}
         />

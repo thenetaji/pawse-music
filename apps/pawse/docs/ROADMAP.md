@@ -406,3 +406,16 @@ Not now: music-fan extras (radio, setlists, credits, concerts, LRCLIB syncing, l
 - [ ] 6. Player menu tidier, YouTube-style: waiting on what feels hard to use.
 - [x] 7. Search stuck: 7 s budget per try, signed-out fallback without a retry.
 - [x] 8. Search not like YouTube: a short music name inside a longer query no longer switches to the music layout.
+
+## Tonight (approved 2026-11-06)
+
+- [x] 1. Share a song from Shazam to Pawse on Android: Pawse reads the title, artist and length from the link, finds it on YouTube Music and plays it from the start, with a "Wrong song?" way out.
+- [ ] 2. The same share on iOS: needs a share extension, and a check of SideStore's app limits.
+- [x] 3. Feed looks signed out while signed in: YouTube's answers are now checked, and Home and Videos say when it has signed you out or sent no suggestions.
+- [x] 4. Videos For you keeps YouTube's ranking instead of shuffling its top ten; what opened the last refreshes only steps a little way down.
+- [x] 5. Signed in, YouTube Music's own first shelves lead For you on Home, in place of Pawse's Quick picks.
+- [x] 6. Changing region or language now reaches the YouTube video feed without a restart.
+- [x] 7. Desktop thumbnails too big: tiles stay about 300 px and more fit across, on Videos, Home and channel pages; search results become rows on wide screens.
+- [x] 8. Desktop: Play, Shuffle and the like stop at 200 px instead of filling the page (search top result, albums, artists); channel banners stay short; short song lists spread evenly across columns.
+- [x] 9. Albums with music videos offered "Watch" and opened the video player; albums always play.
+- [x] 10. Desktop pictures could stay blank after loading: expo-image's fade is off on web and desktop.

@@ -2,6 +2,22 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [Unreleased]
+
+### Added
+- **Share a song from Shazam to Pawse (Android).** After Shazam finds a song, tap Share and pick Pawse: it finds the song and plays it. If it can't be sure which upload is the right one, it opens the search instead of guessing.
+
+### Changed
+- **For you follows YouTube's ranking when you're signed in.** Videos no longer shuffle YouTube's top picks, and on Home YouTube Music's own shelves come first.
+- **More thumbnails fit on a big screen.** On desktop, tiles stay about the same size and more fit across, on Videos, Home and channel pages. Search results become rows with a thumbnail beside the title.
+- **Play buttons no longer stretch across the window on desktop,** on search, album and artist pages. Channel banners stay short, and short song lists spread evenly across columns.
+
+### Fixed
+- **Pawse didn't notice when YouTube stopped accepting your sign-in** and quietly showed a feed that wasn't yours. Home and Videos now tell you and offer to sign in again. Videos also says when YouTube sends your account no suggestions.
+- **Changing region or language didn't reach the video feed** until Pawse restarted.
+- **Pictures could stay blank on desktop** after they had loaded. They now show as soon as they arrive, without the fade.
+- **Some albums said "Watch" and opened the video player** when most of their songs came as music videos. Albums now always play.
+
 ## [1.13.8] - 2026-11-03
 
 ### Changed

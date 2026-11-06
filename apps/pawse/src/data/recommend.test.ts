@@ -178,6 +178,29 @@ describe("cold start", () => {
 });
 
 describe("forYouShelves", () => {
+  it("leaves Quick picks to YouTube when its shelves lead", () => {
+    const data = {
+      sig: "",
+      quick: [
+        {
+          id: "q",
+          title: "Q",
+          artists: [{ name: "A" }],
+          source: "youtube",
+        } as Track,
+      ],
+      because: [],
+      fresh: [],
+      popular: [],
+    };
+    const titles = (youtubeLeads: boolean) =>
+      forYouShelves(data, [], { drop: new Set(), youtubeLeads }).map(
+        (s) => s.title,
+      );
+    expect(titles(false)).toEqual(["Quick picks"]);
+    expect(titles(true)).toEqual([]);
+  });
+
   it("shows each song on one shelf only", () => {
     const own = ["r1", "r2", "r3", "r4"].map((id) => track(id));
     const pool = ["r1", "q1", "q2", "q3"].map((id) => track(id));

@@ -5,6 +5,7 @@ import {
   type Shelf as ShelfT,
   type VideoSearchResults,
 } from "@pawse/music-core";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -15,6 +16,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, {
@@ -37,6 +39,7 @@ import {
   ChannelRow,
   VideoCard,
   VideoPlaylistRow,
+  VideoRow,
 } from "../../components/video-card";
 import { useLibrary } from "../../data/library";
 import { type BlockedChannel, useVideoFilter } from "../../lib/block";
@@ -49,8 +52,8 @@ import { useResource } from "../../lib/use-resource";
 import { useAccent } from "../now-playing/now-palette";
 import {
   groupShelves,
-  type Kind,
   KINDS,
+  type Kind,
   musicFilter,
   namesMatch,
   rememberSearchArt,
@@ -125,6 +128,16 @@ export default function SearchPage() {
     Keyboard.dismiss();
     useLibrary.getState().addSearch(v);
   };
+  // Another part of the app can open this page on a search.
+  const { q: asked } = useLocalSearchParams<{ q?: string }>();
+  const [answered, setAnswered] = useState<string>();
+  if (asked && asked !== answered) {
+    setAnswered(asked);
+    setText(asked);
+    setQuery(asked);
+    setKind("all");
+    setSuggesting(false);
+  }
   // A song or artist picked from the suggestions opens on its own, so the suggestions close behind it.
   const leave = () => {
     Keyboard.dismiss();
@@ -564,10 +577,13 @@ function useYouTubeSearch(
 }
 
 function YouTubeRow({ item }: { item: Video }) {
+  const wide = useWindowDimensions().width >= 640;
   return item.type === "channel" ? (
     <ChannelRow channel={item} />
   ) : item.type === "playlist" ? (
     <VideoPlaylistRow list={item} />
+  ) : wide ? (
+    <VideoRow video={item} thumb={320} />
   ) : (
     <VideoCard video={item} />
   );

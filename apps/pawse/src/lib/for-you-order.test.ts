@@ -1,4 +1,10 @@
-import { noteShown, orderFeed, type Seen, TOP_SHOWN } from "./for-you-order";
+import {
+  keepRank,
+  noteShown,
+  orderFeed,
+  type Seen,
+  TOP_SHOWN,
+} from "./for-you-order";
 
 const vids = (...ids: string[]) => ids.map((id) => ({ id }));
 const ids = (l: { id: string }[]) => l.map((v) => v.id);
@@ -27,6 +33,23 @@ describe("orderFeed", () => {
   it("forgets a lead after three refreshes", () => {
     const seen: Seen = { recent: [], tops: [["a"], ["b"], ["c"], ["x"]] };
     expect(ids(orderFeed(vids("x", "a"), seen))[0]).toBe("x");
+  });
+});
+
+describe("keepRank", () => {
+  const feed = vids(..."abcdefghijkl");
+
+  it("keeps YouTube's order for videos already shown lower down", () => {
+    const seen: Seen = { recent: ["b", "c", "d"], tops: [] };
+    expect(ids(keepRank(feed, seen))).toEqual(ids(feed));
+  });
+
+  it("opens differently after a refresh, without burying what opened last time", () => {
+    const seen: Seen = { recent: [], tops: [["a", "b", "c"]] };
+    const out = ids(keepRank(feed, seen));
+    expect(out.slice(0, 3)).toEqual(["c", "d", "e"]);
+    expect(out.indexOf("a")).toBe(8);
+    expect(out.indexOf("b")).toBe(9);
   });
 });
 

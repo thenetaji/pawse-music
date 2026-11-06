@@ -1,11 +1,11 @@
-import { useNetInfo } from "@react-native-community/netinfo";
 import type { CatalogItem, Track } from "@pawse/music-core";
 import { player, type RadioSeed } from "@pawse/player";
+import { useNetInfo } from "@react-native-community/netinfo";
 import {
   memo,
   type ReactNode,
-  useEffectEvent,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
 } from "react";
@@ -26,9 +26,9 @@ import {
   Skeleton,
   SkeletonRows,
 } from "../../components/ui";
+import { rightClick } from "../../lib/context-menu";
 import { yt } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
-import { rightClick } from "../../lib/context-menu";
 import { autoplayMode } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MoreGlyph, PlayGlyph } from "../now-playing/icons";
@@ -605,6 +605,7 @@ const styles = StyleSheet.create({
   topActions: { flexDirection: "row", gap: 10 },
   pill: {
     flex: 1,
+    maxWidth: 200,
     height: 42,
     borderRadius: 21,
     flexDirection: "row",

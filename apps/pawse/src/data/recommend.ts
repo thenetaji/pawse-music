@@ -395,7 +395,12 @@ const asItems = (tracks: Track[]): CatalogItem[] =>
 export function forYouShelves(
   data: ForYouData,
   smart: SmartPlaylist[],
-  opts: { drop: Set<string>; known?: Set<string> },
+  opts: {
+    drop: Set<string>;
+    known?: Set<string>;
+    /** YouTube's own shelves lead the section, so Pawse's Quick picks stand aside. */
+    youtubeLeads?: boolean;
+  },
 ): Shelf[] {
   const used = new Set(opts.drop);
   const claim = (tracks: Track[]) => {
@@ -412,9 +417,9 @@ export function forYouShelves(
   const repeat = own("onrepeat");
   const forgotten = own("forgotten");
   const out: Shelf[] = [];
-  const quick = claim(
-    pickTracks(unused(data.quick), { n: QUICK_N, known: opts.known }),
-  );
+  const quick = opts.youtubeLeads
+    ? []
+    : claim(pickTracks(unused(data.quick), { n: QUICK_N, known: opts.known }));
   if (quick.length) out.push({ title: "Quick picks", items: asItems(quick) });
   for (const b of data.because) {
     const tracks = unused(b.tracks);
@@ -763,8 +768,8 @@ const hash = (s: string) => {
   return (h >>> 0).toString(36);
 };
 
-/** Home "For you": Quick picks, Because you like, On repeat, Forgotten favourites, new releases, Popular in. */
-export function useForYou(): {
+/** Home "For you": Quick picks, Because you like, On repeat, Forgotten favourites, new releases, Popular in. A `lead` from YouTube replaces Quick picks and its songs don't repeat. */
+export function useForYou(lead: Shelf[] = []): {
   shelves: Shelf[];
   loading: boolean;
   reload(): void;
@@ -864,11 +869,19 @@ export function useForYou(): {
       data
         ? forYouShelves(data, smart, {
             // Hidden songs drop out here, so Quick picks refills from its pool.
-            drop: new Set([...inputs.drop, ...(hidden ?? [])]),
+            drop: new Set([
+              ...inputs.drop,
+              ...(hidden ?? []),
+              ...tracksIn(lead.flatMap((s) => s.items)).flatMap((t) => [
+                t.id,
+                trackKey(t),
+              ]),
+            ]),
             known: inputs.known,
+            youtubeLeads: lead.length > 0,
           })
         : [],
-    [data, smart, inputs, hidden],
+    [data, smart, inputs, hidden, lead],
   );
 
   return {

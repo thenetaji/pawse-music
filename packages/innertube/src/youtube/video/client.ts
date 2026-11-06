@@ -20,7 +20,7 @@ import {
   parseCookies,
   query,
 } from "../../util/http";
-import { sapisidAuthorization } from "../auth";
+import { answeredSignedIn, sapisidAuthorization } from "../auth";
 import { getPlayer } from "../challenge/player";
 import {
   ClientsConfig,
@@ -82,6 +82,8 @@ export interface YouTubeVideoOptions {
   onVisitorData?: (visitorData: string) => void;
   /** Whether a signed-out visitor's watches may be reported, which is how YouTube learns what to suggest. */
   learn?: () => boolean;
+  /** After a call that sent cookies: whether YouTube took it as signed in, when its answer says. */
+  onSessionAnswer?: (signedIn: boolean) => void;
   /** Cookie header for www.youtube.com when signed in; without it the feeds are signed out. */
   cookies?: () => string | undefined;
   /** True while searches should go out signed out, so they stay out of the account's search history. */
@@ -261,6 +263,15 @@ export class YouTubeVideo {
     this.opts.onVisitorData?.(visitorData);
   }
 
+  setLocale(hl: string, gl: string): void {
+    if (hl !== this.hl) {
+      this.web = undefined;
+      this.webFailedAt = 0;
+    }
+    this.hl = hl;
+    this.gl = gl;
+  }
+
   /** Drops this visitor; the next request gets a new one. */
   resetVisitor(): void {
     this.visitorData = undefined;
@@ -339,6 +350,10 @@ export class YouTubeVideo {
     const json = await res.json();
     const vd = json?.responseContext?.visitorData;
     if (!this.visitorData && typeof vd === "string" && vd) this.setVisitor(vd);
+    if (headers.Authorization) {
+      const answer = answeredSignedIn(json);
+      if (answer !== undefined) this.opts.onSessionAnswer?.(answer);
+    }
     return json;
   }
 
@@ -360,7 +375,9 @@ export class YouTubeVideo {
         continuation ? { continuation } : { browseId: "FEwhat_to_watch" },
       ),
     );
-    return continuation || feed.items.length ? feed : this.topicsHome(topics);
+    if (continuation || feed.items.length) return feed;
+    const popular = await this.topicsHome(topics);
+    return this.isSignedIn() ? { ...popular, standIn: true } : popular;
   }
 
   /** One topic's popular videos this week, the signed-out stand-in for a chip; `home` loads its next page. */

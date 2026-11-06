@@ -18,8 +18,8 @@ import CircleCheck from "lucide-react-native/icons/circle-check";
 import Headphones from "lucide-react-native/icons/headphones";
 import ListPlus from "lucide-react-native/icons/list-plus";
 import ShareIcon from "lucide-react-native/icons/share";
-import Sparkles from "lucide-react-native/icons/sparkles";
 import SlidersHorizontal from "lucide-react-native/icons/sliders-horizontal";
+import Sparkles from "lucide-react-native/icons/sparkles";
 import ThumbsDownIcon from "lucide-react-native/icons/thumbs-down";
 import ThumbsUpIcon from "lucide-react-native/icons/thumbs-up";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -81,21 +81,22 @@ import {
   useVideoRating,
   videoTrack,
 } from "../../data/watched";
-import { useVideoFilter } from "../../lib/block";
 import { useAiFeature } from "../../lib/ai/model";
+import { useVideoFilter } from "../../lib/block";
 import { useBranding, useHighlight, videoSkips } from "../../lib/community";
 import { logEvent } from "../../lib/diagnostics";
 import { useVotes } from "../../lib/dislikes";
 import { ytv } from "../../lib/engine";
 import { noteWatching, useFocus } from "../../lib/focus";
 import { haptic } from "../../lib/haptics";
+import { imageFade } from "../../lib/image-fade";
 import { push } from "../../lib/nav";
 import { networkKind } from "../../lib/net";
 import {
   allowRotation,
   lockLandscape,
-  releaseToPortrait,
   onTurn,
+  releaseToPortrait,
 } from "../../lib/orientation";
 import { isLowData } from "../../lib/quality";
 import { startLevels, stopLevels } from "../../lib/screen-levels";
@@ -103,7 +104,6 @@ import { setSetting, useSetting } from "../../lib/settings";
 import { toggleSubscription } from "../../lib/subscribe";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
-import { reportsWatching, reportWatching } from "../../lib/youtube-history";
 import {
   forgetStream,
   prepareStream,
@@ -111,6 +111,7 @@ import {
   type VideoSource,
   videoSource,
 } from "../../lib/video-stream";
+import { reportsWatching, reportWatching } from "../../lib/youtube-history";
 import { showPlaylistPicker } from "../library/playlist-tools";
 import {
   enterFullscreen,
@@ -127,6 +128,7 @@ import {
   useCrowdDetail,
 } from "./community";
 import { type MenuPage, PlayerMenu } from "./player-menu";
+import { SponsorPrompt } from "./sponsor-prompt";
 import {
   closeWatch,
   minimizeWatch,
@@ -138,13 +140,12 @@ import {
   type WatchSeed,
   watchPrevious,
 } from "./store";
-import { SponsorPrompt } from "./sponsor-prompt";
 import { StoryboardFrame } from "./storyboard";
 import { LEAVE_V, makeClock, SIDE, VideoControls } from "./video-controls";
 import {
   CommentsCard,
-  DescriptionCard,
   CommentsPanel,
+  DescriptionCard,
   DescriptionPanel,
   short,
   useComments,
@@ -1669,7 +1670,7 @@ function Ambient({ uri }: { uri: string }) {
         style={styles.ambientImage}
         contentFit="cover"
         blurRadius={48}
-        transition={1400}
+        transition={imageFade(1400)}
       />
       <LinearGradient
         colors={["rgba(0,0,0,0.25)", "rgba(0,0,0,0.7)", "#000"]}

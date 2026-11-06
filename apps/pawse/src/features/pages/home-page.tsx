@@ -13,6 +13,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -33,7 +34,7 @@ import {
   SectionTitle,
   SkeletonShelves,
 } from "../../components/ui";
-import { VideoCard } from "../../components/video-card";
+import { VideoTiles } from "../../components/video-card";
 import type { DailyMix } from "../../data/account";
 import { dailyMixes, useLibrary } from "../../data/library";
 import { refreshForYou, useForYou } from "../../data/recommend";
@@ -45,9 +46,11 @@ import { HOME_SECTIONS, useHomeSections } from "../../lib/home-sections";
 import { setIncognito, useIncognito } from "../../lib/incognito";
 import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
+import { useSessionLost } from "../../lib/session-state";
 import { autoplayMode, useSetting } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { refreshResources, useResource } from "../../lib/use-resource";
+import { videoColumns } from "../../lib/video-columns";
 import { useCatKind } from "../cat/alt/cat-kind";
 import { LottieCat } from "../cat/alt/lottie-cat";
 import { Cat, type CatColor } from "../cat/cat";
@@ -59,6 +62,8 @@ import { useAccent } from "../now-playing/now-palette";
 import { TopGlow } from "./top-glow";
 
 type Mood = { title: string; params: string };
+
+const YOUTUBE_LEAD_SHELVES = 3;
 
 export default function HomePage() {
   useTabRoot("home");
@@ -107,6 +112,15 @@ export default function HomePage() {
     [...(home.data?.shelves ?? []), ...extra.shelves],
     keep,
   );
+  // Signed in, YouTube Music knows the whole account while Pawse knows only what played here, so YouTube's shelves lead.
+  const sessionLost = useSessionLost();
+  const youtubeLeads =
+    full &&
+    signedIn &&
+    !sessionLost &&
+    !chip &&
+    sections.some((s) => s.id === "foryou");
+  const lead = youtubeLeads ? shelves.slice(0, YOUTUBE_LEAD_SHELVES) : [];
 
   // Videos for the endless feed start after the four Suggested videos shows.
   const vhome = useResource<VideoFeed>(
@@ -238,7 +252,9 @@ export default function HomePage() {
     >
       <CatLine />
       <MoodChips />
-      {!signedIn ? <SignInCard accent={accent} /> : null}
+      {!signedIn || sessionLost ? (
+        <SignInCard accent={accent} lost={sessionLost} />
+      ) : null}
       {sections.map((sec) => {
         switch (sec.id) {
           case "continue":
@@ -260,7 +276,13 @@ export default function HomePage() {
           case "mixes":
             return <Mixes key={sec.id} />;
           case "foryou":
-            return <ForYou key={sec.id} />;
+            return (
+              <ForYou
+                key={sec.id}
+                lead={lead}
+                waiting={youtubeLeads && !home.data && !home.error}
+              />
+            );
           case "liked":
             return <LikedLately key={sec.id} />;
           case "ytvideos":
@@ -272,7 +294,7 @@ export default function HomePage() {
               <Picks
                 key={sec.id}
                 home={home}
-                shelves={shelves}
+                shelves={shelves.slice(lead.length)}
                 videos={feedVideos}
                 chip={chip}
                 setChip={setChip}
@@ -311,6 +333,7 @@ function Picks({
   setChip: (c?: string) => void;
   accent: string;
 }) {
+  const { width } = useWindowDimensions();
   return (
     <View>
       <SectionTitle title="More for you" />
@@ -332,16 +355,16 @@ function Picks({
         </ScrollView>
       ) : null}
       {home.data ? (
-        weave(shelves, videos).map((b, i) => (
+        weave(shelves, videos, Math.max(3, videoColumns(width))).map((b, i) => (
           <Animated.View
             key={b.key}
             entering={FadeInDown.duration(420).delay(Math.min(i % 8, 6) * 60)}
           >
             {b.shelf ? (
               <Shelf shelf={b.shelf} removable />
-            ) : b.video ? (
+            ) : b.videos ? (
               <View style={b.first && styles.afterShelf}>
-                <VideoCard video={b.video} />
+                <VideoTiles videos={b.videos} />
               </View>
             ) : null}
           </Animated.View>
@@ -360,27 +383,28 @@ function Picks({
   );
 }
 
-// Two music shelves, then three videos, and so on; whichever runs out, the other keeps going.
-function weave(shelves: ShelfT[], videos: VideoItem[]) {
+// Two music shelves, then a few videos, and so on; whichever runs out, the other keeps going.
+function weave(shelves: ShelfT[], videos: VideoItem[], perTurn: number) {
   const out: {
     key: string;
     shelf?: ShelfT;
-    video?: VideoItem;
-    /** The first video after a shelf, which needs room above it. */
+    videos?: VideoItem[];
+    /** Videos right after a shelf, which need room above them. */
     first?: boolean;
   }[] = [];
   let v = 0;
-  const addVideos = (list: VideoItem[]) =>
-    list.forEach((video) =>
-      out.push({
-        key: `v${v++}:${video.id}`,
-        video,
-        first: !!out[out.length - 1]?.shelf,
-      }),
-    );
+  const addVideos = (list: VideoItem[]) => {
+    if (!list.length) return;
+    out.push({
+      key: `v${v}:${list[0].id}`,
+      videos: list,
+      first: !!out[out.length - 1]?.shelf,
+    });
+    v += list.length;
+  };
   shelves.forEach((shelf, i) => {
     out.push({ key: `s${i}:${shelf.title}`, shelf });
-    if (i % 2 === 1) addVideos(videos.slice(v, v + 3));
+    if (i % 2 === 1) addVideos(videos.slice(v, v + perTurn));
   });
   addVideos(videos.slice(v));
   return out;
@@ -425,7 +449,7 @@ function EndSpinner({
   );
 }
 
-function SignInCard({ accent }: { accent: string }) {
+function SignInCard({ accent, lost }: { accent: string; lost?: boolean }) {
   const color = useSetting<CatColor>("catColor", "orange");
   const name = useSetting("catName", "Mochi");
   return (
@@ -435,9 +459,13 @@ function SignInCard({ accent }: { accent: string }) {
     >
       <Cat mood="curious" size={54} color={color} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.signTitle}>Make it yours</Text>
+        <Text style={styles.signTitle}>
+          {lost ? "YouTube signed you out" : "Make it yours"}
+        </Text>
         <Text style={styles.signSub}>
-          Sign in to YouTube Music so {name} learns your taste.
+          {lost
+            ? "Your feed isn't your own until you sign in again."
+            : `Sign in to YouTube Music so ${name} learns your taste.`}
         </Text>
       </View>
       <Text style={[styles.signGo, { color: accent }]}>Sign in</Text>
@@ -446,10 +474,11 @@ function SignInCard({ accent }: { accent: string }) {
 }
 
 // Built on the phone from your plays, likes and picks, so it works signed out too.
-function ForYou() {
-  const fy = useForYou();
-  const list = keepShelves(fy.shelves, useHomeKeep());
-  if (!list.length) return fy.loading ? <SkeletonShelves count={1} /> : null;
+function ForYou({ lead, waiting }: { lead: ShelfT[]; waiting: boolean }) {
+  const fy = useForYou(lead);
+  const list = [...lead, ...keepShelves(fy.shelves, useHomeKeep())];
+  if (waiting || !list.length)
+    return waiting || fy.loading ? <SkeletonShelves count={1} /> : null;
   return (
     <>
       {list.map((s, i) => (

@@ -38,6 +38,7 @@ import { isUnfinished, useWatched, type Watched } from "../../data/watched";
 import { useVideoFilter } from "../../lib/block";
 import { rightClick } from "../../lib/context-menu";
 import { forYou } from "../../lib/for-you";
+import { imageFade } from "../../lib/image-fade";
 import { go, push } from "../../lib/nav";
 import { autoplayMode } from "../../lib/settings";
 import { display } from "../../lib/type";
@@ -193,7 +194,7 @@ function Pic({
       style={style}
       contentFit="cover"
       blurRadius={blur ? 30 : undefined}
-      transition={200}
+      transition={imageFade(200)}
     />
   );
 }

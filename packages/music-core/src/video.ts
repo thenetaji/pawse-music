@@ -40,6 +40,8 @@ export interface VideoFeed {
   continuation?: string;
   /** YouTube's topic chips over a signed-in home feed (Music, Gaming, Live…); "All" is the feed itself. */
   chips?: FeedChip[];
+  /** The account's feed came back empty, so these are popular videos instead. */
+  standIn?: boolean;
 }
 
 /** One topic over the home feed; its videos load through `home(token)`. */

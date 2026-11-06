@@ -4,6 +4,8 @@ export const TOP_REFRESHES = 3;
 // Past the first page, everything handed out was scrolled to; on it, only the head is.
 const FIRST_PAGE_SHOWN = 12;
 export const MAX_RECENT = 300;
+const OPENERS = 2;
+const STEP_DOWN = 8;
 
 export type Seen = {
   /** Every video shown lately, oldest first. */
@@ -35,6 +37,25 @@ export function orderFeed<T extends { id: string }>(
   }
   led.sort((a, b) => topAge.get(b.id)! - topAge.get(a.id)!);
   return [...fresh, ...lower, ...led];
+}
+
+/**
+ * For a feed YouTube ranked for this account: its order stays, and only the videos that opened the last few
+ * refreshes step a little way down, so a refresh never opens the same way.
+ */
+export function keepRank<T extends { id: string }>(
+  items: T[],
+  seen: Seen,
+): T[] {
+  const opened = new Set(
+    seen.tops.slice(0, TOP_REFRESHES).flatMap((t) => t.slice(0, OPENERS)),
+  );
+  const rest = items.filter((v) => !opened.has(v.id));
+  return [
+    ...rest.slice(0, STEP_DOWN),
+    ...items.filter((v) => opened.has(v.id)),
+    ...rest.slice(STEP_DOWN),
+  ];
 }
 
 /** What a page that went on screen adds to the memory: its head and, past the first page, all of it. */

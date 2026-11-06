@@ -28,7 +28,7 @@ import {
   parseCookies,
   query,
 } from "../util/http";
-import { sapisidAuthorization } from "./auth";
+import { answeredSignedIn, sapisidAuthorization } from "./auth";
 import { getPlayer } from "./challenge/player";
 import {
   ClientsConfig,
@@ -104,6 +104,8 @@ export interface YouTubeMusicOptions {
   onRequestError?: (endpoint: string, error: unknown) => void;
   /** True while searches should go out signed out, so they stay out of the account's search history (incognito). */
   privateSearch?: () => boolean;
+  /** After a call that sent cookies: whether YouTube took it as signed in, when its answer says. */
+  onSessionAnswer?: (signedIn: boolean) => void;
 }
 
 export const ORIGIN = "https://music.youtube.com";
@@ -211,6 +213,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
 
   private readonly f: FetchLike;
   private readonly cookies?: YouTubeMusicOptions["cookies"];
+  private readonly onSessionAnswer?: YouTubeMusicOptions["onSessionAnswer"];
   private readonly privateSearch?: YouTubeMusicOptions["privateSearch"];
   private readonly clients: ClientsConfig;
   private readonly sandbox?: JsSandbox;
@@ -241,6 +244,7 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
     this.hl = options.hl ?? "en";
     this.gl = options.gl ?? "US";
     this.cookies = options.cookies;
+    this.onSessionAnswer = options.onSessionAnswer;
     this.visitorData = options.visitorData;
     this.verify = options.verifyStream ?? true;
     this.verifyBudgetMs = options.verifyBudgetMs ?? 1500;
@@ -465,6 +469,10 @@ export class YouTubeMusic implements Catalog, Account, StreamResolver {
       throw e;
     }
     this.learnVisitor(json?.responseContext?.visitorData);
+    if (cookie) {
+      const answer = answeredSignedIn(json);
+      if (answer !== undefined) this.onSessionAnswer?.(answer);
+    }
     return json;
   }
 
