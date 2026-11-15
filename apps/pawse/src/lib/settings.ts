@@ -12,8 +12,7 @@ export function useSetting<T>(key: string, fallback: T): T {
 export function getSetting<T>(key: string, fallback: T): T {
   return (
     ((useLibrary.getState().settings as Record<string, unknown>)[key] as
-      | T
-      | undefined) ?? fallback
+      T | undefined) ?? fallback
   );
 }
 
@@ -31,6 +30,14 @@ export function autoplayMode(): Autoplay {
   // Older builds kept this as two switches.
   if (s.radioContinue === false) return "off";
   return s.listsContinue ? "always" : "songs";
+}
+
+export type TapPlay = "song" | "rest" | "all";
+
+/** What tapping a song in a playlist queues: only it, it and the songs after it, or the whole playlist. */
+export function tapPlayMode(): TapPlay {
+  const v = (useLibrary.getState().settings as Record<string, unknown>).tapPlay;
+  return v === "rest" || v === "all" ? v : "song";
 }
 
 export type AutoDownload = "off" | "liked" | "all";

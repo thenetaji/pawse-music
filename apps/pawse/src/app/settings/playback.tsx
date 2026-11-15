@@ -15,7 +15,12 @@ import { Screen } from "../../components/ui";
 import { AUDIO_FORMATS } from "../../lib/audio-format";
 import { push } from "../../lib/nav";
 import { useAutoQuality } from "../../lib/quality";
-import { autoplayMode, setSetting, useSetting } from "../../lib/settings";
+import {
+  autoplayMode,
+  setSetting,
+  tapPlayMode,
+  useSetting,
+} from "../../lib/settings";
 import { setSmoothShuffle } from "../../lib/smooth-queue";
 
 export default function PlaybackSettings() {
@@ -58,6 +63,17 @@ export default function PlaybackSettings() {
             ["off", "Off"],
             ["songs", "Not after albums"],
             ["always", "Always"],
+          ]}
+        />
+        <Pick
+          k="tapPlay"
+          label="Tapping a song in a playlist"
+          hint="What goes into the queue. Play all and Shuffle always use the whole list"
+          def={tapPlayMode()}
+          options={[
+            ["song", "Plays only that song"],
+            ["rest", "Plays it and the songs after it"],
+            ["all", "Queues the whole playlist"],
           ]}
         />
         <Toggle
