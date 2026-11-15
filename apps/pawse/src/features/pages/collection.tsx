@@ -63,6 +63,7 @@ import { type PlaylistActions, PRIVACY_CHOICES } from "../../lib/playlist-edit";
 import type { Picked } from "../../lib/playlist-remove";
 import { count } from "../../lib/plural";
 import { autoplayMode, tapPlayMode } from "../../lib/settings";
+import { playTapped } from "../../lib/tap-play";
 import {
   playSmooth,
   setSmoothShuffle,
@@ -218,13 +219,7 @@ export function Collection({
   const tapPlay = (list: Track[], i: number, opts: PlayOptions) => {
     haptic.light();
     player.setShuffle(false);
-    const queue =
-      tapMode === "song"
-        ? [list[i]]
-        : tapMode === "rest"
-          ? list.slice(i)
-          : list;
-    void player.play(queue, tapMode === "all" ? i : 0, opts);
+    playTapped(list, i, opts, tapMode);
   };
   const tap = (i: number) =>
     videoList

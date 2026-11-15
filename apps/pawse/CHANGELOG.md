@@ -2,6 +2,15 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.15.1] - 2026-11-15
+
+### Fixed
+- **Tapping a song in Liked songs, Home, Library, Downloads, Top songs or a shelf still queued the whole list,** and some of them also added similar songs. They now follow Settings → Playback like playlists do: by default only the tapped song plays.
+- **The dancing cat laughed through sad songs.** Each song's mood (sad, chill, love, party) now decides which dances it can get: sad and chill songs only get the calm ones, and the giggling and party cats are kept for livelier songs.
+
+### Changed
+- **Late at night (11 pm to 5 am) the cat keeps to its quiet dances** for everything except party songs.
+
 ## [1.15.0] - 2026-11-15
 
 ### Added

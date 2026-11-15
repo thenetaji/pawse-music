@@ -1,5 +1,4 @@
 import type { Thumbnail, Track } from "@pawse/music-core";
-import { player } from "@pawse/player";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
@@ -35,6 +34,7 @@ import { useWatched } from "../../data/watched";
 import { go, push } from "../../lib/nav";
 import { count } from "../../lib/plural";
 import { autoplayMode, useSetting } from "../../lib/settings";
+import { playTapped } from "../../lib/tap-play";
 import { display } from "../../lib/type";
 import { VideoStrip } from "../home/home-blocks";
 import { useAccent } from "../now-playing/now-palette";
@@ -417,7 +417,7 @@ export default function LibraryPage() {
                       : undefined
                   }
                   onPress={() =>
-                    void player.play(songs, i, {
+                    playTapped(songs, i, {
                       source: { type: "library", title: "Your songs" },
                       radio: autoplayMode() !== "off",
                     })

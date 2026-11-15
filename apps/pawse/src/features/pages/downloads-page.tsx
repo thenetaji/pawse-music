@@ -1,4 +1,3 @@
-import { player } from "@pawse/player";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -30,6 +29,7 @@ import { hasMouse, rightClick } from "../../lib/context-menu";
 import { haptic } from "../../lib/haptics";
 import { push } from "../../lib/nav";
 import { display } from "../../lib/type";
+import { playTapped } from "../../lib/tap-play";
 import { showTrackActions } from "../library/track-actions";
 import { MoreGlyph } from "../now-playing/icons";
 import { useAccent } from "../now-playing/now-palette";
@@ -65,7 +65,7 @@ export default function DownloadsPage() {
   const playAt = (id: string) => {
     const i = done.findIndex((d) => d.id === id);
     if (i < 0) return;
-    void player.play(
+    playTapped(
       done.map((d) => d.track),
       i,
       { source: { type: "library", title: "Downloads" } },
@@ -168,7 +168,7 @@ export default function DownloadsPage() {
           renderItem={({ item, index }) => (
             <Pressable
               onPress={() =>
-                void player.play(kept, index, {
+                playTapped(kept, index, {
                   source: { type: "library", title: "Kept offline" },
                 })
               }
