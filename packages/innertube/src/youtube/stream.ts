@@ -40,6 +40,8 @@ const PLAYER_URL =
 const DEFAULT_TTL_SEC = 300;
 const PLAYER_TIMEOUT_MS = 8000;
 const MINT_CAP_MS = 8000;
+// A cold minter (first song after launch) gets this long in all; then the next client plays instead of waiting on it.
+const POT_BUDGET_MS = 10_000;
 /** Opus larger than this is not repackaged: it is held in memory whole. About 14 minutes at 160 kbps. */
 const REMUX_MAX_BYTES = 16 << 20;
 const viaOf = (c: StreamClient) => `youtube:${c.name}`;
@@ -291,13 +293,16 @@ const runnable = (
   );
 
 /** A provider answer, undefined when it fails or takes longer than the cap (the provider keeps working on it). */
-async function capped<T>(p: Promise<T | undefined>): Promise<T | undefined> {
+async function capped<T>(
+  p: Promise<T | undefined>,
+  capMs = MINT_CAP_MS,
+): Promise<T | undefined> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       p.catch(() => undefined),
       new Promise<undefined>((r) => {
-        timer = setTimeout(r, MINT_CAP_MS);
+        timer = setTimeout(r, capMs);
       }),
     ]);
   } finally {
@@ -382,8 +387,11 @@ async function tryClient(
   let playerPot: string | undefined;
   let requestVisitor = o.visitorData;
   if (pot) {
-    requestVisitor = await capped(pot.visitorData());
-    playerPot = requestVisitor && (await capped(pot.mint(requestVisitor)));
+    const until = Date.now() + POT_BUDGET_MS;
+    const left = () => Math.max(1, until - Date.now());
+    requestVisitor = await capped(pot.visitorData(), left());
+    playerPot =
+      requestVisitor && (await capped(pot.mint(requestVisitor), left()));
     if (!requestVisitor || !playerPot)
       throw new StreamError("network", "PO token unavailable");
   }

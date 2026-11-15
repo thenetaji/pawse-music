@@ -474,6 +474,14 @@ export function useDownloads(): {
   return useMemo(() => summarize(entries, progress), [entries, progress]);
 }
 
+/** True once every one of these songs is downloaded; re-renders only when that answer changes, not on progress. */
+export function useAllDownloaded(ids: string[]): boolean {
+  return useStore(
+    index,
+    (s) => ids.length > 0 && ids.every((id) => s.entries[id]?.state === "done"),
+  );
+}
+
 /** True unless the device reports no connection. */
 export function useOnline(): boolean {
   const s = Network.useNetworkState();

@@ -19,6 +19,8 @@ const PAGE_GAP_MS = 400;
 const WRITE_GAP_MS = 2500;
 const WRITE_JITTER_MS = 2000;
 const WRITES_PER_HOUR = 40;
+// A like YouTube did not take (resting after pushback, offline) is sent again after the rest ends, then once more.
+const RETRY_AFTER_MS = [35 * 60_000, 2 * 3600_000];
 const MIX_TTL_MS = 86400_000;
 const MIX_KEY = "pawse.mixes.v1";
 // Liked music and episodes are not real library playlists.
@@ -234,17 +236,21 @@ export async function dailyMixes(): Promise<DailyMix[]> {
   );
 }
 
-// Likes, dislikes and follows mirror to YouTube one at a time; the latest change per song or artist wins, failures stay local.
+// Likes, dislikes and follows mirror to YouTube one at a time; the latest change per song or artist wins.
 type Rating = "like" | "dislike" | "none";
 const pendingWrites = new Map<string, () => Promise<unknown>>();
 const recentWrites: number[] = [];
+// The newest request per key; a retry that lost to a later like or unlike drops itself.
+const latest = new Map<string, symbol>();
 let writing = false;
+let toldAboutFailure = false;
+let notify: (text: string) => void = () => {};
 
 async function drainWrites(): Promise<void> {
   if (writing) return;
   writing = true;
   try {
-    for (let next = pendingWrites.entries().next(); !next.done; ) {
+    for (let next = pendingWrites.entries().next(); !next.done;) {
       const hourAgo = Date.now() - 3600_000;
       while (recentWrites.length && recentWrites[0] < hourAgo)
         recentWrites.shift();
@@ -264,17 +270,65 @@ async function drainWrites(): Promise<void> {
   }
 }
 
-function queueWrite(key: string, write: () => Promise<unknown>): void {
+function queueWrite(
+  key: string,
+  write: () => Promise<unknown>,
+  retry = false,
+): void {
+  const token = Symbol(key);
+  latest.set(key, token);
+  const send = !retry
+    ? write
+    : async () => {
+        try {
+          await write();
+          if (latest.get(key) === token) latest.delete(key);
+        } catch (e) {
+          retryLater(key, token, write, 0);
+          throw e;
+        }
+      };
   pendingWrites.delete(key);
-  pendingWrites.set(key, write);
+  pendingWrites.set(key, send);
   void drainWrites();
+}
+
+function retryLater(
+  key: string,
+  token: symbol,
+  write: () => Promise<unknown>,
+  attempt: number,
+): void {
+  if (attempt === 0 && !toldAboutFailure) {
+    toldAboutFailure = true;
+    notify("YouTube didn't take that like yet. Pawse will try again.");
+  }
+  const wait = RETRY_AFTER_MS[attempt];
+  if (wait === undefined) return;
+  setTimeout(() => {
+    if (latest.get(key) !== token) return;
+    pendingWrites.set(key, async () => {
+      try {
+        await write();
+        if (latest.get(key) === token) latest.delete(key);
+      } catch (e) {
+        retryLater(key, token, write, attempt + 1);
+        throw e;
+      }
+    });
+    void drainWrites();
+  }, wait);
 }
 
 /** Mirrors a follow to the YouTube account as a channel subscription, when signed in and syncing. */
 export function mirrorFollow(channelId: string, on: boolean): void {
   const s = useLibrary.getState().settings;
   if (!s.cookies || !s.syncLikes) return;
-  queueWrite(`follow:${channelId}`, () => ytAccount.subscribe(channelId, on));
+  queueWrite(
+    `follow:${channelId}`,
+    () => ytAccount.subscribe(channelId, on),
+    true,
+  );
 }
 
 // Playlist edits wait in the same queue as likes; the count moves at once and moves back if YouTube refuses.
@@ -417,13 +471,14 @@ export async function deleteYouTubePlaylist(playlistId: string): Promise<void> {
 
 let started = false;
 /** Registers the account write paths (like mirroring); reads only sync from maybeSyncLibrary. */
-export function startAccountSync(): void {
+export function startAccountSync(tell?: (text: string) => void): void {
   if (started) return;
   started = true;
+  if (tell) notify = tell;
   const mirror = (track: Track, value: Rating) => {
     const s = useLibrary.getState().settings;
     if (!s.cookies || !s.syncLikes || track.source !== "youtube") return;
-    queueWrite(`rate:${track.id}`, () => yt.rate(track.id, value));
+    queueWrite(`rate:${track.id}`, () => yt.rate(track.id, value), true);
   };
   onLike((track, on) => mirror(track, on ? "like" : "none"));
   onDislike((track, on) => mirror(track, on ? "dislike" : "none"));

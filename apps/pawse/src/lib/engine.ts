@@ -113,6 +113,6 @@ export function startEngine() {
   });
   startAudioFx();
   startArtwork();
-  startAccountSync();
+  startAccountSync((text) => showToast(text, { bad: true }));
   return started;
 }

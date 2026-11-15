@@ -14,7 +14,7 @@ export const poTokenProvider: PoTokenProvider | undefined =
     log: (m) => logEvent("potoken", m),
   });
 
-const PREWARM_DELAY_MS = 4000;
+const PREWARM_DELAY_MS = 1200;
 
 /** Starts BotGuard once, shortly after launch, so the first song does not pay the cold mint. */
 let warmed = false;
