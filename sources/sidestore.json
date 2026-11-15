@@ -11,6 +11,15 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.15.1",
+          "buildVersion": "11501",
+          "date": "2026-11-15",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.15.1/Pawse.ipa",
+          "size": 24808948,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Fixed:\n• Tapping a song in Liked songs, Home, Library, Downloads, Top songs or a shelf still queued the whole list, and some of them also added similar songs. They now follow Settings → Playback like playlists do: by default only the tapped song plays.\n• The dancing cat laughed through sad songs. Each song's mood (sad, chill, love, party) now decides which dances it can get: sad and chill songs only get the calm ones, and the giggling and party cats are kept for livelier songs.\n\nChanged:\n• Late at night (11 pm to 5 am) the cat keeps to its quiet dances for everything except party songs."
+        },
+        {
           "version": "1.15.0",
           "buildVersion": "11500",
           "date": "2026-11-15",
