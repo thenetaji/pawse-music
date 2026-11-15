@@ -11,6 +11,15 @@
       "iconURL": "https://raw.githubusercontent.com/thenetaji/pawse-music/main/apps/pawse/assets/images/icon.png",
       "versions": [
         {
+          "version": "1.15.0",
+          "buildVersion": "11500",
+          "date": "2026-11-15",
+          "downloadURL": "https://github.com/thenetaji/pawse-music/releases/download/v1.15.0/Pawse.ipa",
+          "size": 22675352,
+          "minOSVersion": "16.4",
+          "localizedDescription": "Added:\n• Choose what tapping a song in a playlist queues. By default it plays only that song, so the queue isn't filled with a whole playlist you then have to clear. Settings → Playback can switch it to \"it and the songs after it\" or the whole playlist. Play all and Shuffle still use the whole list.\n• Sort songs on any playlist. The ⋯ menu on any playlist or mix (albums keep their track order) sorts by date added (oldest or newest first) or by title (A to Z or Z to A). It only changes how the page lists them; the playlist keeps its own order.\n\nFixed:\n• The first song after opening Pawse could keep loading while the next one played at once. Pawse now gives the first YouTube token a short, shared wait and moves on to the next way of playing, and starts preparing it sooner after launch.\n• Likes and dislikes YouTube didn't accept were lost. Pawse now tries again after the account's rest, and tells you the first time YouTube doesn't take one.\n• Playlist pages redrew every row while a download was running. They now redraw only when something they show changes, and long playlists open and scroll more lightly."
+        },
+        {
           "version": "1.14.0",
           "buildVersion": "11400",
           "date": "2026-11-06",
