@@ -1,5 +1,4 @@
 import { bestThumbnail } from "@pawse/music-core";
-import { player } from "@pawse/player";
 import { useRef, useState } from "react";
 import { ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -10,6 +9,7 @@ import { Artwork } from "../../components/artwork";
 import { Chip, PressScale } from "../../components/ui";
 import { listeningStats, useLibrary } from "../../data/library";
 import { autoplayMode, useSetting } from "../../lib/settings";
+import { playTapped } from "../../lib/tap-play";
 import { display } from "../../lib/type";
 import { Cat, type CatColor } from "../cat/cat";
 import { VideoWeek } from "../mindful/mindful-ui";
@@ -127,7 +127,7 @@ export default function StatsPage() {
           <Animated.View key={s.track.id} entering={FadeInDown.delay(i * 30)}>
             <PressScale
               onPress={() =>
-                void player.play(
+                playTapped(
                   stats.topSongs.map((x) => x.track),
                   i,
                   {

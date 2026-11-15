@@ -21,6 +21,7 @@ import { rightClick } from "../lib/context-menu";
 import { useContentWidth } from "../lib/layout";
 import { go } from "../lib/nav";
 import { autoplayMode } from "../lib/settings";
+import { playTapped } from "../lib/tap-play";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
 import { Artwork } from "./artwork";
@@ -43,7 +44,7 @@ export function openItem(item: CatalogItem, siblings?: CatalogItem[]) {
   // A single song from a mixed shelf starts its radio, so the music never stops.
   if (tracks.length <= 1)
     return void player.playRadio({ videoId: item.id, title: item.title });
-  void player.play(tracks as Track[], at, {
+  playTapped(tracks as Track[], at, {
     radio: autoplayMode() !== "off",
     source: { type: "other" },
   });

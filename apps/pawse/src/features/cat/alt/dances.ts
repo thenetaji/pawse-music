@@ -1,5 +1,7 @@
 import type { AnimationObject } from "lottie-react-native";
 
+import type { Vibe } from "../../../lib/vibe";
+
 export type Dance = {
   id: string;
   load: () => AnimationObject;
@@ -73,4 +75,33 @@ export const DANCES: Dance[] = [
 export function nextDance(current: number, random = Math.random): number {
   const pick = Math.floor(random() * (DANCES.length - 1));
   return pick >= current ? pick + 1 : pick;
+}
+
+// Which dances suit a song's mood. Sad and chill songs only get the calm ones, so the giggling and party cats never
+// laugh through a heartbreak; late at night every song does.
+const CALM = ["moon", "night", "mochi", "poses", "box"];
+const FOR_VIBE: Record<Vibe, string[]> = {
+  sad: ["moon", "night"],
+  vibe: CALM,
+  love: ["mochi", "poses", "moon", "rainbow"],
+  hype: ["party", "confetti", "pounce", "rainbow", "giggle", "snack"],
+  groove: DANCES.map((d) => d.id).filter(
+    (id) => id !== "moon" && id !== "night",
+  ),
+};
+export const QUIET_DANCES = ["moon", "night", "mochi", "poses"];
+
+/** A dance that fits the mood and isn't the one showing; any other dance when the mood has no second choice. */
+export function danceFor(
+  vibe: Vibe,
+  current: number,
+  quiet = false,
+  random = Math.random,
+): number {
+  const ids = quiet && vibe !== "hype" ? QUIET_DANCES : FOR_VIBE[vibe];
+  const fits = DANCES.map((d, i) => (ids.includes(d.id) ? i : -1)).filter(
+    (i) => i >= 0 && i !== current,
+  );
+  if (!fits.length) return nextDance(current, random);
+  return fits[Math.floor(random() * fits.length)];
 }

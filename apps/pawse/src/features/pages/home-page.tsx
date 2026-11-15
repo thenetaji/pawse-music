@@ -48,6 +48,7 @@ import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { useSessionLost } from "../../lib/session-state";
 import { autoplayMode, useSetting } from "../../lib/settings";
+import { playTapped } from "../../lib/tap-play";
 import { display } from "../../lib/type";
 import { refreshResources, useResource } from "../../lib/use-resource";
 import { videoColumns } from "../../lib/video-columns";
@@ -422,7 +423,7 @@ function LikedLately() {
           key={t.id}
           track={t}
           onPress={() =>
-            void player.play(recent, i, {
+            playTapped(recent, i, {
               source: { type: "library", title: "Liked songs" },
             })
           }
@@ -514,7 +515,7 @@ function JumpBackIn({ max = 6 }: { max?: number }) {
           <PressScale
             key={t.id}
             onPress={() =>
-              void player.play(recent, i, {
+              playTapped(recent, i, {
                 radio: autoplayMode() !== "off",
                 source: { type: "library", title: "Recently played" },
               })

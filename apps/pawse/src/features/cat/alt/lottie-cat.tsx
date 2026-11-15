@@ -1,3 +1,4 @@
+import { usePlayerSelect } from "@pawse/player";
 import type LottieView from "lottie-react-native";
 import { useEffect, useMemo, useRef } from "react";
 import { StyleSheet } from "react-native";
@@ -14,8 +15,9 @@ import Animated, {
 
 import sleep from "../../../../assets/cats/sleep.json";
 import { Lottie } from "../../../components/lottie";
+import { songVibe, type Vibe } from "../../../lib/vibe";
 import { useCatCalm, useCatVisible } from "../use-cat-motion";
-import { DANCES, nextDance } from "./dances";
+import { DANCES, danceFor as danceForVibe } from "./dances";
 
 const FADE_MS = 400;
 const CALM_FADE_MS = 250;
@@ -114,15 +116,20 @@ function Sleeper({ size, run, mix, settle }: LayerProps) {
   );
 }
 
+// The playing song's mood, from its title and the list it was started from.
+const useCatVibe = (): Vibe =>
+  usePlayerSelect((s) => songVibe(s.current, s.source?.title));
+
 // One pick per song, kept outside the components so the Home cat and the Now playing cat agree, and reopening Now playing keeps the dance.
 const picks = new Map<string, number>();
 let last = 0;
 
-function danceFor(track: string | undefined): number {
+function danceFor(track: string | undefined, vibe: Vibe): number {
   if (!track) return last;
   let d = picks.get(track);
   if (d === undefined) {
-    d = picks.size ? nextDance(last) : 0;
+    const h = new Date().getHours();
+    d = danceForVibe(vibe, last, h >= 23 || h < 5);
     if (picks.size > 200) picks.clear();
     picks.set(track, d);
   }
@@ -139,7 +146,10 @@ function Dancer({
   track,
 }: LayerProps & { track?: string }) {
   const ref = useRef<LottieView>(null);
-  const index = useMemo(() => danceFor(track), [track]);
+  const vibe = useCatVibe();
+  // The song decides the dance once; its mood is known by the time the cat shows it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const index = useMemo(() => danceFor(track, vibe), [track]);
   const dance = DANCES[index];
 
   useEffect(() => {
