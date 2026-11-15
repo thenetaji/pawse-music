@@ -1,5 +1,5 @@
 import { bestThumbnail, type Thumbnail, type Track } from "@pawse/music-core";
-import { player, type QueueSource } from "@pawse/player";
+import { type PlayOptions, player, type QueueSource } from "@pawse/player";
 import { router } from "expo-router";
 import { type ReactNode, useMemo, useState } from "react";
 import {
@@ -42,7 +42,7 @@ import { useBottomSpace } from "../../components/page";
 import { showToast } from "../../components/toast";
 import { TrackRow } from "../../components/track-row";
 import { PressScale } from "../../components/ui";
-import { downloadMany, useDownloads } from "../../data/downloads";
+import { downloadMany, useAllDownloaded } from "../../data/downloads";
 import { type GroupBy, importPlaylist, useLibrary } from "../../data/library";
 import { useListSpot } from "../../data/list-spots";
 import { isPinned, togglePin } from "../../data/pins";
@@ -50,13 +50,19 @@ import { flattenSections, type GroupRow } from "../../data/sort-groups";
 import { startSort, stopSort, useSortJobs } from "../../data/sort-jobs";
 import { savedSection, saveSection } from "../../data/sorted-playlists";
 import { setGroupBy, useGroupBy, useSections } from "../../data/sorting";
+import {
+  orderTracks,
+  setViewOrder,
+  VIEW_ORDERS,
+  useViewOrder,
+} from "../../data/view-order";
 import { isUnfinished, useWatched } from "../../data/watched";
 import { haptic } from "../../lib/haptics";
 import { useRegion } from "../../lib/locale";
 import { type PlaylistActions, PRIVACY_CHOICES } from "../../lib/playlist-edit";
 import type { Picked } from "../../lib/playlist-remove";
 import { count } from "../../lib/plural";
-import { autoplayMode } from "../../lib/settings";
+import { autoplayMode, tapPlayMode } from "../../lib/settings";
 import {
   playSmooth,
   setSmoothShuffle,
@@ -112,7 +118,7 @@ export function Collection({
   subtitle,
   meta,
   thumbnails,
-  tracks,
+  tracks: listTracks,
   source,
   numbered,
   footer,
@@ -123,9 +129,24 @@ export function Collection({
   onSave,
   editableId,
   ytEdit,
-  onRemove,
+  onRemove: removeFromList,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const listId = source.id ?? `title:${title}`;
+  // A view-only order: the playlist itself (here or on YouTube) is never rearranged.
+  const viewOrder = useViewOrder(listId);
+  const view = useMemo(
+    () => orderTracks(listTracks, viewOrder),
+    [listTracks, viewOrder],
+  );
+  const tracks = view.tracks;
+  // Removing and its undo work on the playlist's own positions, not the ones on screen.
+  const onRemove = removeFromList
+    ? (picks: Picked[]) =>
+        removeFromList(
+          picks.map((p) => ({ ...p, at: view.from[p.at] ?? p.at })),
+        )
+    : undefined;
   const bottom = useBottomSpace();
   const palette = useArtworkPalette(bestThumbnail(thumbnails, 120));
   const [editing, setEditing] = useState(false);
@@ -139,11 +160,9 @@ export function Collection({
     : ytEdit?.onMove;
   // Row positions picked in select mode; null when not selecting.
   const [picked, setPicked] = useState<Set<number> | null>(null);
-  const downloads = useDownloads();
-  const doneIds = new Set(
-    downloads.list.filter((d) => d.state === "done").map((d) => d.id),
+  const allDown = useAllDownloaded(
+    useMemo(() => tracks.map((t) => t.id), [tracks]),
   );
-  const allDown = tracks.length > 0 && tracks.every((t) => doneIds.has(t.id));
   const y = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
     y.value = e.contentOffset.y;
@@ -176,7 +195,6 @@ export function Collection({
     source.type !== "album" &&
     tracks.length > 0 &&
     tracks.filter((t) => t.kind === "video").length * 2 > tracks.length;
-  const listId = source.id ?? `title:${title}`;
   const watch = (i: number) => {
     const t = tracks[i];
     if (!t) return;
@@ -195,6 +213,23 @@ export function Collection({
     });
   };
   const start = (i: number) => (videoList ? watch(i) : play(i));
+  // Tapping a row queues what Settings → Playback says: that song, it and the ones after it, or everything.
+  const tapMode = source.type === "album" ? "all" : tapPlayMode();
+  const tapPlay = (list: Track[], i: number, opts: PlayOptions) => {
+    haptic.light();
+    player.setShuffle(false);
+    const queue =
+      tapMode === "song"
+        ? [list[i]]
+        : tapMode === "rest"
+          ? list.slice(i)
+          : list;
+    void player.play(queue, tapMode === "all" ? i : 0, opts);
+  };
+  const tap = (i: number) =>
+    videoList
+      ? watch(i)
+      : tapPlay(tracks, i, { source, endless: autoplayMode() === "always" });
   // Where you stopped last time; Resume picks up there.
   const spot = useListSpot(listId);
   const spotAt = spot ? tracks.findIndex((t) => t.id === spot.id) : -1;
@@ -241,6 +276,11 @@ export function Collection({
       ? s.playlists.find((p) => p.id === editableId)?.sourceId
       : undefined,
   );
+  // A new array each render would make the list re-render every row; this one only changes with what rows show.
+  const listState = useMemo(
+    () => [picked, editing, by, playlists, tapMode],
+    [picked, editing, by, playlists, tapMode],
+  );
   const removePicked = () => {
     if (!onRemove || !picked?.size) return;
     onRemove(
@@ -283,11 +323,8 @@ export function Collection({
     },
     endless: autoplayMode() === "always",
   });
-  const playSection = (g: GroupRow["group"], i: number) => {
-    haptic.light();
-    player.setShuffle(false);
-    void player.play(g.tracks, i, sectionOpts(g));
-  };
+  const playSection = (g: GroupRow["group"], i: number) =>
+    tapPlay(g.tracks, i, sectionOpts(g));
   const saveGroup = (g: GroupRow["group"]) => {
     if (!by) return;
     haptic.success();
@@ -327,6 +364,33 @@ export function Collection({
       confirm: "Save",
       onSubmit: (name) => rename?.(name),
     });
+  const showViewSort = () =>
+    showSheet({
+      header: (
+        <SheetNote
+          title="Sort songs"
+          body="Only changes how this page lists them. The playlist keeps its own order."
+        />
+      ),
+      actions: [
+        ...(viewOrder
+          ? [
+              {
+                label: "Playlist order",
+                onPress: () => setViewOrder(listId, undefined),
+              },
+            ]
+          : []),
+        ...VIEW_ORDERS.map(([order, label]) => ({
+          label,
+          sub: order === viewOrder ? "Showing" : undefined,
+          onPress: () => {
+            haptic.tick();
+            setViewOrder(listId, order);
+          },
+        })),
+      ],
+    });
   const menu = () => {
     haptic.light();
     showSheet({
@@ -364,9 +428,23 @@ export function Collection({
                   <PlayNextGlyph size={22} weight={1.8} color={c} />
                 ),
                 onPress: () => {
+                  // Reordering works on the playlist's own order.
+                  setViewOrder(listId, undefined);
                   setPicked(null);
                   setEditing(true);
                 },
+              },
+            ]
+          : []),
+        ...(!editableId && source.type !== "album" && tracks.length > 1
+          ? [
+              {
+                label: viewOrder ? "Sort songs · on" : "Sort songs",
+                keepOpen: true,
+                icon: (c: string) => (
+                  <ArrowDown size={22} weight={1.8} color={c} />
+                ),
+                onPress: showViewSort,
               },
             ]
           : []),
@@ -542,7 +620,7 @@ export function Collection({
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <Animated.FlatList
         data={(rows ?? tracks) as (Track | GroupRow)[]}
-        extraData={[picked, editing, by, playlists]}
+        extraData={listState}
         onScroll={onScroll}
         scrollEventThrottle={16}
         keyExtractor={(t, i) =>
@@ -552,6 +630,10 @@ export function Collection({
         }
         onEndReached={onEndReached}
         onEndReachedThreshold={0.6}
+        initialNumToRender={12}
+        windowSize={9}
+        maxToRenderPerBatch={8}
+        removeClippedSubviews={Platform.OS === "android"}
         refreshControl={
           onRefresh ? (
             <RefreshControl
@@ -739,7 +821,7 @@ export function Collection({
               track={item}
               index={index + 1}
               showArt={!numbered}
-              onPress={() => start(index)}
+              onPress={() => tap(index)}
               onRemove={
                 onRemove && (() => onRemove([{ track: item, at: index }]))
               }

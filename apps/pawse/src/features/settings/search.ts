@@ -149,6 +149,11 @@ function index(cat: string): Entry[] {
       when: videos && native,
     },
     {
+      group: "playback",
+      label: "Tapping a song in a playlist",
+      words: "queue tap play only song playlist",
+    },
+    {
       group: "videos",
       label: "Play the next video",
       words: "autoplay",

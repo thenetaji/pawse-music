@@ -2,6 +2,17 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.15.0] - 2026-11-15
+
+### Added
+- **Choose what tapping a song in a playlist queues.** By default it plays only that song, so the queue isn't filled with a whole playlist you then have to clear. Settings → Playback can switch it to "it and the songs after it" or the whole playlist. Play all and Shuffle still use the whole list.
+- **Sort songs on any playlist.** The ⋯ menu on any playlist or mix (albums keep their track order) sorts by date added (oldest or newest first) or by title (A to Z or Z to A). It only changes how the page lists them; the playlist keeps its own order.
+
+### Fixed
+- **The first song after opening Pawse could keep loading** while the next one played at once. Pawse now gives the first YouTube token a short, shared wait and moves on to the next way of playing, and starts preparing it sooner after launch.
+- **Likes and dislikes YouTube didn't accept were lost.** Pawse now tries again after the account's rest, and tells you the first time YouTube doesn't take one.
+- **Playlist pages redrew every row while a download was running.** They now redraw only when something they show changes, and long playlists open and scroll more lightly.
+
 ## [1.14.0] - 2026-11-06
 
 ### Added
