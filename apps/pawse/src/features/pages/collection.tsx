@@ -62,7 +62,6 @@ import { useRegion } from "../../lib/locale";
 import { type PlaylistActions, PRIVACY_CHOICES } from "../../lib/playlist-edit";
 import type { Picked } from "../../lib/playlist-remove";
 import { count } from "../../lib/plural";
-import { autoplayMode, tapPlayMode } from "../../lib/settings";
 import { playTapped } from "../../lib/tap-play";
 import {
   playSmooth,
@@ -185,8 +184,7 @@ export function Collection({
   const smooth = useSmoothShuffle();
   const play = (i: number, shuffle = false) => {
     haptic.light();
-    // Playlists and albums end where they end unless the user asked for more.
-    const opts = { source, endless: autoplayMode() === "always" };
+    const opts = { source };
     if (shuffle && smooth) return void playSmooth(tracks, opts);
     player.setShuffle(shuffle);
     void player.play(tracks, i, opts);
@@ -214,17 +212,13 @@ export function Collection({
     });
   };
   const start = (i: number) => (videoList ? watch(i) : play(i));
-  // Tapping a row queues what Settings → Playback says: that song, it and the ones after it, or everything.
-  const tapMode = source.type === "album" ? "all" : tapPlayMode();
   const tapPlay = (list: Track[], i: number, opts: PlayOptions) => {
     haptic.light();
     player.setShuffle(false);
-    playTapped(list, i, opts, tapMode);
+    playTapped(list, i, opts);
   };
   const tap = (i: number) =>
-    videoList
-      ? watch(i)
-      : tapPlay(tracks, i, { source, endless: autoplayMode() === "always" });
+    videoList ? watch(i) : tapPlay(tracks, i, { source });
   // Where you stopped last time; Resume picks up there.
   const spot = useListSpot(listId);
   const spotAt = spot ? tracks.findIndex((t) => t.id === spot.id) : -1;
@@ -273,8 +267,8 @@ export function Collection({
   );
   // A new array each render would make the list re-render every row; this one only changes with what rows show.
   const listState = useMemo(
-    () => [picked, editing, by, playlists, tapMode],
-    [picked, editing, by, playlists, tapMode],
+    () => [picked, editing, by, playlists],
+    [picked, editing, by, playlists],
   );
   const removePicked = () => {
     if (!onRemove || !picked?.size) return;
@@ -316,7 +310,6 @@ export function Collection({
       id: `${listId}:${by}:${g.id}`,
       title: `${title} · ${g.label}`,
     },
-    endless: autoplayMode() === "always",
   });
   const playSection = (g: GroupRow["group"], i: number) =>
     tapPlay(g.tracks, i, sectionOpts(g));

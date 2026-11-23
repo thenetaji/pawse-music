@@ -1,7 +1,7 @@
 import { artistLine, type Track } from "@pawse/music-core";
 import { player, usePlayerState, usePlayerStore } from "@pawse/player";
 import { router } from "expo-router";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture } from "react-native-gesture-handler";
 import Animated, {
@@ -30,7 +30,7 @@ import { useAccent, useNowPalette } from "../features/now-playing/now-palette";
 import { ShuffleGlyph } from "../features/pages/collection";
 import { hasMouse, rightClick } from "../lib/context-menu";
 import { haptic } from "../lib/haptics";
-import { useSetting } from "../lib/settings";
+import { useAutoplayOn, useSetting } from "../lib/settings";
 import {
   setSmoothShuffle,
   toggleShuffle,
@@ -87,7 +87,10 @@ function undoLast() {
 }
 
 export default function Queue() {
-  const { queue, index, repeat, sleepAt, status, source } = usePlayerState();
+  const { queue, index, repeat, sleepAt, status, source, radio, endless } =
+    usePlayerState();
+  const autoplaySetting = useAutoplayOn();
+  const autoplay = radio || (endless ?? autoplaySetting);
   const shuffle = useShuffleOn();
   const smooth = useSmoothShuffle();
   const accent = useAccent();
@@ -158,6 +161,17 @@ export default function Queue() {
           onPress={() => setSmoothShuffle(!smooth)}
         />
         <Toggle
+          on={autoplay}
+          accent={accent}
+          label="∞"
+          a11y={autoplay ? "Autoplay on" : "Autoplay off"}
+          narrow
+          onPress={() => {
+            haptic.tick();
+            player.setAutoplay(!autoplay);
+          }}
+        />
+        <Toggle
           on={repeat !== "off"}
           accent={accent}
           label={repeat === "one" ? "Repeat 1" : "Repeat"}
@@ -203,42 +217,47 @@ export default function Queue() {
         />
       </View>
 
-      <View style={styles.listHead}>
-        <Text style={styles.section}>Up next</Text>
-        <Text style={styles.from} numberOfLines={1}>
-          {source?.title ? `from ${source.title}` : ""}
-        </Text>
-        {queue.length > 1 ? (
-          <Pressable
-            hitSlop={10}
-            onPress={() => showPlaylistPicker(queue.slice(index))}
-          >
-            <Text style={[styles.save, { color: accent }]}>Save</Text>
-          </Pressable>
-        ) : null}
-      </View>
-
-      {upNext.length ? (
-        <ReorderableList
-          data={upNext}
-          // Keyed by place in the whole queue, so playing a song from the list keeps the rows after it instead of rebuilding every one.
-          keyExtractor={(t, i) => `${t.id}:${index + 1 + i}`}
-          onReorder={onReorder}
-          panGesture={listPan}
-          shouldUpdateActiveItem
-          contentContainerStyle={{ paddingBottom: 60 }}
-          renderItem={({ item, index: i }) => (
-            <Row track={item} at={index + 1 + i} />
-          )}
-        />
-      ) : (
-        <Animated.View entering={FadeIn} style={styles.empty}>
-          <Cat mood="groove" size={84} color={color} />
-          <Text style={styles.emptyText}>
-            The queue is empty. Radio keeps the music going.
-          </Text>
-        </Animated.View>
-      )}
+      <ReorderableList
+        data={upNext}
+        // Keyed by place in the whole queue, so playing a song from the list keeps the rows after it instead of rebuilding every one.
+        keyExtractor={(t, i) => `${t.id}:${index + 1 + i}`}
+        onReorder={onReorder}
+        panGesture={listPan}
+        shouldUpdateActiveItem
+        contentContainerStyle={{ paddingBottom: 60 }}
+        ListHeaderComponent={
+          <>
+            <History queue={queue} index={index} accent={accent} />
+            <View style={styles.listHead}>
+              <Text style={styles.section}>Up next</Text>
+              <Text style={styles.from} numberOfLines={1}>
+                {source?.title ? `from ${source.title}` : ""}
+              </Text>
+              {queue.length - index > 1 ? (
+                <Pressable
+                  hitSlop={10}
+                  onPress={() => showPlaylistPicker(queue.slice(index))}
+                >
+                  <Text style={[styles.save, { color: accent }]}>Save</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          <Animated.View entering={FadeIn} style={styles.empty}>
+            <Cat mood="groove" size={84} color={color} />
+            <Text style={styles.emptyText}>
+              {autoplay
+                ? "Similar songs play when this one ends."
+                : "Nothing after this song. Turn on ∞ to keep playing similar songs."}
+            </Text>
+          </Animated.View>
+        }
+        renderItem={({ item, index: i }) => (
+          <Row track={item} at={index + 1 + i} />
+        )}
+      />
       <UndoBar />
     </View>
   );
@@ -334,6 +353,84 @@ const Row = memo(function Row({ track, at }: { track: Track; at: number }) {
   );
 });
 
+// Songs heard before the one playing, newest first; tap one to hear it again.
+function History({
+  queue,
+  index,
+  accent,
+}: {
+  queue: Track[];
+  index: number;
+  accent: string;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!index) return null;
+  const heard = queue
+    .slice(0, index)
+    .map((track, at) => ({ track, at }))
+    .reverse();
+  return (
+    <View>
+      <View style={styles.listHead}>
+        <Pressable
+          hitSlop={10}
+          onPress={() => {
+            haptic.tick();
+            setOpen(!open);
+          }}
+          style={{ flex: 1 }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+        >
+          <Text style={styles.section}>
+            History{" "}
+            <Text style={styles.from}>
+              {heard.length} {heard.length === 1 ? "song" : "songs"}{" "}
+              {open ? "▾" : "▸"}
+            </Text>
+          </Text>
+        </Pressable>
+        {open ? (
+          <Pressable
+            hitSlop={10}
+            onPress={() => {
+              haptic.light();
+              player.clearHistory();
+              setOpen(false);
+            }}
+          >
+            <Text style={[styles.save, { color: accent }]}>Clear</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {open
+        ? heard.map(({ track, at }) => (
+            <Pressable
+              key={`${track.id}:${at}`}
+              onPress={() => {
+                haptic.tick();
+                player.skipTo(at);
+              }}
+              {...rightClick(() => showRowMenu(track, at))}
+              onLongPress={() => showRowMenu(track, at)}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPast]}
+            >
+              <Artwork thumbnails={track.thumbnails} size={48} radius={7} />
+              <View style={styles.text}>
+                <Text style={[styles.title, styles.past]} numberOfLines={1}>
+                  {track.title}
+                </Text>
+                <Text style={styles.sub} numberOfLines={1}>
+                  {artistLine(track.artists)}
+                </Text>
+              </View>
+            </Pressable>
+          ))
+        : null}
+    </View>
+  );
+}
+
 function UndoBar() {
   const last = useUndo((s) => s.last);
   const insets = useSafeAreaInsets();
@@ -359,18 +456,27 @@ function Toggle({
   accent,
   label,
   icon,
+  a11y,
+  narrow,
   onPress,
 }: {
   on: boolean;
   accent: string;
   label: string;
   icon?: React.ReactNode;
+  a11y?: string;
+  narrow?: boolean;
   onPress: () => void;
 }) {
   return (
     <PressScale
       onPress={onPress}
-      style={[styles.toggle, on ? { backgroundColor: accent } : {}]}
+      accessibilityLabel={a11y}
+      style={[
+        styles.toggle,
+        narrow && styles.narrow,
+        on ? { backgroundColor: accent } : {},
+      ]}
     >
       {icon}
       <Text style={[styles.tText, on && styles.tOn]} numberOfLines={1}>
@@ -433,6 +539,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.09)",
   },
+  narrow: { flex: 0, width: 48 },
   tText: { color: "#fff", fontSize: 14, ...display("700") },
   tOn: { color: "#000" },
   sheetTitle: { color: "#fff", fontSize: 17, ...display("700"), marginTop: 4 },
@@ -476,6 +583,8 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
+  rowPast: { backgroundColor: "rgba(255,255,255,0.06)" },
+  past: { color: "rgba(255,255,255,0.75)" },
   text: { flex: 1, minWidth: 0 },
   title: { color: "#fff", fontSize: 16, fontWeight: "500" },
   sub: { color: "rgba(255,255,255,0.5)", fontSize: 13.5, marginTop: 2 },

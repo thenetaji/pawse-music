@@ -29,7 +29,6 @@ import {
 import { rightClick } from "../../lib/context-menu";
 import { yt } from "../../lib/engine";
 import { haptic } from "../../lib/haptics";
-import { autoplayMode } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { MoreGlyph, PlayGlyph } from "../now-playing/icons";
 import { ShuffleGlyph } from "../pages/collection";
@@ -320,7 +319,6 @@ const playTracks =
     player.setShuffle(shuffle);
     await player.play(d.tracks, 0, {
       source: { type: item.type, id: item.id, title: item.title },
-      endless: autoplayMode() === "always",
     });
   };
 

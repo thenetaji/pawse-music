@@ -23,6 +23,8 @@ export interface StoreState extends Queue {
   /** Songs given up on this session (by track id) and why; they stay in the queue. */
   failed: Record<string, "slow" | "refused">;
   radio: boolean;
+  /** This queue's own Autoplay choice; undefined follows the setting. */
+  endless?: boolean;
 }
 
 export const initialState = (): StoreState => ({
@@ -49,6 +51,8 @@ export interface PlayerSnapshot {
   sleepAt?: number | "endOfTrack";
   normalize: boolean;
   error?: string;
+  radio: boolean;
+  endless?: boolean;
 }
 
 const snapshot = (s: StoreState): PlayerSnapshot => ({
@@ -62,6 +66,8 @@ const snapshot = (s: StoreState): PlayerSnapshot => ({
   sleepAt: s.sleepAt,
   normalize: s.normalize,
   error: s.error,
+  radio: s.radio,
+  endless: s.endless,
 });
 
 export function usePlayerState(): PlayerSnapshot {

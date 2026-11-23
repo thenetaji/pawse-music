@@ -40,7 +40,7 @@ import { rightClick } from "../../lib/context-menu";
 import { forYou } from "../../lib/for-you";
 import { imageFade } from "../../lib/image-fade";
 import { go, push } from "../../lib/nav";
-import { autoplayMode } from "../../lib/settings";
+import { autoplayOn } from "../../lib/settings";
 import { display } from "../../lib/type";
 import { useResource } from "../../lib/use-resource";
 import { openWatch, useWatch } from "../watch/store";
@@ -156,7 +156,7 @@ function SongHero({ track, accent }: { track: Track; accent: string }) {
     <PressScale
       onPress={() =>
         void player.play([track], 0, {
-          radio: autoplayMode() !== "off",
+          radio: autoplayOn(),
           source: { type: "library", title: "Recently played" },
         })
       }

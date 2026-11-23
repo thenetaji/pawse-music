@@ -20,7 +20,7 @@ import { showTrackActions } from "../features/library/track-actions";
 import { rightClick } from "../lib/context-menu";
 import { useContentWidth } from "../lib/layout";
 import { go } from "../lib/nav";
-import { autoplayMode } from "../lib/settings";
+import { autoplayOn } from "../lib/settings";
 import { playTapped } from "../lib/tap-play";
 import { display } from "../lib/type";
 import { showSheet } from "./action-sheet";
@@ -45,7 +45,7 @@ export function openItem(item: CatalogItem, siblings?: CatalogItem[]) {
   if (tracks.length <= 1)
     return void player.playRadio({ videoId: item.id, title: item.title });
   playTapped(tracks as Track[], at, {
-    radio: autoplayMode() !== "off",
+    radio: autoplayOn(),
     source: { type: "other" },
   });
 }

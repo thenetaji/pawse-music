@@ -12,6 +12,7 @@ import {
   restream,
   setupPlayer,
 } from "./engine";
+import { listStart } from "./queue";
 import { initialState, usePlayerStore } from "./store";
 import type { KeyValueStore } from "./types";
 
@@ -144,8 +145,9 @@ const memory = (): KeyValueStore & { data: Map<string, string> } => {
     set: async (k, v) => void data.set(k, v),
   };
 };
+// Counts from the first song of the list playing; songs heard in earlier queues sit before it.
 const urlAt = (i: number) => {
-  const u = native.queue[i]?.url;
+  const u = native.queue[listStart(usePlayerStore.getState()) + i]?.url;
   return typeof u === "string" ? u : (u as { uri: string }).uri;
 };
 const resolvedIds = () => resolve.mock.calls.map(([t]) => t.id);
@@ -751,7 +753,8 @@ test("a skip you ask for looks past songs that can't play, and the old song carr
   player.next();
   await fadeOut();
   await flush();
-  expect(usePlayerStore.getState().index).toBe(0);
+  const after = usePlayerStore.getState();
+  expect(after.tracks[after.index].id).toBe("x");
   expect(tp.play).toHaveBeenCalled();
 });
 
@@ -906,4 +909,27 @@ test("restream swaps the playing song's stream and resumes at the same spot", as
     }),
   ).rejects.toThrow("not available");
   expect(urlAt(0)).toBe("file:///cache/a.m4a");
+});
+
+test("Previous goes back to the song heard before a new queue started", async () => {
+  await setupPlayer({ resolver: { resolve } });
+  await player.play(tracks("a", "b"));
+  await flush();
+  await player.play(tracks("x", "y"));
+  await flush();
+  player.previous();
+  await new Promise((r) => setTimeout(r, 1200));
+  await flush();
+  const s = usePlayerStore.getState();
+  expect(s.tracks.map((t) => t.id)).toEqual(["a", "x", "y"]);
+  expect(s.tracks[s.index].id).toBe("a");
+});
+
+test("turning Autoplay off for a queue stops a radio at its last song", async () => {
+  await setupPlayer({ resolver: { resolve }, radioContinue: () => true });
+  await player.play(tracks("a"), 0, { radio: true });
+  player.setAutoplay(false);
+  const s = usePlayerStore.getState();
+  expect(s.radio).toBe(false);
+  expect(s.endless).toBe(false);
 });

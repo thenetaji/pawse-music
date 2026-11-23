@@ -7,7 +7,12 @@ export interface Queue {
   index: number;
   /** Unshuffled key order while shuffle is on. */
   original: string[] | null;
+  /** First entry of the list being played; entries before it are songs heard earlier. */
+  head: string | null;
 }
+
+/** Songs kept from earlier queues so Previous can go back to them. */
+export const HISTORY_MAX = 50;
 
 let seq = 0;
 export const newKey = (): string =>
@@ -18,6 +23,7 @@ export const emptyQueue = (): Queue => ({
   keys: [],
   index: 0,
   original: null,
+  head: null,
 });
 
 export function createQueue(tracks: Track[], startIndex = 0): Queue {
@@ -26,6 +32,41 @@ export function createQueue(tracks: Track[], startIndex = 0): Queue {
     keys: tracks.map(newKey),
     index: clamp(startIndex, 0, Math.max(0, tracks.length - 1)),
     original: null,
+    head: null,
+  };
+}
+
+/** Where the list being played starts; repeat all loops back to here, not into the history. */
+export const listStart = (q: Queue): number =>
+  q.head ? Math.max(0, q.keys.indexOf(q.head)) : 0;
+
+/** Puts the songs heard in `prev` (up to the one playing) in front of a new queue. */
+export function withHistory(q: Queue, prev: Queue, max = HISTORY_MAX): Queue {
+  if (!q.tracks.length) return q;
+  const end = Math.min(prev.index + 1, prev.tracks.length);
+  let heard = prev.tracks.slice(Math.max(0, end - max), end);
+  // Starting a radio from the song playing would otherwise list it twice in a row.
+  if (heard.at(-1)?.id === q.tracks[0]?.id) heard = heard.slice(0, -1);
+  const keys = heard.map(newKey);
+  return {
+    tracks: [...heard, ...q.tracks],
+    keys: [...keys, ...q.keys],
+    index: heard.length + q.index,
+    original: q.original ? [...keys, ...q.original] : null,
+    head: q.keys[0] ?? null,
+  };
+}
+
+/** Forgets the songs before the one playing. */
+export function clearHistory(q: Queue): Queue {
+  if (!q.index) return q;
+  const gone = new Set(q.keys.slice(0, q.index));
+  return {
+    tracks: q.tracks.slice(q.index),
+    keys: q.keys.slice(q.index),
+    index: 0,
+    original: q.original?.filter((k) => !gone.has(k)) ?? null,
+    head: q.head && !gone.has(q.head) ? q.head : null,
   };
 }
 
@@ -43,13 +84,18 @@ export function insertAt(
     q.tracks.length && at <= q.index ? q.index + items.length : q.index;
   let original = q.original;
   if (original) {
-    // In the unshuffled order, new entries go after the entry that now precedes them.
+    // In the unshuffled order, new entries go after the entry that now precedes them; appended ones go last.
     const prev = k[at - 1];
-    const pos = prev ? original.indexOf(prev) + 1 : 0;
+    const pos =
+      at >= q.tracks.length
+        ? original.length
+        : prev
+          ? original.indexOf(prev) + 1
+          : 0;
     original = [...original];
     original.splice(pos, 0, ...keys);
   }
-  return { tracks, keys: k, index, original };
+  return { tracks, keys: k, index, original, head: q.head };
 }
 
 export const insertNext = (q: Queue, track: Track, key?: string): Queue =>
@@ -92,36 +138,38 @@ export function remove(q: Queue, at: number): Queue {
     keys,
     index,
     original: q.original?.filter((k) => k !== key) ?? null,
+    head: q.head === key ? (keys[at] ?? null) : q.head,
   };
 }
 
-/** Current entry first, the rest shuffled; remembers the original order. */
+/** Shuffles the songs after the current one; what was heard stays where it is. Remembers the original order. */
 export function shuffle(q: Queue, random: () => number = Math.random): Queue {
   if (!q.tracks.length) return q;
-  const rest = q.keys.filter((_, i) => i !== q.index);
+  const rest = q.keys.slice(q.index + 1);
   for (let i = rest.length - 1; i > 0; i--) {
     const j = Math.floor(random() * (i + 1));
     [rest[i], rest[j]] = [rest[j], rest[i]];
   }
-  const keys = [q.keys[q.index], ...rest];
+  const keys = [...q.keys.slice(0, q.index + 1), ...rest];
   return {
+    ...q,
     tracks: byKeys(q, keys),
     keys,
-    index: 0,
     original: q.original ?? [...q.keys],
   };
 }
 
+/** Puts the songs still to come back in their original order. */
 export function unshuffle(q: Queue): Queue {
   if (!q.original) return q;
-  const current = q.keys[q.index];
-  const keys = q.original.filter((k) => q.keys.includes(k));
-  return {
-    tracks: byKeys(q, keys),
-    keys,
-    index: Math.max(0, keys.indexOf(current)),
-    original: null,
-  };
+  const heard = q.keys.slice(0, q.index + 1);
+  const seen = new Set(heard);
+  const queued = new Set(q.keys);
+  const keys = [
+    ...heard,
+    ...q.original.filter((k) => !seen.has(k) && queued.has(k)),
+  ];
+  return { ...q, tracks: byKeys(q, keys), keys, original: null };
 }
 
 export const remaining = (q: Queue): number =>
@@ -133,17 +181,19 @@ export function freshTracks(q: Queue, incoming: Track[]): Track[] {
   return incoming.filter((t) => !seen.has(t.id) && (seen.add(t.id), true));
 }
 
-/** Index a manual next/previous lands on, or null at the edge. */
+/** Index a manual next/previous lands on, or null at the edge. Wrapping forward goes to `start`. */
 export function stepIndex(
   len: number,
   index: number,
   dir: 1 | -1,
   wrap: boolean,
+  start = 0,
 ): number | null {
   if (!len) return null;
   const to = index + dir;
   if (to >= 0 && to < len) return to;
-  return wrap ? (to + len) % len : null;
+  if (!wrap) return null;
+  return dir === 1 ? clamp(start, 0, len - 1) : len - 1;
 }
 
 function byKeys(q: Queue, keys: string[]): Track[] {

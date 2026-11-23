@@ -6,7 +6,7 @@ import { AppState } from "react-native";
 import { onShare, takeInitialShare } from "../../modules/pawse-share";
 import { showToast } from "../components/toast";
 import { startEngine, yt } from "./engine";
-import { autoplayMode } from "./settings";
+import { autoplayOn } from "./settings";
 import { parseSharedSong, pickMatch, type SharedSong } from "./shared-song";
 
 const tracksIn = (r: SearchResults): Track[] =>
@@ -49,7 +49,7 @@ async function openSharedText(text: string) {
   }
   await startEngine();
   await player.play([track], 0, {
-    radio: autoplayMode() !== "off",
+    radio: autoplayOn(),
     source: { type: "other", title: "From Shazam" },
   });
   showToast(`Playing ${track.title}`, {

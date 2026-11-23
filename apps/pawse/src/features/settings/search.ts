@@ -53,8 +53,8 @@ function index(cat: string): Entry[] {
     },
     {
       group: "playback",
-      label: "Autoplay similar songs",
-      words: "radio endless continue",
+      label: "Autoplay",
+      words: "radio endless continue similar songs queue ends",
     },
     { group: "playback", label: "Smooth shuffle", words: "random similar" },
     {
@@ -147,11 +147,6 @@ function index(cat: string): Entry[] {
       label: "Higher qualities (AV1)",
       words: "4k 1440p",
       when: videos && native,
-    },
-    {
-      group: "playback",
-      label: "Tapping a song in a playlist",
-      words: "queue tap play only song playlist",
     },
     {
       group: "videos",

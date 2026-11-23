@@ -656,6 +656,17 @@ function entered(key: string, rearmSleep: boolean): void {
   const s = get();
   const i = s.keys.indexOf(key);
   if (i < 0) return;
+  // Native repeat all wraps to its first item; the loop starts at the list, after the history.
+  const start = Q.listStart(s);
+  if (
+    s.repeat === "all" &&
+    i < start &&
+    s.index === s.tracks.length - 1 &&
+    !loading
+  ) {
+    void goTo(start, ++navGen, true);
+    return;
+  }
   if (i !== s.index) set({ index: i });
   if (key !== currentKey) {
     currentKey = key;
@@ -812,6 +823,8 @@ async function start(
   queueGen++;
   let q = Q.createQueue(tracks, startIndex);
   if (get().shuffle) q = Q.shuffle(q);
+  // The songs heard before stay behind the new list, so Previous can go back to them.
+  q = Q.withHistory(q, get());
   radio = {
     continuation: seed?.continuation,
     playlistId: seed?.playlistId,
@@ -827,7 +840,13 @@ async function start(
   nativeLoaded = false;
   pendingSeek = undefined;
   currentKey = undefined;
-  set({ ...q, source: o.source, radio: !!o.radio, error: undefined });
+  set({
+    ...q,
+    source: o.source,
+    radio: !!o.radio,
+    endless: o.endless,
+    error: undefined,
+  });
   saveQueue();
   if (!q.tracks.length) {
     TrackPlayer.clear();
@@ -997,7 +1016,13 @@ async function skipFailed(gen: number, position: number): Promise<void> {
     return syncStatus();
   }
   const now = get();
-  const n = Q.stepIndex(now.tracks.length, now.index, 1, now.repeat === "all");
+  const n = Q.stepIndex(
+    now.tracks.length,
+    now.index,
+    1,
+    now.repeat === "all",
+    Q.listStart(now),
+  );
   if (n !== null && n !== now.index) await goTo(n, ++navGen, wantPlay);
   else syncStatus();
 }
@@ -1338,7 +1363,13 @@ function armEndFade(position: number, dur: number): void {
   const secs = opts?.crossfadeSec?.() ?? 0;
   if (!secs || !playing || endFading || !dur || get().repeat === "one") return;
   const s = get();
-  const n = Q.stepIndex(s.tracks.length, s.index, 1, s.repeat === "all");
+  const n = Q.stepIndex(
+    s.tracks.length,
+    s.index,
+    1,
+    s.repeat === "all",
+    Q.listStart(s),
+  );
   // Nothing follows, or the next song continues this one: play on to the end, gapless.
   if (
     n === null ||
@@ -1492,7 +1523,13 @@ function guardStop(): void {
 
 function endByHand(): void {
   const s = get();
-  const n = Q.stepIndex(s.tracks.length, s.index, 1, s.repeat === "all");
+  const n = Q.stepIndex(
+    s.tracks.length,
+    s.index,
+    1,
+    s.repeat === "all",
+    Q.listStart(s),
+  );
   // "End of this song": stop, with the next song loaded for whenever play is pressed.
   if (sleepDue()) {
     sleepNow("end of song");
@@ -1530,6 +1567,7 @@ function saveQueue(): void {
       keys: s.keys,
       index: s.index,
       original: s.original,
+      head: s.head,
       source: s.source,
       shuffle: s.shuffle,
       repeat: s.repeat,
@@ -1558,6 +1596,7 @@ async function restore(): Promise<void> {
     keys: string[];
     index: number;
     original: string[] | null;
+    head?: string | null;
     source?: StoreState["source"];
     shuffle: boolean;
     repeat: RepeatMode;
@@ -1589,11 +1628,13 @@ async function restore(): Promise<void> {
     keys: d.keys,
     index,
     original: d.original ?? null,
+    head: d.head ?? null,
     source: d.source,
     shuffle: !!d.shuffle,
     repeat: d.repeat ?? "off",
     normalize: d.normalize ?? true,
     radio: !!d.radio?.on,
+    endless: d.radio?.endless,
   });
   TrackPlayer.setRepeatMode(NATIVE_REPEAT[get().repeat]);
   syncStatus();
@@ -1722,7 +1763,13 @@ function userMove(): void {
 
 function step(dir: 1 | -1): Promise<void> {
   const s = get();
-  const n = Q.stepIndex(s.tracks.length, s.index, dir, s.repeat === "all");
+  const n = Q.stepIndex(
+    s.tracks.length,
+    s.index,
+    dir,
+    s.repeat === "all",
+    Q.listStart(s),
+  );
   if (n === null) {
     userScan = false;
     return Promise.resolve();
@@ -1803,7 +1850,13 @@ function seekTo(sec: number): void {
 }
 
 function mutate(q: Q.Queue): void {
-  set({ tracks: q.tracks, keys: q.keys, index: q.index, original: q.original });
+  set({
+    tracks: q.tracks,
+    keys: q.keys,
+    index: q.index,
+    original: q.original,
+    head: q.head,
+  });
   saveQueue();
   syncStatus();
 }
@@ -1904,6 +1957,22 @@ export const player: Player = {
   skipTo(index) {
     userMove();
     void goTo(index, ++navGen);
+  },
+  setAutoplay(on) {
+    radio.endless = on;
+    radio.done = false;
+    // Off also ends a radio station at the last song it has.
+    set(on ? { endless: on } : { endless: on, radio: false });
+    saveQueue();
+    void refill();
+  },
+  clearHistory() {
+    const s = get();
+    if (!s.index) return;
+    const gone = s.keys.slice(0, s.index);
+    gone.forEach((k) => live.delete(k));
+    mutate(Q.clearHistory(s));
+    if (nativeLoaded) TrackPlayer.removeMediaItems(0, s.index);
   },
   setShuffle(on) {
     const s = get();

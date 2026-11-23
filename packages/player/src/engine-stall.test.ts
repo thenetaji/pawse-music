@@ -2,6 +2,7 @@ import type { ResolvedStream, ResolveOptions, Track } from "@pawse/music-core";
 import { AppState } from "react-native";
 
 import { __resetForTests, player, setupPlayer } from "./engine";
+import { listStart } from "./queue";
 import { initialState, usePlayerStore } from "./store";
 import type { LoadIssue } from "./types";
 
@@ -109,8 +110,9 @@ const tracks = (...ids: string[]) => ids.map(track);
 
 let now = Date.UTC(2026, 9, 28);
 let version = 0;
+// Counts from the first song of the list playing; songs heard in earlier queues sit before it.
 const urlAt = (i: number) => {
-  const u = native.queue[i]?.url;
+  const u = native.queue[listStart(usePlayerStore.getState()) + i]?.url;
   return typeof u === "string" ? u : (u as { uri: string }).uri;
 };
 

@@ -23,7 +23,7 @@ import { COVER_PX, COVER_SAVER_PX } from "./cover";
 import { relayStream } from "./net";
 import { prepareOpus } from "./opus-remux";
 import { isLowData, noteThroughput } from "./quality";
-import { autoplayMode } from "./settings";
+import { autoplayOn } from "./settings";
 import { probeStream } from "./stream-probe";
 import { clearResources } from "./use-resource";
 
@@ -67,7 +67,7 @@ export function startEngine() {
     catalog: yt,
     storage: playerStorage,
     pauseOnDisconnect: settings().pauseOnDisconnect,
-    radioContinue: () => autoplayMode() !== "off",
+    radioContinue: () => autoplayOn(),
     // Radio and autoplay never add a disliked song.
     skipTrack: (t: Track) => useLibrary.getState().isDisliked(t.id),
     sleepFadeSec: () => settings().sleepFade,

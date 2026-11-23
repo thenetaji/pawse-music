@@ -138,6 +138,10 @@ export interface Player {
   /** Minutes, 'endOfTrack', or null to cancel. */
   setSleepTimer(value: number | "endOfTrack" | null): void;
   setNormalize(on: boolean): void;
+  /** Adds similar songs when this queue runs out, or stops there, whatever the setting says. */
+  setAutoplay(on: boolean): void;
+  /** Forgets the songs heard before the one playing. */
+  clearHistory(): void;
 }
 
 export interface Progress {

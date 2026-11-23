@@ -2,6 +2,17 @@
 
 All notable changes to Pawse (called Flow before 0.4.0). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each `vX.Y.Z` tag (`flow-vX.Y.Z` in the old studio repository) builds the iOS and Android apps and publishes them under GitHub Releases.
 
+## [1.16.0] - 2026-11-23
+
+### Added
+- **Previous goes back to songs you already heard.** Played songs no longer drop out of the queue: Pawse keeps the last 50, even when you start another playlist, album or radio, so Previous takes you to the song before. The queue has a **History** section above Up next; tap a song there to hear it again, or Clear to forget them.
+- **∞ in the queue turns Autoplay on or off for what's playing now,** without changing the setting.
+
+### Changed
+- **Tapping a song plays it, with the songs after it in Up next.** Songs before it in the list aren't queued, and what you were listening to stays in History. The "Tapping a song in a playlist" setting is gone; Play next and Add to queue still add single songs.
+- **Autoplay is one switch:** when your queue ends, keep playing similar songs. It's on by default and now applies after albums and playlists too. If you had it off, it stays off.
+- **Shuffle mixes only the songs still to come,** so the songs you already heard stay in History in the order you heard them.
+
 ## [1.15.1] - 2026-11-15
 
 ### Fixed

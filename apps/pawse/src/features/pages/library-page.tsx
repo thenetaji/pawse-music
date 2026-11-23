@@ -33,7 +33,7 @@ import { useSmartPlaylists } from "../../data/recommend";
 import { useWatched } from "../../data/watched";
 import { go, push } from "../../lib/nav";
 import { count } from "../../lib/plural";
-import { autoplayMode, useSetting } from "../../lib/settings";
+import { autoplayOn, useSetting } from "../../lib/settings";
 import { playTapped } from "../../lib/tap-play";
 import { display } from "../../lib/type";
 import { VideoStrip } from "../home/home-blocks";
@@ -419,7 +419,7 @@ export default function LibraryPage() {
                   onPress={() =>
                     playTapped(songs, i, {
                       source: { type: "library", title: "Your songs" },
-                      radio: autoplayMode() !== "off",
+                      radio: autoplayOn(),
                     })
                   }
                 />

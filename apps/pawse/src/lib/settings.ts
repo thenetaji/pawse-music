@@ -12,7 +12,8 @@ export function useSetting<T>(key: string, fallback: T): T {
 export function getSetting<T>(key: string, fallback: T): T {
   return (
     ((useLibrary.getState().settings as Record<string, unknown>)[key] as
-      T | undefined) ?? fallback
+      | T
+      | undefined) ?? fallback
   );
 }
 
@@ -20,25 +21,19 @@ export function setSetting(key: string, value: unknown) {
   useLibrary.getState().setSettings({ [key]: value } as never);
 }
 
-export type Autoplay = "off" | "songs" | "always";
+const autoplayFrom = (s: Record<string, unknown>): boolean => {
+  if (typeof s.autoplayOn === "boolean") return s.autoplayOn;
+  // Older builds had a three-way choice, and before that a switch.
+  if (s.autoplay === "off" || s.radioContinue === false) return false;
+  return true;
+};
 
-/** When the queue runs out: stop, similar songs (except after albums and playlists), or similar songs always. */
-export function autoplayMode(): Autoplay {
-  const s = useLibrary.getState().settings as Record<string, unknown>;
-  if (s.autoplay === "off" || s.autoplay === "songs" || s.autoplay === "always")
-    return s.autoplay;
-  // Older builds kept this as two switches.
-  if (s.radioContinue === false) return "off";
-  return s.listsContinue ? "always" : "songs";
-}
+/** Whether similar songs keep playing when the queue runs out. */
+export const autoplayOn = (): boolean =>
+  autoplayFrom(useLibrary.getState().settings as Record<string, unknown>);
 
-export type TapPlay = "song" | "rest" | "all";
-
-/** What tapping a song in a playlist queues: only it, it and the songs after it, or the whole playlist. */
-export function tapPlayMode(): TapPlay {
-  const v = (useLibrary.getState().settings as Record<string, unknown>).tapPlay;
-  return v === "rest" || v === "all" ? v : "song";
-}
+export const useAutoplayOn = (): boolean =>
+  useLibrary((s) => autoplayFrom(s.settings as Record<string, unknown>));
 
 export type AutoDownload = "off" | "liked" | "all";
 

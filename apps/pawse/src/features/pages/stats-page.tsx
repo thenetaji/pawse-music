@@ -8,7 +8,7 @@ import { captureRef } from "react-native-view-shot";
 import { Artwork } from "../../components/artwork";
 import { Chip, PressScale } from "../../components/ui";
 import { listeningStats, useLibrary } from "../../data/library";
-import { autoplayMode, useSetting } from "../../lib/settings";
+import { autoplayOn, useSetting } from "../../lib/settings";
 import { playTapped } from "../../lib/tap-play";
 import { display } from "../../lib/type";
 import { Cat, type CatColor } from "../cat/cat";
@@ -131,7 +131,7 @@ export default function StatsPage() {
                   stats.topSongs.map((x) => x.track),
                   i,
                   {
-                    radio: autoplayMode() !== "off",
+                    radio: autoplayOn(),
                     source: { type: "library", title: "Your top songs" },
                   },
                 )

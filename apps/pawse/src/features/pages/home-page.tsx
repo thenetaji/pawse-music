@@ -47,7 +47,7 @@ import { setIncognito, useIncognito } from "../../lib/incognito";
 import { push } from "../../lib/nav";
 import { keepShelves, useHomeKeep } from "../../lib/remove-song";
 import { useSessionLost } from "../../lib/session-state";
-import { autoplayMode, useSetting } from "../../lib/settings";
+import { autoplayOn, useSetting } from "../../lib/settings";
 import { playTapped } from "../../lib/tap-play";
 import { display } from "../../lib/type";
 import { refreshResources, useResource } from "../../lib/use-resource";
@@ -516,7 +516,7 @@ function JumpBackIn({ max = 6 }: { max?: number }) {
             key={t.id}
             onPress={() =>
               playTapped(recent, i, {
-                radio: autoplayMode() !== "off",
+                radio: autoplayOn(),
                 source: { type: "library", title: "Recently played" },
               })
             }
